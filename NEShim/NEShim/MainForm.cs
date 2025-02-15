@@ -21,15 +21,17 @@ public partial class MainForm : Form
         this.TopMost = true; // Keep the form on top of other applications
 
         // Optional: Set background image (or custom graphics for the game)
-        this.BackgroundImage = Image.FromFile("background.png"); // Your custom background image
-        this.BackgroundImageLayout = ImageLayout.Stretch;
-
+        // this.BackgroundImage = Image.FromFile("background.png"); // Your custom background image
+        // this.BackgroundImageLayout = ImageLayout.Center;
+        // this.BackColor = Color.Aqua;
+        
         // Create and configure the on-screen menu
         pnlMenu = new Panel();
-        pnlMenu.BackColor = Color.Black;
-        pnlMenu.Dock = DockStyle.Top;
-        pnlMenu.Height = 150; // Adjust the height of the menu
-
+        pnlMenu.Dock = DockStyle.Fill;
+        pnlMenu.BackgroundImage = Image.FromFile("background.png"); // Your custom background image
+        pnlMenu.BackgroundImageLayout = ImageLayout.Zoom;
+        pnlMenu.BackColor = Color.Aqua;
+        
         // Create Start Game Button
         btnStartGame = new Button();
         btnStartGame.Text = "Start Game";
