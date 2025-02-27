@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim", "NEShim\NEShim.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.Tests", "NEShim.Tests\NEShim.Tests.csproj", "{6ABFE16B-16FC-4D3D-95D6-85051AA14230}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BizHawk", "BizHawk\BizHawk.csproj", "{4A7F001F-AEB6-412D-A073-3808382EB38F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{6ABFE16B-16FC-4D3D-95D6-85051AA14230}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6ABFE16B-16FC-4D3D-95D6-85051AA14230}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6ABFE16B-16FC-4D3D-95D6-85051AA14230}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A7F001F-AEB6-412D-A073-3808382EB38F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A7F001F-AEB6-412D-A073-3808382EB38F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A7F001F-AEB6-412D-A073-3808382EB38F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A7F001F-AEB6-412D-A073-3808382EB38F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
