@@ -96,7 +96,7 @@ namespace BizHawk.Emulation.Cores
 				param.Settings = (dynamic)cip.FetchSettings(Type, SettingsType);
 				param.SyncSettings = (dynamic)cip.FetchSyncSettings(Type, SyncSettingsType);
 				param.Roms = cip.Roms;
-				param.Discs = cip.Discs;
+				// param.Discs = cip.Discs;
 				param.DeterministicEmulationRequested = cip.DeterministicEmulationRequested;
 				return (IEmulator)CTor.Invoke(new object[] { param });
 			}
@@ -181,7 +181,8 @@ namespace BizHawk.Emulation.Cores
 			SystemsFlat = systemsFlat.Values;
 		}
 
-		public static readonly CoreInventory Instance = new CoreInventory(new[] { Emulation.Cores.ReflectionCache.Types });
+		//TODO: check this reflection call
+		public static readonly CoreInventory Instance = new CoreInventory(new[] { Nintendo.NES.ReflectionCache.Types });
 	}
 
 	public enum CorePriority
@@ -233,7 +234,7 @@ namespace BizHawk.Emulation.Cores
 		CoreComm Comm { get; }
 		GameInfo Game { get; }
 		List<IRomAsset> Roms { get; }
-		List<IDiscAsset> Discs { get; }
+		// List<IDiscAsset> Discs { get; }
 		bool DeterministicEmulationRequested { get; }
 		object FetchSettings(Type emulatorType, Type settingsType);
 		object FetchSyncSettings(Type emulatorType, Type syncSettingsType);

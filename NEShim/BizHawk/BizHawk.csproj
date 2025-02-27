@@ -22,4 +22,9 @@
       <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
     </ItemGroup>
 
+	<ItemGroup>
+		<Analyzer Include="$(MSBuildProjectDirectory)/../ReflectionCache/BizHawk.SrcGen.ReflectionCache.dll" />
+		<Using Include="System" />
+	</ItemGroup>
+
 </Project>
