@@ -1,3 +1,7 @@
+using BizHawk.Client.Common;
+using BizHawk.Client.EmuHawk;
+using BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES;
+
 namespace NEShim;
 
 public partial class MainForm : Form
@@ -6,11 +10,15 @@ public partial class MainForm : Form
     private Button btnOptions;
     private Button btnExit;
     private Panel pnlMenu;
-
+    private Panel renderPanel;
+    private Config initialConfig;
+    
     public MainForm()
     {
         InitializeComponent();
         SetupForm();
+        initialConfig = ConfigService.Load<Config>(".\\config.ini");
+        
     }
 
     private void SetupForm()
@@ -71,10 +79,43 @@ public partial class MainForm : Form
         // Optional: Add other controls or animations to the form
     }
 
+    private MouseEventHandler emptyHandler = (sender, args) => { };
+
     private void BtnStartGame_Click(object sender, EventArgs e)
     {
-        // Transition to the game or load a new form to start the game
+        var panel = new PresentationPanel(new Config(), GLRenderer.TryInitIGL(initialConfig.DispMethod, initialConfig),
+            (bool _) => { }, emptyHandler, emptyHandler, emptyHandler);
+        
+        
+
+        /*// Transition to the game or load a new form to start the game
         MessageBox.Show("Starting Game...");
+
+        renderPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+
+        var bitmap = GetBitmap();
+
+        using (Graphics g = Graphics.FromImage(bitmap))
+        {
+            g.Clear(Color.White); // Fill with white background
+            g.DrawRectangle(Pens.Black, 10, 10, 100, 100); // Draw a rectangle
+            g.DrawString("Hello Bitmap!", new Font("Arial", 16), Brushes.Black, new PointF(150, 20)); // Draw text
+        }
+
+        // Set the bitmap as the background for the renderPanel
+        renderPanel.BackgroundImage = bitmap;
+        renderPanel.BackgroundImageLayout = ImageLayout.None;*/
+    }
+
+    private Image GetBitmap()
+    {
+        var rom = File.ReadAllBytes("game.nes");
+        var emulator = new QuickNES(rom, new QuickNES.QuickNESSettings(), new QuickNES.QuickNESSyncSettings());
+        emulator.
     }
 
     private void BtnOptions_Click(object sender, EventArgs e)
