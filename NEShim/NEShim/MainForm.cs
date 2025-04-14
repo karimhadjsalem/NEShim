@@ -18,7 +18,6 @@ public partial class MainForm : Form
         InitializeComponent();
         SetupForm();
         initialConfig = ConfigService.Load<Config>(".\\config.ini");
-        
     }
 
     private void SetupForm()
@@ -83,40 +82,170 @@ public partial class MainForm : Form
 
     private void BtnStartGame_Click(object sender, EventArgs e)
     {
-        var panel = new PresentationPanel(new Config(), GLRenderer.TryInitIGL(initialConfig.DispMethod, initialConfig),
+        //TODO: replace with initialConfig
+        var config = new Config();
+        var glRenderer = GLRenderer.TryInitIGL(initialConfig.DispMethod, initialConfig);
+        var presentationPanel = new PresentationPanel(config, glRenderer,
             (bool _) => { }, emptyHandler, emptyHandler, emptyHandler);
         
-        
-
-        /*// Transition to the game or load a new form to start the game
-        MessageBox.Show("Starting Game...");
-
-        renderPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BorderStyle = BorderStyle.FixedSingle
-        };
-
-        var bitmap = GetBitmap();
-
-        using (Graphics g = Graphics.FromImage(bitmap))
-        {
-            g.Clear(Color.White); // Fill with white background
-            g.DrawRectangle(Pens.Black, 10, 10, 100, 100); // Draw a rectangle
-            g.DrawString("Hello Bitmap!", new Font("Arial", 16), Brushes.Black, new PointF(150, 20)); // Draw text
-        }
-
-        // Set the bitmap as the background for the renderPanel
-        renderPanel.BackgroundImage = bitmap;
-        renderPanel.BackgroundImageLayout = ImageLayout.None;*/
-    }
-
-    private Image GetBitmap()
-    {
         var rom = File.ReadAllBytes("game.nes");
         var emulator = new QuickNES(rom, new QuickNES.QuickNESSettings(), new QuickNES.QuickNESSyncSettings());
-        emulator.
+
+        var inputManager = new InputManager();
+
+        var displayManager = new DisplayManager(config, emulator, inputManager, glRenderer, presentationPanel, () => false);
+        Controls.Add(presentationPanel);
+        Controls.SetChildIndex(presentationPanel, -1);
+
+        presentationPanel.Control.Paint += (o, e) =>
+        {
+            // I would like to trigger a repaint here, but this isn't done yet
+        };
     }
+
+    /*
+     public int ProgramRunLoop()
+		{
+			// needs to be done late, after the log console snaps on top
+			// fullscreen should snap on top even harder!
+			if (_needsFullscreenOnLoad)
+			{
+				_needsFullscreenOnLoad = false;
+				ToggleFullscreen();
+			}
+
+			// Simply exit the program if the version is asked for
+			if (_argParser.printVersion)
+			{
+				// Print the version
+				Console.WriteLine(VersionInfo.GetEmuVersion());
+				// Return and leave
+				return _exitCode;
+			}
+
+			LockMouse(Config.CaptureMouse);
+
+			// incantation required to get the program reliably on top of the console window
+			// we might want it in ToggleFullscreen later, but here, it needs to happen regardless
+			BringToFront();
+			Activate();
+			BringToFront();
+
+			InitializeFpsData();
+
+			for (; ; )
+			{
+				Input.Instance.Update();
+
+				// handle events and dispatch as a hotkey action, or a hotkey button, or an input button
+				// ...but prepare haptics first, those get read in ProcessInput
+				var finalHostController = InputManager.ControllerInputCoalescer;
+				InputManager.ActiveController.PrepareHapticsForHost(finalHostController);
+				ProcessInput(
+					_hotkeyCoalescer,
+					finalHostController,
+					InputManager.ClientControls.SearchBindings,
+					InputManager.ActiveController.HasBinding);
+				InputManager.ClientControls.LatchFromPhysical(_hotkeyCoalescer);
+
+				InputManager.ActiveController.LatchFromPhysical(finalHostController);
+
+				if (Config.N64UseCircularAnalogConstraint)
+				{
+					InputManager.ActiveController.ApplyAxisConstraints("Natural Circle");
+				}
+
+				InputManager.ActiveController.OR_FromLogical(InputManager.ClickyVirtualPadController);
+				InputManager.AutoFireController.LatchFromPhysical(finalHostController);
+
+				if (InputManager.ClientControls["Autohold"])
+				{
+					InputManager.ToggleStickies();
+				}
+				else if (InputManager.ClientControls["Autofire"])
+				{
+					InputManager.ToggleAutoStickies();
+				}
+
+				// autohold/autofire must not be affected by the following inputs
+				InputManager.ActiveController.Overrides(InputManager.ButtonOverrideAdapter);
+
+				// emu.yield()'ing scripts
+				if (Tools.Has<LuaConsole>())
+				{
+					Tools.LuaConsole.ResumeScripts(false);
+				}
+				// ext. tools don't yield per se, so just send them a GeneralUpdate
+				Tools.GeneralUpdateActiveExtTools();
+
+				StepRunLoop_Core();
+				Render();
+				StepRunLoop_Throttle();
+
+				// HACK: RAIntegration might peek at memory during messages
+				// we need this to allow memory access here, otherwise it will deadlock
+				var raMemHack = (RA as RAIntegration)?.ThisIsTheRAMemHack();
+				raMemHack?.Enter();
+
+				CheckMessages();
+
+				// RA == null possibly due MainForm Dispose disposing RA (which case Exit is not valid anymore)
+				// RA != null possibly due to RA object being created (which case raMemHack is null, as RA was null before)
+				if (RA is not null) raMemHack?.Exit();
+
+				if (_exitRequestPending)
+				{
+					_exitRequestPending = false;
+					Close();
+				}
+
+				if (IsDisposed || _windowClosedAndSafeToExitProcess)
+				{
+					break;
+				}
+			}
+
+			Shutdown();
+			return _exitCode;
+		}
+    
+    public void Render()
+    {
+        if (Config.DispSpeedupFeatures == 0)
+        {
+            DisplayManager.DiscardApiHawkSurfaces();
+            return;
+        }
+
+        var video = _currentVideoProvider;
+        Size currVideoSize = new Size(video.BufferWidth, video.BufferHeight);
+        Size currVirtualSize = new Size(video.VirtualWidth, video.VirtualHeight);
+
+
+        bool resizeFramebuffer = currVideoSize != _lastVideoSize || currVirtualSize != _lastVirtualSize;
+
+        bool isZero = currVideoSize.Width == 0 || currVideoSize.Height == 0 || currVirtualSize.Width == 0 || currVirtualSize.Height == 0;
+
+        //don't resize if the new size is 0 somehow; we'll wait until we have a sensible size
+        if (isZero)
+        {
+            resizeFramebuffer = false;
+        }
+
+        if (resizeFramebuffer)
+        {
+            _lastVideoSize = currVideoSize;
+            _lastVirtualSize = currVirtualSize;
+            FrameBufferResized();
+        }
+
+        //rendering flakes out egregiously if we have a zero size
+        //can we fix it later not to?
+        if (isZero)
+            DisplayManager.Blank();
+        else
+            DisplayManager.UpdateSource(video);
+    }*/
 
     private void BtnOptions_Click(object sender, EventArgs e)
     {

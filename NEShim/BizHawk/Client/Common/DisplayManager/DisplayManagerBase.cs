@@ -69,10 +69,11 @@ namespace BizHawk.Client.Common
 			}
 
 			{
-				using var gens = ReflectionCache.EmbeddedResourceStream("Resources.gens.ttf");
-				LoadCustomFont(gens);
-				using var fceux = ReflectionCache.EmbeddedResourceStream("Resources.fceux.ttf");
-				LoadCustomFont(fceux);
+				//TODO: re-eval this section
+				// using var gens = ReflectionCache.EmbeddedResourceStream("Resources.gens.ttf");
+				// LoadCustomFont(gens);
+				// using var fceux = ReflectionCache.EmbeddedResourceStream("Resources.fceux.ttf");
+				// LoadCustomFont(fceux);
 			}
 
 			if (dispMethod is EDispMethod.OpenGL or EDispMethod.D3D11)

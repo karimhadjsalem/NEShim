@@ -17,9 +17,15 @@
 	<PropertyGroup Condition=" '$(MachineRunAnalyzersDuringBuild)' == '' ">
 		<RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
 	</PropertyGroup>
-	
+
     <ItemGroup>
-      <Folder Include="Emulation\Cores\Consoles\NIntendo\" />
+      <Content Include="Shaders\**">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+  
+    <ItemGroup>
+      <Folder Include="Emulation\Cores\Consoles\Nintendo\" />
     </ItemGroup>
 
     <ItemGroup>
@@ -129,5 +135,23 @@
       <Compile Update="Client\Common\movie\bk2\Bk2Movie.ModeApi.cs">
         <DependentUpon>Bk2Movie.cs</DependentUpon>
       </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="libquicknes.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="libquicknes.so">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Resources\fceux.ttf" />
+      <None Remove="Resources\gens.ttf" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ClCompile Include="Shaders\retroizer\retroizer.hlsl" />
     </ItemGroup>
 </Project>
