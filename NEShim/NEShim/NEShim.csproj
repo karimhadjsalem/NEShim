@@ -20,4 +20,12 @@
       <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Remove="BizHawk\Images\BlankCursor.cur" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Include="Resources\BlankCursor.cur" />
+    </ItemGroup>
+
 </Project>
