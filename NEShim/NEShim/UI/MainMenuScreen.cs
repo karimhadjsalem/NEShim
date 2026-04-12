@@ -1,118 +1,319 @@
 using System.Drawing;
 using System.Windows.Forms;
+using NEShim.Config;
+using NEShim.Saves;
 
 namespace NEShim.UI;
 
 /// <summary>
-/// State machine for the pre-game main menu shown at application startup.
-/// The emulation thread stays paused until the user makes a selection.
+/// State machine for the pre-game main menu.
+/// Handles Main, ResumeSlots, Settings, and KeyBindings screens.
+/// The emulation thread stays paused until the user picks New Game or loads a save.
 /// </summary>
 internal sealed class MainMenuScreen : IDisposable
 {
-    private enum Item { NewGame = 0, ResumeGame = 1, Exit = 2 }
+    public enum Screen { Main, ResumeSlots, Settings, KeyBindings }
 
-    private const int ItemCount = 3;
+    // ---- Shared binding-action table (mirrors InGameMenu) ----
+    private static readonly (string Label, string ConfigKey)[] BindingActions =
+    {
+        ("Up",     "P1 Up"),
+        ("Down",   "P1 Down"),
+        ("Left",   "P1 Left"),
+        ("Right",  "P1 Right"),
+        ("A",      "P1 A"),
+        ("B",      "P1 B"),
+        ("Start",  "P1 Start"),
+        ("Select", "P1 Select"),
+        ("← Back", ""),
+    };
 
-    public bool   IsVisible { get; private set; } = true;
-    public bool   CanResume { get; }
-    public Bitmap? Background { get; }
+    // ---- State ----
+    public Screen  CurrentScreen  { get; private set; } = Screen.Main;
+    public bool    IsVisible      { get; private set; } = true;
+    public int     SelectedIndex  { get; private set; } = 0;
+    public bool    CanResume      { get; }
+    public Bitmap? Background     { get; }
+    public string? RebindingAction { get; private set; }
 
-    // Rendering accessors
-    public int SelectedIndex => (int)_selected;
-    public bool IsItemEnabled(int idx) => idx != (int)Item.ResumeGame || CanResume;
+    private readonly SaveStateManager _saveStates;
+    private readonly AppConfig        _config;
+    private readonly Action<bool>     _onWindowModeToggle;
+    private readonly Action           _onConfigSaved;
 
-    public static readonly string[] Items = { "New Game", "Resume Game", "Exit" };
+    // Built lazily when the player enters the ResumeSlots screen
+    private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
-    private Item _selected = Item.NewGame;
-
-    // Fired on the UI thread when the user makes a selection
+    // ---- Events ----
     public event Action? NewGameChosen;
+    /// <summary>Fires after the chosen save state has already been loaded.</summary>
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
 
-    public MainMenuScreen(bool canResume, string? bgImagePath)
+    // ---- Main menu item labels / enabled state ----
+    private static readonly string[] MainItemLabels = { "New Game", "Resume Game", "Settings", "Exit" };
+    private const int MainItemResume = 1;
+
+    public MainMenuScreen(
+        SaveStateManager saveStates,
+        AppConfig        config,
+        string?          bgImagePath,
+        Action<bool>     onWindowModeToggle,
+        Action           onConfigSaved)
     {
-        CanResume = canResume;
+        _saveStates         = saveStates;
+        _config             = config;
+        _onWindowModeToggle = onWindowModeToggle;
+        _onConfigSaved      = onConfigSaved;
+
+        // Resume is available if any save (auto or slot) exists
+        CanResume = _saveStates.HasAutoSave
+            || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
             string resolved = Path.IsPathRooted(bgImagePath)
                 ? bgImagePath
                 : Path.Combine(AppContext.BaseDirectory, bgImagePath);
-
             if (File.Exists(resolved))
             {
                 try { Background = new Bitmap(resolved); }
                 catch { /* leave null */ }
             }
         }
-
-        // If can't resume, start selection on New Game (already 0, no-op but explicit)
-        _selected = Item.NewGame;
     }
 
-    /// <summary>
-    /// Handle a key while the main menu is visible.
-    /// Returns true if the key was consumed.
-    /// </summary>
+    // ---- Input ----
+
     public bool HandleKey(Keys key)
     {
         if (!IsVisible) return false;
 
+        // Capture any key while waiting for a rebind
+        if (RebindingAction != null)
+        {
+            if (key == Keys.Escape)
+            {
+                RebindingAction = null;
+            }
+            else
+            {
+                string keyName = key.ToString();
+                if (_config.InputMappings.TryGetValue(RebindingAction, out var binding))
+                    binding.Key = keyName;
+                else
+                    _config.InputMappings[RebindingAction] = new InputBinding(keyName, null);
+                _onConfigSaved();
+                RebindingAction = null;
+            }
+            return true;
+        }
+
         switch (key)
         {
+            case Keys.Escape:
+                if (CurrentScreen == Screen.Main)
+                {
+                    IsVisible = false;
+                    ExitChosen?.Invoke();
+                }
+                else
+                    NavigateTo(Screen.Main);
+                return true;
+
             case Keys.Up:
-                Navigate(-1);
+                NavigateCursor(-1);
                 return true;
 
             case Keys.Down:
-                Navigate(1);
+                NavigateCursor(1);
                 return true;
 
             case Keys.Return:
-            case Keys.Space:
             case Keys.Z:
+            case Keys.Space:
                 Activate();
                 return true;
-
-            case Keys.Escape:
-                // Escape on the main menu = exit
-                IsVisible = false;
-                ExitChosen?.Invoke();
-                return true;
         }
-
         return false;
     }
 
-    private void Navigate(int dir)
+    private void NavigateCursor(int dir)
     {
-        int cur = (int)_selected;
-        for (int attempt = 0; attempt < ItemCount; attempt++)
+        int count = ItemCount();
+        int next  = SelectedIndex;
+        for (int attempt = 0; attempt < count; attempt++)
         {
-            cur = ((cur + dir) % ItemCount + ItemCount) % ItemCount;
-            if (IsItemEnabled(cur))
+            next = ((next + dir) % count + count) % count;
+            if (IsItemEnabled(next))
             {
-                _selected = (Item)cur;
+                SelectedIndex = next;
                 return;
             }
         }
-        // All items disabled (shouldn't happen — New Game always enabled)
     }
 
     private void Activate()
     {
-        if (!IsItemEnabled((int)_selected)) return;
+        if (!IsItemEnabled(SelectedIndex)) return;
 
-        IsVisible = false;
-
-        switch (_selected)
+        switch (CurrentScreen)
         {
-            case Item.NewGame:    NewGameChosen?.Invoke(); break;
-            case Item.ResumeGame: ResumeChosen?.Invoke();  break;
-            case Item.Exit:       ExitChosen?.Invoke();    break;
+            case Screen.Main:
+                switch (SelectedIndex)
+                {
+                    case 0: // New Game
+                        IsVisible = false;
+                        NewGameChosen?.Invoke();
+                        break;
+                    case 1: // Resume Game
+                        BuildResumeOptions();
+                        NavigateTo(Screen.ResumeSlots);
+                        break;
+                    case 2: // Settings
+                        NavigateTo(Screen.Settings);
+                        break;
+                    case 3: // Exit
+                        IsVisible = false;
+                        ExitChosen?.Invoke();
+                        break;
+                }
+                break;
+
+            case Screen.ResumeSlots:
+            {
+                var opt = _resumeOptions[SelectedIndex];
+                if (opt.Load == null)
+                {
+                    NavigateTo(Screen.Main); // Back
+                }
+                else
+                {
+                    opt.Load(); // load the chosen save while thread is still blocked
+                    IsVisible = false;
+                    ResumeChosen?.Invoke();
+                }
+                break;
+            }
+
+            case Screen.Settings:
+                switch (SelectedIndex)
+                {
+                    case 0: // Key Bindings
+                        NavigateTo(Screen.KeyBindings);
+                        break;
+                    case 1: // Fullscreen
+                        _onWindowModeToggle(true);
+                        break;
+                    case 2: // Windowed
+                        _onWindowModeToggle(false);
+                        break;
+                    case 3: // FPS Overlay toggle
+                        _config.Developer.ShowFps = !_config.Developer.ShowFps;
+                        _onConfigSaved();
+                        break;
+                }
+                break;
+
+            case Screen.KeyBindings:
+            {
+                var (_, configKey) = BindingActions[SelectedIndex];
+                if (configKey == "")
+                    NavigateTo(Screen.Settings);
+                else
+                    RebindingAction = configKey;
+                break;
+            }
         }
     }
 
+    private void NavigateTo(Screen screen)
+    {
+        CurrentScreen = screen;
+        SelectedIndex = 0;
+        RebindingAction = null;
+
+        // Skip disabled items at position 0 (e.g., Resume when unavailable)
+        if (!IsItemEnabled(0))
+            NavigateCursor(1);
+    }
+
+    // ---- Resume-slot list ----
+
+    private void BuildResumeOptions()
+    {
+        var list = new List<ResumeOption>();
+
+        if (_saveStates.HasAutoSave)
+            list.Add(new("Auto Save", () => _saveStates.AutoLoad()));
+
+        for (int i = 0; i < SaveStateManager.SlotCount; i++)
+        {
+            if (_saveStates.SlotExists(i))
+            {
+                int slot = i;
+                string label = _saveStates.SlotLabel(slot);
+                list.Add(new(label, () => _saveStates.LoadSlot(slot)));
+            }
+        }
+
+        list.Add(new("← Back", null));
+        _resumeOptions = list.ToArray();
+    }
+
+    // ---- Rendering helpers ----
+
+    public string GetTitle() => CurrentScreen switch
+    {
+        Screen.Main        => "MAIN MENU",
+        Screen.ResumeSlots => "LOAD GAME",
+        Screen.Settings    => "SETTINGS",
+        Screen.KeyBindings => RebindingAction != null
+            ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
+            : "KEY BINDINGS",
+        _ => ""
+    };
+
+    public string[] GetCurrentItems() => CurrentScreen switch
+    {
+        Screen.Main        => MainItemLabels,
+        Screen.ResumeSlots => _resumeOptions.Select(o => o.Label).ToArray(),
+        Screen.Settings    => new[]
+        {
+            "Key Bindings",
+            "Fullscreen",
+            "Windowed",
+            $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
+        },
+        Screen.KeyBindings => BindingActions
+            .Select(b => b.ConfigKey == ""
+                ? "← Back"
+                : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
+            .ToArray(),
+        _ => Array.Empty<string>()
+    };
+
+    public bool IsItemEnabled(int idx)
+    {
+        if (CurrentScreen == Screen.Main && idx == MainItemResume && !CanResume)
+            return false;
+        return true;
+    }
+
+    private int ItemCount() => CurrentScreen switch
+    {
+        Screen.Main        => MainItemLabels.Length,
+        Screen.ResumeSlots => _resumeOptions.Length,
+        Screen.Settings    => 4,
+        Screen.KeyBindings => BindingActions.Length,
+        _ => 0
+    };
+
+    private string KeyLabel(string configKey)
+        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
+
     public void Dispose() => Background?.Dispose();
+
+    // ---- Inner type ----
+    private record ResumeOption(string Label, Action? Load);
 }

@@ -201,15 +201,10 @@ internal sealed class EmulationThread
 
     /// <summary>
     /// Called when the user picks New Game or Resume from the main menu.
-    /// Optionally loads the auto-save then unpauses the emulation thread.
+    /// The save (if any) has already been loaded by MainMenuScreen before this is called.
     /// Safe to call from the UI thread while the thread is blocked on MainMenu.
     /// </summary>
-    public void DismissMainMenu(bool loadAutoSave)
-    {
-        if (loadAutoSave)
-            _saveStates.AutoLoad(); // emulation thread is blocked — no race
-        SetPauseReason(PauseReasons.MainMenu, false);
-    }
+    public void DismissMainMenu() => SetPauseReason(PauseReasons.MainMenu, false);
 
     private void HandleHotkeys()
     {

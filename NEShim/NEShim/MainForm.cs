@@ -102,17 +102,21 @@ public partial class MainForm : Form
 
         // 9. Pre-game main menu
         _mainMenuScreen = new MainMenuScreen(
-            canResume:   _saveStates.HasAutoSave,
-            bgImagePath: _config.MainMenuBackgroundPath);
+            saveStates:         _saveStates,
+            config:             _config,
+            bgImagePath:        _config.MainMenuBackgroundPath,
+            onWindowModeToggle: fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
+            onConfigSaved:      () => { /* config flushed to disk on exit */ });
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
-            _emulationThread?.DismissMainMenu(loadAutoSave: false);
+            _emulationThread?.DismissMainMenu();
             _gamePanel?.Invalidate();
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
-            _emulationThread?.DismissMainMenu(loadAutoSave: true);
+            // Save was already loaded by MainMenuScreen.Activate() while thread was blocked
+            _emulationThread?.DismissMainMenu();
             _gamePanel?.Invalidate();
         });
         _mainMenuScreen.ExitChosen += () => BeginInvoke(Application.Exit);
