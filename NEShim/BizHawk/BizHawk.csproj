@@ -8,10 +8,12 @@
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+      <DefineConstants>$(DefineConstants);BIZHAWKBUILD_GAMEDB_ALWAYS_MISS</DefineConstants>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+      <DefineConstants>$(DefineConstants);BIZHAWKBUILD_GAMEDB_ALWAYS_MISS</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,5 +29,17 @@
 		<Analyzer Include="$(MSBuildProjectDirectory)/../ReflectionCache/BizHawk.SrcGen.ReflectionCache.dll" />
 		<Using Include="System" />
 	</ItemGroup>
+
+    <!-- Native DLLs required by P/Invoke in the emulation core -->
+    <ItemGroup>
+        <Content Include="$(MSBuildProjectDirectory)/dll/blip_buf.dll">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Link>blip_buf.dll</Link>
+        </Content>
+        <Content Include="$(MSBuildProjectDirectory)/dll/libbizhash.dll">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Link>libbizhash.dll</Link>
+        </Content>
+    </ItemGroup>
 
 </Project>
