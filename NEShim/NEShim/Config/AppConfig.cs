@@ -41,6 +41,9 @@ public sealed class AppConfig
         ["ToggleWindow"]  = "F11",
     };
 
+    // Path to the image shown on the main (pre-game) menu. Relative to exe or absolute.
+    public string MainMenuBackgroundPath { get; set; } = "";
+
     public DeveloperSettings Developer { get; set; } = new();
 }
 

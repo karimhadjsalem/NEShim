@@ -26,6 +26,7 @@ public partial class MainForm : Form
     private SaveRamManager?   _saveRam;
     private FrameBuffer?      _frameBuffer;
     private GamePanel?        _gamePanel;
+    private MainMenuScreen?   _mainMenuScreen;
     private InGameMenu?       _menu;
     private EmulationThread?  _emulationThread;
 
@@ -99,17 +100,36 @@ public partial class MainForm : Form
         // 8. Audio
         _audio = new AudioPlayer(_config.AudioBufferFrames);
 
-        // 9. In-game menu
+        // 9. Pre-game main menu
+        _mainMenuScreen = new MainMenuScreen(
+            canResume:   _saveStates.HasAutoSave,
+            bgImagePath: _config.MainMenuBackgroundPath);
+
+        _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
+        {
+            _emulationThread?.DismissMainMenu(loadAutoSave: false);
+            _gamePanel?.Invalidate();
+        });
+        _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
+        {
+            _emulationThread?.DismissMainMenu(loadAutoSave: true);
+            _gamePanel?.Invalidate();
+        });
+        _mainMenuScreen.ExitChosen += () => BeginInvoke(Application.Exit);
+
+        _gamePanel.SetMainMenu(_mainMenuScreen);
+
+        // 10. In-game pause menu
         _menu = new InGameMenu(
             saveStates:         _saveStates,
             config:             _config,
             onExitToDesktop:    () => BeginInvoke(Application.Exit),
             onResetGame:        () => _emulationThread?.ResetGame(),
             onWindowModeToggle: fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:      () => { /* config saved on exit; nothing extra needed here */ });
+            onConfigSaved:      () => { /* config flushed to disk on exit */ });
         _gamePanel.SetMenu(_menu);
 
-        // 10. Emulation thread
+        // 11. Emulation thread
         _emulationThread = new EmulationThread(
             _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu);
 
@@ -117,16 +137,17 @@ public partial class MainForm : Form
         SteamManager.Initialize(overlayActive =>
             _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive));
 
-        // 11. Apply window mode
+        // 12. Apply window mode
         SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
 
-        // 12. Start audio then emulation
+        // 13. Start audio and emulation — thread starts paused at main menu
         _audio.Start(_config.AudioDevice);
+        _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel.Focus();
         _emulationThread.Start();
 
-        // Auto-load last session state (best-effort)
-        _saveStates.AutoLoad();
+        // Show main menu immediately
+        _gamePanel.Invalidate();
     }
 
     private void SetWindowMode(bool fullscreen)
@@ -149,9 +170,20 @@ public partial class MainForm : Form
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
     {
+        // Pre-game main menu has priority
+        if (_mainMenuScreen?.IsVisible == true)
+        {
+            if (_mainMenuScreen.HandleKey(e.KeyCode))
+            {
+                e.Handled = true;
+                _gamePanel?.Invalidate();
+                return;
+            }
+        }
+
         if (_menu is null || _emulationThread is null) return;
 
-        // Pass navigation keys to menu when open
+        // Pass navigation keys to in-game menu when open
         if (_menu.IsOpen)
         {
             if (_menu.HandleKey(e.KeyCode))
@@ -180,10 +212,12 @@ public partial class MainForm : Form
         // Stop emulation thread first
         _emulationThread?.Stop();
 
-        // Persist state
+        // Persist state — only auto-save if the game was actually running
         try
         {
-            _saveStates?.AutoSave();
+            if (_mainMenuScreen is null || !_mainMenuScreen.IsVisible)
+                _saveStates?.AutoSave();
+
             _saveRam?.SaveToDisk();
 
             if (_config is not null)
@@ -196,6 +230,7 @@ public partial class MainForm : Form
         catch { /* best-effort on shutdown */ }
 
         // Dispose resources
+        _mainMenuScreen?.Dispose();
         _audio?.Dispose();
         _host?.Dispose();
         SteamManager.Shutdown();

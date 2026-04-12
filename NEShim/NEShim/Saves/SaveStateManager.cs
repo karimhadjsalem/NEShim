@@ -98,6 +98,7 @@ internal sealed class SaveStateManager
 
     // ---- Info ----
 
+    public bool HasAutoSave  => File.Exists(AutoStatePath());
     public bool SlotExists(int slot) => File.Exists(StatePath(slot));
 
     public SlotMeta? GetSlotMeta(int slot)

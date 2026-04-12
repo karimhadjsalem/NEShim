@@ -24,6 +24,7 @@ internal sealed class EmulationThread
         Menu      = 1,
         Overlay   = 2,
         FocusLost = 4,
+        MainMenu  = 8,   // Paused at the pre-game main menu; cleared when the user picks New/Resume
     }
 
     private readonly EmulatorHost     _host;
@@ -192,13 +193,25 @@ internal sealed class EmulationThread
     }
 
     /// <summary>Hard-resets the emulated NES (called via in-game menu).</summary>
-    public void ResetGame()
+    public void ResetGame() => _host.Reset();
+
+    /// <summary>
+    /// Called when the user picks New Game or Resume from the main menu.
+    /// Optionally loads the auto-save then unpauses the emulation thread.
+    /// Safe to call from the UI thread while the thread is blocked on MainMenu.
+    /// </summary>
+    public void DismissMainMenu(bool loadAutoSave)
     {
-        _host.Reset();
+        if (loadAutoSave)
+            _saveStates.AutoLoad(); // emulation thread is blocked — no race
+        SetPauseReason(PauseReasons.MainMenu, false);
     }
 
     private void HandleHotkeys()
     {
+        // Don't process in-game hotkeys while the pre-game main menu is visible
+        if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
+
         // Open/close menu
         if (_input.IsHotkeyJustPressed("OpenMenu", _config))
         {

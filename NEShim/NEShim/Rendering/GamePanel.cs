@@ -16,7 +16,8 @@ internal sealed class GamePanel : Panel
 {
     private readonly FrameBuffer _frameBuffer;
     private readonly Bitmap _bitmap;
-    private InGameMenu? _menu;
+    private InGameMenu?     _menu;
+    private MainMenuScreen? _mainMenu;
 
     // Toast notification
     private string? _toastText;
@@ -49,7 +50,8 @@ internal sealed class GamePanel : Panel
     // Allow all keys (including arrows, escape, enter) to reach KeyDown
     protected override bool IsInputKey(Keys keyData) => true;
 
-    public void SetMenu(InGameMenu menu) => _menu = menu;
+    public void SetMenu(InGameMenu menu)           => _menu     = menu;
+    public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
 
     /// <summary>Queues a toast message (shown for 1.5 seconds).</summary>
     public void ShowToast(string text)
@@ -82,6 +84,14 @@ internal sealed class GamePanel : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
+
+        // Pre-game main menu takes over the whole panel
+        if (_mainMenu?.IsVisible == true)
+        {
+            MainMenuRenderer.Draw(g, ClientRectangle, _mainMenu);
+            return;
+        }
+
         g.CompositingMode    = CompositingMode.SourceCopy;
         g.InterpolationMode  = InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode    = PixelOffsetMode.Half;
