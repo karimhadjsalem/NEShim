@@ -97,16 +97,21 @@ internal static class MenuRenderer
                 panelW - 12,
                 ItemH - 2);
 
-            bool selected = i == menu.SelectedItem;
+            bool enabled  = menu.IsItemEnabled(i);
+            bool selected = i == menu.SelectedItem && enabled;
 
             if (selected)
             {
                 g.FillRectangle(selBrush, itemRect);
                 g.DrawString("▶  " + items[i], selFont, itemBrush, (RectangleF)itemRect, leftFmt);
             }
+            else if (enabled)
+            {
+                g.DrawString("    " + items[i], itemFont, itemBrush, (RectangleF)itemRect, leftFmt);
+            }
             else
             {
-                g.DrawString("    " + items[i], itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i] + "  (no save)", itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
     }

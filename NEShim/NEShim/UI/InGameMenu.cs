@@ -38,6 +38,8 @@ internal sealed class InGameMenu
     private static readonly string[] RootItems =
         { "Resume", "Reset Game", "Select Save Slot", "Save Game", "Load Game", "Settings", "Exit" };
 
+    private const int RootItemLoadGame = 4;
+
     // ---- Settings menu ----
     private static readonly string[] SettingsBaseItems =
         { "Key Bindings", "Fullscreen", "Windowed" };
@@ -135,20 +137,38 @@ internal sealed class InGameMenu
                 return true;
 
             case Keys.Up:
-                SelectedItem = Math.Max(0, SelectedItem - 1);
+                MoveCursor(-1);
                 return true;
 
             case Keys.Down:
-                SelectedItem = Math.Min(ItemCount() - 1, SelectedItem + 1);
+                MoveCursor(1);
                 return true;
 
             case Keys.Return:
             case Keys.Z:
             case Keys.Space:
-                Activate();
+                if (IsItemEnabled(SelectedItem))
+                    Activate();
                 return true;
         }
         return false;
+    }
+
+    private void MoveCursor(int direction)
+    {
+        int count = ItemCount();
+        int next  = SelectedItem;
+        for (int attempt = 0; attempt < count; attempt++)
+        {
+            next = Math.Clamp(next + direction, 0, count - 1);
+            if (IsItemEnabled(next))
+            {
+                SelectedItem = next;
+                return;
+            }
+            // If we've hit a wall (top or bottom), stop rather than wrapping
+            if (next == 0 || next == count - 1) break;
+        }
     }
 
     private int ItemCount() => Current switch
@@ -240,6 +260,19 @@ internal sealed class InGameMenu
                 }
                 break;
         }
+    }
+
+    // ---- Enabled state ----
+
+    /// <summary>
+    /// Returns false for items that are currently unavailable.
+    /// Load Game is disabled when the active slot has no saved state.
+    /// </summary>
+    public bool IsItemEnabled(int index)
+    {
+        if (Current == Screen.Root && index == RootItemLoadGame)
+            return _saveStates.SlotExists(_saveStates.ActiveSlot);
+        return true;
     }
 
     // ---- Rendering info accessors ----
