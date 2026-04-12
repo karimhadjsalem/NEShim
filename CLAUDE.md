@@ -38,7 +38,21 @@ ref/              — Reference binaries (BizHawk, Nintaco, tools) — not compi
 ## Architecture
 
 ### NEShim Application Layer (`NEShim/`)
-A thin Windows Forms shell. `MainForm.cs` renders a full-screen menu (Start Game, Options, Exit). The intent is for this layer to own SDK integrations (Steamworks, etc.) while delegating all emulation to BizHawk.
+A thin Windows Forms shell. `MainForm.cs` owns startup, wires all components together, and handles the window lifecycle. The intent is for this layer to own SDK integrations (Steamworks, etc.) while delegating all emulation to BizHawk.
+
+Key subsystems and their responsibilities:
+
+| Namespace | Responsibility |
+|---|---|
+| `NEShim.Config` | POCO config model + JSON load/save |
+| `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
+| `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
+| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display) |
+| `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
+| `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
+| `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
+| `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
+| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, per-frame tick |
 
 ### BizHawk Emulation Core (`BizHawk/`)
 
@@ -59,6 +73,29 @@ The core is a faithful port of BizHawk's NES subsystem. Key layers:
 
 ### Mapper System
 Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The board handles PRG/CHR bank switching and any on-cartridge hardware. When adding game support, the relevant board is usually the first place to look for emulation bugs.
+
+### Design patterns in use
+
+**State machine** — `InGameMenu` and `MainMenuScreen` each own a `CurrentScreen` enum and an `Activate()` method that drives transitions. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
+
+**Observer (events)** — Components communicate upward via C# events (`NewGameChosen`, `ResumeChosen`, `Opened`, `Closed`). Wiring is done in `MainForm.InitializeEmulator()`, keeping components decoupled.
+
+**Double-buffer** — `FrameBuffer` keeps a back buffer (emulation thread writes) and a front buffer (paint thread reads). `Swap()` atomically exchanges them under a `SpinLock`. Never read from the back buffer on the paint thread or write to the front buffer on the emulation thread.
+
+**Pause flags** — `EmulationThread.PauseReasons` is a `[Flags]` enum. Any non-zero value blocks the loop on a `ManualResetEventSlim`. Always use `SetPauseReason(reason, active)` rather than setting bits directly — it handles the CAS loop and the audio mute side-effect.
+
+**Stateless renderer** — `MainMenuRenderer` and `MenuRenderer` are `internal static` classes with a single `Draw(Graphics, Rectangle, <StateType>)` entry point. They create and dispose all GDI+ resources within the call. Do not cache brushes, pens, or fonts across calls in these classes.
+
+### Coding conventions (NEShim layer only)
+
+- **Naming**: `PascalCase` for types, methods, properties, and events; `_camelCase` for private fields; `camelCase` for locals and parameters.
+- **Nullability**: Enable nullable reference types (`<Nullable>enable</Nullable>`). Use `?` annotations throughout. Avoid `!` (null-forgiving) except at genuine interop boundaries.
+- **Method length**: Keep methods under ~30 lines. Extract named helpers rather than adding comments that describe blocks.
+- **One responsibility per class**: State machines hold state and drive transitions; renderers draw; managers own lifecycle and I/O. Do not mix these.
+- **No magic numbers**: Give all frame dimensions, timing constants, and UI sizes a named `const` or `static readonly` in the class that owns them.
+- **Dispose discipline**: Every `IDisposable` created inside a method must be in a `using` declaration or `using` block. Classes that own `Bitmap`, audio, or host resources must implement `IDisposable` and be disposed in `MainForm.OnFormClosing`.
+- **Thread safety**: Emulation thread and UI thread share `_pauseReasonBits` (volatile `int` + CAS) and `FrameBuffer` (SpinLock). All other mutable state is owned by one thread. Use `BeginInvoke` to marshal work to the UI thread; never call WinForms methods directly from the emulation thread.
+- **Don't modify BizHawk source** unless fixing a direct compatibility issue. Prefer adapter/wrapper classes in `NEShim/Emulation/` to bridge BizHawk interfaces.
 
 ### Key BizHawk Dependencies
 - `CommunityToolkit.HighPerformance` — SIMD/span performance helpers
