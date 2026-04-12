@@ -65,6 +65,9 @@ namespace BizHawk.Common
 		[DllImport("winmm.dll", ExactSpelling = true)]
 		public static extern uint timeBeginPeriod(uint uMilliseconds);
 
+		[DllImport("winmm.dll", ExactSpelling = true)]
+		public static extern uint timeEndPeriod(uint uMilliseconds);
+
 		[DllImport("user32.dll", ExactSpelling = true)]
 		public static extern int TrackPopupMenuEx(IntPtr hmenu, TPM fuFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
 

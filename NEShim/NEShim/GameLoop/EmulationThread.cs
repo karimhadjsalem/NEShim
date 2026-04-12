@@ -128,8 +128,6 @@ internal sealed class EmulationThread
 
         while (!_stopRequested)
         {
-            long frameStart = Stopwatch.GetTimestamp();
-
             // 1. Poll input
             var snapshot = _input.PollSnapshot(_config);
             _host.Controller.Update(snapshot);
@@ -141,13 +139,19 @@ internal sealed class EmulationThread
             // 3. Steam callbacks
             SteamManager.Tick();
 
-            // 4. Pause check
+            // 4. Pause check — block here while paused
             if (IsPaused)
             {
                 _resumeEvent.Wait();
                 if (_stopRequested) break;
+                // Re-arm frame start AFTER resuming so the timing window is fresh.
+                // (falling through to the continue skips emulation for this tick)
                 continue;
             }
+
+            // Frame start is measured after the pause gate so a freshly-resumed
+            // frame doesn't inherit a stale start time that puts target in the past.
+            long frameStart = Stopwatch.GetTimestamp();
 
             // 5. Emulate one frame
             _host.RunFrame();
