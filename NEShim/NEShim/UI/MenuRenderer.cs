@@ -9,68 +9,104 @@ namespace NEShim.UI;
 /// </summary>
 internal static class MenuRenderer
 {
-    private static readonly Color OverlayColor   = Color.FromArgb(180, 0, 0, 0);
-    private static readonly Color PanelColor     = Color.FromArgb(220, 20, 20, 35);
-    private static readonly Color SelectedBg     = Color.FromArgb(200, 60, 120, 200);
-    private static readonly Color TitleColor     = Color.FromArgb(255, 180, 220, 255);
-    private static readonly Color ItemColor      = Color.White;
-    private static readonly Color DimColor       = Color.FromArgb(160, 180, 180, 180);
+    private static readonly Color OverlayColor = Color.FromArgb(180, 0, 0, 0);
+    private static readonly Color PanelColor   = Color.FromArgb(230, 18, 18, 32);
+    private static readonly Color SelectedBg   = Color.FromArgb(210, 55, 110, 195);
+    private static readonly Color RebindBg     = Color.FromArgb(210, 140, 60, 20);
+    private static readonly Color TitleColor   = Color.FromArgb(255, 175, 215, 255);
+    private static readonly Color SubtitleColor= Color.FromArgb(255, 255, 200, 100);
+    private static readonly Color ItemColor    = Color.White;
+    private static readonly Color DimColor     = Color.FromArgb(170, 190, 190, 190);
+    private static readonly Color BorderColor  = Color.FromArgb(200, 75, 135, 215);
+
+    private const int ItemH    = 38;
+    private const int PanelPad = 16;
 
     public static void Draw(Graphics g, Rectangle bounds, InGameMenu menu)
     {
         g.CompositingMode = CompositingMode.SourceOver;
 
-        // Semi-transparent full-screen dim
+        // Full-screen dim
         using var overlayBrush = new SolidBrush(OverlayColor);
         g.FillRectangle(overlayBrush, bounds);
 
-        // Menu panel
-        int panelW = Math.Min(400, bounds.Width - 80);
-        int itemH  = 40;
-        var items  = menu.GetCurrentItems();
-        int panelH = 60 + items.Length * itemH + 20;
+        var items   = menu.GetCurrentItems();
+        string title = menu.GetTitle();
+
+        // Panel sizing
+        int panelW = Math.Min(440, bounds.Width - 60);
+        int panelH = 64 + items.Length * ItemH + PanelPad;
         int panelX = (bounds.Width  - panelW) / 2;
         int panelY = (bounds.Height - panelH) / 2;
+
+        // Clamp so panel never clips off screen
+        panelX = Math.Max(8, panelX);
+        panelY = Math.Max(8, panelY);
+
         var panelRect = new Rectangle(panelX, panelY, panelW, panelH);
 
+        // Panel background
         using var panelBrush = new SolidBrush(PanelColor);
         g.FillRectangle(panelBrush, panelRect);
 
         // Panel border
-        using var borderPen = new Pen(Color.FromArgb(200, 80, 140, 220), 2);
+        using var borderPen = new Pen(BorderColor, 2f);
         g.DrawRectangle(borderPen, panelRect);
 
         // Title
-        using var titleFont = new Font("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Point);
-        using var titleBrush = new SolidBrush(TitleColor);
-        var titleRect = new RectangleF(panelX, panelY + 10, panelW, 40);
-        var titleFormat = new StringFormat { Alignment = StringAlignment.Center };
-        g.DrawString(menu.GetTitle(), titleFont, titleBrush, titleRect, titleFormat);
+        using var titleFont  = new Font("Segoe UI", 15f, FontStyle.Bold, GraphicsUnit.Point);
+        var titleColor = menu.RebindingAction != null ? SubtitleColor : TitleColor;
+        using var titleBrush = new SolidBrush(titleColor);
+        var titleRect   = new RectangleF(panelX + PanelPad, panelY + 10, panelW - PanelPad * 2, 36);
+        var centred     = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString(title, titleFont, titleBrush, titleRect, centred);
 
         // Divider
-        using var divPen = new Pen(Color.FromArgb(80, 255, 255, 255), 1);
-        g.DrawLine(divPen, panelX + 16, panelY + 52, panelX + panelW - 16, panelY + 52);
+        using var divPen = new Pen(Color.FromArgb(70, 255, 255, 255), 1);
+        g.DrawLine(divPen, panelX + PanelPad, panelY + 50, panelX + panelW - PanelPad, panelY + 50);
 
-        // Items
-        using var itemFont    = new Font("Segoe UI", 13f, FontStyle.Regular, GraphicsUnit.Point);
-        using var selFont     = new Font("Segoe UI", 13f, FontStyle.Bold,    GraphicsUnit.Point);
-        using var itemBrush   = new SolidBrush(ItemColor);
-        using var dimBrush    = new SolidBrush(DimColor);
-        using var selBrush    = new SolidBrush(SelectedBg);
-        var itemFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+        // If waiting for rebind, show a pulsing "Press any key…" hint and skip item list
+        if (menu.RebindingAction != null)
+        {
+            using var hintFont  = new Font("Segoe UI", 13f, FontStyle.Italic, GraphicsUnit.Point);
+            using var hintBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 180));
+            var hintRect = new RectangleF(panelX + PanelPad, panelY + 56, panelW - PanelPad * 2,
+                                           panelH - 56 - PanelPad);
+            g.DrawString("Press any key to bind\n(Esc to cancel)", hintFont, hintBrush, hintRect, centred);
+            return;
+        }
+
+        // Item list
+        using var itemFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        using var selFont  = new Font("Segoe UI", 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemBrush = new SolidBrush(ItemColor);
+        using var dimBrush  = new SolidBrush(DimColor);
+        using var selBrush  = new SolidBrush(SelectedBg);
+        var leftFmt = new StringFormat
+        {
+            Alignment     = StringAlignment.Near,
+            LineAlignment = StringAlignment.Center,
+            Trimming      = StringTrimming.EllipsisCharacter,
+        };
 
         for (int i = 0; i < items.Length; i++)
         {
-            var itemRect = new Rectangle(panelX + 8, panelY + 58 + i * itemH, panelW - 16, itemH - 2);
+            var itemRect = new Rectangle(
+                panelX + 6,
+                panelY + 56 + i * ItemH,
+                panelW - 12,
+                ItemH - 2);
 
-            if (i == menu.SelectedItem)
+            bool selected = i == menu.SelectedItem;
+
+            if (selected)
             {
                 g.FillRectangle(selBrush, itemRect);
-                g.DrawString("▶ " + items[i], selFont, itemBrush, (RectangleF)itemRect, itemFormat);
+                g.DrawString("▶  " + items[i], selFont, itemBrush, (RectangleF)itemRect, leftFmt);
             }
             else
             {
-                g.DrawString("  " + items[i], itemFont, dimBrush, (RectangleF)itemRect, itemFormat);
+                g.DrawString("    " + items[i], itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
     }

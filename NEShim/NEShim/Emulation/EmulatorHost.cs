@@ -78,5 +78,8 @@ internal sealed class EmulatorHost : IDisposable
         return _nes.FrameAdvance(Controller, render: true, rendersound: true);
     }
 
+    /// <summary>Hard-resets the NES (power cycle).</summary>
+    public void Reset() => _nes.HardReset();
+
     public void Dispose() => _nes.Dispose();
 }

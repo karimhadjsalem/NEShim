@@ -22,6 +22,15 @@ internal sealed class GamePanel : Panel
     private string? _toastText;
     private DateTime _toastExpiry;
 
+    // FPS overlay — set each frame by EmulationThread
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public float CurrentFps { get; set; }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool ShowFps { get; set; }
+
     public GamePanel(FrameBuffer frameBuffer)
     {
         _frameBuffer = frameBuffer;
@@ -34,7 +43,11 @@ internal sealed class GamePanel : Panel
             true);
         DoubleBuffered = true;
         BackColor = Color.Black;
+        TabStop = true; // Allow receiving keyboard focus
     }
+
+    // Allow all keys (including arrows, escape, enter) to reach KeyDown
+    protected override bool IsInputKey(Keys keyData) => true;
 
     public void SetMenu(InGameMenu menu) => _menu = menu;
 
@@ -130,6 +143,10 @@ internal sealed class GamePanel : Panel
         {
             _toastText = null;
         }
+
+        // FPS overlay
+        if (ShowFps)
+            DrawFps(g, CurrentFps);
     }
 
     private void DrawToast(Graphics g, string text)
@@ -144,6 +161,22 @@ internal sealed class GamePanel : Panel
         g.FillRectangle(bg, x - 8, y - 4, size.Width + 16, size.Height + 8);
 
         using var fg = new SolidBrush(Color.White);
+        g.DrawString(text, font, fg, x, y);
+    }
+
+    private void DrawFps(Graphics g, float fps)
+    {
+        string text = $"{fps:F1} fps";
+        using var font = new Font("Segoe UI", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        var size = g.MeasureString(text, font);
+        float x = Width  - size.Width  - 10f;
+        float y = 8f;
+
+        using var bg = new SolidBrush(Color.FromArgb(140, 0, 0, 0));
+        g.CompositingMode = CompositingMode.SourceOver;
+        g.FillRectangle(bg, x - 4, y - 2, size.Width + 8, size.Height + 4);
+
+        using var fg = new SolidBrush(Color.FromArgb(255, 180, 255, 120));
         g.DrawString(text, font, fg, x, y);
     }
 

@@ -102,9 +102,11 @@ public partial class MainForm : Form
         // 9. In-game menu
         _menu = new InGameMenu(
             saveStates:         _saveStates,
+            config:             _config,
             onExitToDesktop:    () => BeginInvoke(Application.Exit),
+            onResetGame:        () => _emulationThread?.ResetGame(),
             onWindowModeToggle: fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onScreenChanged:    _ => { });
+            onConfigSaved:      () => { /* config saved on exit; nothing extra needed here */ });
         _gamePanel.SetMenu(_menu);
 
         // 10. Emulation thread

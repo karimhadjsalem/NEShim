@@ -156,7 +156,9 @@ internal sealed class EmulationThread
             _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
             _frameBuffer.Swap();
 
-            // 7. Notify UI to repaint (non-blocking)
+            // 7. Push FPS state into panel then notify UI to repaint (non-blocking)
+            _gamePanel.ShowFps   = _config.Developer.ShowFps;
+            _gamePanel.CurrentFps = CurrentFps;
             _gamePanel.BeginInvoke(_gamePanel.UpdateFrame);
 
             // 8. Submit audio
@@ -189,15 +191,28 @@ internal sealed class EmulationThread
         }
     }
 
+    /// <summary>Hard-resets the emulated NES (called via in-game menu).</summary>
+    public void ResetGame()
+    {
+        _host.Reset();
+    }
+
     private void HandleHotkeys()
     {
         // Open/close menu
         if (_input.IsHotkeyJustPressed("OpenMenu", _config))
         {
             if (_menu.IsOpen)
+            {
                 _menu.Close();
+            }
             else
+            {
                 _menu.Open(_frameBuffer.CaptureFront());
+                // Menu is now open and emulation will pause — trigger a repaint
+                // so the overlay appears immediately rather than waiting for the next frame.
+                _gamePanel.BeginInvoke(_gamePanel.Invalidate);
+            }
             return; // Skip other hotkeys if menu just toggled
         }
 
