@@ -11,12 +11,13 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class InGameMenu
 {
-    public enum Screen { Root, SaveSlotSelect, Settings, KeyBindings }
+    public enum Screen { Root, SaveSlotSelect, Settings, KeyBindings, ConfirmMainMenu, ConfirmExit }
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
     private readonly Action           _onExitToDesktop;
     private readonly Action           _onResetGame;
+    private readonly Action           _onReturnToMainMenu;
     private readonly Action<bool>     _onWindowModeToggle; // true = fullscreen
     private readonly Action           _onConfigSaved;
 
@@ -36,9 +37,14 @@ internal sealed class InGameMenu
 
     // ---- Root menu ----
     private static readonly string[] RootItems =
-        { "Resume", "Reset Game", "Select Save Slot", "Save Game", "Load Game", "Settings", "Exit" };
+        { "Resume", "Reset Game", "Select Save Slot", "Save Game", "Load Game", "Settings", "Return to Main Menu", "Exit" };
 
-    private const int RootItemLoadGame = 4;
+    private const int RootItemLoadGame      = 4;
+    private const int RootItemReturnToMain  = 6;
+
+    // ---- Confirm screens ----
+    private static readonly string[] ConfirmMainMenuItems = { "Yes, return to main menu", "No, stay in game" };
+    private static readonly string[] ConfirmExitItems     = { "Yes, exit to desktop",     "No, stay in game" };
 
     // ---- Settings menu ----
     private static readonly string[] SettingsBaseItems =
@@ -63,15 +69,17 @@ internal sealed class InGameMenu
         AppConfig        config,
         Action           onExitToDesktop,
         Action           onResetGame,
+        Action           onReturnToMainMenu,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved)
     {
-        _saveStates         = saveStates;
-        _config             = config;
-        _onExitToDesktop    = onExitToDesktop;
-        _onResetGame        = onResetGame;
-        _onWindowModeToggle = onWindowModeToggle;
-        _onConfigSaved      = onConfigSaved;
+        _saveStates          = saveStates;
+        _config              = config;
+        _onExitToDesktop     = onExitToDesktop;
+        _onResetGame         = onResetGame;
+        _onReturnToMainMenu  = onReturnToMainMenu;
+        _onWindowModeToggle  = onWindowModeToggle;
+        _onConfigSaved       = onConfigSaved;
     }
 
     // ---- Open / Close ----
@@ -173,10 +181,12 @@ internal sealed class InGameMenu
 
     private int ItemCount() => Current switch
     {
-        Screen.Root          => RootItems.Length,
-        Screen.SaveSlotSelect => SaveStateManager.SlotCount,
-        Screen.Settings      => SettingsBaseItems.Length + 1, // +1 for FPS toggle
-        Screen.KeyBindings   => BindingActions.Length,        // includes Back sentinel
+        Screen.Root             => RootItems.Length,
+        Screen.SaveSlotSelect   => SaveStateManager.SlotCount,
+        Screen.Settings         => SettingsBaseItems.Length + 1, // +1 for FPS toggle
+        Screen.KeyBindings      => BindingActions.Length,        // includes Back sentinel
+        Screen.ConfirmMainMenu  => ConfirmMainMenuItems.Length,
+        Screen.ConfirmExit      => ConfirmExitItems.Length,
         _ => 1
     };
 
@@ -214,8 +224,13 @@ internal sealed class InGameMenu
                     case 5: // Settings
                         NavigateTo(Screen.Settings);
                         break;
-                    case 6: // Exit
-                        _onExitToDesktop();
+                    case RootItemReturnToMain: // Return to Main Menu
+                        NavigateTo(Screen.ConfirmMainMenu);
+                        SelectedItem = 1; // default to "No" — prevents accidental confirmation
+                        break;
+                    case 7: // Exit
+                        NavigateTo(Screen.ConfirmExit);
+                        SelectedItem = 1; // default to "No" — prevents accidental exit
                         break;
                 }
                 break;
@@ -257,6 +272,30 @@ internal sealed class InGameMenu
                 {
                     // Enter rebind mode for this action
                     RebindingAction = configKey;
+                }
+                break;
+
+            case Screen.ConfirmMainMenu:
+                if (SelectedItem == 0) // Yes
+                {
+                    Close();
+                    _onReturnToMainMenu();
+                }
+                else // No
+                {
+                    NavigateTo(Screen.Root);
+                }
+                break;
+
+            case Screen.ConfirmExit:
+                if (SelectedItem == 0) // Yes
+                {
+                    Close();
+                    _onExitToDesktop();
+                }
+                else // No
+                {
+                    NavigateTo(Screen.Root);
                 }
                 break;
         }
@@ -301,6 +340,9 @@ internal sealed class InGameMenu
                     : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
                 .ToArray(),
 
+            Screen.ConfirmMainMenu => ConfirmMainMenuItems,
+            Screen.ConfirmExit     => ConfirmExitItems,
+
             _ => Array.Empty<string>()
         };
     }
@@ -314,12 +356,14 @@ internal sealed class InGameMenu
 
     public string GetTitle() => Current switch
     {
-        Screen.Root           => "PAUSED",
-        Screen.SaveSlotSelect => $"SELECT SLOT  (active: {_saveStates.ActiveSlot + 1})",
-        Screen.Settings       => "SETTINGS",
-        Screen.KeyBindings    => RebindingAction != null
+        Screen.Root             => "PAUSED",
+        Screen.SaveSlotSelect   => $"SELECT SLOT  (active: {_saveStates.ActiveSlot + 1})",
+        Screen.Settings         => "SETTINGS",
+        Screen.KeyBindings      => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
             : "KEY BINDINGS",
+        Screen.ConfirmMainMenu  => "RETURN TO MAIN MENU?",
+        Screen.ConfirmExit      => "EXIT TO DESKTOP?",
         _ => ""
     };
 

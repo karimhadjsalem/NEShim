@@ -125,12 +125,13 @@ public partial class MainForm : Form
 
         // 10. In-game pause menu
         _menu = new InGameMenu(
-            saveStates:         _saveStates,
-            config:             _config,
-            onExitToDesktop:    () => BeginInvoke(Application.Exit),
-            onResetGame:        () => _emulationThread?.ResetGame(),
-            onWindowModeToggle: fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:      () => { /* config flushed to disk on exit */ });
+            saveStates:          _saveStates,
+            config:              _config,
+            onExitToDesktop:     () => BeginInvoke(Application.Exit),
+            onResetGame:         () => _emulationThread?.ResetGame(),
+            onReturnToMainMenu:  () => BeginInvoke(ReturnToMainMenu),
+            onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
+            onConfigSaved:       () => { /* config flushed to disk on exit */ });
         _gamePanel.SetMenu(_menu);
 
         // 11. Emulation thread
@@ -152,6 +153,15 @@ public partial class MainForm : Form
 
         // Show main menu immediately
         _gamePanel.Invalidate();
+    }
+
+    private void ReturnToMainMenu()
+    {
+        // Pause emulation under the MainMenu reason before showing the screen,
+        // so the emulation thread blocks before the next frame is emulated.
+        _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
+        _mainMenuScreen?.Show();
+        _gamePanel?.Invalidate();
     }
 
     private void SetWindowMode(bool fullscreen)

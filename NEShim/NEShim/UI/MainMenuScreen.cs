@@ -29,12 +29,15 @@ internal sealed class MainMenuScreen : IDisposable
     };
 
     // ---- State ----
-    public Screen  CurrentScreen  { get; private set; } = Screen.Main;
-    public bool    IsVisible      { get; private set; } = true;
-    public int     SelectedIndex  { get; private set; } = 0;
-    public bool    CanResume      { get; }
-    public Bitmap? Background     { get; }
+    public Screen  CurrentScreen   { get; private set; } = Screen.Main;
+    public bool    IsVisible       { get; private set; } = true;
+    public int     SelectedIndex   { get; private set; } = 0;
+    public Bitmap? Background      { get; }
     public string? RebindingAction { get; private set; }
+
+    // Computed each time so it reflects saves created during a play session
+    public bool CanResume => _saveStates.HasAutoSave
+        || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
@@ -66,10 +69,6 @@ internal sealed class MainMenuScreen : IDisposable
         _onWindowModeToggle = onWindowModeToggle;
         _onConfigSaved      = onConfigSaved;
 
-        // Resume is available if any save (auto or slot) exists
-        CanResume = _saveStates.HasAutoSave
-            || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
-
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
             string resolved = Path.IsPathRooted(bgImagePath)
@@ -81,6 +80,25 @@ internal sealed class MainMenuScreen : IDisposable
                 catch { /* leave null */ }
             }
         }
+    }
+
+    // ---- Show (re-entry from in-game) ----
+
+    /// <summary>
+    /// Re-displays the main menu, returning to the Main screen.
+    /// Called when the player chooses "Return to Main Menu" from in-game.
+    /// CanResume is re-evaluated automatically since it is now a computed property.
+    /// </summary>
+    public void Show()
+    {
+        CurrentScreen   = Screen.Main;
+        SelectedIndex   = 0;
+        RebindingAction = null;
+        IsVisible       = true;
+
+        // Skip Resume if no saves exist
+        if (!IsItemEnabled(0))
+            NavigateCursor(1);
     }
 
     // ---- Input ----

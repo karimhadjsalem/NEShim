@@ -9,15 +9,17 @@ namespace NEShim.UI;
 /// </summary>
 internal static class MenuRenderer
 {
-    private static readonly Color OverlayColor = Color.FromArgb(180, 0, 0, 0);
-    private static readonly Color PanelColor   = Color.FromArgb(230, 18, 18, 32);
-    private static readonly Color SelectedBg   = Color.FromArgb(210, 55, 110, 195);
-    private static readonly Color RebindBg     = Color.FromArgb(210, 140, 60, 20);
-    private static readonly Color TitleColor   = Color.FromArgb(255, 175, 215, 255);
-    private static readonly Color SubtitleColor= Color.FromArgb(255, 255, 200, 100);
-    private static readonly Color ItemColor    = Color.White;
-    private static readonly Color DimColor     = Color.FromArgb(170, 190, 190, 190);
-    private static readonly Color BorderColor  = Color.FromArgb(200, 75, 135, 215);
+    private static readonly Color OverlayColor   = Color.FromArgb(180, 0, 0, 0);
+    private static readonly Color PanelColor     = Color.FromArgb(230, 18, 18, 32);
+    private static readonly Color SelectedBg     = Color.FromArgb(210, 55, 110, 195);
+    private static readonly Color RebindBg       = Color.FromArgb(210, 140, 60, 20);
+    private static readonly Color TitleColor     = Color.FromArgb(255, 175, 215, 255);
+    private static readonly Color SubtitleColor  = Color.FromArgb(255, 255, 200, 100);
+    private static readonly Color WarningColor   = Color.FromArgb(255, 255, 120,  60);
+    private static readonly Color ItemColor      = Color.White;
+    private static readonly Color DimColor       = Color.FromArgb(170, 190, 190, 190);
+    private static readonly Color BorderColor    = Color.FromArgb(200, 75, 135, 215);
+    private static readonly Color WarningBorder  = Color.FromArgb(200, 200, 90, 40);
 
     private const int ItemH    = 38;
     private const int PanelPad = 16;
@@ -33,9 +35,12 @@ internal static class MenuRenderer
         var items   = menu.GetCurrentItems();
         string title = menu.GetTitle();
 
-        // Panel sizing
+        // Panel sizing — confirm screen reserves an extra row for the warning sub-label
+        bool isConfirm   = menu.Current == InGameMenu.Screen.ConfirmMainMenu
+                        || menu.Current == InGameMenu.Screen.ConfirmExit;
+        int  warningRowH = isConfirm ? ItemH : 0;
         int panelW = Math.Min(440, bounds.Width - 60);
-        int panelH = 64 + items.Length * ItemH + PanelPad;
+        int panelH = 64 + warningRowH + items.Length * ItemH + PanelPad;
         int panelX = (bounds.Width  - panelW) / 2;
         int panelY = (bounds.Height - panelH) / 2;
 
@@ -49,13 +54,15 @@ internal static class MenuRenderer
         using var panelBrush = new SolidBrush(PanelColor);
         g.FillRectangle(panelBrush, panelRect);
 
-        // Panel border
-        using var borderPen = new Pen(BorderColor, 2f);
+        // Panel border — warning colour on the confirm screen
+        using var borderPen = new Pen(isConfirm ? WarningBorder : BorderColor, 2f);
         g.DrawRectangle(borderPen, panelRect);
 
         // Title
         using var titleFont  = new Font("Segoe UI", 15f, FontStyle.Bold, GraphicsUnit.Point);
-        var titleColor = menu.RebindingAction != null ? SubtitleColor : TitleColor;
+        var titleColor = isConfirm               ? WarningColor
+                       : menu.RebindingAction != null ? SubtitleColor
+                       : TitleColor;
         using var titleBrush = new SolidBrush(titleColor);
         var titleRect   = new RectangleF(panelX + PanelPad, panelY + 10, panelW - PanelPad * 2, 36);
         var centred     = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -64,6 +71,15 @@ internal static class MenuRenderer
         // Divider
         using var divPen = new Pen(Color.FromArgb(70, 255, 255, 255), 1);
         g.DrawLine(divPen, panelX + PanelPad, panelY + 50, panelX + panelW - PanelPad, panelY + 50);
+
+        // Confirm screen: show warning sub-label above the Yes/No items
+        if (isConfirm)
+        {
+            using var warnFont  = new Font("Segoe UI", 11f, FontStyle.Italic, GraphicsUnit.Point);
+            using var warnBrush = new SolidBrush(Color.FromArgb(200, 255, 180, 100));
+            var warnRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, 28);
+            g.DrawString("Unsaved progress will be lost.", warnFont, warnBrush, warnRect, centred);
+        }
 
         // If waiting for rebind, show a pulsing "Press any key…" hint and skip item list
         if (menu.RebindingAction != null)
@@ -93,7 +109,7 @@ internal static class MenuRenderer
         {
             var itemRect = new Rectangle(
                 panelX + 6,
-                panelY + 56 + i * ItemH,
+                panelY + 56 + warningRowH + i * ItemH,
                 panelW - 12,
                 ItemH - 2);
 
