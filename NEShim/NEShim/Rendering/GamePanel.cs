@@ -1,0 +1,155 @@
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using NEShim.UI;
+
+namespace NEShim.Rendering;
+
+/// <summary>
+/// Renders NES frames to the screen using GDI+.
+/// Scales the 256×240 (effective) NES buffer to fill the panel while maintaining
+/// the NES's 8:7 pixel aspect ratio with letterboxing.
+/// </summary>
+internal sealed class GamePanel : Panel
+{
+    private readonly FrameBuffer _frameBuffer;
+    private readonly Bitmap _bitmap;
+    private InGameMenu? _menu;
+
+    // Toast notification
+    private string? _toastText;
+    private DateTime _toastExpiry;
+
+    public GamePanel(FrameBuffer frameBuffer)
+    {
+        _frameBuffer = frameBuffer;
+        _bitmap = new Bitmap(256, 240, PixelFormat.Format32bppArgb);
+
+        SetStyle(
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.UserPaint |
+            ControlStyles.Opaque,
+            true);
+        DoubleBuffered = true;
+        BackColor = Color.Black;
+    }
+
+    public void SetMenu(InGameMenu menu) => _menu = menu;
+
+    /// <summary>Queues a toast message (shown for 1.5 seconds).</summary>
+    public void ShowToast(string text)
+    {
+        _toastText  = text;
+        _toastExpiry = DateTime.UtcNow.AddSeconds(1.5);
+    }
+
+    /// <summary>Called from EmulationThread (via BeginInvoke) when a new frame is ready.</summary>
+    public void UpdateFrame()
+    {
+        // Copy front buffer into the GDI+ bitmap
+        var front = _frameBuffer.FrontBuffer;
+        var data = _bitmap.LockBits(
+            new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
+            ImageLockMode.WriteOnly,
+            PixelFormat.Format32bppArgb);
+        try
+        {
+            Marshal.Copy(front, 0, data.Scan0, Math.Min(front.Length, _bitmap.Width * _bitmap.Height));
+        }
+        finally
+        {
+            _bitmap.UnlockBits(data);
+        }
+
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.CompositingMode    = CompositingMode.SourceCopy;
+        g.InterpolationMode  = InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode    = PixelOffsetMode.Half;
+
+        // Compute letterboxed destination using 8:7 pixel aspect ratio
+        // NES pixels are not square — display width = bufferWidth * (8/7)
+        int srcW = _frameBuffer.Width;
+        int srcH = _frameBuffer.Height;
+
+        float displayAspect = srcW * (8f / 7f) / srcH;
+        float panelAspect   = (float)Width / Height;
+
+        int destW, destH;
+        if (panelAspect > displayAspect)
+        {
+            destH = Height;
+            destW = (int)(Height * displayAspect);
+        }
+        else
+        {
+            destW = Width;
+            destH = (int)(Width / displayAspect);
+        }
+
+        int destX = (Width  - destW) / 2;
+        int destY = (Height - destH) / 2;
+
+        // Fill letterbox bars with black
+        g.CompositingMode = CompositingMode.SourceCopy;
+        using var black = new SolidBrush(Color.Black);
+        if (destX > 0) g.FillRectangle(black, 0, 0, destX, Height);
+        if (destY > 0) g.FillRectangle(black, 0, 0, Width, destY);
+        if (destX > 0) g.FillRectangle(black, Width - destX, 0, destX, Height);
+        if (destY > 0) g.FillRectangle(black, 0, Height - destY, Width, destY);
+
+        var srcRect  = new Rectangle(0, 0, srcW, srcH);
+        var destRect = new Rectangle(destX, destY, destW, destH);
+
+        if (_menu?.IsOpen == true)
+        {
+            // Menu is open: draw frozen frame + overlay
+            g.CompositingMode   = CompositingMode.SourceCopy;
+            g.InterpolationMode = InterpolationMode.NearestNeighbor;
+            g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
+            g.CompositingMode = CompositingMode.SourceOver;
+            _menu.Render(g, ClientRectangle);
+        }
+        else
+        {
+            g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
+        }
+
+        // Draw toast if active
+        if (_toastText is not null && DateTime.UtcNow < _toastExpiry)
+        {
+            DrawToast(g, _toastText);
+        }
+        else
+        {
+            _toastText = null;
+        }
+    }
+
+    private void DrawToast(Graphics g, string text)
+    {
+        using var font = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        var size = g.MeasureString(text, font);
+        float x = (Width  - size.Width)  / 2f;
+        float y = Height  - size.Height  - 30f;
+
+        using var bg = new SolidBrush(Color.FromArgb(160, 0, 0, 0));
+        g.CompositingMode = CompositingMode.SourceOver;
+        g.FillRectangle(bg, x - 8, y - 4, size.Width + 16, size.Height + 8);
+
+        using var fg = new SolidBrush(Color.White);
+        g.DrawString(text, font, fg, x, y);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _bitmap.Dispose();
+        base.Dispose(disposing);
+    }
+}
