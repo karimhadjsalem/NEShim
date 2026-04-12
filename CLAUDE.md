@@ -64,3 +64,37 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 - `CommunityToolkit.HighPerformance` — SIMD/span performance helpers
 - `Newtonsoft.Json` — settings serialization
 - BizHawk.Analyzer.dll (in `ReflectionCache/`) — custom Roslyn analyzer, do not remove
+
+## License Policy
+
+This project is licensed **Apache 2.0** and is intended for commercial distribution via Steam. Every dependency compiled into the shipped binary must be compatible with commercial closed-source distribution.
+
+### Permitted licenses for new dependencies
+MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All current compiled dependencies already fall in this set:
+
+| Package | License |
+|---|---|
+| BizHawk source (adapted) | MIT |
+| NAudio | MIT |
+| Steamworks.NET | MIT |
+| CommunityToolkit.HighPerformance | MIT |
+| Newtonsoft.Json | MIT |
+
+### Prohibited licenses — do not add
+- **GPL v1/v2/v3** — copyleft infects the entire binary; incompatible with commercial distribution
+- **LGPL** — dynamic linking exception is ambiguous under .NET's AOT/bundling; avoid unless you have confirmed it can be safely isolated as a separate DLL that ships unmodified
+- **AGPL** — network-service copyleft; prohibited
+- **SSPL, BUSL, Commons Clause** — source-available but not commercially distributable
+- **CC BY-NC / CC BY-SA** — non-commercial or share-alike restrictions
+
+When evaluating a new NuGet package, check its repository license **and** the licenses of its transitive dependencies (`dotnet list package --include-transitive`).
+
+### `ref/` directory warning
+The `ref/` folder contains development-only reference tools that are **never compiled into the project**. Two of them are GPL-licensed:
+- `ref/NClass_v2.04_bin/` — GPL v2 (UML diagramming tool)
+- `ref/doxygen/` — GPL (documentation generator)
+
+Do not copy code from these directories into `NEShim/` or `BizHawk/`.
+
+### Steamworks SDK
+The underlying Steamworks C++ SDK (wrapped by `Steamworks.NET`) is governed by the [Valve Steamworks SDK license](https://partner.steamgames.com/documentation/sdk_access_agreement). Key constraint: the SDK may only be used to distribute software through the Steam platform. This is separate from, and in addition to, the code license requirements above.
