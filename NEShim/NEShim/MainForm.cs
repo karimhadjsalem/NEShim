@@ -22,6 +22,7 @@ public partial class MainForm : Form
     private EmulatorHost?     _host;
     private InputManager?     _input;
     private AudioPlayer?      _audio;
+    private MainMenuMusic?    _mainMenuMusic;
     private SaveStateManager? _saveStates;
     private SaveRamManager?   _saveRam;
     private FrameBuffer?      _frameBuffer;
@@ -110,18 +111,27 @@ public partial class MainForm : Form
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
+            _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
             _gamePanel?.Invalidate();
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
             // Save was already loaded by MainMenuScreen.Activate() while thread was blocked
+            _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
             _gamePanel?.Invalidate();
         });
-        _mainMenuScreen.ExitChosen += () => BeginInvoke(Application.Exit);
+        _mainMenuScreen.ExitChosen += () => BeginInvoke(() =>
+        {
+            _mainMenuMusic?.Stop();
+            Application.Exit();
+        });
 
         _gamePanel.SetMainMenu(_mainMenuScreen);
+
+        // 9a. Main menu music (optional — path configured under Developer settings)
+        _mainMenuMusic = CreateMainMenuMusic(_config);
 
         // 10. In-game pause menu
         _menu = new InGameMenu(
@@ -161,7 +171,20 @@ public partial class MainForm : Form
         // so the emulation thread blocks before the next frame is emulated.
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _mainMenuScreen?.Show();
+        _mainMenuMusic?.FadeIn();
         _gamePanel?.Invalidate();
+    }
+
+    private static MainMenuMusic? CreateMainMenuMusic(AppConfig config)
+    {
+        string path = config.MainMenuMusicPath;
+        if (string.IsNullOrWhiteSpace(path)) return null;
+
+        string? resolved = MainMenuScreen.ResolveAssetPath(path);
+        if (resolved == null) return null;
+
+        try   { return new MainMenuMusic(resolved); }
+        catch { return null; /* bad file or audio device issue — degrade gracefully */ }
     }
 
     private void SetWindowMode(bool fullscreen)
@@ -244,6 +267,7 @@ public partial class MainForm : Form
         catch { /* best-effort on shutdown */ }
 
         // Dispose resources
+        _mainMenuMusic?.Dispose();
         _mainMenuScreen?.Dispose();
         _audio?.Dispose();
         _host?.Dispose();

@@ -71,13 +71,11 @@ internal sealed class MainMenuScreen : IDisposable
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
-            string resolved = Path.IsPathRooted(bgImagePath)
-                ? bgImagePath
-                : Path.Combine(AppContext.BaseDirectory, bgImagePath);
-            if (File.Exists(resolved))
+            string? resolved = ResolveAssetPath(bgImagePath);
+            if (resolved != null)
             {
                 try { Background = new Bitmap(resolved); }
-                catch { /* leave null */ }
+                catch { /* unsupported format or corrupt file — leave null */ }
             }
         }
     }
@@ -331,6 +329,26 @@ internal sealed class MainMenuScreen : IDisposable
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
 
     public void Dispose() => Background?.Dispose();
+
+    /// <summary>
+    /// Resolves a relative asset path by checking the executable directory first,
+    /// then the working directory. Returns null if the file cannot be found.
+    /// </summary>
+    internal static string? ResolveAssetPath(string path)
+    {
+        if (Path.IsPathRooted(path))
+            return File.Exists(path) ? path : null;
+
+        // Try next to the executable (the correct location in a deployed build)
+        string nextToExe = Path.Combine(AppContext.BaseDirectory, path);
+        if (File.Exists(nextToExe)) return nextToExe;
+
+        // Fall back to working directory (useful when running from within VS/Rider)
+        string inCwd = Path.GetFullPath(path);
+        if (File.Exists(inCwd)) return inCwd;
+
+        return null;
+    }
 
     // ---- Inner type ----
     private record ResumeOption(string Label, Action? Load);

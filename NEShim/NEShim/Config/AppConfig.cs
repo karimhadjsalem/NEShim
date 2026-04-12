@@ -43,7 +43,11 @@ public sealed class AppConfig
 
     // Path to the image shown on the main (pre-game) menu. Relative to exe or absolute.
     public string MainMenuBackgroundPath { get; set; } = "";
-
+    
+    // Path to an audio file (MP3 recommended) played on the pre-game main menu.
+    // Relative to exe or absolute. Leave empty to disable.
+    public string MainMenuMusicPath    { get; set; } = "";
+    
     public DeveloperSettings Developer { get; set; } = new();
 }
 
