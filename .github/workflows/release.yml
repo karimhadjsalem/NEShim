@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('NEShim/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore NEShim/NEShim.sln
+
+      - name: Test
+        run: >
+          dotnet test NEShim/NEShim.Tests/NEShim.Tests.csproj
+          --no-restore
+          --logger "trx;LogFileName=results.trx"
+          --results-directory TestResults
+
+      - name: Publish
+        run: >
+          dotnet publish NEShim/NEShim/NEShim.csproj
+          --no-restore
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishReadyToRun=true
+          -o publish/NEShim
+
+      - name: Zip artifact
+        run: Compress-Archive -Path publish/NEShim/* -DestinationPath NEShim-${{ github.ref_name }}-win-x64.zip
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: NEShim-${{ github.ref_name }}-win-x64.zip
