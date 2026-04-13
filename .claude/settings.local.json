@@ -4,7 +4,8 @@
       "Bash(find:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet list:*)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(dotnet test:*)"
     ]
   }
 }
