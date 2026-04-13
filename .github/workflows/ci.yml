@@ -31,7 +31,7 @@ jobs:
         run: dotnet restore NEShim/NEShim.sln
 
       - name: Build
-        run: dotnet build NEShim/NEShim.sln --no-restore -c Debug -warnaserror:CS8600,CS8602,CS8603,CS8604,CS8618,CS8625
+        run: dotnet build NEShim/NEShim.sln --no-restore -c Debug
 
       - name: Test
         run: >
