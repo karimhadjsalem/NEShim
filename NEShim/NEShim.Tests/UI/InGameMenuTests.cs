@@ -134,12 +134,13 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void HandleKey_Up_CannotMoveAboveZero()
+    public void HandleKey_Up_AtFirst_WrapsToLast()
     {
         var menu = CreateMenu();
         menu.Open(EmptyFrame());
+        // Root has 8 items (indices 0–7). Up from 0 wraps to 7.
         menu.HandleKey(Keys.Up);
-        Assert.That(menu.SelectedItem, Is.EqualTo(0));
+        Assert.That(menu.SelectedItem, Is.EqualTo(7));
     }
 
     [Test]
@@ -318,9 +319,12 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
-        // Move down to FPS toggle (index 2 — Window Mode is now a single item at 1)
-        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down);
+        // Navigate: Down to Video (index 1) → enter Video → Down to FPS (index 1 in Video) → toggle
+        menu.HandleKey(Keys.Down);   // select Video (index 1)
+        menu.HandleKey(Keys.Return); // enter Video screen
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
+        menu.HandleKey(Keys.Down);   // select FPS (index 1 in Video)
         bool before = _config.Developer.ShowFps;
         menu.HandleKey(Keys.Return);
         Assert.That(_config.Developer.ShowFps, Is.EqualTo(!before));
@@ -334,7 +338,9 @@ internal class InGameMenuTests
         menu.Open(EmptyFrame());
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // FPS Overlay is now index 2
+        menu.HandleKey(Keys.Down);   // select Video (index 1)
+        menu.HandleKey(Keys.Return); // enter Video screen
+        menu.HandleKey(Keys.Down);   // select FPS (index 1 in Video)
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -474,8 +480,15 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
 
         string[] items = menu.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(4)); // Key Bindings, Window Mode, FPS, Sound
-        Assert.That(items[1], Does.Contain("Fullscreen"));
+        Assert.That(items.Length, Is.EqualTo(3)); // Key Bindings, Video, Sound
+        Assert.That(items[1], Is.EqualTo("Video"));
+
+        // Window Mode lives in the Video sub-screen
+        menu.HandleKey(Keys.Down);   // select Video
+        menu.HandleKey(Keys.Return); // enter Video
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+        string[] videoItems = menu.GetCurrentItems();
+        Assert.That(videoItems[0], Does.Contain("Fullscreen"));
     }
 
     [Test]
@@ -495,7 +508,9 @@ internal class InGameMenuTests
         _config.WindowMode = "Fullscreen";
         for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(Keys.Down);
         menuWithToggle.HandleKey(Keys.Return); // Settings
-        menuWithToggle.HandleKey(Keys.Down);   // select Window Mode (index 1)
+        menuWithToggle.HandleKey(Keys.Down);   // select Video (index 1)
+        menuWithToggle.HandleKey(Keys.Return); // enter Video
+        // Window Mode is index 0 in Video — already selected
         menuWithToggle.HandleKey(Keys.Return); // activate — should toggle to Windowed
 
         Assert.That(receivedFullscreen, Is.False); // was Fullscreen, toggled to Windowed
@@ -509,7 +524,7 @@ internal class InGameMenuTests
         menu.Open(new int[256 * 240]);
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings
         menu.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Sound (index 3)
+        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // to Sound (index 2)
         menu.HandleKey(Keys.Return); // enter Sound
     }
 
@@ -634,5 +649,87 @@ internal class InGameMenuTests
         OpenSoundScreen(menu);
         menu.HandleKey(Keys.Escape);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
+    }
+
+    // ---- Video screen ----
+
+    private static void OpenVideoScreen(InGameMenu menu)
+    {
+        menu.Open(new int[256 * 240]);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings (index 5, skipping disabled)
+        menu.HandleKey(Keys.Return); // enter Settings
+        menu.HandleKey(Keys.Down);   // select Video (index 1)
+        menu.HandleKey(Keys.Return); // enter Video
+    }
+
+    [Test]
+    public void Video_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void Video_GetCurrentItems_ReturnsThreeItems()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Video_GetTitle_ReturnsVideo()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO"));
+    }
+
+    [Test]
+    public void Video_Back_ReturnsToSettings()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);   // ← Back (index 2)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    // ---- Rollover ----
+
+    [Test]
+    public void HandleKey_Down_AtLast_WrapsToFirst()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Navigate to Exit (index 7): skips disabled Load Game (4)
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
+        Assert.That(menu.SelectedItem, Is.EqualTo(7));
+
+        menu.HandleKey(Keys.Down); // wraps to index 0
+        Assert.That(menu.SelectedItem, Is.EqualTo(0));
+    }
+
+    // ---- Key binding uniqueness ----
+
+    [Test]
+    public void KeyBindings_AssignDuplicateKey_ClearsOldAction()
+    {
+        // P1 Up is bound to "W" by default; binding "W" to P1 Down should clear P1 Up
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.KeyBindings));
+
+        menu.HandleKey(Keys.Down);   // P1 Down (index 1)
+        menu.HandleKey(Keys.Return); // start rebind
+        menu.HandleKey(Keys.W);      // bind "W" — currently used by P1 Up
+
+        Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
+        Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
     }
 }

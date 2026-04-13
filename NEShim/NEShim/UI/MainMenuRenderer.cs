@@ -5,12 +5,11 @@ namespace NEShim.UI;
 
 /// <summary>
 /// Stateless renderer for the pre-game main menu and all its sub-screens.
-/// Main screen: background image + lower-third panel.
-/// Sub-screens (ResumeSlots, Settings, KeyBindings): centred panel over dimmed background.
+/// Main screen: background image + panel anchored per <c>MainMenuScreen.MenuPosition</c>.
+/// Sub-screens (Settings, Video, Sound, etc.): centred panel over dimmed background.
 /// </summary>
 internal static class MainMenuRenderer
 {
-    // ---- Palette (shared with MenuRenderer feel) ----
     private static readonly Color BgFallback  = Color.FromArgb(255, 12, 12, 24);
     private static readonly Color OverlayDim  = Color.FromArgb(130, 0, 0, 0);
     private static readonly Color SubDim      = Color.FromArgb(175, 0, 0, 0);
@@ -22,31 +21,90 @@ internal static class MainMenuRenderer
     private static readonly Color ItemDim     = Color.FromArgb(110, 160, 160, 160);
     private static readonly Color SelectedBg  = Color.FromArgb(210, 50, 105, 190);
 
-    private const int ItemH    = 42;
-    private const int Pad      = 14;
+    private const int ItemH  = 42;
+    private const int Pad    = 14;
+    private const int Margin = 40; // distance from screen edge for non-centred positions
+
+    // ---- Hit testing ----
+
+    /// <summary>
+    /// Returns the index of the item at <paramref name="p"/>, or -1 if none.
+    /// Mirrors the item-rect calculation used in <see cref="Draw"/>.
+    /// </summary>
+    public static int HitTestItem(Point p, Rectangle bounds, MainMenuScreen menu)
+    {
+        if (menu.RebindingAction != null) return -1;
+
+        var       items  = menu.GetCurrentItems();
+        Rectangle panel;
+
+        if (menu.CurrentScreen == MainMenuScreen.Screen.Main)
+        {
+            int panelW = Math.Min(360, bounds.Width - 60);
+            int panelH = 52 + items.Length * ItemH + Pad;
+            panel = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
+        }
+        else
+        {
+            int panelW = Math.Min(440, bounds.Width - 60);
+            int panelH = 52 + items.Length * ItemH + Pad;
+            int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
+            int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
+            panel = new Rectangle(panelX, panelY, panelW, panelH);
+        }
+
+        for (int i = 0; i < items.Length; i++)
+        {
+            var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH, panel.Width - 12, ItemH - 2);
+            if (itemRect.Contains(p) && menu.IsItemEnabled(i)) return i;
+        }
+        return -1;
+    }
+
+    // ---- Panel positioning ----
+
+    /// <summary>
+    /// Computes the main-screen panel <see cref="Rectangle"/> from <paramref name="position"/>.
+    /// Supported values: BottomCenter, Center, BottomLeft, BottomRight, TopLeft, TopCenter, TopRight.
+    /// </summary>
+    private static Rectangle GetMainPanelRect(Rectangle bounds, int panelW, int panelH, string position)
+    {
+        int panelX = position switch
+        {
+            string p when p.EndsWith("Left")  => Margin,
+            string p when p.EndsWith("Right") => bounds.Width - panelW - Margin,
+            _                                  => (bounds.Width - panelW) / 2,
+        };
+
+        int panelY = position switch
+        {
+            string p when p.StartsWith("Top")    => Margin,
+            string p when p.StartsWith("Bottom") => bounds.Height - panelH - bounds.Height / 6,
+            _                                     => (bounds.Height - panelH) / 2, // "Center"
+        };
+
+        return new Rectangle(Math.Max(8, panelX), Math.Max(8, panelY), panelW, panelH);
+    }
+
+    // ---- Drawing ----
 
     public static void Draw(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
         g.CompositingMode   = CompositingMode.SourceOver;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
-        // ---- 1. Background (always drawn) ----
         DrawBackground(g, bounds, menu);
 
-        // ---- 2. Screen-specific panel ----
         if (menu.CurrentScreen == MainMenuScreen.Screen.Main)
             DrawMainPanel(g, bounds, menu);
         else
             DrawSubPanel(g, bounds, menu);
     }
 
-    // ---- Background ----
-
     private static void DrawBackground(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
         if (menu.Background != null)
         {
-            // Cover-fit: fill panel, crop if needed
             float imgAspect   = (float)menu.Background.Width / menu.Background.Height;
             float panelAspect = (float)bounds.Width / bounds.Height;
             Rectangle dest;
@@ -74,30 +132,20 @@ internal static class MainMenuRenderer
             g.FillRectangle(bg, bounds);
         }
 
-        // Dim — sub-screens get a heavier overlay
         var dimColor = menu.CurrentScreen == MainMenuScreen.Screen.Main ? OverlayDim : SubDim;
         using var dim = new SolidBrush(dimColor);
         g.FillRectangle(dim, bounds);
     }
-
-    // ---- Main screen: panel anchored to lower-third ----
 
     private static void DrawMainPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
         var items  = menu.GetCurrentItems();
         int panelW = Math.Min(360, bounds.Width - 60);
         int panelH = 52 + items.Length * ItemH + Pad;
-        int panelX = (bounds.Width - panelW) / 2;
-        int panelY = bounds.Height - panelH - bounds.Height / 6;
+        var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
 
-        panelX = Math.Max(8, panelX);
-        panelY = Math.Max(8, panelY);
-
-        DrawPanel(g, new Rectangle(panelX, panelY, panelW, panelH),
-                  menu.GetTitle(), TitleColor, items, menu);
+        DrawPanel(g, panel, menu.GetTitle(), TitleColor, items, menu);
     }
-
-    // ---- Sub-screens: centred panel ----
 
     private static void DrawSubPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
@@ -110,11 +158,8 @@ internal static class MainMenuRenderer
         var items  = menu.GetCurrentItems();
         int panelW = Math.Min(440, bounds.Width - 60);
         int panelH = 52 + items.Length * ItemH + Pad;
-        int panelX = (bounds.Width  - panelW) / 2;
-        int panelY = (bounds.Height - panelH) / 2;
-
-        panelX = Math.Max(8, panelX);
-        panelY = Math.Max(8, panelY);
+        int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
+        int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
 
         DrawPanel(g, new Rectangle(panelX, panelY, panelW, panelH),
                   menu.GetTitle(), TitleColor, items, menu);
@@ -145,8 +190,6 @@ internal static class MainMenuRenderer
             new RectangleF(panelX, panelY + 60, panelW, 44), centred);
     }
 
-    // ---- Shared panel drawing ----
-
     private static void DrawPanel(Graphics g, Rectangle panel, string title, Color titleColor,
                                   string[] items, MainMenuScreen menu)
     {
@@ -155,18 +198,15 @@ internal static class MainMenuRenderer
         using var bp = new Pen(BorderColor, 2f);
         g.DrawRectangle(bp, panel);
 
-        // Title
         using var tf  = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Point);
         using var tb  = new SolidBrush(titleColor);
         var titleRect = new RectangleF(panel.X + Pad, panel.Y + 8, panel.Width - Pad * 2, 36);
         var centred   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(title, tf, tb, titleRect, centred);
 
-        // Divider
         using var div = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
         g.DrawLine(div, panel.X + Pad, panel.Y + 46, panel.X + panel.Width - Pad, panel.Y + 46);
 
-        // Items
         using var selBrush = new SolidBrush(SelectedBg);
         using var selFont  = new Font("Segoe UI", 12f, FontStyle.Bold,    GraphicsUnit.Point);
         using var itemFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point);

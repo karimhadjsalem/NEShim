@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using NEShim.UI;
 
+
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -50,8 +51,10 @@ internal sealed class GamePanel : Panel
     // Allow all keys (including arrows, escape, enter) to reach KeyDown
     protected override bool IsInputKey(Keys keyData) => true;
 
-    public void SetMenu(InGameMenu menu)           => _menu     = menu;
+    public void SetMenu(InGameMenu menu)             => _menu     = menu;
     public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
+
+    private bool IsMenuActive => _mainMenu?.IsVisible == true || _menu?.IsOpen == true;
 
     /// <summary>Queues a toast message (shown for 1.5 seconds).</summary>
     public void ShowToast(string text)
@@ -79,6 +82,52 @@ internal sealed class GamePanel : Panel
         }
 
         Invalidate();
+    }
+
+    private const int WM_SETCURSOR = 0x0020;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetCursor(IntPtr hCursor);
+
+    protected override void WndProc(ref Message m)
+    {
+        // When no menu is active, suppress the default cursor so the pointer is hidden
+        if (m.Msg == WM_SETCURSOR && !IsMenuActive)
+        {
+            SetCursor(IntPtr.Zero);
+            m.Result = new IntPtr(1);
+            return;
+        }
+        base.WndProc(ref m);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+
+        if (!IsMenuActive) return;
+
+        bool repaint = false;
+        if (_mainMenu?.IsVisible == true)
+            repaint = _mainMenu.HandleMouseMove(e.Location, ClientRectangle);
+        else if (_menu?.IsOpen == true)
+            repaint = _menu.HandleMouseMove(e.Location, ClientRectangle);
+
+        if (repaint) Invalidate();
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button != MouseButtons.Left) return;
+
+        bool repaint = false;
+        if (_mainMenu?.IsVisible == true)
+            repaint = _mainMenu.HandleMouseClick(e.Location, ClientRectangle);
+        else if (_menu?.IsOpen == true)
+            repaint = _menu.HandleMouseClick(e.Location, ClientRectangle);
+
+        if (repaint) Invalidate();
     }
 
     protected override void OnPaint(PaintEventArgs e)

@@ -7,14 +7,14 @@ namespace NEShim.UI;
 
 /// <summary>
 /// State machine for the pre-game main menu.
-/// Handles Main, ResumeSlots, Settings, KeyBindings, and Sound screens.
+/// Handles Main, ResumeSlots, Settings, KeyBindings, Video, and Sound screens.
 /// The emulation thread stays paused until the user picks New Game or loads a save.
 /// </summary>
 internal sealed class MainMenuScreen : IDisposable
 {
-    public enum Screen { Main, ResumeSlots, Settings, KeyBindings, Sound }
+    public enum Screen { Main, ResumeSlots, Settings, KeyBindings, Video, Sound }
 
-    // ---- Shared binding-action table (mirrors InGameMenu) ----
+    // ---- Shared binding-action table ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
     {
         ("Up",     "P1 Up"),
@@ -28,19 +28,24 @@ internal sealed class MainMenuScreen : IDisposable
         ("← Back", ""),
     };
 
-    // ---- Settings item indices ----
+    // ---- Settings: 3 items ----
     private const int SettingsItemKeyBindings = 0;
-    private const int SettingsItemWindowMode  = 1;
-    private const int SettingsItemFps         = 2;
-    private const int SettingsItemSound       = 3;
-    private const int SettingsItemCount       = 4;
+    private const int SettingsItemVideo       = 1;
+    private const int SettingsItemSound       = 2;
+    private const int SettingsItemCount       = 3;
 
-    // ---- Sound screen item indices ----
-    private const int SoundItemVolume     = 0;
-    private const int SoundItemScrubber   = 1;
-    private const int SoundItemMenuMusic  = 2;
-    private const int SoundItemBack       = 3;
-    private const int SoundItemCount      = 4;
+    // ---- Video screen: 3 items ----
+    private const int VideoItemWindowMode = 0;
+    private const int VideoItemFps        = 1;
+    private const int VideoItemBack       = 2;
+    private const int VideoItemCount      = 3;
+
+    // ---- Sound screen: 4 items ----
+    private const int SoundItemVolume    = 0;
+    private const int SoundItemScrubber  = 1;
+    private const int SoundItemMenuMusic = 2;
+    private const int SoundItemBack      = 3;
+    private const int SoundItemCount     = 4;
 
     // ---- State ----
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
@@ -49,7 +54,9 @@ internal sealed class MainMenuScreen : IDisposable
     public Bitmap? Background      { get; }
     public string? RebindingAction { get; private set; }
 
-    // Computed each time so it reflects saves created during a play session
+    /// <summary>Current main menu panel position, read from config.</summary>
+    public string MenuPosition => _config.MainMenuPosition;
+
     public bool CanResume => _saveStates.HasAutoSave
         || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
 
@@ -57,11 +64,10 @@ internal sealed class MainMenuScreen : IDisposable
     private readonly AppConfig        _config;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
-    private readonly Action<int>      _onVolumeChanged;   // 0–100
-    private readonly Action<bool>     _onScrubberToggled; // true = scrubber on
-    private readonly Action<bool>     _onMenuMusicToggled; // true = music on
+    private readonly Action<int>      _onVolumeChanged;
+    private readonly Action<bool>     _onScrubberToggled;
+    private readonly Action<bool>     _onMenuMusicToggled;
 
-    // Built lazily when the player enters the ResumeSlots screen
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
     // ---- Events ----
@@ -70,7 +76,7 @@ internal sealed class MainMenuScreen : IDisposable
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
 
-    // ---- Main menu item labels / enabled state ----
+    // ---- Main menu items ----
     private static readonly string[] MainItemLabels = { "New Game", "Resume Game", "Settings", "Exit" };
     private const int MainItemResume = 1;
 
@@ -84,13 +90,13 @@ internal sealed class MainMenuScreen : IDisposable
         Action<bool>     onScrubberToggled,
         Action<bool>     onMenuMusicToggled)
     {
-        _saveStates          = saveStates;
-        _config              = config;
-        _onWindowModeToggle  = onWindowModeToggle;
-        _onConfigSaved       = onConfigSaved;
-        _onVolumeChanged     = onVolumeChanged;
-        _onScrubberToggled   = onScrubberToggled;
-        _onMenuMusicToggled  = onMenuMusicToggled;
+        _saveStates         = saveStates;
+        _config             = config;
+        _onWindowModeToggle = onWindowModeToggle;
+        _onConfigSaved      = onConfigSaved;
+        _onVolumeChanged    = onVolumeChanged;
+        _onScrubberToggled  = onScrubberToggled;
+        _onMenuMusicToggled = onMenuMusicToggled;
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -98,18 +104,13 @@ internal sealed class MainMenuScreen : IDisposable
             if (resolved != null)
             {
                 try { Background = new Bitmap(resolved); }
-                catch { /* unsupported format or corrupt file — leave null */ }
+                catch { }
             }
         }
     }
 
     // ---- Show (re-entry from in-game) ----
 
-    /// <summary>
-    /// Re-displays the main menu, returning to the Main screen.
-    /// Called when the player chooses "Return to Main Menu" from in-game.
-    /// CanResume is re-evaluated automatically since it is now a computed property.
-    /// </summary>
     public void Show()
     {
         CurrentScreen   = Screen.Main;
@@ -117,38 +118,30 @@ internal sealed class MainMenuScreen : IDisposable
         RebindingAction = null;
         IsVisible       = true;
 
-        // Skip Resume if no saves exist
         if (!IsItemEnabled(0))
             NavigateCursor(1);
     }
 
-    // ---- Input ----
+    // ---- Keyboard input ----
 
     public bool HandleKey(Keys key)
     {
         if (!IsVisible) return false;
 
-        // Capture any key while waiting for a rebind
         if (RebindingAction != null)
         {
             if (key == Keys.Escape)
-            {
                 RebindingAction = null;
-            }
             else
             {
-                string keyName = key.ToString();
-                if (_config.InputMappings.TryGetValue(RebindingAction, out var binding))
-                    binding.Key = keyName;
-                else
-                    _config.InputMappings[RebindingAction] = new InputBinding(keyName, null);
+                SetBinding(RebindingAction, key.ToString());
                 _onConfigSaved();
                 RebindingAction = null;
             }
             return true;
         }
 
-        // Left/Right adjust volume when on Sound screen at the Volume item
+        // Left/Right: volume on Sound screen
         if (CurrentScreen == Screen.Sound && SelectedIndex == SoundItemVolume)
         {
             if (key == Keys.Left)  { AdjustVolume(-5); return true; }
@@ -184,6 +177,38 @@ internal sealed class MainMenuScreen : IDisposable
         return false;
     }
 
+    // ---- Mouse input ----
+
+    /// <summary>Highlights the item under the cursor. Returns true if repaint needed.</summary>
+    public bool HandleMouseMove(System.Drawing.Point p, System.Drawing.Rectangle bounds)
+    {
+        if (!IsVisible || RebindingAction != null) return false;
+        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
+        if (hit >= 0 && IsItemEnabled(hit) && hit != SelectedIndex)
+        {
+            SelectedIndex = hit;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Activates the item under the cursor. Returns true if repaint needed.</summary>
+    public bool HandleMouseClick(System.Drawing.Point p, System.Drawing.Rectangle bounds)
+    {
+        if (!IsVisible) return false;
+        if (RebindingAction != null) return true;
+        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
+        if (hit >= 0 && IsItemEnabled(hit))
+        {
+            SelectedIndex = hit;
+            Activate();
+            return true;
+        }
+        return false;
+    }
+
+    // ---- Internal helpers ----
+
     private void AdjustVolume(int delta)
     {
         int next = Math.Clamp(_config.Volume + delta, 0, 100);
@@ -216,18 +241,18 @@ internal sealed class MainMenuScreen : IDisposable
             case Screen.Main:
                 switch (SelectedIndex)
                 {
-                    case 0: // New Game
+                    case 0:
                         IsVisible = false;
                         NewGameChosen?.Invoke();
                         break;
-                    case 1: // Resume Game
+                    case 1:
                         BuildResumeOptions();
                         NavigateTo(Screen.ResumeSlots);
                         break;
-                    case 2: // Settings
+                    case 2:
                         NavigateTo(Screen.Settings);
                         break;
-                    case 3: // Exit
+                    case 3:
                         IsVisible = false;
                         ExitChosen?.Invoke();
                         break;
@@ -238,12 +263,10 @@ internal sealed class MainMenuScreen : IDisposable
             {
                 var opt = _resumeOptions[SelectedIndex];
                 if (opt.Load == null)
-                {
-                    NavigateTo(Screen.Main); // Back
-                }
+                    NavigateTo(Screen.Main);
                 else
                 {
-                    opt.Load(); // load the chosen save while thread is still blocked
+                    opt.Load();
                     IsVisible = false;
                     ResumeChosen?.Invoke();
                 }
@@ -253,18 +276,24 @@ internal sealed class MainMenuScreen : IDisposable
             case Screen.Settings:
                 switch (SelectedIndex)
                 {
-                    case SettingsItemKeyBindings:
-                        NavigateTo(Screen.KeyBindings);
-                        break;
-                    case SettingsItemWindowMode:
+                    case SettingsItemKeyBindings: NavigateTo(Screen.KeyBindings); break;
+                    case SettingsItemVideo:        NavigateTo(Screen.Video);       break;
+                    case SettingsItemSound:        NavigateTo(Screen.Sound);       break;
+                }
+                break;
+
+            case Screen.Video:
+                switch (SelectedIndex)
+                {
+                    case VideoItemWindowMode:
                         _onWindowModeToggle(_config.WindowMode != "Fullscreen");
                         break;
-                    case SettingsItemFps:
+                    case VideoItemFps:
                         _config.Developer.ShowFps = !_config.Developer.ShowFps;
                         _onConfigSaved();
                         break;
-                    case SettingsItemSound:
-                        NavigateTo(Screen.Sound);
+                    case VideoItemBack:
+                        NavigateTo(Screen.Settings);
                         break;
                 }
                 break;
@@ -295,7 +324,6 @@ internal sealed class MainMenuScreen : IDisposable
                     case SoundItemBack:
                         NavigateTo(Screen.Settings);
                         break;
-                    // SoundItemVolume handled by Left/Right in HandleKey, not Return
                 }
                 break;
         }
@@ -303,13 +331,28 @@ internal sealed class MainMenuScreen : IDisposable
 
     private void NavigateTo(Screen screen)
     {
-        CurrentScreen = screen;
-        SelectedIndex = 0;
+        CurrentScreen   = screen;
+        SelectedIndex   = 0;
         RebindingAction = null;
 
-        // Skip disabled items at position 0 (e.g., Resume when unavailable)
         if (!IsItemEnabled(0))
             NavigateCursor(1);
+    }
+
+    // ---- Key binding helpers ----
+
+    private void SetBinding(string action, string keyName)
+    {
+        foreach (var kvp in _config.InputMappings)
+        {
+            if (kvp.Key != action && kvp.Value.Key == keyName)
+                kvp.Value.Key = null;
+        }
+
+        if (_config.InputMappings.TryGetValue(action, out var binding))
+            binding.Key = keyName;
+        else
+            _config.InputMappings[action] = new InputBinding(keyName, null);
     }
 
     // ---- Resume-slot list ----
@@ -345,6 +388,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.KeyBindings => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
             : "KEY BINDINGS",
+        Screen.Video       => "VIDEO",
         Screen.Sound       => "SOUND",
         _ => ""
     };
@@ -356,9 +400,14 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.Settings    => new[]
         {
             "Key Bindings",
+            "Video",
+            "Sound",
+        },
+        Screen.Video => new[]
+        {
             $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
             $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
-            "Sound",
+            "← Back",
         },
         Screen.KeyBindings => BindingActions
             .Select(b => b.ConfigKey == ""
@@ -388,6 +437,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.ResumeSlots => _resumeOptions.Length,
         Screen.Settings    => SettingsItemCount,
         Screen.KeyBindings => BindingActions.Length,
+        Screen.Video       => VideoItemCount,
         Screen.Sound       => SoundItemCount,
         _ => 0
     };
@@ -397,26 +447,19 @@ internal sealed class MainMenuScreen : IDisposable
 
     public void Dispose() => Background?.Dispose();
 
-    /// <summary>
-    /// Resolves a relative asset path by checking the executable directory first,
-    /// then the working directory. Returns null if the file cannot be found.
-    /// </summary>
     internal static string? ResolveAssetPath(string path)
     {
         if (Path.IsPathRooted(path))
             return File.Exists(path) ? path : null;
 
-        // Try next to the executable (the correct location in a deployed build)
         string nextToExe = Path.Combine(AppContext.BaseDirectory, path);
         if (File.Exists(nextToExe)) return nextToExe;
 
-        // Fall back to working directory (useful when running from within VS/Rider)
         string inCwd = Path.GetFullPath(path);
         if (File.Exists(inCwd)) return inCwd;
 
         return null;
     }
 
-    // ---- Inner type ----
     private record ResumeOption(string Label, Action? Load);
 }

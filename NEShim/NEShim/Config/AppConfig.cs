@@ -56,7 +56,10 @@ public sealed class AppConfig
 
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
-    
+
+    // Position of the main menu panel: "BottomCenter", "Center", "BottomLeft", "BottomRight", "TopLeft", "TopCenter", "TopRight"
+    public string MainMenuPosition { get; set; } = "BottomCenter";
+
     public DeveloperSettings Developer { get; set; } = new();
 }
 

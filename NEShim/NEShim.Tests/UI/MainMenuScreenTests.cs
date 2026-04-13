@@ -210,14 +210,14 @@ internal class MainMenuScreenTests
     // ---- Settings: Window Mode single toggle ----
 
     [Test]
-    public void Settings_GetCurrentItems_HasFourItems_WithWindowModeToggle()
+    public void Settings_GetCurrentItems_HasThreeItems_WithVideoSubmenu()
     {
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down); // Settings
         screen.HandleKey(Keys.Return);
         string[] items = screen.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(4));
-        Assert.That(items[1], Does.Contain("Window Mode"));
+        Assert.That(items.Length, Is.EqualTo(3)); // Key Bindings, Video, Sound
+        Assert.That(items[1], Is.EqualTo("Video"));
     }
 
     // ---- Sound screen ----
@@ -227,7 +227,7 @@ internal class MainMenuScreenTests
     {
         screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
         screen.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // to Sound (index 3)
+        for (int i = 0; i < 2; i++) screen.HandleKey(Keys.Down); // to Sound (index 2)
         screen.HandleKey(Keys.Return); // enter Sound
     }
 
@@ -344,5 +344,85 @@ internal class MainMenuScreenTests
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Escape);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+    }
+
+    // ---- Video screen ----
+
+    private static void OpenVideoScreen(MainMenuScreen screen)
+    {
+        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(Keys.Return); // enter Settings
+        screen.HandleKey(Keys.Down);   // Video (index 1)
+        screen.HandleKey(Keys.Return); // enter Video
+    }
+
+    [Test]
+    public void Video_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
+
+    [Test]
+    public void Video_GetCurrentItems_ReturnsThreeItems()
+    {
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        // Window Mode, FPS Overlay, ← Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Video_GetTitle_ReturnsVideo()
+    {
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("VIDEO"));
+    }
+
+    [Test]
+    public void Video_Back_ReturnsToSettings()
+    {
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // ← Back (index 2)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    // ---- Rollover ----
+
+    [Test]
+    public void HandleKey_Down_AtLast_WrapsToFirst_OnMainScreen()
+    {
+        using var screen = CreateScreen();
+        // Main: 4 items but Resume (index 1) disabled. Enabled: New Game(0), Settings(2), Exit(3).
+        screen.HandleKey(Keys.Down); // 0 → 2 (skips disabled Resume)
+        screen.HandleKey(Keys.Down); // 2 → 3
+        Assert.That(screen.SelectedIndex, Is.EqualTo(3));
+
+        screen.HandleKey(Keys.Down); // 3 → wraps to 0
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0));
+    }
+
+    // ---- Key binding uniqueness ----
+
+    [Test]
+    public void KeyBindings_AssignDuplicateKey_ClearsOldAction()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);   // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyBindings));
+
+        screen.HandleKey(Keys.Down);   // P1 Down (index 1)
+        screen.HandleKey(Keys.Return); // start rebind
+        screen.HandleKey(Keys.W);      // bind "W" — already used by P1 Up
+
+        Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
+        Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
     }
 }
