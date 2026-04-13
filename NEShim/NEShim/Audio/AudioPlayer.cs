@@ -27,6 +27,18 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     private volatile bool _paused;
     private IWavePlayer? _device;
 
+    // ---- NES hardware output RC filter chain (NTSC) ----
+    // The real NES has three analog filters on its audio output line.
+    // Applied in Read() to every L-channel mono sample; result is duplicated to R.
+    // Source: https://www.nesdev.org/wiki/APU_Mixer#Emulation
+    private const float HpAlpha1 = 0.994742f; // e^(-2π × 37   / 44100)  high-pass ~37 Hz
+    private const float HpAlpha2 = 0.994462f; // e^(-2π × 39   / 44100)  high-pass ~39 Hz
+    private const float LpBeta   = 0.136224f; // e^(-2π × 14000 / 44100)  low-pass ~14 kHz
+
+    private float _hp1Out, _hp1In;
+    private float _hp2Out, _hp2In;
+    private float _lpOut;
+
     public AudioPlayer(int bufferFrames = 3)
     {
         // bufferFrames × ~735 samples/frame × 2 channels × some headroom
@@ -96,8 +108,23 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
                     _readPos = (_readPos + 1) % _capacity;
                     _available--;
 
-                    buffer[offset + i * 2]     = (byte)(s & 0xFF);
-                    buffer[offset + i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+                    // Apply NES hardware output filters to L-channel (even index) only.
+                    // Ring buffer holds stereo pairs (L,R) where L == R (NES is mono).
+                    // Advancing the filter state on the L sample and reusing its output for R
+                    // keeps both channels in sync and avoids double-advancing the filter memory.
+                    short filtered;
+                    if (i % 2 == 0)
+                    {
+                        filtered = RunOutputFilters(s);
+                    }
+                    else
+                    {
+                        // R channel: output the same filtered value produced for L.
+                        filtered = (short)Math.Clamp((int)_lpOut, short.MinValue, short.MaxValue);
+                    }
+
+                    buffer[offset + i * 2]     = (byte)(filtered & 0xFF);
+                    buffer[offset + i * 2 + 1] = (byte)((filtered >> 8) & 0xFF);
                     i++;
                 }
             }
@@ -124,6 +151,9 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
             {
                 _writePos = _readPos = _available = 0;
             }
+            // Reset filter state so the first sample after resume starts clean.
+            // Without this, a large DC offset in the filter memory would cause a pop.
+            _hp1Out = _hp1In = _hp2Out = _hp2In = _lpOut = 0f;
         }
     }
 
@@ -131,5 +161,34 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     {
         _device?.Stop();
         _device?.Dispose();
+    }
+
+    // ---- RC filter chain ----
+
+    /// <summary>
+    /// Applies the three-stage NES hardware output filter to one mono sample.
+    /// Call only for L-channel samples; reuse <see cref="_lpOut"/> for the paired R channel.
+    /// </summary>
+    private short RunOutputFilters(short s)
+    {
+        float x = s;
+
+        // High-pass 1 (~37 Hz): y[n] = α*(y[n-1] + x[n] - x[n-1])
+        float hp1 = HpAlpha1 * (_hp1Out + x - _hp1In);
+        _hp1In  = x;
+        _hp1Out = hp1;
+        x       = hp1;
+
+        // High-pass 2 (~39 Hz)
+        float hp2 = HpAlpha2 * (_hp2Out + x - _hp2In);
+        _hp2In  = x;
+        _hp2Out = hp2;
+        x       = hp2;
+
+        // Low-pass (~14 kHz): y[n] = β*y[n-1] + (1-β)*x[n]
+        float lp = LpBeta * _lpOut + (1f - LpBeta) * x;
+        _lpOut = lp;
+
+        return (short)Math.Clamp((int)lp, short.MinValue, short.MaxValue);
     }
 }
