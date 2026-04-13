@@ -301,4 +301,160 @@ internal class InGameMenuTests
         menu.Close();
         Assert.That(fired, Is.True);
     }
+
+    // ---- Settings screen ----
+
+    [Test]
+    public void Settings_FpsToggle_TogglesShowFps()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Navigate to Settings (index 5 with no save — skips disabled Load Game)
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter Settings
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+
+        // Move down to FPS toggle (index 3)
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
+
+        bool before = _config.Developer.ShowFps;
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.Developer.ShowFps, Is.EqualTo(!before));
+    }
+
+    [Test]
+    public void Settings_FpsToggle_InvokesConfigSavedCallback()
+    {
+        bool saved = false;
+        var menu   = CreateMenu(onConfigSaved: () => saved = true);
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // toggle FPS
+        Assert.That(saved, Is.True);
+    }
+
+    // ---- Save Slot Select screen ----
+
+    [Test]
+    public void SaveSlotSelect_Activate_UpdatesActiveSlot()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Navigate to "Select Save Slot" (index 2)
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter SaveSlotSelect
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.SaveSlotSelect));
+
+        // Move to slot 2 (index 2) and select
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+
+        Assert.That(_saveStates.ActiveSlot, Is.EqualTo(2));
+        Assert.That(_config.ActiveSlot,     Is.EqualTo(2));
+        Assert.That(menu.Current,           Is.EqualTo(InGameMenu.Screen.Root));
+    }
+
+    // ---- Key rebind flow ----
+
+    [Test]
+    public void KeyBindings_EnterRebindMode_SetsRebindingAction()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Settings (index 5, skipping disabled Load Game at 4): 4 Downs then Return
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter Settings
+        menu.HandleKey(Keys.Return); // select Key Bindings (index 0)
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.KeyBindings));
+
+        // Select first binding (Up → P1 Up)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.RebindingAction, Is.EqualTo("P1 Up"));
+    }
+
+    [Test]
+    public void KeyBindings_WhileRebinding_PressKey_UpdatesConfigAndClearsRebind()
+    {
+        bool saved = false;
+        var menu   = CreateMenu(onConfigSaved: () => saved = true);
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Key Bindings
+        menu.HandleKey(Keys.Return); // start rebind for P1 Up
+
+        menu.HandleKey(Keys.T); // assign T to P1 Up
+        Assert.That(menu.RebindingAction, Is.Null);
+        Assert.That(_config.InputMappings["P1 Up"].Key, Is.EqualTo("T"));
+        Assert.That(saved, Is.True);
+    }
+
+    [Test]
+    public void KeyBindings_WhileRebinding_PressEscape_CancelsRebind()
+    {
+        string originalKey = _config.InputMappings["P1 Up"].Key!;
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Key Bindings
+        menu.HandleKey(Keys.Return); // start rebind
+
+        menu.HandleKey(Keys.Escape); // cancel
+        Assert.That(menu.RebindingAction, Is.Null);
+        Assert.That(_config.InputMappings["P1 Up"].Key, Is.EqualTo(originalKey));
+    }
+
+    // ---- GetTitle / GetCurrentItems ----
+
+    [Test]
+    public void GetTitle_ReturnsCorrectTitle_ForEachScreen()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        Assert.That(menu.GetTitle(), Is.EqualTo("PAUSED"));
+
+        // Navigate to ConfirmMainMenu
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.GetTitle(), Is.EqualTo("RETURN TO MAIN MENU?"));
+    }
+
+    [Test]
+    public void GetCurrentItems_Root_ReturnsEightItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
+    }
+
+    [Test]
+    public void GetCurrentItems_ConfirmMainMenu_ReturnsTwoItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter ConfirmMainMenu
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(2));
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("Yes"));
+        Assert.That(menu.GetCurrentItems()[1], Does.StartWith("No"));
+    }
+
+    [Test]
+    public void GetCurrentItems_SaveSlotSelect_ReturnsEightSlotLabels()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter SaveSlotSelect
+
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items.Length, Is.EqualTo(8)); // 8 slots
+        Assert.That(items[0], Does.Contain("1")); // "Slot 1..."
+    }
 }
