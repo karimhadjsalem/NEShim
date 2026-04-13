@@ -97,6 +97,39 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 - **Thread safety**: Emulation thread and UI thread share `_pauseReasonBits` (volatile `int` + CAS) and `FrameBuffer` (SpinLock). All other mutable state is owned by one thread. Use `BeginInvoke` to marshal work to the UI thread; never call WinForms methods directly from the emulation thread.
 - **Don't modify BizHawk source** unless fixing a direct compatibility issue. Prefer adapter/wrapper classes in `NEShim/Emulation/` to bridge BizHawk interfaces.
 
+## Testing
+
+### Libraries and tooling
+- **NUnit** — test framework. Use `[TestFixture]`, `[Test]`, `[SetUp]`, `[TearDown]`. Prefer `Assert.That(actual, Is.EqualTo(expected))` constraint syntax over classic assertions.
+- **Moq** — mocking library. Add via NuGet (`Moq`). Do not introduce a second mocking library.
+- Keep attributes lightweight: avoid `[Category]`, `[Description]`, `[Author]`, and other decorative metadata unless a specific CI filtering need requires them.
+
+### Structure — mirror the SUT
+Each class under test gets exactly one test class, in a file that mirrors the source path:
+
+```
+NEShim/Saves/SaveStateManager.cs          →  NEShim.Tests/Saves/SaveStateManagerTests.cs
+NEShim/UI/InGameMenu.cs                   →  NEShim.Tests/UI/InGameMenuTests.cs
+NEShim/Audio/MainMenuMusic.cs             →  NEShim.Tests/Audio/MainMenuMusicTests.cs
+```
+
+If a source class is not worth testing in isolation (e.g., a pure data record, a stateless renderer), no test class is required.
+
+### Unit test rules
+- **No boundary crossing.** A unit test must not touch the file system, audio devices, the Windows registry, network, or any external process. Anything that does is an integration test, not a unit test.
+- **Mock dependencies at the boundary.** Use `Mock<T>` for interfaces and abstract classes that would otherwise pull in I/O or heavy subsystems. Pass mocks through the constructor (prefer constructor injection over property injection). Verify only interactions that matter to the behaviour under test — do not assert on every call.
+- **Do not over-mock.** Concrete collaborators with no I/O side-effects (plain data objects, pure value computations) should be used directly, not mocked. A test that mocks everything except the SUT is testing nothing.
+- **Avoid test globals.** Shared `static` state and class-level fields shared across tests make failures hard to diagnose. Initialise the SUT and its mocks in `[SetUp]` so each test gets a fresh instance. The only acceptable class-level fields are `readonly` constants or `Mock<T>` / SUT fields initialised in `[SetUp]`.
+- **One behaviour per test.** Each `[Test]` method asserts one logical outcome. Name tests in the form `MethodName_Condition_ExpectedOutcome`.
+
+### Boundary-crossing (integration) tests
+Tests that must cross a boundary — file system, real audio device, BizHawk core execution — are allowed only when the behaviour cannot be verified any other way. They must live in a separate location:
+
+- **Same project, separate folder** if the test count is small: `NEShim.Tests/Integration/`
+- **Separate project** (`NEShim.IntegrationTests/`) if the suite grows or requires different setup (e.g., a real ROM file, elevated permissions).
+
+Never place a boundary-crossing test alongside unit tests. CI should be able to run unit tests alone (`--filter "TestCategory!=Integration"`) without external dependencies.
+
 ### Key BizHawk Dependencies
 - `CommunityToolkit.HighPerformance` — SIMD/span performance helpers
 - `Newtonsoft.Json` — settings serialization
