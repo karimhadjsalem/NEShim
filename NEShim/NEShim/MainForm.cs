@@ -31,6 +31,10 @@ public partial class MainForm : Form
     private InGameMenu?       _menu;
     private EmulationThread?  _emulationThread;
 
+    // Processor instances kept alive so they can be swapped without re-allocation.
+    private readonly NesFilterProcessor    _nesFilterProcessor    = new();
+    private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
+
     private bool _isFullscreen = true;
 
     public MainForm()
@@ -99,15 +103,41 @@ public partial class MainForm : Form
         KeyDown += OnFormKeyDown;
 
         // 8. Audio
-        _audio = new AudioPlayer(_config.AudioBufferFrames);
+        IAudioProcessor startingProcessor = _config.SoundScrubberEnabled
+            ? _soundScrubberProcessor
+            : _nesFilterProcessor;
+        _audio = new AudioPlayer(_config.AudioBufferFrames, startingProcessor);
+        _audio.SetVolume(_config.Volume / 100f);
 
         // 9. Pre-game main menu
         _mainMenuScreen = new MainMenuScreen(
-            saveStates:         _saveStates,
-            config:             _config,
-            bgImagePath:        _config.MainMenuBackgroundPath,
-            onWindowModeToggle: fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:      () => { /* config flushed to disk on exit */ });
+            saveStates:          _saveStates,
+            config:              _config,
+            bgImagePath:         _config.MainMenuBackgroundPath,
+            onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
+            onConfigSaved:       () => { /* config flushed to disk on exit */ },
+            onVolumeChanged:     vol =>
+            {
+                _audio?.SetVolume(vol / 100f);
+                _mainMenuMusic?.SetMasterVolume(vol / 100f);
+            },
+            onScrubberToggled:   on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onMenuMusicToggled:  on  =>
+            {
+                if (on)
+                {
+                    if (_mainMenuMusic == null)
+                    {
+                        _mainMenuMusic = CreateMainMenuMusic(_config);
+                        _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
+                    }
+                    _mainMenuMusic?.FadeIn();
+                }
+                else
+                {
+                    _mainMenuMusic?.Stop();
+                }
+            });
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
@@ -130,8 +160,12 @@ public partial class MainForm : Form
 
         _gamePanel.SetMainMenu(_mainMenuScreen);
 
-        // 9a. Main menu music (optional — path configured under Developer settings)
-        _mainMenuMusic = CreateMainMenuMusic(_config);
+        // 9a. Main menu music — only created if the path is set and music is enabled
+        if (_config.MainMenuMusicEnabled)
+        {
+            _mainMenuMusic = CreateMainMenuMusic(_config);
+            _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
+        }
 
         // 10. In-game pause menu
         _menu = new InGameMenu(
@@ -141,7 +175,13 @@ public partial class MainForm : Form
             onResetGame:         () => _emulationThread?.ResetGame(),
             onReturnToMainMenu:  () => BeginInvoke(ReturnToMainMenu),
             onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:       () => { /* config flushed to disk on exit */ });
+            onConfigSaved:       () => { /* config flushed to disk on exit */ },
+            onVolumeChanged:     vol =>
+            {
+                _audio?.SetVolume(vol / 100f);
+                _mainMenuMusic?.SetMasterVolume(vol / 100f);
+            },
+            onScrubberToggled:   on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor));
         _gamePanel.SetMenu(_menu);
 
         // 11. Emulation thread

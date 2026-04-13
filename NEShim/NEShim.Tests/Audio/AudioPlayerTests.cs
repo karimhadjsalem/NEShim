@@ -255,4 +255,96 @@ internal class AudioPlayerTests
         short[] fromOffset = ShortView(buf[2..6]);
         Assert.That(fromOffset[0], Is.Not.EqualTo(0));
     }
+
+    // ---- SetVolume ----
+
+    [Test]
+    public void SetVolume_Zero_ReadReturnsSilence()
+    {
+        using var player = Create();
+        player.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        player.SetVolume(0f);
+        byte[] buf = ReadAll(player, shortCount: 2);
+        Assert.That(buf, Is.All.EqualTo((byte)0));
+    }
+
+    [Test]
+    public void SetVolume_Half_ReducesAmplitude()
+    {
+        // With full volume the filtered output is some value X; at 0.5 it should be ~X/2.
+        using var full = Create();
+        using var half = Create();
+
+        full.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        half.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        half.SetVolume(0.5f);
+
+        short[] fullData = ShortView(ReadAll(full, shortCount: 2));
+        short[] halfData = ShortView(ReadAll(half, shortCount: 2));
+
+        // Half volume should be strictly less in magnitude than full volume
+        Assert.That(Math.Abs(halfData[0]), Is.LessThan(Math.Abs(fullData[0])));
+    }
+
+    [Test]
+    public void SetVolume_Full_MatchesDefaultOutput()
+    {
+        using var def  = Create(); // default volume is 1.0
+        using var full = Create();
+        full.SetVolume(1.0f);
+
+        def.Enqueue(new short[]  { 10000, 10000 }, sampleCount: 1);
+        full.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+
+        short[] defData  = ShortView(ReadAll(def,  shortCount: 2));
+        short[] fullData = ShortView(ReadAll(full, shortCount: 2));
+        Assert.That(defData[0], Is.EqualTo(fullData[0]));
+    }
+
+    // ---- SetProcessor ----
+
+    [Test]
+    public void SetProcessor_SoundScrubber_OutputIsNonZero()
+    {
+        using var player = new AudioPlayer(bufferFrames: 1, new SoundScrubberProcessor());
+        player.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        short[] data = ShortView(ReadAll(player, shortCount: 2));
+        Assert.That(data[0], Is.Not.EqualTo(0));
+    }
+
+    [Test]
+    public void SetProcessor_SwapMidBuffer_DoesNotCrash()
+    {
+        using var player = Create();
+        player.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        player.SetProcessor(new SoundScrubberProcessor()); // swap before read
+        // Should read without throwing; output may differ but must be valid
+        Assert.DoesNotThrow(() => ReadAll(player, shortCount: 2));
+    }
+
+    [Test]
+    public void SetProcessor_ResetsProcessorState_ToAvoidPop()
+    {
+        // After SetProcessor, the first sample should match a fresh processor,
+        // not carry over state from whatever was running before.
+        using var player = Create();
+
+        // Drive the default processor to a non-zero state
+        for (int i = 0; i < 100; i++)
+            player.Enqueue(new short[] { 5000, 5000 }, sampleCount: 1);
+        ReadAll(player, shortCount: 200);
+
+        // Swap to a fresh scrubber (state reset should happen inside SetProcessor)
+        var scrubber = new SoundScrubberProcessor();
+        player.SetProcessor(scrubber);
+
+        // The scrubber's first output should match what a standalone fresh scrubber produces
+        var reference = new SoundScrubberProcessor();
+        var (refL, _) = reference.Process(8000);
+
+        player.Enqueue(new short[] { 8000, 8000 }, sampleCount: 1);
+        short[] data = ShortView(ReadAll(player, shortCount: 2));
+
+        Assert.That(data[0], Is.EqualTo(refL));
+    }
 }

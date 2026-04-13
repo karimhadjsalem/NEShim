@@ -11,7 +11,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class InGameMenu
 {
-    public enum Screen { Root, SaveSlotSelect, Settings, KeyBindings, ConfirmMainMenu, ConfirmExit }
+    public enum Screen { Root, SaveSlotSelect, Settings, KeyBindings, Sound, ConfirmMainMenu, ConfirmExit }
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
@@ -20,6 +20,8 @@ internal sealed class InGameMenu
     private readonly Action           _onReturnToMainMenu;
     private readonly Action<bool>     _onWindowModeToggle; // true = fullscreen
     private readonly Action           _onConfigSaved;
+    private readonly Action<int>      _onVolumeChanged;    // 0–100
+    private readonly Action<bool>     _onScrubberToggled;  // true = scrubber on
 
     public bool IsOpen      { get; private set; }
     public Screen Current   { get; private set; } = Screen.Root;
@@ -47,8 +49,18 @@ internal sealed class InGameMenu
     private static readonly string[] ConfirmExitItems     = { "Yes, exit to desktop",     "No, stay in game" };
 
     // ---- Settings menu ----
-    private static readonly string[] SettingsBaseItems =
-        { "Key Bindings", "Fullscreen", "Windowed" };
+    // 0: Key Bindings, 1: Window Mode (toggle), 2: FPS Overlay, 3: Sound
+    private const int SettingsItemKeyBindings = 0;
+    private const int SettingsItemWindowMode  = 1;
+    private const int SettingsItemFps         = 2;
+    private const int SettingsItemSound       = 3;
+    private const int SettingsItemCount       = 4;
+
+    // ---- Sound screen items ----
+    private const int SoundItemVolume   = 0;
+    private const int SoundItemScrubber = 1;
+    private const int SoundItemBack     = 2;
+    private const int SoundItemCount    = 3;
 
     // ---- Key-binding action order (display name, config key) ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
@@ -71,7 +83,9 @@ internal sealed class InGameMenu
         Action           onResetGame,
         Action           onReturnToMainMenu,
         Action<bool>     onWindowModeToggle,
-        Action           onConfigSaved)
+        Action           onConfigSaved,
+        Action<int>      onVolumeChanged,
+        Action<bool>     onScrubberToggled)
     {
         _saveStates          = saveStates;
         _config              = config;
@@ -80,6 +94,8 @@ internal sealed class InGameMenu
         _onReturnToMainMenu  = onReturnToMainMenu;
         _onWindowModeToggle  = onWindowModeToggle;
         _onConfigSaved       = onConfigSaved;
+        _onVolumeChanged     = onVolumeChanged;
+        _onScrubberToggled   = onScrubberToggled;
     }
 
     // ---- Open / Close ----
@@ -135,6 +151,13 @@ internal sealed class InGameMenu
             return true;
         }
 
+        // Left/Right adjust volume when on Sound screen at the Volume item
+        if (Current == Screen.Sound && SelectedItem == SoundItemVolume)
+        {
+            if (key == Keys.Left)  { AdjustVolume(-5); return true; }
+            if (key == Keys.Right) { AdjustVolume( 5); return true; }
+        }
+
         switch (key)
         {
             case Keys.Escape:
@@ -162,6 +185,14 @@ internal sealed class InGameMenu
         return false;
     }
 
+    private void AdjustVolume(int delta)
+    {
+        int next = Math.Clamp(_config.Volume + delta, 0, 100);
+        if (next == _config.Volume) return;
+        _config.Volume = next;
+        _onVolumeChanged(next);
+    }
+
     private void MoveCursor(int direction)
     {
         int count = ItemCount();
@@ -183,8 +214,9 @@ internal sealed class InGameMenu
     {
         Screen.Root             => RootItems.Length,
         Screen.SaveSlotSelect   => SaveStateManager.SlotCount,
-        Screen.Settings         => SettingsBaseItems.Length + 1, // +1 for FPS toggle
-        Screen.KeyBindings      => BindingActions.Length,        // includes Back sentinel
+        Screen.Settings         => SettingsItemCount,
+        Screen.KeyBindings      => BindingActions.Length,
+        Screen.Sound            => SoundItemCount,
         Screen.ConfirmMainMenu  => ConfirmMainMenuItems.Length,
         Screen.ConfirmExit      => ConfirmExitItems.Length,
         _ => 1
@@ -244,20 +276,19 @@ internal sealed class InGameMenu
             case Screen.Settings:
                 switch (SelectedItem)
                 {
-                    case 0: // Key Bindings
+                    case SettingsItemKeyBindings:
                         NavigateTo(Screen.KeyBindings);
                         break;
-                    case 1: // Fullscreen
-                        _onWindowModeToggle(true);
-                        NavigateTo(Screen.Root);
+                    case SettingsItemWindowMode:
+                        // Toggle between fullscreen and windowed
+                        _onWindowModeToggle(_config.WindowMode != "Fullscreen");
                         break;
-                    case 2: // Windowed
-                        _onWindowModeToggle(false);
-                        NavigateTo(Screen.Root);
-                        break;
-                    case 3: // FPS Overlay toggle
+                    case SettingsItemFps:
                         _config.Developer.ShowFps = !_config.Developer.ShowFps;
                         _onConfigSaved();
+                        break;
+                    case SettingsItemSound:
+                        NavigateTo(Screen.Sound);
                         break;
                 }
                 break;
@@ -272,6 +303,21 @@ internal sealed class InGameMenu
                 {
                     // Enter rebind mode for this action
                     RebindingAction = configKey;
+                }
+                break;
+
+            case Screen.Sound:
+                switch (SelectedItem)
+                {
+                    case SoundItemScrubber:
+                        bool scrubOn = !_config.SoundScrubberEnabled;
+                        _config.SoundScrubberEnabled = scrubOn;
+                        _onScrubberToggled(scrubOn);
+                        break;
+                    case SoundItemBack:
+                        NavigateTo(Screen.Settings);
+                        break;
+                    // SoundItemVolume is handled by Left/Right in HandleKey, not Return
                 }
                 break;
 
@@ -329,9 +375,9 @@ internal sealed class InGameMenu
             Screen.Settings => new[]
             {
                 "Key Bindings",
-                "Fullscreen",
-                "Windowed",
+                $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
                 $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
+                "Sound",
             },
 
             Screen.KeyBindings => BindingActions
@@ -339,6 +385,13 @@ internal sealed class InGameMenu
                     ? "← Back"
                     : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
                 .ToArray(),
+
+            Screen.Sound => new[]
+            {
+                $"◀  Volume: {_config.Volume}  ▶",
+                $"Sound Scrubber: {(_config.SoundScrubberEnabled ? "On" : "Off")}",
+                "← Back",
+            },
 
             Screen.ConfirmMainMenu => ConfirmMainMenuItems,
             Screen.ConfirmExit     => ConfirmExitItems,
@@ -362,6 +415,7 @@ internal sealed class InGameMenu
         Screen.KeyBindings      => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
             : "KEY BINDINGS",
+        Screen.Sound            => "SOUND",
         Screen.ConfirmMainMenu  => "RETURN TO MAIN MENU?",
         Screen.ConfirmExit      => "EXIT TO DESKTOP?",
         _ => ""

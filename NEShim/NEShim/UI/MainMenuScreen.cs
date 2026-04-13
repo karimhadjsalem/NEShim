@@ -7,12 +7,12 @@ namespace NEShim.UI;
 
 /// <summary>
 /// State machine for the pre-game main menu.
-/// Handles Main, ResumeSlots, Settings, and KeyBindings screens.
+/// Handles Main, ResumeSlots, Settings, KeyBindings, and Sound screens.
 /// The emulation thread stays paused until the user picks New Game or loads a save.
 /// </summary>
 internal sealed class MainMenuScreen : IDisposable
 {
-    public enum Screen { Main, ResumeSlots, Settings, KeyBindings }
+    public enum Screen { Main, ResumeSlots, Settings, KeyBindings, Sound }
 
     // ---- Shared binding-action table (mirrors InGameMenu) ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
@@ -27,6 +27,20 @@ internal sealed class MainMenuScreen : IDisposable
         ("Select", "P1 Select"),
         ("← Back", ""),
     };
+
+    // ---- Settings item indices ----
+    private const int SettingsItemKeyBindings = 0;
+    private const int SettingsItemWindowMode  = 1;
+    private const int SettingsItemFps         = 2;
+    private const int SettingsItemSound       = 3;
+    private const int SettingsItemCount       = 4;
+
+    // ---- Sound screen item indices ----
+    private const int SoundItemVolume     = 0;
+    private const int SoundItemScrubber   = 1;
+    private const int SoundItemMenuMusic  = 2;
+    private const int SoundItemBack       = 3;
+    private const int SoundItemCount      = 4;
 
     // ---- State ----
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
@@ -43,6 +57,9 @@ internal sealed class MainMenuScreen : IDisposable
     private readonly AppConfig        _config;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
+    private readonly Action<int>      _onVolumeChanged;   // 0–100
+    private readonly Action<bool>     _onScrubberToggled; // true = scrubber on
+    private readonly Action<bool>     _onMenuMusicToggled; // true = music on
 
     // Built lazily when the player enters the ResumeSlots screen
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
@@ -62,12 +79,18 @@ internal sealed class MainMenuScreen : IDisposable
         AppConfig        config,
         string?          bgImagePath,
         Action<bool>     onWindowModeToggle,
-        Action           onConfigSaved)
+        Action           onConfigSaved,
+        Action<int>      onVolumeChanged,
+        Action<bool>     onScrubberToggled,
+        Action<bool>     onMenuMusicToggled)
     {
-        _saveStates         = saveStates;
-        _config             = config;
-        _onWindowModeToggle = onWindowModeToggle;
-        _onConfigSaved      = onConfigSaved;
+        _saveStates          = saveStates;
+        _config              = config;
+        _onWindowModeToggle  = onWindowModeToggle;
+        _onConfigSaved       = onConfigSaved;
+        _onVolumeChanged     = onVolumeChanged;
+        _onScrubberToggled   = onScrubberToggled;
+        _onMenuMusicToggled  = onMenuMusicToggled;
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -125,6 +148,13 @@ internal sealed class MainMenuScreen : IDisposable
             return true;
         }
 
+        // Left/Right adjust volume when on Sound screen at the Volume item
+        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundItemVolume)
+        {
+            if (key == Keys.Left)  { AdjustVolume(-5); return true; }
+            if (key == Keys.Right) { AdjustVolume( 5); return true; }
+        }
+
         switch (key)
         {
             case Keys.Escape:
@@ -152,6 +182,14 @@ internal sealed class MainMenuScreen : IDisposable
                 return true;
         }
         return false;
+    }
+
+    private void AdjustVolume(int delta)
+    {
+        int next = Math.Clamp(_config.Volume + delta, 0, 100);
+        if (next == _config.Volume) return;
+        _config.Volume = next;
+        _onVolumeChanged(next);
     }
 
     private void NavigateCursor(int dir)
@@ -215,18 +253,18 @@ internal sealed class MainMenuScreen : IDisposable
             case Screen.Settings:
                 switch (SelectedIndex)
                 {
-                    case 0: // Key Bindings
+                    case SettingsItemKeyBindings:
                         NavigateTo(Screen.KeyBindings);
                         break;
-                    case 1: // Fullscreen
-                        _onWindowModeToggle(true);
+                    case SettingsItemWindowMode:
+                        _onWindowModeToggle(_config.WindowMode != "Fullscreen");
                         break;
-                    case 2: // Windowed
-                        _onWindowModeToggle(false);
-                        break;
-                    case 3: // FPS Overlay toggle
+                    case SettingsItemFps:
                         _config.Developer.ShowFps = !_config.Developer.ShowFps;
                         _onConfigSaved();
+                        break;
+                    case SettingsItemSound:
+                        NavigateTo(Screen.Sound);
                         break;
                 }
                 break;
@@ -240,6 +278,26 @@ internal sealed class MainMenuScreen : IDisposable
                     RebindingAction = configKey;
                 break;
             }
+
+            case Screen.Sound:
+                switch (SelectedIndex)
+                {
+                    case SoundItemScrubber:
+                        bool scrubOn = !_config.SoundScrubberEnabled;
+                        _config.SoundScrubberEnabled = scrubOn;
+                        _onScrubberToggled(scrubOn);
+                        break;
+                    case SoundItemMenuMusic:
+                        bool musicOn = !_config.MainMenuMusicEnabled;
+                        _config.MainMenuMusicEnabled = musicOn;
+                        _onMenuMusicToggled(musicOn);
+                        break;
+                    case SoundItemBack:
+                        NavigateTo(Screen.Settings);
+                        break;
+                    // SoundItemVolume handled by Left/Right in HandleKey, not Return
+                }
+                break;
         }
     }
 
@@ -287,6 +345,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.KeyBindings => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
             : "KEY BINDINGS",
+        Screen.Sound       => "SOUND",
         _ => ""
     };
 
@@ -297,15 +356,22 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.Settings    => new[]
         {
             "Key Bindings",
-            "Fullscreen",
-            "Windowed",
+            $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
             $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
+            "Sound",
         },
         Screen.KeyBindings => BindingActions
             .Select(b => b.ConfigKey == ""
                 ? "← Back"
                 : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
             .ToArray(),
+        Screen.Sound => new[]
+        {
+            $"◀  Volume: {_config.Volume}  ▶",
+            $"Sound Scrubber: {(_config.SoundScrubberEnabled ? "On" : "Off")}",
+            $"Menu Music: {(_config.MainMenuMusicEnabled ? "On" : "Off")}",
+            "← Back",
+        },
         _ => Array.Empty<string>()
     };
 
@@ -320,8 +386,9 @@ internal sealed class MainMenuScreen : IDisposable
     {
         Screen.Main        => MainItemLabels.Length,
         Screen.ResumeSlots => _resumeOptions.Length,
-        Screen.Settings    => 4,
+        Screen.Settings    => SettingsItemCount,
         Screen.KeyBindings => BindingActions.Length,
+        Screen.Sound       => SoundItemCount,
         _ => 0
     };
 

@@ -33,8 +33,16 @@ internal class MainMenuScreenTests
     }
 
     // No background image path — avoids any file I/O in the constructor
-    private MainMenuScreen CreateScreen() =>
-        new(_saveStates, _config, null, _ => { }, () => { });
+    private MainMenuScreen CreateScreen(
+        Action<int>?  onVolumeChanged   = null,
+        Action<bool>? onScrubberToggled = null,
+        Action<bool>? onMenuMusicToggled = null) =>
+        new(_saveStates, _config, null,
+            _ => { },
+            () => { },
+            onVolumeChanged    ?? (_ => { }),
+            onScrubberToggled  ?? (_ => { }),
+            onMenuMusicToggled ?? (_ => { }));
 
     private void CreateSlotFile(int slot) =>
         File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
@@ -197,5 +205,144 @@ internal class MainMenuScreenTests
         screen.HandleKey(Keys.Down);   // skip to Settings
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    // ---- Settings: Window Mode single toggle ----
+
+    [Test]
+    public void Settings_GetCurrentItems_HasFourItems_WithWindowModeToggle()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down); // Settings
+        screen.HandleKey(Keys.Return);
+        string[] items = screen.GetCurrentItems();
+        Assert.That(items.Length, Is.EqualTo(4));
+        Assert.That(items[1], Does.Contain("Window Mode"));
+    }
+
+    // ---- Sound screen ----
+
+    // Helper: navigate to Settings → Sound
+    private static void OpenSoundScreen(MainMenuScreen screen)
+    {
+        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // to Sound (index 3)
+        screen.HandleKey(Keys.Return); // enter Sound
+    }
+
+    [Test]
+    public void Sound_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+    }
+
+    [Test]
+    public void Sound_GetCurrentItems_ReturnsFourItems()
+    {
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        // Volume, Sound Scrubber, Menu Music, ← Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void Sound_GetTitle_ReturnsSound()
+    {
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("SOUND"));
+    }
+
+    [Test]
+    public void Sound_VolumeLeft_DecreasesVolume()
+    {
+        var config = new AppConfig { Volume = 60 };
+        int received = -1;
+        using var screen = new MainMenuScreen(
+            _saveStates, config, null,
+            _ => { }, () => { },
+            v => received = v, _ => { }, _ => { });
+
+        OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
+        screen.HandleKey(Keys.Left);
+        Assert.That(config.Volume, Is.EqualTo(55));
+        Assert.That(received, Is.EqualTo(55));
+    }
+
+    [Test]
+    public void Sound_VolumeRight_IncreasesVolume()
+    {
+        var config = new AppConfig { Volume = 60 };
+        int received = -1;
+        using var screen = new MainMenuScreen(
+            _saveStates, config, null,
+            _ => { }, () => { },
+            v => received = v, _ => { }, _ => { });
+
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Right);
+        Assert.That(config.Volume, Is.EqualTo(65));
+        Assert.That(received, Is.EqualTo(65));
+    }
+
+    [Test]
+    public void Sound_ScrubberToggle_UpdatesConfigAndCallsBack()
+    {
+        var config = new AppConfig { SoundScrubberEnabled = false };
+        bool callbackReceived = false;
+        using var screen = new MainMenuScreen(
+            _saveStates, config, null,
+            _ => { }, () => { },
+            _ => { }, on => callbackReceived = on, _ => { });
+
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Down);   // select Scrubber (index 1)
+        screen.HandleKey(Keys.Return);
+
+        Assert.That(config.SoundScrubberEnabled, Is.True);
+        Assert.That(callbackReceived, Is.True);
+    }
+
+    [Test]
+    public void Sound_MenuMusicToggle_UpdatesConfigAndCallsBack()
+    {
+        var config = new AppConfig { MainMenuMusicEnabled = true };
+        bool received = true;
+        using var screen = new MainMenuScreen(
+            _saveStates, config, null,
+            _ => { }, () => { },
+            _ => { }, _ => { }, on => received = on);
+
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // select Menu Music (index 2)
+        screen.HandleKey(Keys.Return);
+
+        Assert.That(config.MainMenuMusicEnabled, Is.False);
+        Assert.That(received, Is.False);
+    }
+
+    [Test]
+    public void Sound_Back_ReturnsToSettings()
+    {
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // select ← Back (index 3)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    [Test]
+    public void Sound_Escape_ReturnsToMain()
+    {
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Escape);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
 }

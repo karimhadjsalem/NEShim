@@ -33,10 +33,12 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action? onExitToDesktop     = null,
-        Action? onResetGame         = null,
-        Action? onReturnToMainMenu  = null,
-        Action? onConfigSaved       = null)
+        Action?       onExitToDesktop    = null,
+        Action?       onResetGame        = null,
+        Action?       onReturnToMainMenu = null,
+        Action?       onConfigSaved      = null,
+        Action<int>?  onVolumeChanged    = null,
+        Action<bool>? onScrubberToggled  = null)
     {
         return new InGameMenu(
             _saveStates,
@@ -45,7 +47,9 @@ internal class InGameMenuTests
             onResetGame        ?? (() => { }),
             onReturnToMainMenu ?? (() => { }),
             _ => { },
-            onConfigSaved      ?? (() => { }));
+            onConfigSaved      ?? (() => { }),
+            onVolumeChanged    ?? (_ => { }),
+            onScrubberToggled  ?? (_ => { }));
     }
 
     private static int[] EmptyFrame() => new int[256 * 240];
@@ -314,8 +318,8 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
-        // Move down to FPS toggle (index 3)
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
+        // Move down to FPS toggle (index 2 — Window Mode is now a single item at 1)
+        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down);
 
         bool before = _config.Developer.ShowFps;
         menu.HandleKey(Keys.Return);
@@ -330,7 +334,7 @@ internal class InGameMenuTests
         menu.Open(EmptyFrame());
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
+        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // FPS Overlay is now index 2
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -456,5 +460,179 @@ internal class InGameMenuTests
         string[] items = menu.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(8)); // 8 slots
         Assert.That(items[0], Does.Contain("1")); // "Slot 1..."
+    }
+
+    // ---- Settings: Window Mode toggle (single item) ----
+
+    [Test]
+    public void Settings_WindowMode_IsSingleItem_ShowingCurrentMode()
+    {
+        _config.WindowMode = "Fullscreen";
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter Settings
+
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items.Length, Is.EqualTo(4)); // Key Bindings, Window Mode, FPS, Sound
+        Assert.That(items[1], Does.Contain("Fullscreen"));
+    }
+
+    [Test]
+    public void Settings_WindowMode_Activate_TogglesMode()
+    {
+        bool toggledTo = false;
+        var menu = CreateMenu(onConfigSaved: () => { }); // need window mode toggle
+        // Wire a custom toggle capture
+        bool receivedFullscreen = false;
+        var menuWithToggle = new InGameMenu(
+            _saveStates, _config,
+            () => { }, () => { }, () => { },
+            fs => receivedFullscreen = fs,
+            () => { }, _ => { }, _ => { });
+
+        menuWithToggle.Open(new int[256 * 240]);
+        _config.WindowMode = "Fullscreen";
+        for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(Keys.Down);
+        menuWithToggle.HandleKey(Keys.Return); // Settings
+        menuWithToggle.HandleKey(Keys.Down);   // select Window Mode (index 1)
+        menuWithToggle.HandleKey(Keys.Return); // activate — should toggle to Windowed
+
+        Assert.That(receivedFullscreen, Is.False); // was Fullscreen, toggled to Windowed
+    }
+
+    // ---- Sound screen ----
+
+    // Helper: navigate Open → Settings → Sound
+    private void OpenSoundScreen(InGameMenu menu)
+    {
+        menu.Open(new int[256 * 240]);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings
+        menu.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Sound (index 3)
+        menu.HandleKey(Keys.Return); // enter Sound
+    }
+
+    [Test]
+    public void Sound_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void Sound_GetCurrentItems_ReturnsThreeItems()
+    {
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Sound_GetTitle_ReturnsSound()
+    {
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("SOUND"));
+    }
+
+    [Test]
+    public void Sound_VolumeItem_ShowsCurrentVolume()
+    {
+        _config.Volume = 75;
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("75"));
+    }
+
+    [Test]
+    public void Sound_LeftKey_DecreasesVolume()
+    {
+        _config.Volume = 50;
+        int received = -1;
+        var menu = CreateMenu(onVolumeChanged: v => received = v);
+        OpenSoundScreen(menu); // SelectedItem = 0 (Volume)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.Volume, Is.EqualTo(45));
+        Assert.That(received, Is.EqualTo(45));
+    }
+
+    [Test]
+    public void Sound_RightKey_IncreasesVolume()
+    {
+        _config.Volume = 50;
+        int received = -1;
+        var menu = CreateMenu(onVolumeChanged: v => received = v);
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.Volume, Is.EqualTo(55));
+        Assert.That(received, Is.EqualTo(55));
+    }
+
+    [Test]
+    public void Sound_Volume_ClampedAtZero()
+    {
+        _config.Volume = 0;
+        int received = -1;
+        var menu = CreateMenu(onVolumeChanged: v => received = v);
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Left); // cannot go below 0
+        Assert.That(_config.Volume, Is.EqualTo(0));
+        Assert.That(received, Is.EqualTo(-1)); // callback not called when no change
+    }
+
+    [Test]
+    public void Sound_Volume_ClampedAt100()
+    {
+        _config.Volume = 100;
+        int received = -1;
+        var menu = CreateMenu(onVolumeChanged: v => received = v);
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Right); // cannot go above 100
+        Assert.That(_config.Volume, Is.EqualTo(100));
+        Assert.That(received, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void Sound_ScrubberToggle_UpdatesConfig()
+    {
+        _config.SoundScrubberEnabled = false;
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Down); // select Scrubber (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.SoundScrubberEnabled, Is.True);
+    }
+
+    [Test]
+    public void Sound_ScrubberToggle_InvokesCallback()
+    {
+        bool received = false;
+        var menu = CreateMenu(onScrubberToggled: on => received = on);
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Down); // select Scrubber
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.True);
+    }
+
+    [Test]
+    public void Sound_Back_ReturnsToSettings()
+    {
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down); // select Back (index 2)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    [Test]
+    public void Sound_Escape_ReturnsToRoot()
+    {
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        menu.HandleKey(Keys.Escape);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
     }
 }

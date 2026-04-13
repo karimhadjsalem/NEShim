@@ -7,8 +7,15 @@ namespace NEShim.Audio;
 /// Plays a looping audio file (MP3, WAV, or any NAudio-supported format) on the
 /// pre-game main menu with smooth fade in / fade out transitions.
 ///
-/// Fade in : 1.0 second  — starts at volume 0, ramps to 1.
+/// Fade in : 1.0 second  — starts at volume 0, ramps to master volume.
 /// Fade out: 0.5 seconds — ramps to 0 then stops playback.
+///
+/// Volume is split into two independent concerns:
+///   _fadeLevel   — 0–1 fade progress driven by the timer
+///   _masterVolume — 0–1 user-controlled multiplier (SetMasterVolume)
+///   _reader.Volume = _fadeLevel × _masterVolume at every tick
+/// This separation ensures that changing master volume during a fade works correctly
+/// and does not interfere with the fade state machine.
 ///
 /// Looping is handled inside the sample provider so playback never needs to restart,
 /// avoiding the WaveOut callback-thread re-entry issue.
@@ -18,13 +25,17 @@ namespace NEShim.Audio;
 /// </summary>
 internal sealed class MainMenuMusic : IDisposable
 {
-    private AudioFileReader?     _reader;
+    private AudioFileReader?      _reader;
     private LoopingSampleProvider? _looper;
-    private WasapiOut?           _output;
-    private System.Timers.Timer? _fadeTimer;
-    private volatile bool        _disposed;
+    private WasapiOut?            _output;
+    private System.Timers.Timer?  _fadeTimer;
+    private volatile bool         _disposed;
 
-    // Signed volume delta per tick — positive = fade in, negative = fade out
+    // Fade state: _fadeLevel tracks 0→1 progress; _reader.Volume = _fadeLevel × _masterVolume
+    private float   _fadeLevel;
+    private float   _masterVolume = 1.0f;
+
+    // Signed fade delta per tick — positive = fade in, negative = fade out
     private float   _volumeStep;
     private Action? _onFadeOutComplete;
 
@@ -71,6 +82,7 @@ internal sealed class MainMenuMusic : IDisposable
         if (_output.PlaybackState != PlaybackState.Playing)
         {
             _reader.Position = 0;
+            _fadeLevel       = 0f;
             _reader.Volume   = 0f;
             _output.Play();
         }
@@ -98,6 +110,19 @@ internal sealed class MainMenuMusic : IDisposable
         _output?.Stop();
     }
 
+    /// <summary>
+    /// Sets the master volume multiplier (0–1).
+    /// The current fade level is preserved; the audible output adjusts immediately.
+    /// Changing master volume during a fade-in or fade-out works correctly because
+    /// fade progress (<c>_fadeLevel</c>) is tracked independently of <c>_reader.Volume</c>.
+    /// </summary>
+    public void SetMasterVolume(float masterVolume)
+    {
+        _masterVolume = Math.Clamp(masterVolume, 0f, 1f);
+        if (_disposed || _reader == null) return;
+        _reader.Volume = _fadeLevel * _masterVolume;
+    }
+
     // ---- Internal ----
 
     private void StartFadeIn()
@@ -111,8 +136,9 @@ internal sealed class MainMenuMusic : IDisposable
     {
         if (_disposed || _reader == null) return;
 
-        float next = Math.Clamp(_reader.Volume + _volumeStep, 0f, 1f);
-        _reader.Volume = next;
+        float next = Math.Clamp(_fadeLevel + _volumeStep, 0f, 1f);
+        _fadeLevel     = next;
+        _reader.Volume = _fadeLevel * _masterVolume;
 
         bool reachedTarget = _volumeStep >= 0f ? next >= 1f : next <= 0f;
         if (!reachedTarget) return;

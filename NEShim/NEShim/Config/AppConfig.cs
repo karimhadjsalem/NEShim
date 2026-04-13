@@ -47,6 +47,15 @@ public sealed class AppConfig
     // Path to an audio file (MP3 recommended) played on the pre-game main menu.
     // Relative to exe or absolute. Leave empty to disable.
     public string MainMenuMusicPath    { get; set; } = "";
+
+    // Master volume for game audio (0–100).
+    public int Volume { get; set; } = 100;
+
+    // When true, applies an additional LP@8kHz stage for warmer, less harsh sound.
+    public bool SoundScrubberEnabled { get; set; } = false;
+
+    // When false, main menu music is silenced regardless of MainMenuMusicPath.
+    public bool MainMenuMusicEnabled { get; set; } = true;
     
     public DeveloperSettings Developer { get; set; } = new();
 }
