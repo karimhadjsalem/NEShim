@@ -34,15 +34,17 @@ internal class MainMenuScreenTests
 
     // No background image path — avoids any file I/O in the constructor
     private MainMenuScreen CreateScreen(
-        Action<int>?  onVolumeChanged   = null,
-        Action<bool>? onScrubberToggled = null,
-        Action<bool>? onMenuMusicToggled = null) =>
+        Action<int>?  onVolumeChanged          = null,
+        Action<bool>? onScrubberToggled        = null,
+        Action<bool>? onMenuMusicToggled       = null,
+        Action<bool>? onGraphicsScalerToggled  = null) =>
         new(_saveStates, _config, null,
             _ => { },
             () => { },
-            onVolumeChanged    ?? (_ => { }),
-            onScrubberToggled  ?? (_ => { }),
-            onMenuMusicToggled ?? (_ => { }));
+            onVolumeChanged         ?? (_ => { }),
+            onScrubberToggled       ?? (_ => { }),
+            onMenuMusicToggled      ?? (_ => { }),
+            onGraphicsScalerToggled ?? (_ => { }));
 
     private void CreateSlotFile(int slot) =>
         File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
@@ -264,7 +266,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
         screen.HandleKey(Keys.Left);
@@ -280,7 +282,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right);
@@ -296,7 +298,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, null,
             _ => { }, () => { },
-            _ => { }, on => callbackReceived = on, _ => { });
+            _ => { }, on => callbackReceived = on, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Down);   // select Scrubber (index 1)
@@ -314,7 +316,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, null,
             _ => { }, () => { },
-            _ => { }, _ => { }, on => received = on);
+            _ => { }, _ => { }, on => received = on, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Down);
@@ -365,12 +367,12 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsThreeItems()
+    public void Video_GetCurrentItems_ReturnsFourItems()
     {
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        // Window Mode, FPS Overlay, ← Back
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
+        // Window Mode, FPS Overlay, Graphics, ← Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(4));
     }
 
     [Test]
@@ -387,9 +389,22 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // ← Back (index 2)
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // ← Back (index 3)
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    [Test]
+    public void Video_GraphicsToggle_UpdatesConfigAndCallsBack()
+    {
+        bool received = false;
+        using var screen = CreateScreen(onGraphicsScalerToggled: on => received = on);
+        OpenVideoScreen(screen);
+        screen.HandleKey(Keys.Down);   // select Graphics (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.GraphicsSmoothingEnabled, Is.True);
+        Assert.That(received, Is.True);
     }
 
     // ---- Rollover ----

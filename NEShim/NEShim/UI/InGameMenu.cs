@@ -22,6 +22,7 @@ internal sealed class InGameMenu
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
     private readonly Action<bool>     _onScrubberToggled;
+    private readonly Action<bool>     _onGraphicsScalerToggled;
 
     public bool IsOpen      { get; private set; }
     public Screen Current   { get; private set; } = Screen.Root;
@@ -50,11 +51,12 @@ internal sealed class InGameMenu
     private const int SettingsItemSound       = 2;
     private const int SettingsItemCount       = 3;
 
-    // ---- Video screen: 3 items ----
+    // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
-    private const int VideoItemFps        = 1;
-    private const int VideoItemBack       = 2;
-    private const int VideoItemCount      = 3;
+    private const int VideoItemGraphics   = 1;
+    private const int VideoItemFps        = 2;
+    private const int VideoItemBack       = 3;
+    private const int VideoItemCount      = 4;
 
     // ---- Sound screen: 3 items ----
     private const int SoundItemVolume   = 0;
@@ -85,17 +87,19 @@ internal sealed class InGameMenu
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
         Action<int>      onVolumeChanged,
-        Action<bool>     onScrubberToggled)
+        Action<bool>     onScrubberToggled,
+        Action<bool>     onGraphicsScalerToggled)
     {
-        _saveStates         = saveStates;
-        _config             = config;
-        _onExitToDesktop    = onExitToDesktop;
-        _onResetGame        = onResetGame;
-        _onReturnToMainMenu = onReturnToMainMenu;
-        _onWindowModeToggle = onWindowModeToggle;
-        _onConfigSaved      = onConfigSaved;
-        _onVolumeChanged    = onVolumeChanged;
-        _onScrubberToggled  = onScrubberToggled;
+        _saveStates              = saveStates;
+        _config                  = config;
+        _onExitToDesktop         = onExitToDesktop;
+        _onResetGame             = onResetGame;
+        _onReturnToMainMenu      = onReturnToMainMenu;
+        _onWindowModeToggle      = onWindowModeToggle;
+        _onConfigSaved           = onConfigSaved;
+        _onVolumeChanged         = onVolumeChanged;
+        _onScrubberToggled       = onScrubberToggled;
+        _onGraphicsScalerToggled = onGraphicsScalerToggled;
     }
 
     // ---- Open / Close ----
@@ -295,6 +299,11 @@ internal sealed class InGameMenu
                         _config.Developer.ShowFps = !_config.Developer.ShowFps;
                         _onConfigSaved();
                         break;
+                    case VideoItemGraphics:
+                        bool smoothOn = !_config.GraphicsSmoothingEnabled;
+                        _config.GraphicsSmoothingEnabled = smoothOn;
+                        _onGraphicsScalerToggled(smoothOn);
+                        break;
                     case VideoItemBack:
                         NavigateTo(Screen.Settings);
                         break;
@@ -382,6 +391,7 @@ internal sealed class InGameMenu
         Screen.Video => new[]
         {
             $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
+            $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
             $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
             "← Back",
         },

@@ -57,6 +57,9 @@ public sealed class AppConfig
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
 
+    // When true, bilinear filtering is applied when scaling the NES frame for a softer look.
+    public bool GraphicsSmoothingEnabled { get; set; } = false;
+
     // Position of the main menu panel: "BottomCenter", "Center", "BottomLeft", "BottomRight", "TopLeft", "TopCenter", "TopRight"
     public string MainMenuPosition { get; set; } = "BottomCenter";
 

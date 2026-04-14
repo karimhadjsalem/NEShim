@@ -34,11 +34,12 @@ internal sealed class MainMenuScreen : IDisposable
     private const int SettingsItemSound       = 2;
     private const int SettingsItemCount       = 3;
 
-    // ---- Video screen: 3 items ----
+    // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
-    private const int VideoItemFps        = 1;
-    private const int VideoItemBack       = 2;
-    private const int VideoItemCount      = 3;
+    private const int VideoItemGraphics   = 1;
+    private const int VideoItemFps        = 2;
+    private const int VideoItemBack       = 3;
+    private const int VideoItemCount      = 4;
 
     // ---- Sound screen: 4 items ----
     private const int SoundItemVolume    = 0;
@@ -67,6 +68,7 @@ internal sealed class MainMenuScreen : IDisposable
     private readonly Action<int>      _onVolumeChanged;
     private readonly Action<bool>     _onScrubberToggled;
     private readonly Action<bool>     _onMenuMusicToggled;
+    private readonly Action<bool>     _onGraphicsScalerToggled;
 
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
@@ -88,15 +90,17 @@ internal sealed class MainMenuScreen : IDisposable
         Action           onConfigSaved,
         Action<int>      onVolumeChanged,
         Action<bool>     onScrubberToggled,
-        Action<bool>     onMenuMusicToggled)
+        Action<bool>     onMenuMusicToggled,
+        Action<bool>     onGraphicsScalerToggled)
     {
-        _saveStates         = saveStates;
-        _config             = config;
-        _onWindowModeToggle = onWindowModeToggle;
-        _onConfigSaved      = onConfigSaved;
-        _onVolumeChanged    = onVolumeChanged;
-        _onScrubberToggled  = onScrubberToggled;
-        _onMenuMusicToggled = onMenuMusicToggled;
+        _saveStates              = saveStates;
+        _config                  = config;
+        _onWindowModeToggle      = onWindowModeToggle;
+        _onConfigSaved           = onConfigSaved;
+        _onVolumeChanged         = onVolumeChanged;
+        _onScrubberToggled       = onScrubberToggled;
+        _onMenuMusicToggled      = onMenuMusicToggled;
+        _onGraphicsScalerToggled = onGraphicsScalerToggled;
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -292,6 +296,11 @@ internal sealed class MainMenuScreen : IDisposable
                         _config.Developer.ShowFps = !_config.Developer.ShowFps;
                         _onConfigSaved();
                         break;
+                    case VideoItemGraphics:
+                        bool smoothOn = !_config.GraphicsSmoothingEnabled;
+                        _config.GraphicsSmoothingEnabled = smoothOn;
+                        _onGraphicsScalerToggled(smoothOn);
+                        break;
                     case VideoItemBack:
                         NavigateTo(Screen.Settings);
                         break;
@@ -406,6 +415,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.Video => new[]
         {
             $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
+            $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
             $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
             "← Back",
         },

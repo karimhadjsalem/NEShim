@@ -33,23 +33,25 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action?       onExitToDesktop    = null,
-        Action?       onResetGame        = null,
-        Action?       onReturnToMainMenu = null,
-        Action?       onConfigSaved      = null,
-        Action<int>?  onVolumeChanged    = null,
-        Action<bool>? onScrubberToggled  = null)
+        Action?       onExitToDesktop         = null,
+        Action?       onResetGame             = null,
+        Action?       onReturnToMainMenu      = null,
+        Action?       onConfigSaved           = null,
+        Action<int>?  onVolumeChanged         = null,
+        Action<bool>? onScrubberToggled       = null,
+        Action<bool>? onGraphicsScalerToggled = null)
     {
         return new InGameMenu(
             _saveStates,
             _config,
-            onExitToDesktop    ?? (() => { }),
-            onResetGame        ?? (() => { }),
-            onReturnToMainMenu ?? (() => { }),
+            onExitToDesktop         ?? (() => { }),
+            onResetGame             ?? (() => { }),
+            onReturnToMainMenu      ?? (() => { }),
             _ => { },
-            onConfigSaved      ?? (() => { }),
-            onVolumeChanged    ?? (_ => { }),
-            onScrubberToggled  ?? (_ => { }));
+            onConfigSaved           ?? (() => { }),
+            onVolumeChanged         ?? (_ => { }),
+            onScrubberToggled       ?? (_ => { }),
+            onGraphicsScalerToggled ?? (_ => { }));
     }
 
     private static int[] EmptyFrame() => new int[256 * 240];
@@ -319,12 +321,13 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
-        // Navigate: Down to Video (index 1) → enter Video → Down to FPS (index 1 in Video) → toggle
+        // Navigate: Down to Video (index 1) → enter Video → Down×2 to FPS (index 2 in Video) → toggle
         menu.HandleKey(Keys.Down);   // select Video (index 1)
         menu.HandleKey(Keys.Return); // enter Video screen
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
-        menu.HandleKey(Keys.Down);   // select FPS (index 1 in Video)
+        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
+        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
         bool before = _config.Developer.ShowFps;
         menu.HandleKey(Keys.Return);
         Assert.That(_config.Developer.ShowFps, Is.EqualTo(!before));
@@ -340,7 +343,8 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
         menu.HandleKey(Keys.Down);   // select Video (index 1)
         menu.HandleKey(Keys.Return); // enter Video screen
-        menu.HandleKey(Keys.Down);   // select FPS (index 1 in Video)
+        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
+        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -502,7 +506,7 @@ internal class InGameMenuTests
             _saveStates, _config,
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { });
 
         menuWithToggle.Open(new int[256 * 240]);
         _config.WindowMode = "Fullscreen";
@@ -671,11 +675,11 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsThreeItems()
+    public void Video_GetCurrentItems_ReturnsFourItems()
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(4));
     }
 
     [Test]
@@ -692,9 +696,22 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         OpenVideoScreen(menu);
         menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // ← Back (index 2)
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);   // ← Back (index 3)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    [Test]
+    public void Video_GraphicsToggle_UpdatesConfigAndCallsBack()
+    {
+        bool received = false;
+        var menu = CreateMenu(onGraphicsScalerToggled: on => received = on);
+        OpenVideoScreen(menu);
+        menu.HandleKey(Keys.Down);   // select Graphics (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.GraphicsSmoothingEnabled, Is.True);
+        Assert.That(received, Is.True);
     }
 
     // ---- Rollover ----

@@ -5,7 +5,10 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet list:*)",
       "Bash(grep -v \"^$\")",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Read(//c/Games/Users/karim/.claude/plans/**)",
+      "Read(//c/Users/karim/.claude/plans/**)",
+      "Bash(wc -l \"C:\\\\\\\\Users\\\\\\\\karim\\\\\\\\.claude\\\\\\\\plans\\\\\\\\sorted-inventing-hennessy.md\")"
     ]
   }
 }

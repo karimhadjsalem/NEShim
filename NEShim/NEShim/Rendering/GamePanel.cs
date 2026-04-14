@@ -17,8 +17,9 @@ internal sealed class GamePanel : Panel
 {
     private readonly FrameBuffer _frameBuffer;
     private readonly Bitmap _bitmap;
-    private InGameMenu?     _menu;
-    private MainMenuScreen? _mainMenu;
+    private InGameMenu?      _menu;
+    private MainMenuScreen?  _mainMenu;
+    private IGraphicsScaler  _scaler = new NearestNeighborScaler();
 
     // Toast notification
     private string? _toastText;
@@ -53,6 +54,7 @@ internal sealed class GamePanel : Panel
 
     public void SetMenu(InGameMenu menu)             => _menu     = menu;
     public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
+    public void SetScaler(IGraphicsScaler scaler)    => _scaler   = scaler;
 
     private bool IsMenuActive => _mainMenu?.IsVisible == true || _menu?.IsOpen == true;
 
@@ -141,9 +143,8 @@ internal sealed class GamePanel : Panel
             return;
         }
 
-        g.CompositingMode    = CompositingMode.SourceCopy;
-        g.InterpolationMode  = InterpolationMode.NearestNeighbor;
-        g.PixelOffsetMode    = PixelOffsetMode.Half;
+        g.CompositingMode = CompositingMode.SourceCopy;
+        _scaler.Configure(g);
 
         // Compute letterboxed destination using 8:7 pixel aspect ratio
         // NES pixels are not square — display width = bufferWidth * (8/7)

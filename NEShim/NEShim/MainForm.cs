@@ -32,8 +32,12 @@ public partial class MainForm : Form
     private EmulationThread?  _emulationThread;
 
     // Processor instances kept alive so they can be swapped without re-allocation.
-    private readonly NesFilterProcessor    _nesFilterProcessor    = new();
+    private readonly NesFilterProcessor     _nesFilterProcessor     = new();
     private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
+
+    // Scaler instances kept alive for zero-allocation runtime swaps.
+    private readonly IGraphicsScaler _nearestScaler  = new NearestNeighborScaler();
+    private readonly IGraphicsScaler _bilinearScaler = new BilinearScaler();
 
     private bool _isFullscreen = true;
 
@@ -91,6 +95,7 @@ public partial class MainForm : Form
         // 6. Rendering
         _frameBuffer = new FrameBuffer();
         _gamePanel   = new GamePanel(_frameBuffer) { Dock = DockStyle.Fill };
+        _gamePanel.SetScaler(_config.GraphicsSmoothingEnabled ? _bilinearScaler : _nearestScaler);
         Controls.Add(_gamePanel);
 
         // 7. Input
@@ -121,8 +126,8 @@ public partial class MainForm : Form
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled:   on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
-            onMenuMusicToggled:  on  =>
+            onScrubberToggled:          on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onMenuMusicToggled:         on  =>
             {
                 if (on)
                 {
@@ -137,6 +142,11 @@ public partial class MainForm : Form
                 {
                     _mainMenuMusic?.Stop();
                 }
+            },
+            onGraphicsScalerToggled: on =>
+            {
+                _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
+                ConfigLoader.Save(_config!);
             });
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
@@ -181,7 +191,12 @@ public partial class MainForm : Form
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled:   on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor));
+            onScrubberToggled:          on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onGraphicsScalerToggled:    on =>
+            {
+                _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
+                ConfigLoader.Save(_config!);
+            });
         _gamePanel.SetMenu(_menu);
 
         // 11. Emulation thread
