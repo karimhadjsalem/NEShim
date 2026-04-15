@@ -225,6 +225,7 @@ public partial class MainForm : Form
         // Pause emulation under the MainMenu reason before showing the screen,
         // so the emulation thread blocks before the next frame is emulated.
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
+        SteamManager.ActivateMenuSet();
         _mainMenuScreen?.Show();
         _mainMenuMusic?.FadeIn();
         _gamePanel?.Invalidate();

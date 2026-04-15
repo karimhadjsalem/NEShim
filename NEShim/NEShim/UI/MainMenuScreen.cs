@@ -12,7 +12,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class MainMenuScreen : IDisposable
 {
-    public enum Screen { Main, ResumeSlots, Settings, KeyBindings, Video, Sound }
+    public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound }
 
     // ---- Shared binding-action table ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
@@ -28,11 +28,12 @@ internal sealed class MainMenuScreen : IDisposable
         ("← Back", ""),
     };
 
-    // ---- Settings: 3 items ----
-    private const int SettingsItemKeyBindings = 0;
-    private const int SettingsItemVideo       = 1;
-    private const int SettingsItemSound       = 2;
-    private const int SettingsItemCount       = 3;
+    // ---- Settings: 4 items ----
+    private const int SettingsItemKeyboardBindings = 0;
+    private const int SettingsItemGamepadBindings  = 1;
+    private const int SettingsItemVideo            = 2;
+    private const int SettingsItemSound            = 3;
+    private const int SettingsItemCount            = 4;
 
     // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
@@ -53,7 +54,10 @@ internal sealed class MainMenuScreen : IDisposable
     public bool    IsVisible       { get; private set; } = true;
     public int     SelectedIndex   { get; private set; } = 0;
     public Bitmap? Background      { get; }
-    public string? RebindingAction { get; private set; }
+    public string? RebindingAction        { get; private set; }
+    public string? GamepadRebindingAction { get; private set; }
+    public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
+    public bool    IsGamepadOverriddenBySteam => Steam.SteamInputManager.HasConnectedController;
 
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
@@ -117,10 +121,11 @@ internal sealed class MainMenuScreen : IDisposable
 
     public void Show()
     {
-        CurrentScreen   = Screen.Main;
-        SelectedIndex   = 0;
-        RebindingAction = null;
-        IsVisible       = true;
+        CurrentScreen          = Screen.Main;
+        SelectedIndex          = 0;
+        RebindingAction        = null;
+        GamepadRebindingAction = null;
+        IsVisible              = true;
 
         if (!IsItemEnabled(0))
             NavigateCursor(1);
@@ -142,6 +147,12 @@ internal sealed class MainMenuScreen : IDisposable
                 _onConfigSaved();
                 RebindingAction = null;
             }
+            return true;
+        }
+
+        if (GamepadRebindingAction != null)
+        {
+            if (key == Keys.Escape) GamepadRebindingAction = null;
             return true;
         }
 
@@ -179,6 +190,58 @@ internal sealed class MainMenuScreen : IDisposable
                 return true;
         }
         return false;
+    }
+
+    // ---- Gamepad input ----
+
+    /// <summary>
+    /// Processes edge-triggered gamepad menu navigation.
+    /// Must be called on the UI thread (via BeginInvoke from the emulation thread).
+    /// </summary>
+    /// <summary>
+    /// Called (on the UI thread) when a gamepad button is pressed during gamepad rebind mode.
+    /// B or Back cancels; any other button sets the binding.
+    /// </summary>
+    public void HandleGamepadButtonPress(string buttonName)
+    {
+        if (GamepadRebindingAction == null) return;
+        if (buttonName == "B" || buttonName == "Back")
+        {
+            GamepadRebindingAction = null;
+            return;
+        }
+        SetGamepadBinding(GamepadRebindingAction, buttonName);
+        _onConfigSaved();
+        GamepadRebindingAction = null;
+    }
+
+    public void HandleGamepadNav(Input.MenuNavInput nav)
+    {
+        if (!IsVisible || !nav.Any) return;
+        if (RebindingAction != null || GamepadRebindingAction != null) return;
+
+        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundItemVolume)
+        {
+            if (nav.Left)  { AdjustVolume(-5); return; }
+            if (nav.Right) { AdjustVolume( 5); return; }
+        }
+
+        if (nav.Up)   NavigateCursor(-1);
+        if (nav.Down) NavigateCursor(1);
+
+        if (nav.Confirm)
+            Activate();
+
+        if (nav.Back)
+        {
+            if (CurrentScreen == Screen.Main)
+            {
+                IsVisible = false;
+                ExitChosen?.Invoke();
+            }
+            else
+                NavigateTo(Screen.Main);
+        }
     }
 
     // ---- Mouse input ----
@@ -280,9 +343,10 @@ internal sealed class MainMenuScreen : IDisposable
             case Screen.Settings:
                 switch (SelectedIndex)
                 {
-                    case SettingsItemKeyBindings: NavigateTo(Screen.KeyBindings); break;
-                    case SettingsItemVideo:        NavigateTo(Screen.Video);       break;
-                    case SettingsItemSound:        NavigateTo(Screen.Sound);       break;
+                    case SettingsItemKeyboardBindings: NavigateTo(Screen.KeyboardBindings); break;
+                    case SettingsItemGamepadBindings:  NavigateTo(Screen.GamepadBindings);  break;
+                    case SettingsItemVideo:            NavigateTo(Screen.Video);            break;
+                    case SettingsItemSound:            NavigateTo(Screen.Sound);            break;
                 }
                 break;
 
@@ -307,13 +371,23 @@ internal sealed class MainMenuScreen : IDisposable
                 }
                 break;
 
-            case Screen.KeyBindings:
+            case Screen.KeyboardBindings:
             {
                 var (_, configKey) = BindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
                     RebindingAction = configKey;
+                break;
+            }
+
+            case Screen.GamepadBindings:
+            {
+                var (_, configKey) = BindingActions[SelectedIndex];
+                if (configKey == "")
+                    NavigateTo(Screen.Settings);
+                else
+                    GamepadRebindingAction = configKey;
                 break;
             }
 
@@ -340,9 +414,10 @@ internal sealed class MainMenuScreen : IDisposable
 
     private void NavigateTo(Screen screen)
     {
-        CurrentScreen   = screen;
-        SelectedIndex   = 0;
-        RebindingAction = null;
+        CurrentScreen          = screen;
+        SelectedIndex          = 0;
+        RebindingAction        = null;
+        GamepadRebindingAction = null;
 
         if (!IsItemEnabled(0))
             NavigateCursor(1);
@@ -362,6 +437,20 @@ internal sealed class MainMenuScreen : IDisposable
             binding.Key = keyName;
         else
             _config.InputMappings[action] = new InputBinding(keyName, null);
+    }
+
+    private void SetGamepadBinding(string action, string buttonName)
+    {
+        foreach (var kvp in _config.InputMappings)
+        {
+            if (kvp.Key != action && kvp.Value.GamepadButton == buttonName)
+                kvp.Value.GamepadButton = null;
+        }
+
+        if (_config.InputMappings.TryGetValue(action, out var binding))
+            binding.GamepadButton = buttonName;
+        else
+            _config.InputMappings[action] = new InputBinding(null, buttonName);
     }
 
     // ---- Resume-slot list ----
@@ -394,9 +483,13 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.Main        => "MAIN MENU",
         Screen.ResumeSlots => "LOAD GAME",
         Screen.Settings    => "SETTINGS",
-        Screen.KeyBindings => RebindingAction != null
+        Screen.KeyboardBindings => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
-            : "KEY BINDINGS",
+            : "KEYBOARD CONTROLS",
+
+        Screen.GamepadBindings => GamepadRebindingAction != null
+            ? $"PRESS BUTTON FOR  {BindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper()}"
+            : "GAMEPAD CONTROLS",
         Screen.Video       => "VIDEO",
         Screen.Sound       => "SOUND",
         _ => ""
@@ -408,7 +501,8 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.ResumeSlots => _resumeOptions.Select(o => o.Label).ToArray(),
         Screen.Settings    => new[]
         {
-            "Key Bindings",
+            "Keyboard Controls",
+            "Gamepad Controls",
             "Video",
             "Sound",
         },
@@ -419,10 +513,16 @@ internal sealed class MainMenuScreen : IDisposable
             $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
             "← Back",
         },
-        Screen.KeyBindings => BindingActions
+        Screen.KeyboardBindings => BindingActions
             .Select(b => b.ConfigKey == ""
                 ? "← Back"
-                : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
+                : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
+            .ToArray(),
+
+        Screen.GamepadBindings => BindingActions
+            .Select(b => b.ConfigKey == ""
+                ? "← Back"
+                : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
             .ToArray(),
         Screen.Sound => new[]
         {
@@ -443,17 +543,21 @@ internal sealed class MainMenuScreen : IDisposable
 
     private int ItemCount() => CurrentScreen switch
     {
-        Screen.Main        => MainItemLabels.Length,
-        Screen.ResumeSlots => _resumeOptions.Length,
-        Screen.Settings    => SettingsItemCount,
-        Screen.KeyBindings => BindingActions.Length,
-        Screen.Video       => VideoItemCount,
-        Screen.Sound       => SoundItemCount,
+        Screen.Main               => MainItemLabels.Length,
+        Screen.ResumeSlots        => _resumeOptions.Length,
+        Screen.Settings           => SettingsItemCount,
+        Screen.KeyboardBindings   => BindingActions.Length,
+        Screen.GamepadBindings    => BindingActions.Length,
+        Screen.Video              => VideoItemCount,
+        Screen.Sound              => SoundItemCount,
         _ => 0
     };
 
-    private string KeyLabel(string configKey)
+    private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
+
+    private string GamepadLabel(string configKey)
+        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton ?? "(none)" : "(none)";
 
     public void Dispose() => Background?.Dispose();
 

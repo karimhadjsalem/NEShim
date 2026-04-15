@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using NEShim.Input;
 using NEShim.UI;
 
 
@@ -58,6 +59,13 @@ internal sealed class GamePanel : Panel
 
     private bool IsMenuActive => _mainMenu?.IsVisible == true || _menu?.IsOpen == true;
 
+    /// <summary>
+    /// True when the active menu is waiting for a gamepad button press (rebind mode).
+    /// Checked by the emulation thread each pause-loop tick.
+    /// </summary>
+    public bool IsWaitingForGamepadButton
+        => _mainMenu?.IsGamepadRebinding == true || _menu?.IsGamepadRebinding == true;
+
     /// <summary>Queues a toast message (shown for 1.5 seconds).</summary>
     public void ShowToast(string text)
     {
@@ -101,6 +109,38 @@ internal sealed class GamePanel : Panel
             return;
         }
         base.WndProc(ref m);
+    }
+
+    /// <summary>
+    /// Dispatches a detected gamepad button press to the active menu's rebind handler.
+    /// Called on the UI thread via BeginInvoke from the emulation thread.
+    /// </summary>
+    public void HandleGamepadButtonPress(string buttonName)
+    {
+        if (_mainMenu?.IsVisible == true)
+            _mainMenu.HandleGamepadButtonPress(buttonName);
+        else if (_menu?.IsOpen == true)
+            _menu.HandleGamepadButtonPress(buttonName);
+    }
+
+    /// <summary>
+    /// Dispatches gamepad menu navigation to whichever menu is currently active.
+    /// Called on the UI thread via BeginInvoke from the emulation thread.
+    /// Returns true if a repaint is needed.
+    /// </summary>
+    public bool HandleGamepadNav(MenuNavInput nav)
+    {
+        if (_mainMenu?.IsVisible == true)
+        {
+            _mainMenu.HandleGamepadNav(nav);
+            return true;
+        }
+        if (_menu?.IsOpen == true)
+        {
+            _menu.HandleGamepadNav(nav);
+            return true;
+        }
+        return false;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

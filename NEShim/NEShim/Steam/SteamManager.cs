@@ -37,6 +37,10 @@ internal static class SteamManager
             _overlayCallback = Callback<GameOverlayActivated_t>.Create(OnOverlayActivated);
             IsAvailable = true;
             System.Diagnostics.Debug.WriteLine("[Steam] Initialized successfully.");
+
+            // Initialize Steam Input for Steam Controller support
+            SteamInputManager.Initialize();
+            SteamInputManager.ActivateMenuSet(); // starts at the main menu
         }
         catch (Exception ex)
         {
@@ -55,10 +59,23 @@ internal static class SteamManager
         SteamAPI.RunCallbacks();
     }
 
+    /// <summary>
+    /// Switches all connected Steam controllers to the Menu action set.
+    /// No-op when Steam is unavailable.
+    /// </summary>
+    public static void ActivateMenuSet() => SteamInputManager.ActivateMenuSet();
+
+    /// <summary>
+    /// Switches all connected Steam controllers to the Gameplay action set.
+    /// No-op when Steam is unavailable.
+    /// </summary>
+    public static void ActivateGameplaySet() => SteamInputManager.ActivateGameplaySet();
+
     /// <summary>Call after Application.Run exits.</summary>
     public static void Shutdown()
     {
         if (!IsAvailable) return;
+        SteamInputManager.Shutdown();
         SteamAPI.Shutdown();
         IsAvailable = false;
     }

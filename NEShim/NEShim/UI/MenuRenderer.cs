@@ -31,12 +31,14 @@ internal static class MenuRenderer
     /// </summary>
     public static int HitTestItem(Point p, Rectangle bounds, InGameMenu menu)
     {
-        if (menu.RebindingAction != null) return -1;
+        if (menu.RebindingAction != null || menu.IsGamepadRebinding) return -1;
 
-        var  items       = menu.GetCurrentItems();
-        bool isConfirm   = menu.Current == InGameMenu.Screen.ConfirmMainMenu
-                        || menu.Current == InGameMenu.Screen.ConfirmExit;
-        int  warningRowH = isConfirm ? ItemH : 0;
+        var  items        = menu.GetCurrentItems();
+        bool isConfirm    = menu.Current == InGameMenu.Screen.ConfirmMainMenu
+                         || menu.Current == InGameMenu.Screen.ConfirmExit;
+        bool steamOverride = menu.Current == InGameMenu.Screen.GamepadBindings
+                          && menu.IsGamepadOverriddenBySteam;
+        int  warningRowH  = (isConfirm ? ItemH : 0) + (steamOverride ? ItemH : 0);
 
         var (panelX, panelY, panelW, _) = PanelMetrics(bounds, items.Length, warningRowH);
 
@@ -61,11 +63,13 @@ internal static class MenuRenderer
         using var overlayBrush = new SolidBrush(OverlayColor);
         g.FillRectangle(overlayBrush, bounds);
 
-        var    items      = menu.GetCurrentItems();
-        string title      = menu.GetTitle();
-        bool   isConfirm  = menu.Current == InGameMenu.Screen.ConfirmMainMenu
-                         || menu.Current == InGameMenu.Screen.ConfirmExit;
-        int    warningRowH = isConfirm ? ItemH : 0;
+        var    items         = menu.GetCurrentItems();
+        string title         = menu.GetTitle();
+        bool   isConfirm     = menu.Current == InGameMenu.Screen.ConfirmMainMenu
+                            || menu.Current == InGameMenu.Screen.ConfirmExit;
+        bool   steamOverride = menu.Current == InGameMenu.Screen.GamepadBindings
+                            && menu.IsGamepadOverriddenBySteam;
+        int    warningRowH   = (isConfirm ? ItemH : 0) + (steamOverride ? ItemH : 0);
 
         var (panelX, panelY, panelW, panelH) = PanelMetrics(bounds, items.Length, warningRowH);
         var panelRect = new Rectangle(panelX, panelY, panelW, panelH);
@@ -78,8 +82,8 @@ internal static class MenuRenderer
 
         // Title
         using var titleFont  = new Font("Segoe UI", 15f, FontStyle.Bold, GraphicsUnit.Point);
-        var titleColor = isConfirm                   ? WarningColor
-                       : menu.RebindingAction != null ? SubtitleColor
+        var titleColor = isConfirm                                          ? WarningColor
+                       : (menu.RebindingAction != null || menu.IsGamepadRebinding) ? SubtitleColor
                        : TitleColor;
         using var titleBrush = new SolidBrush(titleColor);
         var titleRect = new RectangleF(panelX + PanelPad, panelY + 10, panelW - PanelPad * 2, 36);
@@ -99,14 +103,26 @@ internal static class MenuRenderer
             g.DrawString("Unsaved progress will be lost.", warnFont, warnBrush, warnRect, centred);
         }
 
-        // Rebind prompt replaces the item list
-        if (menu.RebindingAction != null)
+        // Steam override notice on the Gamepad Controls screen
+        if (steamOverride)
         {
+            using var steamFont  = new Font("Segoe UI", 10f, FontStyle.Italic, GraphicsUnit.Point);
+            using var steamBrush = new SolidBrush(Color.FromArgb(230, 255, 190, 50));
+            var steamRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, ItemH - 4);
+            g.DrawString("⚠  Steam Input active — these settings are overridden", steamFont, steamBrush, steamRect, centred);
+        }
+
+        // Rebind prompt replaces the item list
+        if (menu.RebindingAction != null || menu.IsGamepadRebinding)
+        {
+            string hint = menu.IsGamepadRebinding
+                ? "Press any controller button\n(B / Back to cancel)"
+                : "Press any key to bind\n(Esc to cancel)";
             using var hintFont  = new Font("Segoe UI", 13f, FontStyle.Italic, GraphicsUnit.Point);
             using var hintBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 180));
             var hintRect = new RectangleF(panelX + PanelPad, panelY + 56, panelW - PanelPad * 2,
                                            panelH - 56 - PanelPad);
-            g.DrawString("Press any key to bind\n(Esc to cancel)", hintFont, hintBrush, hintRect, centred);
+            g.DrawString(hint, hintFont, hintBrush, hintRect, centred);
             return;
         }
 

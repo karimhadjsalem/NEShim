@@ -25,6 +25,12 @@ public sealed class AppConfig
         ["P1 Select"] = new InputBinding("RShiftKey",  "Back"),
     };
 
+    /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>
+    public Dictionary<string, string> GamepadHotkeyMappings { get; set; } = new()
+    {
+        ["OpenMenu"] = "LeftShoulder",   // Left bumper opens/closes the in-game menu
+    };
+
     public Dictionary<string, string> HotkeyMappings { get; set; } = new()
     {
         ["OpenMenu"]      = "Escape",

@@ -70,9 +70,17 @@ internal sealed class EmulationThread
         _saveStates  = saveStates;
         _menu        = menu;
 
-        // Wire menu events to pause/resume
-        _menu.Opened += () => SetPauseReason(PauseReasons.Menu, true);
-        _menu.Closed += () => SetPauseReason(PauseReasons.Menu, false);
+        // Wire menu events to pause/resume and Steam Input action set switches
+        _menu.Opened += () =>
+        {
+            SetPauseReason(PauseReasons.Menu, true);
+            Steam.SteamInputManager.ActivateMenuSet();
+        };
+        _menu.Closed += () =>
+        {
+            SetPauseReason(PauseReasons.Menu, false);
+            Steam.SteamInputManager.ActivateGameplaySet();
+        };
     }
 
     public void SetPauseReason(PauseReasons reason, bool active)
@@ -139,13 +147,27 @@ internal sealed class EmulationThread
             // 3. Steam callbacks
             SteamManager.Tick();
 
-            // 4. Pause check — block here while paused
+            // 4. Pause check — block here while paused, polling gamepad for menu input
             if (IsPaused)
             {
-                _resumeEvent.Wait();
+                if (_gamePanel.IsWaitingForGamepadButton)
+                {
+                    // Rebind mode: capture any newly pressed button
+                    string? btn = _input.PollAnyGamepadButtonPressed();
+                    if (btn != null)
+                        _gamePanel.BeginInvoke(() => { _gamePanel.HandleGamepadButtonPress(btn); _gamePanel.Invalidate(); });
+                }
+                else
+                {
+                    // Normal menu navigation
+                    var nav = _input.PollMenuNav(_config);
+                    if (nav.Any)
+                        _gamePanel.BeginInvoke(() => { _gamePanel.HandleGamepadNav(nav); _gamePanel.Invalidate(); });
+                }
+
+                // Wait up to 16ms (~60fps menu poll). Returns early if unpaused or stopped.
+                _resumeEvent.Wait(16);
                 if (_stopRequested) break;
-                // Re-arm frame start AFTER resuming so the timing window is fresh.
-                // (falling through to the continue skips emulation for this tick)
                 continue;
             }
 
@@ -204,15 +226,21 @@ internal sealed class EmulationThread
     /// The save (if any) has already been loaded by MainMenuScreen before this is called.
     /// Safe to call from the UI thread while the thread is blocked on MainMenu.
     /// </summary>
-    public void DismissMainMenu() => SetPauseReason(PauseReasons.MainMenu, false);
+    public void DismissMainMenu()
+    {
+        Steam.SteamInputManager.ActivateGameplaySet();
+        SetPauseReason(PauseReasons.MainMenu, false);
+    }
 
     private void HandleHotkeys()
     {
         // Don't process in-game hotkeys while the pre-game main menu is visible
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
 
-        // Open/close menu
-        if (_input.IsHotkeyJustPressed("OpenMenu", _config))
+        // Open/close menu — keyboard or gamepad (left bumper by default)
+        bool openMenuPressed = _input.IsHotkeyJustPressed("OpenMenu", _config)
+            || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config);
+        if (openMenuPressed)
         {
             if (_menu.IsOpen)
             {

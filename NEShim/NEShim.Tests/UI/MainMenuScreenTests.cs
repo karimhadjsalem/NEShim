@@ -218,8 +218,8 @@ internal class MainMenuScreenTests
         screen.HandleKey(Keys.Down); // Settings
         screen.HandleKey(Keys.Return);
         string[] items = screen.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(3)); // Key Bindings, Video, Sound
-        Assert.That(items[1], Is.EqualTo("Video"));
+        Assert.That(items.Length, Is.EqualTo(4)); // Keyboard Controls, Gamepad Controls, Video, Sound
+        Assert.That(items[2], Is.EqualTo("Video"));
     }
 
     // ---- Sound screen ----
@@ -229,7 +229,7 @@ internal class MainMenuScreenTests
     {
         screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
         screen.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 2; i++) screen.HandleKey(Keys.Down); // to Sound (index 2)
+        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // to Sound (index 3)
         screen.HandleKey(Keys.Return); // enter Sound
     }
 
@@ -354,7 +354,8 @@ internal class MainMenuScreenTests
     {
         screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
         screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // Video (index 1)
+        screen.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
+        screen.HandleKey(Keys.Down);   // Video (index 2)
         screen.HandleKey(Keys.Return); // enter Video
     }
 
@@ -431,7 +432,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(Keys.Down);   // Settings
         screen.HandleKey(Keys.Return);
         screen.HandleKey(Keys.Return); // Key Bindings (index 0)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyBindings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyboardBindings));
 
         screen.HandleKey(Keys.Down);   // P1 Down (index 1)
         screen.HandleKey(Keys.Return); // start rebind

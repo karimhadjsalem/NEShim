@@ -11,7 +11,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class InGameMenu
 {
-    public enum Screen { Root, SaveSlotSelect, Settings, KeyBindings, Video, Sound, ConfirmMainMenu, ConfirmExit }
+    public enum Screen { Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings, Video, Sound, ConfirmMainMenu, ConfirmExit }
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
@@ -28,8 +28,11 @@ internal sealed class InGameMenu
     public Screen Current   { get; private set; } = Screen.Root;
     public int SelectedItem { get; private set; } = 0;
 
-    public string? RebindingAction { get; private set; }
-    public int[]?  FrozenFrame     { get; private set; }
+    public string? RebindingAction        { get; private set; }
+    public string? GamepadRebindingAction { get; private set; }
+    public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
+    public bool    IsGamepadOverriddenBySteam => Steam.SteamInputManager.HasConnectedController;
+    public int[]?  FrozenFrame            { get; private set; }
 
     public event Action? Opened;
     public event Action? Closed;
@@ -45,11 +48,12 @@ internal sealed class InGameMenu
     private static readonly string[] ConfirmMainMenuItems = { "Yes, return to main menu", "No, stay in game" };
     private static readonly string[] ConfirmExitItems     = { "Yes, exit to desktop",     "No, stay in game" };
 
-    // ---- Settings: 3 items ----
-    private const int SettingsItemKeyBindings = 0;
-    private const int SettingsItemVideo       = 1;
-    private const int SettingsItemSound       = 2;
-    private const int SettingsItemCount       = 3;
+    // ---- Settings: 4 items ----
+    private const int SettingsItemKeyboardBindings = 0;
+    private const int SettingsItemGamepadBindings  = 1;
+    private const int SettingsItemVideo            = 2;
+    private const int SettingsItemSound            = 3;
+    private const int SettingsItemCount            = 4;
 
     // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
@@ -118,8 +122,9 @@ internal sealed class InGameMenu
     public void Close()
     {
         if (!IsOpen) return;
-        IsOpen          = false;
-        RebindingAction = null;
+        IsOpen                = false;
+        RebindingAction       = null;
+        GamepadRebindingAction = null;
         Closed?.Invoke();
     }
 
@@ -140,6 +145,12 @@ internal sealed class InGameMenu
                 RebindingAction = null;
             }
             return true;
+        }
+
+        if (GamepadRebindingAction != null)
+        {
+            if (key == Keys.Escape) GamepadRebindingAction = null;
+            return true; // block all nav keys while waiting for a gamepad button
         }
 
         // Left/Right: volume on Sound screen
@@ -174,6 +185,55 @@ internal sealed class InGameMenu
                 return true;
         }
         return false;
+    }
+
+    // ---- Gamepad input ----
+
+    /// <summary>
+    /// Processes edge-triggered gamepad menu navigation.
+    /// Must be called on the UI thread (via BeginInvoke from the emulation thread).
+    /// </summary>
+    /// <summary>
+    /// Called (on the UI thread) when a gamepad button is pressed during gamepad rebind mode.
+    /// B or Back cancels; any other button sets the binding.
+    /// </summary>
+    public void HandleGamepadButtonPress(string buttonName)
+    {
+        if (GamepadRebindingAction == null) return;
+        if (buttonName == "B" || buttonName == "Back")
+        {
+            GamepadRebindingAction = null;
+            return;
+        }
+        SetGamepadBinding(GamepadRebindingAction, buttonName);
+        _onConfigSaved();
+        GamepadRebindingAction = null;
+    }
+
+    public void HandleGamepadNav(Input.MenuNavInput nav)
+    {
+        if (!IsOpen || !nav.Any) return;
+        if (RebindingAction != null || GamepadRebindingAction != null) return;
+
+        if (Current == Screen.Sound && SelectedItem == SoundItemVolume)
+        {
+            if (nav.Left)  { AdjustVolume(-5); return; }
+            if (nav.Right) { AdjustVolume( 5); return; }
+        }
+
+        if (nav.Up)   MoveCursor(-1);
+        if (nav.Down) MoveCursor(1);
+
+        if (nav.Confirm && IsItemEnabled(SelectedItem))
+            Activate();
+
+        if (nav.Back)
+        {
+            if (Current == Screen.Root)
+                Close();
+            else
+                NavigateTo(Screen.Root);
+        }
     }
 
     // ---- Mouse input ----
@@ -233,14 +293,15 @@ internal sealed class InGameMenu
 
     private int ItemCount() => Current switch
     {
-        Screen.Root            => RootItems.Length,
-        Screen.SaveSlotSelect  => SaveStateManager.SlotCount,
-        Screen.Settings        => SettingsItemCount,
-        Screen.KeyBindings     => BindingActions.Length,
-        Screen.Video           => VideoItemCount,
-        Screen.Sound           => SoundItemCount,
-        Screen.ConfirmMainMenu => ConfirmMainMenuItems.Length,
-        Screen.ConfirmExit     => ConfirmExitItems.Length,
+        Screen.Root               => RootItems.Length,
+        Screen.SaveSlotSelect     => SaveStateManager.SlotCount,
+        Screen.Settings           => SettingsItemCount,
+        Screen.KeyboardBindings   => BindingActions.Length,
+        Screen.GamepadBindings    => BindingActions.Length,
+        Screen.Video              => VideoItemCount,
+        Screen.Sound              => SoundItemCount,
+        Screen.ConfirmMainMenu    => ConfirmMainMenuItems.Length,
+        Screen.ConfirmExit        => ConfirmExitItems.Length,
         _ => 1
     };
 
@@ -283,9 +344,10 @@ internal sealed class InGameMenu
             case Screen.Settings:
                 switch (SelectedItem)
                 {
-                    case SettingsItemKeyBindings: NavigateTo(Screen.KeyBindings); break;
-                    case SettingsItemVideo:        NavigateTo(Screen.Video);       break;
-                    case SettingsItemSound:        NavigateTo(Screen.Sound);       break;
+                    case SettingsItemKeyboardBindings: NavigateTo(Screen.KeyboardBindings); break;
+                    case SettingsItemGamepadBindings:  NavigateTo(Screen.GamepadBindings);  break;
+                    case SettingsItemVideo:            NavigateTo(Screen.Video);            break;
+                    case SettingsItemSound:            NavigateTo(Screen.Sound);            break;
                 }
                 break;
 
@@ -310,13 +372,25 @@ internal sealed class InGameMenu
                 }
                 break;
 
-            case Screen.KeyBindings:
+            case Screen.KeyboardBindings:
+            {
                 var (_, configKey) = BindingActions[SelectedItem];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
                     RebindingAction = configKey;
                 break;
+            }
+
+            case Screen.GamepadBindings:
+            {
+                var (_, configKey) = BindingActions[SelectedItem];
+                if (configKey == "")
+                    NavigateTo(Screen.Settings);
+                else
+                    GamepadRebindingAction = configKey;
+                break;
+            }
 
             case Screen.Sound:
                 switch (SelectedItem)
@@ -362,6 +436,24 @@ internal sealed class InGameMenu
             _config.InputMappings[action] = new InputBinding(keyName, null);
     }
 
+    /// <summary>
+    /// Assigns <paramref name="buttonName"/> to <paramref name="action"/> and clears
+    /// the same button from any other action to prevent duplicate bindings.
+    /// </summary>
+    private void SetGamepadBinding(string action, string buttonName)
+    {
+        foreach (var kvp in _config.InputMappings)
+        {
+            if (kvp.Key != action && kvp.Value.GamepadButton == buttonName)
+                kvp.Value.GamepadButton = null;
+        }
+
+        if (_config.InputMappings.TryGetValue(action, out var binding))
+            binding.GamepadButton = buttonName;
+        else
+            _config.InputMappings[action] = new InputBinding(null, buttonName);
+    }
+
     // ---- Enabled state ----
 
     public bool IsItemEnabled(int index)
@@ -383,7 +475,8 @@ internal sealed class InGameMenu
 
         Screen.Settings => new[]
         {
-            "Key Bindings",
+            "Keyboard Controls",
+            "Gamepad Controls",
             "Video",
             "Sound",
         },
@@ -396,10 +489,16 @@ internal sealed class InGameMenu
             "← Back",
         },
 
-        Screen.KeyBindings => BindingActions
+        Screen.KeyboardBindings => BindingActions
             .Select(b => b.ConfigKey == ""
                 ? "← Back"
-                : $"{b.Label,-8}  {KeyLabel(b.ConfigKey)}")
+                : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
+            .ToArray(),
+
+        Screen.GamepadBindings => BindingActions
+            .Select(b => b.ConfigKey == ""
+                ? "← Back"
+                : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
             .ToArray(),
 
         Screen.Sound => new[]
@@ -415,17 +514,24 @@ internal sealed class InGameMenu
         _ => Array.Empty<string>()
     };
 
-    private string KeyLabel(string configKey)
+    private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
+
+    private string GamepadLabel(string configKey)
+        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton ?? "(none)" : "(none)";
 
     public string GetTitle() => Current switch
     {
         Screen.Root            => "PAUSED",
         Screen.SaveSlotSelect  => $"SELECT SLOT  (active: {_saveStates.ActiveSlot + 1})",
         Screen.Settings        => "SETTINGS",
-        Screen.KeyBindings     => RebindingAction != null
+        Screen.KeyboardBindings => RebindingAction != null
             ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
-            : "KEY BINDINGS",
+            : "KEYBOARD CONTROLS",
+
+        Screen.GamepadBindings => GamepadRebindingAction != null
+            ? $"PRESS BUTTON FOR  {BindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper()}"
+            : "GAMEPAD CONTROLS",
         Screen.Video           => "VIDEO",
         Screen.Sound           => "SOUND",
         Screen.ConfirmMainMenu => "RETURN TO MAIN MENU?",
