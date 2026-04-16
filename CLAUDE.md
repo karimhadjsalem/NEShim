@@ -101,7 +101,7 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 ### Libraries and tooling
 - **NUnit** — test framework. Use `[TestFixture]`, `[Test]`, `[SetUp]`, `[TearDown]`. Prefer `Assert.That(actual, Is.EqualTo(expected))` constraint syntax over classic assertions.
-- **Moq** — mocking library. Add via NuGet (`Moq`). Do not introduce a second mocking library.
+- **NSubstitute** — mocking library. Add via NuGet (`NSubstitute`). Do not introduce a second mocking library.
 - Keep attributes lightweight: avoid `[Category]`, `[Description]`, `[Author]`, and other decorative metadata unless a specific CI filtering need requires them.
 
 ### Structure — mirror the SUT

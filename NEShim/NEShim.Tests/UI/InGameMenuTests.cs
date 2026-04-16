@@ -1,8 +1,8 @@
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
-using Moq;
 using NEShim.Config;
+using NSubstitute;
 using NEShim.Saves;
 using NEShim.UI;
 
@@ -12,7 +12,7 @@ namespace NEShim.Tests.UI;
 internal class InGameMenuTests
 {
     private string           _tempDir      = null!;
-    private Mock<IStatable>  _mockStatable = null!;
+    private IStatable        _mockStatable = null!;
     private SaveStateManager _saveStates   = null!;
     private AppConfig        _config       = null!;
 
@@ -20,8 +20,8 @@ internal class InGameMenuTests
     public void SetUp()
     {
         _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = new Mock<IStatable>();
-        _saveStates   = new SaveStateManager(_mockStatable.Object, _tempDir);
+        _mockStatable = Substitute.For<IStatable>();
+        _saveStates   = new SaveStateManager(_mockStatable, _tempDir);
         _config       = new AppConfig();
     }
 

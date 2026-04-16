@@ -1,7 +1,7 @@
 using System.IO;
 using BizHawk.Emulation.Common;
-using Moq;
 using NEShim.Saves;
+using NSubstitute;
 
 namespace NEShim.Tests.Integration;
 
@@ -29,12 +29,12 @@ internal class SaveRamManagerTests
     [Test]
     public void LoadFromDisk_WhenFileDoesNotExist_DoesNotCallStoreSaveRam()
     {
-        var mockSaveRam = new Mock<ISaveRam>();
-        var manager     = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        var manager     = new SaveRamManager(mockSaveRam, _tempFile);
 
         manager.LoadFromDisk();
 
-        mockSaveRam.Verify(m => m.StoreSaveRam(It.IsAny<byte[]>()), Times.Never);
+        mockSaveRam.DidNotReceive().StoreSaveRam(Arg.Any<byte[]>());
     }
 
     [Test]
@@ -43,23 +43,21 @@ internal class SaveRamManagerTests
         byte[] expected = { 0x01, 0x02, 0x03, 0xFF };
         File.WriteAllBytes(_tempFile, expected);
 
-        var mockSaveRam = new Mock<ISaveRam>();
-        var manager     = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        var manager     = new SaveRamManager(mockSaveRam, _tempFile);
 
         manager.LoadFromDisk();
 
-        mockSaveRam.Verify(
-            m => m.StoreSaveRam(It.Is<byte[]>(b => b.SequenceEqual(expected))),
-            Times.Once);
+        mockSaveRam.Received(1).StoreSaveRam(Arg.Is<byte[]>(b => b.SequenceEqual(expected)));
     }
 
     [Test]
     public void SaveToDisk_WhenSaveRamNotModified_DoesNotCreateFile()
     {
-        var mockSaveRam = new Mock<ISaveRam>();
-        mockSaveRam.Setup(m => m.SaveRamModified).Returns(false);
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        mockSaveRam.SaveRamModified.Returns(false);
 
-        var manager = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var manager = new SaveRamManager(mockSaveRam, _tempFile);
         manager.SaveToDisk();
 
         Assert.That(File.Exists(_tempFile), Is.False);
@@ -69,11 +67,11 @@ internal class SaveRamManagerTests
     public void SaveToDisk_WhenModifiedAndDataAvailable_WritesDataToDisk()
     {
         byte[] data     = { 0x0A, 0x0B, 0x0C };
-        var mockSaveRam = new Mock<ISaveRam>();
-        mockSaveRam.Setup(m => m.SaveRamModified).Returns(true);
-        mockSaveRam.Setup(m => m.CloneSaveRam()).Returns(data);
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        mockSaveRam.SaveRamModified.Returns(true);
+        mockSaveRam.CloneSaveRam().Returns(data);
 
-        var manager = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var manager = new SaveRamManager(mockSaveRam, _tempFile);
         manager.SaveToDisk();
 
         Assert.That(File.Exists(_tempFile), Is.True);
@@ -83,11 +81,11 @@ internal class SaveRamManagerTests
     [Test]
     public void SaveToDisk_WhenCloneSaveRamReturnsNull_DoesNotCreateFile()
     {
-        var mockSaveRam = new Mock<ISaveRam>();
-        mockSaveRam.Setup(m => m.SaveRamModified).Returns(true);
-        mockSaveRam.Setup(m => m.CloneSaveRam()).Returns((byte[]?)null);
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        mockSaveRam.SaveRamModified.Returns(true);
+        mockSaveRam.CloneSaveRam().Returns((byte[]?)null);
 
-        var manager = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var manager = new SaveRamManager(mockSaveRam, _tempFile);
         manager.SaveToDisk();
 
         Assert.That(File.Exists(_tempFile), Is.False);
@@ -96,11 +94,11 @@ internal class SaveRamManagerTests
     [Test]
     public void SaveToDisk_WhenCloneSaveRamReturnsEmptyArray_DoesNotCreateFile()
     {
-        var mockSaveRam = new Mock<ISaveRam>();
-        mockSaveRam.Setup(m => m.SaveRamModified).Returns(true);
-        mockSaveRam.Setup(m => m.CloneSaveRam()).Returns(Array.Empty<byte>());
+        var mockSaveRam = Substitute.For<ISaveRam>();
+        mockSaveRam.SaveRamModified.Returns(true);
+        mockSaveRam.CloneSaveRam().Returns(Array.Empty<byte>());
 
-        var manager = new SaveRamManager(mockSaveRam.Object, _tempFile);
+        var manager = new SaveRamManager(mockSaveRam, _tempFile);
         manager.SaveToDisk();
 
         Assert.That(File.Exists(_tempFile), Is.False);
@@ -114,11 +112,11 @@ internal class SaveRamManagerTests
         try
         {
             byte[] data     = { 1, 2 };
-            var mockSaveRam = new Mock<ISaveRam>();
-            mockSaveRam.Setup(m => m.SaveRamModified).Returns(true);
-            mockSaveRam.Setup(m => m.CloneSaveRam()).Returns(data);
+            var mockSaveRam = Substitute.For<ISaveRam>();
+            mockSaveRam.SaveRamModified.Returns(true);
+            mockSaveRam.CloneSaveRam().Returns(data);
 
-            var manager = new SaveRamManager(mockSaveRam.Object, srmPath);
+            var manager = new SaveRamManager(mockSaveRam, srmPath);
             manager.SaveToDisk();
 
             Assert.That(File.Exists(srmPath), Is.True);
