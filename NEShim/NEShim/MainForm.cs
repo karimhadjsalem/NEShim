@@ -102,9 +102,6 @@ public partial class MainForm : Form
         _input = new InputManager();
         _gamePanel.KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
         _gamePanel.KeyUp   += (_, e) => _input.OnKeyUp(e.KeyCode);
-        _gamePanel.KeyDown += OnGamePanelKeyDown;
-        KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
-        KeyUp   += (_, e) => _input.OnKeyUp(e.KeyCode);
         KeyDown += OnFormKeyDown;
 
         // 8. Audio
@@ -293,11 +290,6 @@ public partial class MainForm : Form
             SetWindowMode(!_isFullscreen);
             e.Handled = true;
         }
-    }
-
-    private void OnGamePanelKeyDown(object? sender, KeyEventArgs e)
-    {
-        OnFormKeyDown(sender, e);
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)

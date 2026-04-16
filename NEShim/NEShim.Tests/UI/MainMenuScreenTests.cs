@@ -212,14 +212,15 @@ internal class MainMenuScreenTests
     // ---- Settings: Window Mode single toggle ----
 
     [Test]
-    public void Settings_GetCurrentItems_HasThreeItems_WithVideoSubmenu()
+    public void Settings_GetCurrentItems_HasFiveItems_WithVideoSubmenuAndBack()
     {
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down); // Settings
         screen.HandleKey(Keys.Return);
         string[] items = screen.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(4)); // Keyboard Controls, Gamepad Controls, Video, Sound
+        Assert.That(items.Length, Is.EqualTo(5)); // Keyboard Controls, Gamepad Controls, Video, Sound, ← Back
         Assert.That(items[2], Is.EqualTo("Video"));
+        Assert.That(items[4], Does.StartWith("←"));
     }
 
     // ---- Sound screen ----
@@ -340,12 +341,12 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Sound_Escape_ReturnsToMain()
+    public void Sound_Escape_ReturnsToSettings()
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Escape);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
     // ---- Video screen ----

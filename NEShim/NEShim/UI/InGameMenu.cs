@@ -11,7 +11,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class InGameMenu
 {
-    public enum Screen { Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings, Video, Sound, ConfirmMainMenu, ConfirmExit }
+    public enum Screen { Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings, Video, Sound, ConfirmLoad, ConfirmMainMenu, ConfirmExit }
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
@@ -45,15 +45,17 @@ internal sealed class InGameMenu
     private const int RootItemReturnToMain = 6;
 
     // ---- Confirm screens ----
+    private static readonly string[] ConfirmLoadItems     = { "Yes, load game",           "No, stay in game" };
     private static readonly string[] ConfirmMainMenuItems = { "Yes, return to main menu", "No, stay in game" };
     private static readonly string[] ConfirmExitItems     = { "Yes, exit to desktop",     "No, stay in game" };
 
-    // ---- Settings: 4 items ----
+    // ---- Settings: 5 items ----
     private const int SettingsItemKeyboardBindings = 0;
     private const int SettingsItemGamepadBindings  = 1;
     private const int SettingsItemVideo            = 2;
     private const int SettingsItemSound            = 3;
-    private const int SettingsItemCount            = 4;
+    private const int SettingsItemBack             = 4;
+    private const int SettingsItemCount            = 5;
 
     // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
@@ -166,7 +168,7 @@ internal sealed class InGameMenu
                 if (Current == Screen.Root)
                     Close();
                 else
-                    NavigateTo(Screen.Root);
+                    NavigateTo(ParentScreen(Current));
                 return true;
 
             case Keys.Up:
@@ -232,7 +234,7 @@ internal sealed class InGameMenu
             if (Current == Screen.Root)
                 Close();
             else
-                NavigateTo(Screen.Root);
+                NavigateTo(ParentScreen(Current));
         }
     }
 
@@ -294,15 +296,30 @@ internal sealed class InGameMenu
     private int ItemCount() => Current switch
     {
         Screen.Root               => RootItems.Length,
-        Screen.SaveSlotSelect     => SaveStateManager.SlotCount,
+        Screen.SaveSlotSelect     => SaveStateManager.SlotCount + 1,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => BindingActions.Length,
         Screen.GamepadBindings    => BindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
+        Screen.ConfirmLoad        => ConfirmLoadItems.Length,
         Screen.ConfirmMainMenu    => ConfirmMainMenuItems.Length,
         Screen.ConfirmExit        => ConfirmExitItems.Length,
         _ => 1
+    };
+
+    private static Screen ParentScreen(Screen screen) => screen switch
+    {
+        Screen.SaveSlotSelect   => Screen.Root,
+        Screen.Settings         => Screen.Root,
+        Screen.ConfirmLoad      => Screen.Root,
+        Screen.ConfirmMainMenu  => Screen.Root,
+        Screen.ConfirmExit      => Screen.Root,
+        Screen.KeyboardBindings => Screen.Settings,
+        Screen.GamepadBindings  => Screen.Settings,
+        Screen.Video            => Screen.Settings,
+        Screen.Sound            => Screen.Settings,
+        _                       => Screen.Root,
     };
 
     private void NavigateTo(Screen screen)
@@ -322,7 +339,7 @@ internal sealed class InGameMenu
                     case 1: _onResetGame(); Close(); break;
                     case 2: NavigateTo(Screen.SaveSlotSelect); break;
                     case 3: _saveStates.SaveToActiveSlot(); Close(); break;
-                    case 4: _saveStates.LoadFromActiveSlot(); Close(); break;
+                    case 4: NavigateTo(Screen.ConfirmLoad); break;
                     case 5: NavigateTo(Screen.Settings); break;
                     case RootItemReturnToMain:
                         NavigateTo(Screen.ConfirmMainMenu);
@@ -336,9 +353,14 @@ internal sealed class InGameMenu
                 break;
 
             case Screen.SaveSlotSelect:
-                _saveStates.ActiveSlot = SelectedItem;
-                _config.ActiveSlot     = SelectedItem;
-                NavigateTo(Screen.Root);
+                if (SelectedItem == SaveStateManager.SlotCount)
+                    NavigateTo(Screen.Root);
+                else
+                {
+                    _saveStates.ActiveSlot = SelectedItem;
+                    _config.ActiveSlot     = SelectedItem;
+                    NavigateTo(Screen.Root);
+                }
                 break;
 
             case Screen.Settings:
@@ -348,6 +370,7 @@ internal sealed class InGameMenu
                     case SettingsItemGamepadBindings:  NavigateTo(Screen.GamepadBindings);  break;
                     case SettingsItemVideo:            NavigateTo(Screen.Video);            break;
                     case SettingsItemSound:            NavigateTo(Screen.Sound);            break;
+                    case SettingsItemBack:             NavigateTo(Screen.Root);             break;
                 }
                 break;
 
@@ -404,6 +427,11 @@ internal sealed class InGameMenu
                         NavigateTo(Screen.Settings);
                         break;
                 }
+                break;
+
+            case Screen.ConfirmLoad:
+                if (SelectedItem == 0) { _saveStates.LoadFromActiveSlot(); Close(); }
+                else NavigateTo(Screen.Root);
                 break;
 
             case Screen.ConfirmMainMenu:
@@ -471,6 +499,7 @@ internal sealed class InGameMenu
 
         Screen.SaveSlotSelect => Enumerable.Range(0, SaveStateManager.SlotCount)
             .Select(i => $"Slot {i + 1}{(i == _saveStates.ActiveSlot ? "  ◀ active" : "")}")
+            .Append("← Back")
             .ToArray(),
 
         Screen.Settings => new[]
@@ -479,6 +508,7 @@ internal sealed class InGameMenu
             "Gamepad Controls",
             "Video",
             "Sound",
+            "← Back",
         },
 
         Screen.Video => new[]
@@ -508,6 +538,7 @@ internal sealed class InGameMenu
             "← Back",
         },
 
+        Screen.ConfirmLoad     => ConfirmLoadItems,
         Screen.ConfirmMainMenu => ConfirmMainMenuItems,
         Screen.ConfirmExit     => ConfirmExitItems,
 
@@ -534,6 +565,7 @@ internal sealed class InGameMenu
             : "GAMEPAD CONTROLS",
         Screen.Video           => "VIDEO",
         Screen.Sound           => "SOUND",
+        Screen.ConfirmLoad     => "LOAD GAME?",
         Screen.ConfirmMainMenu => "RETURN TO MAIN MENU?",
         Screen.ConfirmExit     => "EXIT TO DESKTOP?",
         _ => ""

@@ -28,12 +28,13 @@ internal sealed class MainMenuScreen : IDisposable
         ("← Back", ""),
     };
 
-    // ---- Settings: 4 items ----
+    // ---- Settings: 5 items ----
     private const int SettingsItemKeyboardBindings = 0;
     private const int SettingsItemGamepadBindings  = 1;
     private const int SettingsItemVideo            = 2;
     private const int SettingsItemSound            = 3;
-    private const int SettingsItemCount            = 4;
+    private const int SettingsItemBack             = 4;
+    private const int SettingsItemCount            = 5;
 
     // ---- Video screen: 4 items ----
     private const int VideoItemWindowMode = 0;
@@ -172,7 +173,7 @@ internal sealed class MainMenuScreen : IDisposable
                     ExitChosen?.Invoke();
                 }
                 else
-                    NavigateTo(Screen.Main);
+                    NavigateTo(ParentScreen(CurrentScreen));
                 return true;
 
             case Keys.Up:
@@ -240,7 +241,7 @@ internal sealed class MainMenuScreen : IDisposable
                 ExitChosen?.Invoke();
             }
             else
-                NavigateTo(Screen.Main);
+                NavigateTo(ParentScreen(CurrentScreen));
         }
     }
 
@@ -347,6 +348,7 @@ internal sealed class MainMenuScreen : IDisposable
                     case SettingsItemGamepadBindings:  NavigateTo(Screen.GamepadBindings);  break;
                     case SettingsItemVideo:            NavigateTo(Screen.Video);            break;
                     case SettingsItemSound:            NavigateTo(Screen.Sound);            break;
+                    case SettingsItemBack:             NavigateTo(Screen.Main);             break;
                 }
                 break;
 
@@ -411,6 +413,17 @@ internal sealed class MainMenuScreen : IDisposable
                 break;
         }
     }
+
+    private static Screen ParentScreen(Screen screen) => screen switch
+    {
+        Screen.ResumeSlots      => Screen.Main,
+        Screen.Settings         => Screen.Main,
+        Screen.KeyboardBindings => Screen.Settings,
+        Screen.GamepadBindings  => Screen.Settings,
+        Screen.Video            => Screen.Settings,
+        Screen.Sound            => Screen.Settings,
+        _                       => Screen.Main,
+    };
 
     private void NavigateTo(Screen screen)
     {
@@ -505,6 +518,7 @@ internal sealed class MainMenuScreen : IDisposable
             "Gamepad Controls",
             "Video",
             "Sound",
+            "← Back",
         },
         Screen.Video => new[]
         {

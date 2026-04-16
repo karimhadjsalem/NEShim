@@ -158,6 +158,48 @@ internal class InGameMenuTests
     // ---- Confirm screens ----
 
     [Test]
+    public void HandleKey_Return_OnLoadGame_NavigatesToConfirmLoad_WithDefaultYes()
+    {
+        CreateSlotFile(0);
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Navigate to Load Game (index 4): 0→1→2→3→4 (enabled because slot exists)
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+
+        Assert.That(menu.Current,      Is.EqualTo(InGameMenu.Screen.ConfirmLoad));
+        Assert.That(menu.SelectedItem, Is.EqualTo(0)); // default is "Yes"
+    }
+
+    [Test]
+    public void ConfirmLoad_Yes_LoadsAndClosesMenu()
+    {
+        CreateSlotFile(0);
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
+        menu.HandleKey(Keys.Return);   // confirm Yes
+
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void ConfirmLoad_No_ReturnsToRoot_WithoutLoading()
+    {
+        CreateSlotFile(0);
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);   // ConfirmLoad, at "Yes"
+        menu.HandleKey(Keys.Down);     // move to "No"
+        menu.HandleKey(Keys.Return);   // activate "No"
+
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
+        Assert.That(menu.IsOpen,  Is.True);
+    }
+
+    [Test]
     public void HandleKey_Return_OnReturnToMainMenu_NavigatesToConfirmMainMenu_WithDefaultNo()
     {
         var menu = CreateMenu();
@@ -461,7 +503,7 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void GetCurrentItems_SaveSlotSelect_ReturnsEightSlotLabels()
+    public void GetCurrentItems_SaveSlotSelect_ReturnsNineItems()
     {
         var menu = CreateMenu();
         menu.Open(EmptyFrame());
@@ -470,8 +512,9 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter SaveSlotSelect
 
         string[] items = menu.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(8)); // 8 slots
+        Assert.That(items.Length, Is.EqualTo(9)); // 8 slots + ← Back
         Assert.That(items[0], Does.Contain("1")); // "Slot 1..."
+        Assert.That(items[8], Does.StartWith("←"));
     }
 
     // ---- Settings: Window Mode toggle (single item) ----
@@ -486,7 +529,7 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
 
         string[] items = menu.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(4)); // Keyboard Controls, Gamepad Controls, Video, Sound
+        Assert.That(items.Length, Is.EqualTo(5)); // Keyboard Controls, Gamepad Controls, Video, Sound, ← Back
         Assert.That(items[2], Is.EqualTo("Video"));
 
         // Window Mode lives in the Video sub-screen
@@ -651,12 +694,12 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Sound_Escape_ReturnsToRoot()
+    public void Sound_Escape_ReturnsToSettings()
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
         menu.HandleKey(Keys.Escape);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
     // ---- Video screen ----
