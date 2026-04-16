@@ -49,6 +49,11 @@ public sealed class AppConfig
 
     // Path to the image shown on the main (pre-game) menu. Relative to exe or absolute.
     public string MainMenuBackgroundPath { get; set; } = "";
+
+    // Paths to images drawn in the left and right letterbox bars during gameplay.
+    // Relative to exe or absolute. Leave empty to show plain black bars.
+    public string SidebarLeftPath  { get; set; } = "";
+    public string SidebarRightPath { get; set; } = "";
     
     // Path to an audio file (MP3 recommended) played on the pre-game main menu.
     // Relative to exe or absolute. Leave empty to disable.

@@ -96,6 +96,9 @@ public partial class MainForm : Form
         _frameBuffer = new FrameBuffer();
         _gamePanel   = new GamePanel(_frameBuffer) { Dock = DockStyle.Fill };
         _gamePanel.SetScaler(_config.GraphicsSmoothingEnabled ? _bilinearScaler : _nearestScaler);
+        _gamePanel.SetSidebars(
+            LoadSidebarBitmap(_config.SidebarLeftPath),
+            LoadSidebarBitmap(_config.SidebarRightPath));
         Controls.Add(_gamePanel);
 
         // 7. Input
@@ -226,6 +229,15 @@ public partial class MainForm : Form
         _mainMenuScreen?.Show();
         _mainMenuMusic?.FadeIn();
         _gamePanel?.Invalidate();
+    }
+
+    private static Bitmap? LoadSidebarBitmap(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        string? resolved = UI.MainMenuScreen.ResolveAssetPath(path);
+        if (resolved == null) return null;
+        try   { return new Bitmap(resolved); }
+        catch { return null; }
     }
 
     private static MainMenuMusic? CreateMainMenuMusic(AppConfig config)

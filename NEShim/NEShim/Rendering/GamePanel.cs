@@ -21,6 +21,8 @@ internal sealed class GamePanel : Panel
     private InGameMenu?      _menu;
     private MainMenuScreen?  _mainMenu;
     private IGraphicsScaler  _scaler = new NearestNeighborScaler();
+    private Bitmap?          _sidebarLeft;
+    private Bitmap?          _sidebarRight;
 
     // Toast notification
     private string? _toastText;
@@ -56,6 +58,18 @@ internal sealed class GamePanel : Panel
     public void SetMenu(InGameMenu menu)             => _menu     = menu;
     public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
     public void SetScaler(IGraphicsScaler scaler)    => _scaler   = scaler;
+
+    /// <summary>
+    /// Sets the images drawn in the left and right letterbox bars during gameplay.
+    /// Disposes any previously set bitmaps. Pass null to revert to plain black bars.
+    /// </summary>
+    public void SetSidebars(Bitmap? left, Bitmap? right)
+    {
+        _sidebarLeft?.Dispose();
+        _sidebarRight?.Dispose();
+        _sidebarLeft  = left;
+        _sidebarRight = right;
+    }
 
     private bool IsMenuActive => _mainMenu?.IsVisible == true || _menu?.IsOpen == true;
 
@@ -219,6 +233,15 @@ internal sealed class GamePanel : Panel
         if (destX > 0) g.FillRectangle(black, Width - destX, 0, destX, Height);
         if (destY > 0) g.FillRectangle(black, 0, Height - destY, Width, destY);
 
+        // Draw sidebar images over the left and right bars if configured
+        if (destX > 0)
+        {
+            if (_sidebarLeft  != null) DrawSidebar(g, _sidebarLeft,  new Rectangle(0,             0, destX, Height));
+            if (_sidebarRight != null) DrawSidebar(g, _sidebarRight, new Rectangle(Width - destX, 0, destX, Height));
+            if (_sidebarLeft != null || _sidebarRight != null)
+                _scaler.Configure(g); // restore scaler settings changed by DrawSidebar
+        }
+
         var srcRect  = new Rectangle(0, 0, srcW, srcH);
         var destRect = new Rectangle(destX, destY, destW, destH);
 
@@ -249,6 +272,23 @@ internal sealed class GamePanel : Panel
         // FPS overlay
         if (ShowFps)
             DrawFps(g, CurrentFps);
+    }
+
+    private static void DrawSidebar(Graphics g, Bitmap bmp, Rectangle dest)
+    {
+        // Draw at 1:1 pixel resolution, centered, cropping any overflow
+        int srcW = Math.Min(bmp.Width,  dest.Width);
+        int srcH = Math.Min(bmp.Height, dest.Height);
+        int srcX = (bmp.Width  - srcW) / 2;
+        int srcY = (bmp.Height - srcH) / 2;
+        int dstX = dest.X + (dest.Width  - srcW) / 2;
+        int dstY = dest.Y + (dest.Height - srcH) / 2;
+
+        g.CompositingMode = CompositingMode.SourceCopy;
+        g.DrawImage(bmp,
+            new Rectangle(dstX, dstY, srcW, srcH),
+            new Rectangle(srcX, srcY, srcW, srcH),
+            GraphicsUnit.Pixel);
     }
 
     private void DrawToast(Graphics g, string text)
@@ -284,7 +324,12 @@ internal sealed class GamePanel : Panel
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _bitmap.Dispose();
+        if (disposing)
+        {
+            _bitmap.Dispose();
+            _sidebarLeft?.Dispose();
+            _sidebarRight?.Dispose();
+        }
         base.Dispose(disposing);
     }
 }
