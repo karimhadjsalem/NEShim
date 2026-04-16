@@ -239,12 +239,16 @@ internal sealed class EmulationThread
 
         // Open/close menu — keyboard or gamepad (left bumper by default)
         bool openMenuPressed = _input.IsHotkeyJustPressed("OpenMenu", _config)
-            || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config);
+            || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config)
+            || _input.IsGamepadStartJustPressed();
         if (openMenuPressed)
         {
             if (_menu.IsOpen)
             {
-                _menu.Close();
+                // Don't close while rebinding — the Start press will be picked up by
+                // PollAnyGamepadButtonPressed and surfaced as a "reserved" toast instead.
+                if (!_menu.IsGamepadRebinding)
+                    _menu.Close();
             }
             else
             {

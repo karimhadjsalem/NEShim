@@ -20,8 +20,8 @@ public sealed class AppConfig
         ["P1 Left"]   = new InputBinding("A",          "DPadLeft"),
         ["P1 Right"]  = new InputBinding("D",          "DPadRight"),
         ["P1 A"]      = new InputBinding("OemPeriod",  "A"),
-        ["P1 B"]      = new InputBinding("OemComma",   "X"),
-        ["P1 Start"]  = new InputBinding("Return",     "Start"),
+        ["P1 B"]      = new InputBinding("OemComma",   "B"),
+        ["P1 Start"]  = new InputBinding("Return",     "Y"),
         ["P1 Select"] = new InputBinding("RShiftKey",  "Back"),
     };
 

@@ -66,6 +66,7 @@ internal sealed class InputManager
             }
 
             if (!pressed && useXInput && gamepad.Connected &&
+                binding.GamepadButton != "Start" &&
                 XInputHelper.GetButton(in gamepad, binding.GamepadButton))
             {
                 pressed = true;
@@ -165,6 +166,16 @@ internal sealed class InputManager
         if (pad.DPadRight     && !prev.DPadRight)     return "DPadRight";
 
         return null;
+    }
+
+    /// <summary>
+    /// Returns true if the gamepad Start button was just pressed (edge-triggered).
+    /// Start is a reserved system button that always opens/closes the menu regardless of config.
+    /// </summary>
+    public bool IsGamepadStartJustPressed()
+    {
+        var curr = XInputHelper.GetState(0);
+        return curr.Connected && curr.Start && !_prevHotkeyPad.Start;
     }
 
     public bool IsGamepadHotkeyJustPressed(string action, AppConfig config)

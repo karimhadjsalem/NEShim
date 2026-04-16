@@ -117,10 +117,12 @@ internal sealed class GamePanel : Panel
     /// </summary>
     public void HandleGamepadButtonPress(string buttonName)
     {
+        string? toast = null;
         if (_mainMenu?.IsVisible == true)
-            _mainMenu.HandleGamepadButtonPress(buttonName);
+            toast = _mainMenu.HandleGamepadButtonPress(buttonName);
         else if (_menu?.IsOpen == true)
-            _menu.HandleGamepadButtonPress(buttonName);
+            toast = _menu.HandleGamepadButtonPress(buttonName);
+        if (toast != null) ShowToast(toast);
     }
 
     /// <summary>

@@ -196,24 +196,22 @@ internal sealed class MainMenuScreen : IDisposable
     // ---- Gamepad input ----
 
     /// <summary>
-    /// Processes edge-triggered gamepad menu navigation.
-    /// Must be called on the UI thread (via BeginInvoke from the emulation thread).
+    /// Called when a gamepad button is pressed during rebind mode.
+    /// Returns a toast message to display, or null if no message is needed.
+    /// Start cancels and returns an explanatory message; anything else binds.
     /// </summary>
-    /// <summary>
-    /// Called (on the UI thread) when a gamepad button is pressed during gamepad rebind mode.
-    /// B or Back cancels; any other button sets the binding.
-    /// </summary>
-    public void HandleGamepadButtonPress(string buttonName)
+    public string? HandleGamepadButtonPress(string buttonName)
     {
-        if (GamepadRebindingAction == null) return;
-        if (buttonName == "B" || buttonName == "Back")
+        if (GamepadRebindingAction == null) return null;
+        if (buttonName == "Start")
         {
             GamepadRebindingAction = null;
-            return;
+            return "Start is reserved for the menu";
         }
         SetGamepadBinding(GamepadRebindingAction, buttonName);
         _onConfigSaved();
         GamepadRebindingAction = null;
+        return null;
     }
 
     public void HandleGamepadNav(Input.MenuNavInput nav)

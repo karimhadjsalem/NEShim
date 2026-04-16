@@ -797,4 +797,57 @@ internal class InGameMenuTests
         Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
         Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
     }
+
+    // ---- Gamepad rebind: Start reserved, B bindable ----
+
+    // Helper: navigate to GamepadBindings screen
+    private void OpenGamepadBindings(InGameMenu menu)
+    {
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down); // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.GamepadBindings));
+        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+    }
+
+    [Test]
+    public void GamepadRebind_PressStart_CancelsRebindAndReturnsReservedMessage()
+    {
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+
+        string? toast = menu.HandleGamepadButtonPress("Start");
+
+        Assert.That(toast, Is.EqualTo("Start is reserved for the menu"));
+        Assert.That(menu.IsGamepadRebinding, Is.False); // rebind cancelled
+    }
+
+    [Test]
+    public void GamepadRebind_PressB_BindsButton()
+    {
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+
+        string? toast = menu.HandleGamepadButtonPress("B");
+
+        Assert.That(toast, Is.Null);
+        Assert.That(menu.IsGamepadRebinding, Is.False);
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("B"));
+    }
+
+    [Test]
+    public void GamepadRebind_PressBack_BindsButton()
+    {
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+
+        string? toast = menu.HandleGamepadButtonPress("Back");
+
+        Assert.That(toast, Is.Null);
+        Assert.That(menu.IsGamepadRebinding, Is.False);
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("Back"));
+    }
 }

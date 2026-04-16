@@ -116,7 +116,7 @@ internal static class MenuRenderer
         if (menu.RebindingAction != null || menu.IsGamepadRebinding)
         {
             string hint = menu.IsGamepadRebinding
-                ? "Press any controller button\n(B / Back to cancel)"
+                ? "Press any controller button\n(Start to cancel)"
                 : "Press any key to bind\n(Esc to cancel)";
             using var hintFont  = new Font("Segoe UI", 13f, FontStyle.Italic, GraphicsUnit.Point);
             using var hintBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 180));

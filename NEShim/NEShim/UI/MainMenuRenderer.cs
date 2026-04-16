@@ -199,7 +199,7 @@ internal static class MainMenuRenderer
         var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
         string hint = menu.IsGamepadRebinding
-            ? "Press any controller button  •  B / Back to cancel"
+            ? "Press any controller button  •  Start to cancel"
             : "Press any key  •  Esc to cancel";
 
         g.DrawString(menu.GetTitle(), tf, tb,
