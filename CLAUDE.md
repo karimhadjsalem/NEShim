@@ -139,16 +139,21 @@ Never place a boundary-crossing test alongside unit tests. CI should be able to 
 
 This project is licensed **Apache 2.0** and is intended for commercial distribution via Steam. Every dependency compiled into the shipped binary must be compatible with commercial closed-source distribution.
 
+### Attribution
+All MIT-licensed compiled dependencies require their copyright notices to be preserved in distributions. These are collected in `THIRD-PARTY-NOTICES.md` at the repository root. Update that file whenever a compiled dependency is added, removed, or upgraded to a new major version.
+
 ### Permitted licenses for new dependencies
 MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All current compiled dependencies already fall in this set:
 
-| Package | License |
-|---|---|
-| BizHawk source (adapted) | MIT |
-| NAudio | MIT |
-| Steamworks.NET | MIT |
-| CommunityToolkit.HighPerformance | MIT |
-| Newtonsoft.Json | MIT |
+| Package | License | Copyright |
+|---|---|---|
+| BizHawk source (adapted) | MIT | Copyright (c) 2012-present BizHawk contributors |
+| blip_buf.dll (TASEmulators fork) | MIT | Copyright (c) 2003-2009 Shay Green; fork © BizHawk contributors |
+| libbizhash.dll | MIT | Copyright (c) 2012-present BizHawk contributors |
+| NAudio | MIT | Copyright 2020 Mark Heath |
+| Newtonsoft.Json | MIT | Copyright © James Newton-King 2008 |
+| CommunityToolkit.HighPerformance | MIT | Copyright © .NET Foundation and Contributors |
+| Steamworks.NET | MIT | Copyright (c) Riley Labrecque |
 
 ### Prohibited licenses — do not add
 - **GPL v1/v2/v3** — copyleft infects the entire binary; incompatible with commercial distribution
@@ -160,9 +165,10 @@ MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All c
 When evaluating a new NuGet package, check its repository license **and** the licenses of its transitive dependencies (`dotnet list package --include-transitive`).
 
 ### `ref/` directory warning
-The `ref/` folder contains development-only reference tools that are **never compiled into the project**. Two of them are GPL-licensed:
+The `ref/` folder contains development-only reference tools that are **never compiled into the project**. Several carry restrictive licenses:
 - `ref/NClass_v2.04_bin/` — GPL v2 (UML diagramming tool)
 - `ref/doxygen/` — GPL (documentation generator)
+- `ref/Nintaco_src/` and `ref/Nintaco_API/` — LGPL 2.1 (NES emulator reference)
 
 Do not copy code from these directories into `NEShim/` or `BizHawk/`.
 
