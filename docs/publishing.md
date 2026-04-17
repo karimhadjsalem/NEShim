@@ -54,7 +54,19 @@ This file is copied to the output directory at build time. During development it
 
 ---
 
-## 4. Configure Steam Input (optional but recommended)
+## 4. Obtain `steam_api64.dll`
+
+Steamworks.NET is a managed C# wrapper that P/Invokes into the native `steam_api64.dll` at runtime. This DLL is **not** included in the repository (Valve SDK license) and must be placed alongside the executable manually.
+
+1. Download the Steamworks SDK from the [Steamworks partner dashboard](https://partner.steamgames.com/).
+2. Copy `sdk/redistributable_bin/win64/steam_api64.dll` into your output directory (next to the exe).
+3. Do not commit this file to source control — add it to `.gitignore`.
+
+When you deploy through Steam, the Steam client delivers `steam_api64.dll` to players automatically as part of your depot. You only need to bundle it yourself for local development and non-Steam distribution.
+
+---
+
+## 6. Configure Steam Input (optional but recommended)
 
 If you want Steam Controller support beyond basic XInput emulation:
 
@@ -67,7 +79,7 @@ The VDF defines two action sets — `Gameplay` and `Menu` — that NEShim switch
 
 ---
 
-## 5. Set up achievements in Steamworks
+## 7. Set up achievements in Steamworks
 
 Before achievements can fire in-game, they must be registered in the Steamworks partner dashboard:
 
@@ -79,7 +91,7 @@ Before achievements can fire in-game, they must be registered in the Steamworks 
 
 ---
 
-## 6. Generate a new HMAC key
+## 8. Generate a new HMAC key
 
 The default HMAC key in the source is publicly known. Replace it before shipping any public build.
 
@@ -97,7 +109,7 @@ Rebuild the solution after making this change. Keep your key private — it only
 
 ---
 
-## 7. Author and seal `achievements.json`
+## 9. Author and seal `achievements.json`
 
 1. Create `achievements.json` in the game's output directory (alongside the exe).
 2. Compute your ROM's SHA1 hash (see [Finding the ROM SHA1 hash](achievements.md#finding-the-rom-sha1-hash)).
@@ -135,7 +147,7 @@ Verify all definitions are listed as `[sealed]` in the output.
 
 ---
 
-## 8. Prepare artwork assets
+## 10. Prepare artwork assets
 
 All artwork paths in `config.json` are relative to the executable directory.
 
@@ -148,7 +160,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 
 ---
 
-## 9. Verify audio settings
+## 11. Verify audio settings
 
 | Setting | Recommendation |
 |---|---|
@@ -157,7 +169,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 
 ---
 
-## 10. Build and publish
+## 12. Build and publish
 
 ```bash
 # Self-contained win-x64 build
@@ -168,11 +180,11 @@ dotnet publish NEShim/NEShim/NEShim.csproj \
   -o publish/MyGame
 ```
 
-The output directory will contain the executable, the .NET runtime files, BizHawk binaries, and the Steam SDK libraries. Copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into this directory.
+The output directory will contain the executable, the .NET runtime files, and BizHawk binaries. After the build completes, copy `steam_api64.dll` into the output directory (see [step 4](#4-obtain-steam_api64dll)), then copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) alongside it.
 
 ---
 
-## 11. Test the release build
+## 13. Test the release build
 
 Before uploading to Steam:
 
@@ -192,6 +204,7 @@ Before uploading to Steam:
 - [ ] `windowTitle` set in `config.json`
 - [ ] `<ApplicationIcon>` set in `NEShim.csproj` and icon file in place
 - [ ] `steam_appid.txt` contains your production App ID
+- [ ] `steam_api64.dll` copied into the output directory from the Steamworks SDK (`sdk/redistributable_bin/win64/`)
 - [ ] `game_actions_<appid>.vdf` renamed with correct App ID
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] HMAC key rotated in `AchievementSigner.cs` and solution rebuilt
@@ -209,6 +222,7 @@ A minimal deployment looks like:
 ```
 MyGame/
 ├── MyGame.exe                  ← renamed from NEShim.exe
+├── steam_api64.dll             ← from Steamworks SDK; not in repo
 ├── steam_appid.txt
 ├── game_actions_1234560.vdf
 ├── config.json
@@ -222,7 +236,7 @@ MyGame/
 │   └── sidebar_right.png
 ├── audio/
 │   └── menu_theme.mp3
-└── [.NET runtime files, BizHawk DLLs, Steam API DLLs...]
+└── [.NET runtime files, BizHawk DLLs...]
 ```
 
 The `.exe` can be renamed freely — Steam identifies the game by App ID, not filename.
