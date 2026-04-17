@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading;
+using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Emulation;
@@ -27,14 +28,15 @@ internal sealed class EmulationThread
         MainMenu  = 8,   // Paused at the pre-game main menu; cleared when the user picks New/Resume
     }
 
-    private readonly EmulatorHost     _host;
-    private readonly AppConfig        _config;
-    private readonly InputManager     _input;
-    private readonly AudioPlayer      _audio;
-    private readonly FrameBuffer      _frameBuffer;
-    private readonly GamePanel        _gamePanel;
-    private readonly SaveStateManager _saveStates;
-    private readonly InGameMenu       _menu;
+    private readonly EmulatorHost      _host;
+    private readonly AppConfig         _config;
+    private readonly InputManager      _input;
+    private readonly AudioPlayer       _audio;
+    private readonly FrameBuffer       _frameBuffer;
+    private readonly GamePanel         _gamePanel;
+    private readonly SaveStateManager  _saveStates;
+    private readonly InGameMenu        _menu;
+    private readonly AchievementManager? _achievements;
 
     private readonly ManualResetEventSlim _resumeEvent = new(initialState: true);
     private volatile int _pauseReasonBits = 0;
@@ -52,23 +54,25 @@ internal sealed class EmulationThread
     public bool IsPaused => _pauseReasonBits != 0;
 
     public EmulationThread(
-        EmulatorHost     host,
-        AppConfig        config,
-        InputManager     input,
-        AudioPlayer      audio,
-        FrameBuffer      frameBuffer,
-        GamePanel        gamePanel,
-        SaveStateManager saveStates,
-        InGameMenu       menu)
+        EmulatorHost       host,
+        AppConfig          config,
+        InputManager       input,
+        AudioPlayer        audio,
+        FrameBuffer        frameBuffer,
+        GamePanel          gamePanel,
+        SaveStateManager   saveStates,
+        InGameMenu         menu,
+        AchievementManager? achievements = null)
     {
-        _host        = host;
-        _config      = config;
-        _input       = input;
-        _audio       = audio;
-        _frameBuffer = frameBuffer;
-        _gamePanel   = gamePanel;
-        _saveStates  = saveStates;
-        _menu        = menu;
+        _host         = host;
+        _config       = config;
+        _input        = input;
+        _audio        = audio;
+        _frameBuffer  = frameBuffer;
+        _gamePanel    = gamePanel;
+        _saveStates   = saveStates;
+        _menu         = menu;
+        _achievements = achievements;
 
         // Wire menu events to pause/resume and Steam Input action set switches
         _menu.Opened += () =>
@@ -177,6 +181,9 @@ internal sealed class EmulationThread
 
             // 5. Emulate one frame
             _host.RunFrame();
+
+            // 5a. Check achievement triggers against the post-frame memory state
+            _achievements?.Tick();
 
             // 6. Copy video to front buffer
             var videoBuffer = _host.Video.GetVideoBuffer();

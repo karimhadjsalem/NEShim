@@ -13,10 +13,19 @@ namespace NEShim.Steam;
 internal static class SteamManager
 {
     private static Callback<GameOverlayActivated_t>? _overlayCallback;
+    private static Callback<UserStatsReceived_t>?   _statsReceivedCallback;
     private static Action<bool>? _onOverlayToggle; // bool = isActive
+
+    private static volatile bool _statsReady;
 
     public static bool IsAvailable    { get; private set; }
     public static bool IsOverlayActive { get; private set; }
+
+    /// <summary>
+    /// True once Steam has returned the initial stats/achievements snapshot via
+    /// RequestCurrentStats. Achievement unlocks are suppressed until this is true.
+    /// </summary>
+    public static bool StatsReady => _statsReady;
 
     /// <summary>
     /// Call before Application.Run. Reads App ID from steam_appid.txt automatically.
@@ -34,9 +43,13 @@ internal static class SteamManager
                 return;
             }
 
-            _overlayCallback = Callback<GameOverlayActivated_t>.Create(OnOverlayActivated);
+            _overlayCallback       = Callback<GameOverlayActivated_t>.Create(OnOverlayActivated);
+            _statsReceivedCallback = Callback<UserStatsReceived_t>.Create(OnStatsReceived);
             IsAvailable = true;
             System.Diagnostics.Debug.WriteLine("[Steam] Initialized successfully.");
+
+            // Request the initial stats/achievement snapshot so StatsReady can be set.
+            SteamUserStats.RequestCurrentStats();
 
             // Initialize Steam Input for Steam Controller support
             SteamInputManager.Initialize();
@@ -71,6 +84,20 @@ internal static class SteamManager
     /// </summary>
     public static void ActivateGameplaySet() => SteamInputManager.ActivateGameplaySet();
 
+    /// <summary>
+    /// Unlocks a Steam achievement by its API name.
+    /// No-op when Steam is unavailable, stats are not yet ready, or the achievement
+    /// is already unlocked. Stores stats immediately so the unlock is persisted.
+    /// </summary>
+    internal static void UnlockAchievement(string id)
+    {
+        if (!IsAvailable || !_statsReady) return;
+        if (SteamUserStats.GetAchievement(id, out bool achieved) && achieved) return;
+        SteamUserStats.SetAchievement(id);
+        SteamUserStats.StoreStats();
+        System.Diagnostics.Debug.WriteLine($"[Steam] Achievement unlocked: {id}");
+    }
+
     /// <summary>Call after Application.Run exits.</summary>
     public static void Shutdown()
     {
@@ -84,5 +111,11 @@ internal static class SteamManager
     {
         IsOverlayActive = callback.m_bActive != 0;
         _onOverlayToggle?.Invoke(IsOverlayActive);
+    }
+
+    private static void OnStatsReceived(UserStatsReceived_t callback)
+    {
+        _statsReady = true;
+        System.Diagnostics.Debug.WriteLine("[Steam] User stats received — achievements enabled.");
     }
 }

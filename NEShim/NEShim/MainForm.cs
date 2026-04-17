@@ -1,3 +1,4 @@
+using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Emulation;
@@ -75,6 +76,18 @@ public partial class MainForm : Form
 
         // 3. Emulator core
         _host = EmulatorHost.Load(romPath, _config);
+
+        // 3a. Per-game achievement config (keyed by ROM SHA1 hash)
+        AchievementManager? achievements = null;
+        if (_host.MemoryDomains is not null)
+        {
+            var achConfig = AchievementConfigLoader.Load(_host.RomHash);
+            if (achConfig is not null)
+                achievements = new AchievementManager(
+                    _host.MemoryDomains, achConfig,
+                    () => SteamManager.StatsReady,
+                    SteamManager.UnlockAchievement);
+        }
 
         // 4. Save RAM (load before first frame)
         _saveRam = new SaveRamManager((BizHawk.Emulation.Common.ISaveRam)_host.SaveRam,
@@ -199,7 +212,8 @@ public partial class MainForm : Form
 
         // 11. Emulation thread
         _emulationThread = new EmulationThread(
-            _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu);
+            _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu,
+            achievements);
 
         // Wire Steam overlay → pause
         SteamManager.Initialize(overlayActive =>

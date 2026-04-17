@@ -1,4 +1,5 @@
 using System.IO;
+using BizHawk.Common;
 using BizHawk.Emulation.Common;
 using BizHawk.Emulation.Cores.Nintendo.NES;
 using NEShim.Config;
@@ -12,17 +13,21 @@ internal sealed class EmulatorHost : IDisposable
 {
     private readonly NES _nes;
 
-    public IVideoProvider Video { get; }
-    public ISoundProvider Sound { get; }
-    public IStatable States { get; }
-    public ISaveRam SaveRam { get; }
-    public NesController Controller { get; }
+    public IVideoProvider  Video        { get; }
+    public ISoundProvider  Sound        { get; }
+    public IStatable       States       { get; }
+    public ISaveRam        SaveRam      { get; }
+    public NesController   Controller   { get; }
+    public IMemoryDomains? MemoryDomains { get; }
+
+    /// <summary>SHA1 hex digest of the raw ROM bytes, used to key per-game configs.</summary>
+    public string RomHash { get; }
 
     // VSync timing from the core
-    public int VsyncNumerator => Video.VsyncNumerator;
+    public int VsyncNumerator   => Video.VsyncNumerator;
     public int VsyncDenominator => Video.VsyncDenominator;
 
-    private EmulatorHost(NES nes)
+    private EmulatorHost(NES nes, string romHash)
     {
         _nes = nes;
 
@@ -32,9 +37,10 @@ internal sealed class EmulatorHost : IDisposable
                  ?? throw new InvalidOperationException("ISoundProvider not registered by NES core.");
         States = nes.ServiceProvider.GetService<IStatable>()
                  ?? throw new InvalidOperationException("IStatable not registered by NES core.");
-        SaveRam = (ISaveRam)nes;
-
-        Controller = new NesController(nes.ControllerDefinition);
+        SaveRam       = (ISaveRam)nes;
+        MemoryDomains = nes.ServiceProvider.GetService<IMemoryDomains>();
+        Controller    = new NesController(nes.ControllerDefinition);
+        RomHash       = romHash;
     }
 
     public static EmulatorHost Load(string romPath, AppConfig config)
@@ -68,8 +74,9 @@ internal sealed class EmulatorHost : IDisposable
             }
         };
 
-        var nes = new NES(coreComm, gameInfo, rom, settings, syncSettings);
-        return new EmulatorHost(nes);
+        var nes     = new NES(coreComm, gameInfo, rom, settings, syncSettings);
+        string hash = SHA1Checksum.ComputeDigestHex(rom);
+        return new EmulatorHost(nes, hash);
     }
 
     /// <summary>Advances emulation by one frame.</summary>
