@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
+        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
     </ItemGroup>
 
     <ItemGroup>
