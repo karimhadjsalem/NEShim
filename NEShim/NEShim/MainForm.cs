@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Emulation;
