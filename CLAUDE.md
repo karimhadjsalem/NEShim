@@ -135,6 +135,15 @@ Never place a boundary-crossing test alongside unit tests. CI should be able to 
 - `Newtonsoft.Json` — settings serialization
 - BizHawk.Analyzer.dll (in `ReflectionCache/`) — custom Roslyn analyzer, do not remove
 
+## Publishing Checklist
+
+Before building a release for a specific game:
+
+- **Window title**: set `WindowTitle` in `config.json` to the game's name.
+- **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
+- **Achievements**: edit `achievements.json`, then run `seal-achievements achievements.json` to stamp HMAC signatures before shipping.
+- **HMAC key**: before the first public release, run `seal-achievements --gen-key`, paste the output into `AchievementSigner.HmacKeyBase64` in `NEShim.AchievementSigning`, rebuild, and re-seal all configs.
+
 ## License Policy
 
 This project is licensed **Apache 2.0** and is intended for commercial distribution via Steam. Every dependency compiled into the shipped binary must be compatible with commercial closed-source distribution.

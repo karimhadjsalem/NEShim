@@ -5,6 +5,7 @@ namespace NEShim.Config;
 public sealed class AppConfig
 {
     public string RomPath { get; set; } = "game.nes";
+    public string WindowTitle { get; set; } = "NEShim";
     public string WindowMode { get; set; } = "Fullscreen"; // "Fullscreen" or "Windowed"
     public string SaveStateDirectory { get; set; } = "saves";
     public string SaveRamPath { get; set; } = "game.srm";

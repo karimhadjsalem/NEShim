@@ -65,6 +65,7 @@ public partial class MainForm : Form
     {
         // 1. Config
         _config = ConfigLoader.Load();
+        this.Text = _config.WindowTitle;
 
         // 2. Load ROM
         string romPath = Path.IsPathRooted(_config.RomPath)
