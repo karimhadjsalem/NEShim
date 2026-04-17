@@ -17,12 +17,7 @@ namespace BizHawk.Emulation.Cores
 		/// </summary>
 		GameInfo Game { get; }
 	}
-	// public interface IDiscAsset
-	// {
-	// 	Disc DiscData { get; }
-	// 	DiscType DiscType { get; }
-	// 	public string DiscName { get; set; }
-	// }
+
 	public class CoreLoadParameters<TSettiing, TSync>
 	{
 		public CoreComm Comm { get; set; }
