@@ -1,0 +1,28 @@
+remote_theme: just-the-docs/just-the-docs
+
+title: NEShim
+description: Windows shell for publishing NES games on Steam — with achievements, Steam Input, save states, and a configurable front-end UI.
+
+search_enabled: true
+
+color_scheme: dark
+
+aux_links:
+  "GitHub":
+    - "https://github.com/karimhadjsalem/NEShim"
+
+footer_content: "NEShim is licensed under the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>."
+
+back_to_top: true
+back_to_top_text: "Back to top"
+
+heading_anchors: true
+
+callouts_level: quiet
+callouts:
+  note:
+    title: Note
+    color: blue
+  warning:
+    title: Warning
+    color: yellow
