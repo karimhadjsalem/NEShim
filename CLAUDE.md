@@ -31,7 +31,6 @@ NEShim.sln
 NEShim/           — Windows Forms GUI (entry point: Program.cs → MainForm.cs)
 NEShim.Tests/     — NUnit test project
 BizHawk/          — NES emulation core (adapted from BizHawk emulator)
-ReflectionCache/  — Prebuilt source generator / analyzer DLLs used by BizHawk
 ref/              — Reference binaries (BizHawk, Nintaco, tools) — not compiled
 ```
 
@@ -133,7 +132,6 @@ Never place a boundary-crossing test alongside unit tests. CI should be able to 
 ### Key BizHawk Dependencies
 - `CommunityToolkit.HighPerformance` — SIMD/span performance helpers
 - `Newtonsoft.Json` — settings serialization
-- BizHawk.Analyzer.dll (in `ReflectionCache/`) — custom Roslyn analyzer, do not remove
 
 ## Publishing Checklist
 
