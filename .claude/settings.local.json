@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet list:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(dotnet test:*)",
+      "Read(//c/Games/Users/karim/.claude/plans/**)",
+      "Read(//c/Users/karim/.claude/plans/**)",
+      "Bash(wc -l \"C:\\\\\\\\Users\\\\\\\\karim\\\\\\\\.claude\\\\\\\\plans\\\\\\\\sorted-inventing-hennessy.md\")",
+      "Bash(grep -E \"Error\\\\\\(s\\\\\\)|Warning.*NEShim\\\\\\\\\\\\\\\\NEShim\")",
+      "Bash(grep -E \"NEShim\\\\\\\\\\\\\\\\NEShim\\\\\\\\\\\\\\\\.*error|^Build |Error\\\\\\(s\\\\\\)\")"
+    ]
+  }
+}

@@ -564,3 +564,13 @@ public partial class MainForm : Form
 	}
 }
 
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_ACTIVATEAPP && _emulationThread is not null)
+        {
+            bool active = m.WParam != IntPtr.Zero;
+            _emulationThread.SetPauseReason(EmulationThread.PauseReasons.FocusLost, !active);
+        }
+        base.WndProc(ref m);
+    }
+}

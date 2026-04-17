@@ -8,10 +8,12 @@
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+      <DefineConstants>$(DefineConstants);BIZHAWKBUILD_GAMEDB_ALWAYS_MISS</DefineConstants>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+      <DefineConstants>$(DefineConstants);BIZHAWKBUILD_GAMEDB_ALWAYS_MISS</DefineConstants>
     </PropertyGroup>
 	
 	<PropertyGroup Condition=" '$(MachineRunAnalyzersDuringBuild)' == '' ">
