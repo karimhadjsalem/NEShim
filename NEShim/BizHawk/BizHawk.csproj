@@ -26,7 +26,6 @@
     </ItemGroup>
 
 	<ItemGroup>
-		<Analyzer Include="$(MSBuildProjectDirectory)/../ReflectionCache/BizHawk.SrcGen.ReflectionCache.dll" />
 		<Using Include="System" />
 	</ItemGroup>
 
