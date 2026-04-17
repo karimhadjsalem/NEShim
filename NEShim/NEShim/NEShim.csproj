@@ -10,26 +10,23 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    </PropertyGroup>
-
-    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    </PropertyGroup>
-
     <ItemGroup>
-      <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
+        <PackageReference Include="NAudio" Version="2.2.1" />
+        <PackageReference Include="Steamworks.NET" Version="20.2.0" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
         <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
-
     </ItemGroup>
 
     <ItemGroup>
-      <EmbeddedResource Include="Resources\BlankCursor.cur" />
+        <Content Include="steam_appid.txt">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Include="game_actions_0.vdf">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
 </Project>

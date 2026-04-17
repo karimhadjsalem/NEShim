@@ -15,145 +15,31 @@
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
       <DefineConstants>$(DefineConstants);BIZHAWKBUILD_GAMEDB_ALWAYS_MISS</DefineConstants>
     </PropertyGroup>
-	
-	<PropertyGroup Condition=" '$(MachineRunAnalyzersDuringBuild)' == '' ">
-		<RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
-	</PropertyGroup>
 
     <ItemGroup>
-      <Content Include="Shaders\**">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </Content>
-    </ItemGroup>
-  
-    <ItemGroup>
-      <Folder Include="Emulation\Cores\Consoles\Nintendo\" />
+      <Folder Include="Emulation\Cores\Consoles\NIntendo\" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
-      <PackageReference Include="Cyotek.Drawing.BitmapFont" Version="2.0.4" />
-      <PackageReference Include="ImGui.NET" Version="1.90.6.1" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-      <PackageReference Include="ppy.SDL2-CS" Version="1.0.630-alpha" />
-      <PackageReference Include="Silk.NET.OpenGL" Version="2.21.0" />
-      <PackageReference Include="Silk.NET.WGL.Extensions.NV" Version="2.21.0" />
-      <PackageReference Include="System.Drawing.Common" Version="9.0.3" />
-      <PackageReference Include="Vortice.D3DCompiler" Version="2.4.2" />
-      <PackageReference Include="Vortice.Direct3D11" Version="2.4.2" />
     </ItemGroup>
 
+	<ItemGroup>
+		<Analyzer Include="$(MSBuildProjectDirectory)/../ReflectionCache/BizHawk.SrcGen.ReflectionCache.dll" />
+		<Using Include="System" />
+	</ItemGroup>
+
+    <!-- Native DLLs required by P/Invoke in the emulation core -->
     <ItemGroup>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\SubNESHawk\SubNESHawk.IEmulator.cs">
-        <DependentUpon>SubNESHawk.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\SubNESHawk\SubNESHawk.IInputPollable.cs">
-        <DependentUpon>SubNESHawk.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\SubNESHawk\SubNESHawk.IStatable.cs">
-        <DependentUpon>SubNESHawk.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.BoardSystem.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.Core.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.CpuLink.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.ICodeDataLogger.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.IDebuggable.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.IDriveLight.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.IInputPollable.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.IMemoryDomains.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.iNES.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.INESPPUViewable.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.ISaveRam.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.ISettable.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\NES\NES.IStatable.cs">
-        <DependentUpon>NES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IDebuggable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IDisassembler.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IInputPollable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IMemoryDomains.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.INESPPUViewable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.ISaveRam.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.ISettable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.ISoundProvider.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IStatable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.ITraceable.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Emulation\Cores\Consoles\NIntendo\QuickNES\QuickNES.IVideoProvider.cs">
-        <DependentUpon>QuickNES.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Client\Common\movie\bk2\Bk2Movie.InputLog.cs">
-        <DependentUpon>Bk2Movie.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Client\Common\movie\bk2\Bk2Movie.HeaderApi.cs">
-        <DependentUpon>Bk2Movie.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Client\Common\movie\bk2\Bk2Movie.IO.cs">
-        <DependentUpon>Bk2Movie.cs</DependentUpon>
-      </Compile>
-      <Compile Update="Client\Common\movie\bk2\Bk2Movie.ModeApi.cs">
-        <DependentUpon>Bk2Movie.cs</DependentUpon>
-      </Compile>
+        <Content Include="$(MSBuildProjectDirectory)/dll/blip_buf.dll">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Link>blip_buf.dll</Link>
+        </Content>
+        <Content Include="$(MSBuildProjectDirectory)/dll/libbizhash.dll">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Link>libbizhash.dll</Link>
+        </Content>
     </ItemGroup>
 
-    <ItemGroup>
-      <None Update="libquicknes.dll">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="libquicknes.so">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="Resources\fceux.ttf" />
-      <None Remove="Resources\gens.ttf" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ClCompile Include="Shaders\retroizer\retroizer.hlsl" />
-    </ItemGroup>
 </Project>

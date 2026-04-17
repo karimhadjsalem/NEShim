@@ -182,7 +182,7 @@ namespace BizHawk.Emulation.Cores
 		}
 
 		//TODO: check this reflection call
-		public static readonly CoreInventory Instance = new CoreInventory(new[] { ReflectionCache.Types });
+		public static readonly CoreInventory Instance = new CoreInventory(new[] { Nintendo.NES.ReflectionCache.Types });
 	}
 
 	public enum CorePriority
