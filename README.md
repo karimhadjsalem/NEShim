@@ -23,6 +23,7 @@ A Windows shell that wraps the BizHawk NES emulation core and exposes Steam SDK 
 - Windows 10 or later (x64)
 - .NET 9 runtime
 - Steam client (required for achievement and overlay features; the emulator runs without it but Steam features are silently disabled)
+- **`steam_api64.dll`** — the native Steamworks SDK DLL, found in `sdk/redistributable_bin/win64/` of the Steamworks SDK download. Must be placed alongside the executable. This file is **not** included in the repository (Valve SDK license); obtain it from the [Steamworks partner dashboard](https://partner.steamgames.com/). Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
@@ -92,6 +93,8 @@ dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-containe
 # Publish the achievement sealer tool
 dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements
 ```
+
+**After publishing**, copy `steam_api64.dll` (from `sdk/redistributable_bin/win64/` in the Steamworks SDK) into the output directory alongside the exe. This file is not included in the repository and must be obtained from the [Steamworks partner dashboard](https://partner.steamgames.com/). Do not commit it to source control.
 
 Releases are built and published automatically on version tags (`v*.*.*`) via GitHub Actions.
 
