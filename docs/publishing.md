@@ -22,16 +22,17 @@ Use this path if you downloaded a packaged NEShim release and want to configure 
 
 ### 1. Rename the executable
 
-If you want your game to appear as `MyGame.exe` rather than `NEShim.exe`, rename these four files together — the .NET app host derives the names of its correlated files from its own filename at runtime:
+If you want your game to appear as `MyGame.exe` rather than `NEShim.exe`, rename **only the exe**:
 
-| Rename from | Rename to |
-|---|---|
-| `NEShim.exe` | `MyGame.exe` |
-| `NEShim.dll` | `MyGame.dll` |
-| `NEShim.deps.json` | `MyGame.deps.json` |
-| `NEShim.runtimeconfig.json` | `MyGame.runtimeconfig.json` |
+```
+NEShim.exe → MyGame.exe
+```
 
-All other files — `NEShim.AchievementSigning.dll`, `BizHawk.dll`, runtime DLLs, NAudio, Steamworks.NET — are referenced by their own assembly names and do not need to change. The `.pdb` files are debug symbols and can be omitted from distribution builds entirely.
+The app host has the assembly name (`NEShim`) baked into it as a binary string at publish time. It always looks for `NEShim.dll`, `NEShim.runtimeconfig.json`, and `NEShim.deps.json` by that fixed name regardless of what the exe file is called. Renaming those files will prevent the app from launching.
+
+If you want the underlying assembly name to change as well (so that `NEShim.dll` itself is renamed), that requires a source build with `<AssemblyName>` changed in the csproj — see [Building from source](#building-from-source).
+
+The `.pdb` files are debug symbols and can be omitted from distribution builds entirely.
 
 The exe icon in a pre-built release is fixed. If you need a custom exe icon embedded in the file itself, use the [Building from source](#building-from-source) path instead. The taskbar and window icon at runtime are controlled separately and are already set correctly by the pre-built binary (see [Icon behaviour](#icon-behaviour)).
 
@@ -97,7 +98,7 @@ See [step 13 in the source path](#13-test-the-release-build) — identical for b
 
 ### Pre-built release checklist
 
-- [ ] Exe and its three correlated files renamed (`NEShim` → `MyGame`)
+- [ ] `NEShim.exe` renamed to `MyGame.exe` (only the exe; all other `NEShim.*` files stay as-is)
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
 - [ ] `steam_api64.dll` copied into the output directory
@@ -280,7 +281,7 @@ dotnet publish NEShim/NEShim/NEShim.csproj \
 
 After the build completes, copy `steam_api64.dll` into the output directory (see [step 4](#4-obtain-steam_api64dll-1)), then copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) alongside it.
 
-Optionally rename the exe and its correlated files — see [Deployed file layout](#deployed-file-layout) below.
+Optionally rename `NEShim.exe` to `MyGame.exe` — see [Deployed file layout](#deployed-file-layout) below for what can and cannot be renamed.
 
 ### 13. Test the release build
 
@@ -320,10 +321,10 @@ A minimal deployment looks like:
 
 ```
 MyGame/
-├── MyGame.exe                  ← renamed from NEShim.exe
-├── MyGame.dll                  ← renamed from NEShim.dll
-├── MyGame.deps.json            ← renamed from NEShim.deps.json
-├── MyGame.runtimeconfig.json   ← renamed from NEShim.runtimeconfig.json
+├── MyGame.exe                  ← renamed from NEShim.exe (only the exe can be renamed)
+├── NEShim.dll                  ← must keep this name; baked into the app host
+├── NEShim.deps.json            ← must keep this name
+├── NEShim.runtimeconfig.json   ← must keep this name
 ├── NEShim.AchievementSigning.dll
 ├── BizHawk.dll
 ├── steam_api64.dll             ← from Steamworks SDK; not in repo
