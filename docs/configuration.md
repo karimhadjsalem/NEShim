@@ -29,6 +29,16 @@ NEShim is configured entirely through `config.json` placed alongside the executa
 | `saveRamPath` | string | `"game.srm"` | Path for battery-backed RAM persistence (used by games like Zelda and Metroid). Written on exit if the emulator reports the save RAM was modified. |
 | `activeSlot` | integer | `0` | Index of the currently selected save slot (0–7). Persisted across sessions. |
 
+### Auto-save
+
+On a **graceful exit** (window closed, Exit chosen from the menu), NEShim automatically writes a snapshot to `autosave.state` inside `saveStateDirectory`. This happens only when the game is running — if the player exits from the pre-game main menu before starting, no snapshot is written.
+
+The auto-save file is separate from the eight manual slots and cannot be loaded from within the game. It exists solely as a recovery file for Steam Cloud — if the player's session ends without a manual save, the auto-save gives Steam something to sync so progress is not lost on the next machine.
+
+**Auto-save is not crash-safe.** If the process is terminated unexpectedly (crash, task manager, power loss), the file is not written and the previous auto-save, if any, remains on disk unchanged.
+
+There are no config fields to enable, disable, or rename the auto-save file. The path is always `<saveStateDirectory>/autosave.state`.
+
 ---
 
 ## Audio settings

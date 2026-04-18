@@ -66,6 +66,43 @@ When you deploy through Steam, the Steam client delivers `steam_api64.dll` to pl
 
 ---
 
+## 5. Configure Steam Auto-Cloud
+
+NEShim does not call the Steam Remote Storage API directly — it reads and writes save files to the local filesystem only. Cloud sync is handled entirely by **Steam Auto-Cloud**, which the Steam client runs automatically before launch and after exit based on path rules you define in the Steamworks partner dashboard. No code changes are required.
+
+### Files to sync
+
+Configure Auto-Cloud to watch two locations relative to the install directory:
+
+| Path pattern | Contents |
+|---|---|
+| `saves\*` | Manual save states (`slot0.state` … `slot7.state`), slot metadata (`.meta`), and the auto-save (`autosave.state`) |
+| `game.srm` | Battery-backed RAM — the cartridge save for games like Zelda and Metroid |
+
+Do **not** include `config.json` in the sync paths. Settings such as `windowMode` and `volume` are machine-specific; syncing them will overwrite a player's preferences on every machine they use.
+
+### Steamworks dashboard setup
+
+1. In the Steamworks partner dashboard, navigate to your app and open **Cloud → Cloud Settings**.
+2. Set the **Quota** large enough to hold all save files. NES save states are typically 10–50 KB each, plus the SRM file. 10 MB is far more than sufficient.
+3. Under **Root Overrides**, add two entries:
+
+| Root | Path |
+|---|---|
+| `WinAppDataLocalLow` | *(not used — set root to `GameInstall` instead)* |
+| `GameInstall` | `saves\*` |
+| `GameInstall` | `game.srm` |
+
+4. Publish the cloud configuration from the dashboard.
+
+### Limitations to be aware of
+
+- **Conflict resolution is opaque.** If a player plays on two machines before Steam syncs, Steam applies its own last-write-wins logic. There is no in-game conflict UI. The player will not know which machine's save won.
+- **The auto-save is not crash-safe.** It is written only on graceful exit. If the process is killed, the previous auto-save file remains on disk unchanged and Steam will sync that older version. See [Auto-save](configuration.md#auto-save) in the configuration reference.
+- **Manual slot saves are immediately safe.** Each manual save writes its `.state` and `.meta` files synchronously before returning. Steam will pick these up on the next sync.
+
+---
+
 ## 6. Configure Steam Input (optional but recommended)
 
 If you want Steam Controller support beyond basic XInput emulation:
@@ -205,6 +242,7 @@ Before uploading to Steam:
 - [ ] `<ApplicationIcon>` set in `NEShim.csproj` and icon file in place
 - [ ] `steam_appid.txt` contains your production App ID
 - [ ] `steam_api64.dll` copied into the output directory from the Steamworks SDK (`sdk/redistributable_bin/win64/`)
+- [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
 - [ ] `game_actions_<appid>.vdf` renamed with correct App ID
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] HMAC key rotated in `AchievementSigner.cs` and solution rebuilt
