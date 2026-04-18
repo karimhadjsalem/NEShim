@@ -221,7 +221,7 @@ WWGKiRD2jDNaDdyA4ociUifvT2TSNZVHF4Y3HmPpxg4=
 
 If you're building a game from scratch (homebrew), the simplest achievement pattern is a reserved sentinel address:
 
-1. Choose unused addresses in zero page or overflow RAM, e.g. `0x00E0`–`0x07FF`.
+1. Choose unused addresses in zero page or overflow RAM, e.g. `0x00E0`–`0x06FF`.
 2. In your game code, write `0x01` to `0x00E0` when the player reaches the first achievement, `0x02` to `0x00E0` for the second, etc.
 3. In `achievements.json`, define each achievement with `"address": 224` (0x00E0), `"value": 1`, `"comparison": "equals"`, `"bytes": 1`.
 
