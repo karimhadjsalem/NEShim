@@ -371,9 +371,9 @@ internal class InGameMenuTests
 
         menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
         menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
-        bool before = _config.Developer.ShowFps;
+        bool before = _config.ShowFps;
         menu.HandleKey(Keys.Return);
-        Assert.That(_config.Developer.ShowFps, Is.EqualTo(!before));
+        Assert.That(_config.ShowFps, Is.EqualTo(!before));
     }
 
     [Test]

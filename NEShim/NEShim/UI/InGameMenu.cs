@@ -379,7 +379,7 @@ internal sealed class InGameMenu
                         _onWindowModeToggle(_config.WindowMode != "Fullscreen");
                         break;
                     case VideoItemFps:
-                        _config.Developer.ShowFps = !_config.Developer.ShowFps;
+                        _config.ShowFps = !_config.ShowFps;
                         _onConfigSaved();
                         break;
                     case VideoItemGraphics:
@@ -513,7 +513,7 @@ internal sealed class InGameMenu
         {
             $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
             $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
-            $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
+            $"FPS Overlay: {(_config.ShowFps ? "On" : "Off")}",
             "← Back",
         },
 

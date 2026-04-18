@@ -67,18 +67,17 @@ internal class AppConfigTests
     }
 
     [Test]
-    public void DefaultHotkeyMappings_ContainsOpenMenu()
+    public void DefaultHotkeyMappings_DoesNotContainOpenMenu()
     {
         var config = new AppConfig();
-        Assert.That(config.HotkeyMappings.ContainsKey("OpenMenu"), Is.True);
-        Assert.That(config.HotkeyMappings["OpenMenu"], Is.EqualTo("Escape"));
+        Assert.That(config.HotkeyMappings.ContainsKey("OpenMenu"), Is.False);
     }
 
     [Test]
-    public void DeveloperDefaults_ShowFps_IsFalse()
+    public void ShowFps_DefaultIsFalse()
     {
         var config = new AppConfig();
-        Assert.That(config.Developer.ShowFps, Is.False);
+        Assert.That(config.ShowFps, Is.False);
     }
 
     [Test]

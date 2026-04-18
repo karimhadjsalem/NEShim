@@ -14,7 +14,7 @@ internal class InputManagerTests
     public void SetUp()
     {
         _manager = new InputManager();
-        _config  = new AppConfig(); // has default hotkey mappings (OpenMenu→Escape, etc.)
+        _config  = new AppConfig(); // has default hotkey mappings (SaveActiveSlot→F5, etc.)
     }
 
     // ---- Key state ----
@@ -67,35 +67,60 @@ internal class InputManagerTests
     [Test]
     public void IsHotkeyJustPressed_KeyPressedThisFrame_ReturnsTrue()
     {
-        _manager.OnKeyDown(Keys.Escape); // OpenMenu → Escape
-        bool result = _manager.IsHotkeyJustPressed("OpenMenu", _config);
+        _manager.OnKeyDown(Keys.F5); // SaveActiveSlot → F5
+        bool result = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
         Assert.That(result, Is.True);
     }
 
     [Test]
     public void IsHotkeyJustPressed_KeyHeldAcrossFrames_ReturnsFalseOnSecondFrame()
     {
-        _manager.OnKeyDown(Keys.Escape);
-        _manager.IsHotkeyJustPressed("OpenMenu", _config); // consume first press
+        _manager.OnKeyDown(Keys.F5);
+        _manager.IsHotkeyJustPressed("SaveActiveSlot", _config); // consume first press
         _manager.AdvanceHotkeyState();
 
-        bool secondFrame = _manager.IsHotkeyJustPressed("OpenMenu", _config);
+        bool secondFrame = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
         Assert.That(secondFrame, Is.False);
     }
 
     [Test]
     public void IsHotkeyJustPressed_KeyNotDown_ReturnsFalse()
     {
-        bool result = _manager.IsHotkeyJustPressed("OpenMenu", _config);
+        bool result = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
         Assert.That(result, Is.False);
     }
 
     [Test]
     public void IsHotkeyJustPressed_UnknownAction_ReturnsFalse()
     {
-        _manager.OnKeyDown(Keys.Escape);
+        _manager.OnKeyDown(Keys.F5);
         bool result = _manager.IsHotkeyJustPressed("NonExistentAction", _config);
         Assert.That(result, Is.False);
+    }
+
+    // ---- IsEscJustPressed (system-reserved OpenMenu key) ----
+
+    [Test]
+    public void IsEscJustPressed_EscPressedThisFrame_ReturnsTrue()
+    {
+        _manager.OnKeyDown(Keys.Escape);
+        Assert.That(_manager.IsEscJustPressed(), Is.True);
+    }
+
+    [Test]
+    public void IsEscJustPressed_EscHeldAcrossFrames_ReturnsFalseOnSecondFrame()
+    {
+        _manager.OnKeyDown(Keys.Escape);
+        _manager.IsEscJustPressed(); // consume first press
+        _manager.AdvanceHotkeyState();
+
+        Assert.That(_manager.IsEscJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void IsEscJustPressed_EscNotDown_ReturnsFalse()
+    {
+        Assert.That(_manager.IsEscJustPressed(), Is.False);
     }
 
     [Test]

@@ -169,6 +169,19 @@ internal sealed class InputManager
     }
 
     /// <summary>
+    /// Returns true if Escape was just pressed this frame (edge-triggered).
+    /// Escape is a reserved system key that always opens/closes the menu regardless of config.
+    /// </summary>
+    public bool IsEscJustPressed()
+    {
+        bool currPressed;
+        lock (_keyLock) currPressed = _pressedKeys.Contains(Keys.Escape);
+        bool wasPressed = _prevHotkeyKeys.Contains(Keys.Escape);
+        if (currPressed) _currHotkeyKeys.Add(Keys.Escape);
+        return currPressed && !wasPressed;
+    }
+
+    /// <summary>
     /// Returns true if the gamepad Start button was just pressed (edge-triggered).
     /// Start is a reserved system button that always opens/closes the menu regardless of config.
     /// </summary>
