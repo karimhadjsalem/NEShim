@@ -62,7 +62,7 @@ Steamworks.NET P/Invokes into the native `steam_api64.dll` at runtime. This file
 1. Download the Steamworks SDK from the [Steamworks partner dashboard](https://partner.steamgames.com/).
 2. Copy `sdk/redistributable_bin/win64/steam_api64.dll` into the output directory (next to the exe).
 
-When you deploy through Steam, the Steam client delivers this DLL to players automatically as part of your depot.
+Include `steam_api64.dll` in your depot when uploading to Steam — Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
 ### 5. Configure Steam Auto-Cloud
 
@@ -163,7 +163,7 @@ Steamworks.NET P/Invokes into the native `steam_api64.dll` at runtime. This file
 2. Copy `sdk/redistributable_bin/win64/steam_api64.dll` into your output directory (next to the exe) after building.
 3. Do not commit this file to source control — add it to `.gitignore`.
 
-When you deploy through Steam, the Steam client delivers this DLL to players automatically as part of your depot.
+Include `steam_api64.dll` in your depot when uploading to Steam — Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
 ### 5. Configure Steam Auto-Cloud
 
