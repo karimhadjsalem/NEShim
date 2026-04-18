@@ -10,7 +10,8 @@
       "Read(//c/Users/karim/.claude/plans/**)",
       "Bash(wc -l \"C:\\\\\\\\Users\\\\\\\\karim\\\\\\\\.claude\\\\\\\\plans\\\\\\\\sorted-inventing-hennessy.md\")",
       "Bash(grep -E \"Error\\\\\\(s\\\\\\)|Warning.*NEShim\\\\\\\\\\\\\\\\NEShim\")",
-      "Bash(grep -E \"NEShim\\\\\\\\\\\\\\\\NEShim\\\\\\\\\\\\\\\\.*error|^Build |Error\\\\\\(s\\\\\\)\")"
+      "Bash(grep -E \"NEShim\\\\\\\\\\\\\\\\NEShim\\\\\\\\\\\\\\\\.*error|^Build |Error\\\\\\(s\\\\\\)\")",
+      "Bash(dotnet publish *)"
     ]
   }
 }
