@@ -43,6 +43,11 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
+
+        using var stream = typeof(MainForm).Assembly.GetManifestResourceStream("NEShim.icon.ico");
+        if (stream is not null)
+            Icon = new Icon(stream);
+
         Load += OnFormLoad;
         FormClosing += OnFormClosing;
     }
