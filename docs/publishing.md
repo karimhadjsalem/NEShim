@@ -277,4 +277,15 @@ MyGame/
 └── [.NET runtime files, BizHawk DLLs...]
 ```
 
-The `.exe` can be renamed freely — Steam identifies the game by App ID, not filename.
+### Renaming the executable
+
+If you want the exe to appear as `MyGame.exe` rather than `NEShim.exe`, you must rename four files together — the .NET app host derives the names of its correlated files from its own filename at runtime:
+
+| Rename from | Rename to |
+|---|---|
+| `NEShim.exe` | `MyGame.exe` |
+| `NEShim.dll` | `MyGame.dll` |
+| `NEShim.deps.json` | `MyGame.deps.json` |
+| `NEShim.runtimeconfig.json` | `MyGame.runtimeconfig.json` |
+
+All other files in the output directory — `NEShim.AchievementSigning.dll`, `BizHawk.dll`, the .NET runtime DLLs, NAudio, Steamworks.NET, and so on — are referenced by their own assembly names and do not need to change. The `.pdb` files are debug symbols and can be omitted from distribution builds entirely.
