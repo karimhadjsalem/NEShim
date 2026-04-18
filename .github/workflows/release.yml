@@ -28,7 +28,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: dotnet restore NEShim/NEShim.sln -r win-x64
+        run: dotnet restore NEShim/NEShim.sln -r win-x64 -p:PublishReadyToRun=true
 
       - name: Test
         run: >
