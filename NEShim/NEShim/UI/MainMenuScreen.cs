@@ -357,7 +357,7 @@ internal sealed class MainMenuScreen : IDisposable
                         _onWindowModeToggle(_config.WindowMode != "Fullscreen");
                         break;
                     case VideoItemFps:
-                        _config.Developer.ShowFps = !_config.Developer.ShowFps;
+                        _config.ShowFps = !_config.ShowFps;
                         _onConfigSaved();
                         break;
                     case VideoItemGraphics:
@@ -522,7 +522,7 @@ internal sealed class MainMenuScreen : IDisposable
         {
             $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
             $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
-            $"FPS Overlay: {(_config.Developer.ShowFps ? "On" : "Off")}",
+            $"FPS Overlay: {(_config.ShowFps ? "On" : "Off")}",
             "← Back",
         },
         Screen.KeyboardBindings => BindingActions

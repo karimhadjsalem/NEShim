@@ -191,7 +191,7 @@ internal sealed class EmulationThread
             _frameBuffer.Swap();
 
             // 7. Push FPS state into panel then notify UI to repaint (non-blocking)
-            _gamePanel.ShowFps   = _config.Developer.ShowFps;
+            _gamePanel.ShowFps   = _config.ShowFps;
             _gamePanel.CurrentFps = CurrentFps;
             _gamePanel.BeginInvoke(_gamePanel.UpdateFrame);
 
@@ -244,8 +244,9 @@ internal sealed class EmulationThread
         // Don't process in-game hotkeys while the pre-game main menu is visible
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
 
-        // Open/close menu — keyboard or gamepad (left bumper by default)
-        bool openMenuPressed = _input.IsHotkeyJustPressed("OpenMenu", _config)
+        // Open/close menu — Escape (system-reserved), gamepad Start (always reserved),
+        // or the configured gamepad hotkey (left bumper by default)
+        bool openMenuPressed = _input.IsEscJustPressed()
             || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config)
             || _input.IsGamepadStartJustPressed();
         if (openMenuPressed)

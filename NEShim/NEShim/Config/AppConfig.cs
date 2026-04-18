@@ -34,7 +34,6 @@ public sealed class AppConfig
 
     public Dictionary<string, string> HotkeyMappings { get; set; } = new()
     {
-        ["OpenMenu"]      = "Escape",
         ["SaveActiveSlot"] = "F5",
         ["LoadActiveSlot"] = "F9",
         ["SelectSlot1"]   = "F1",
@@ -75,7 +74,8 @@ public sealed class AppConfig
     // Position of the main menu panel: "BottomCenter", "Center", "BottomLeft", "BottomRight", "TopLeft", "TopCenter", "TopRight"
     public string MainMenuPosition { get; set; } = "BottomCenter";
 
-    public DeveloperSettings Developer { get; set; } = new();
+    // When true, displays a live FPS counter in the top-right corner during gameplay.
+    public bool ShowFps { get; set; } = false;
 }
 
 public sealed class InputBinding
@@ -91,8 +91,3 @@ public sealed class InputBinding
     }
 }
 
-public sealed class DeveloperSettings
-{
-    public bool ShowFps { get; set; } = false;
-    public bool AllowUnsafeRom { get; set; } = false;
-}
