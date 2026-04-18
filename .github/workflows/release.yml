@@ -9,6 +9,8 @@ on:
 jobs:
   build-release:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -33,7 +35,6 @@ jobs:
       - name: Test
         run: >
           dotnet test NEShim/NEShim.Tests/NEShim.Tests.csproj
-          --no-restore
           --logger "trx;LogFileName=results.trx"
           --results-directory TestResults
 
