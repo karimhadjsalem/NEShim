@@ -2,6 +2,10 @@
 
 A Windows shell that wraps the BizHawk NES emulation core and exposes Steam SDK integration, allowing NES games to be published on Steam as native Windows applications — with achievements, overlay support, Steam Input, save states, and a configurable front-end UI — without modifying the ROM.
 
+
+### Full Documentation
+https://karimhadjsalem.github.io/NEShim/
+
 ---
 
 ## Features
