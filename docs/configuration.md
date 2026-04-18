@@ -53,6 +53,7 @@ NEShim is configured entirely through `config.json` placed alongside the executa
 | `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. The image is displayed at 1:1 resolution, cropped if larger than the bar. Leave empty for black bars. |
 | `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. |
 | `mainMenuPosition` | string | `"BottomCenter"` | Position of the menu panel on the main menu screen. Accepted values: `"BottomCenter"`, `"Center"`, `"BottomLeft"`, `"BottomRight"`, `"TopLeft"`, `"TopCenter"`, `"TopRight"`. |
+| `showFps` | boolean | `false` | Displays a live FPS counter in the top-right corner during gameplay. Toggleable in the Video menu. |
 
 ---
 
@@ -93,7 +94,6 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 
 ```json
 "hotkeyMappings": {
-  "OpenMenu":       "Escape",
   "SaveActiveSlot": "F5",
   "LoadActiveSlot": "F9",
   "SelectSlot1":    "F1",
@@ -108,7 +108,7 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 }
 ```
 
-`OpenMenu` is also triggered by the gamepad `Start` button (always reserved) and by the configured `gamepadHotkeyMappings` entry.
+**`OpenMenu` is not configurable.** The menu is always opened/closed by **Escape** (keyboard), **Start** (gamepad), or the configured `gamepadHotkeyMappings` entry. Escape and Start are system-reserved and cannot be remapped.
 
 ### Gamepad hotkey mappings
 
@@ -121,24 +121,6 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 ```
 
 This is separate from `inputMappings` — hotkeys are edge-triggered system actions; input mappings are held-down NES button presses.
-
----
-
-## Developer settings
-
-These live under a nested `developer` object:
-
-```json
-"developer": {
-  "showFps": false,
-  "allowUnsafeRom": false
-}
-```
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `showFps` | boolean | `false` | Displays a live FPS counter in the top-right corner during gameplay. Toggleable in the Video menu. |
-| `allowUnsafeRom` | boolean | `false` | Reserved for future use. |
 
 ---
 
@@ -169,7 +151,6 @@ These live under a nested `developer` object:
     "OpenMenu": "LeftShoulder"
   },
   "hotkeyMappings": {
-    "OpenMenu":       "Escape",
     "SaveActiveSlot": "F5",
     "LoadActiveSlot": "F9",
     "SelectSlot1":    "F1",
@@ -191,9 +172,6 @@ These live under a nested `developer` object:
   "mainMenuMusicEnabled": true,
   "graphicsSmoothingEnabled": false,
   "mainMenuPosition": "BottomCenter",
-  "developer": {
-    "showFps": false,
-    "allowUnsafeRom": false
-  }
+  "showFps": false
 }
 ```
