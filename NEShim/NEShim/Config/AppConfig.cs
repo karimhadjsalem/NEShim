@@ -76,6 +76,10 @@ public sealed class AppConfig
 
     // When true, displays a live FPS counter in the top-right corner during gameplay.
     public bool ShowFps { get; set; } = false;
+
+    // Developer option — not exposed in any menu.
+    // When true, diagnostic output is appended to neshim.log next to the executable.
+    public bool EnableLogging { get; set; } = false;
 }
 
 public sealed class InputBinding

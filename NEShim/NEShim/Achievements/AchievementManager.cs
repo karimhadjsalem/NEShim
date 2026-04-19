@@ -19,6 +19,9 @@ internal sealed class AchievementManager
     private readonly Action<string>           _unlock;
     private readonly HashSet<string>          _firedThisSession = new(StringComparer.Ordinal);
 
+    private bool _statsWaitLogged;
+    private bool _readyLogged;
+
     internal AchievementManager(
         IMemoryDomains        domains,
         GameAchievementConfig config,
@@ -36,7 +39,23 @@ internal sealed class AchievementManager
     /// </summary>
     internal void Tick()
     {
-        if (_domain is null || !_statsReady()) return;
+        if (_domain is null) return;
+
+        if (!_statsReady())
+        {
+            if (!_statsWaitLogged)
+            {
+                Logger.Log("[Achievements] Waiting for StatsReady — achievements are suppressed until Steam delivers the stats snapshot.");
+                _statsWaitLogged = true;
+            }
+            return;
+        }
+
+        if (!_readyLogged)
+        {
+            Logger.Log($"[Achievements] StatsReady — evaluating {_defs.Count} trigger(s) per frame.");
+            _readyLogged = true;
+        }
 
         foreach (var def in _defs)
         {

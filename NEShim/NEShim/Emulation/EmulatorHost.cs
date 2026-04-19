@@ -50,8 +50,8 @@ internal sealed class EmulatorHost : IDisposable
         var fileProvider = new NeshimFileProvider();
         var glProvider   = new NullOpenGLProvider();
         var coreComm     = new CoreComm(
-            showMessage:      msg => System.Diagnostics.Debug.WriteLine($"[NES] {msg}"),
-            notifyMessage:    (msg, _) => System.Diagnostics.Debug.WriteLine($"[NES notify] {msg}"),
+            showMessage:      msg => Logger.Log($"[NES] {msg}"),
+            notifyMessage:    (msg, _) => Logger.Log($"[NES notify] {msg}"),
             question:         _ => null,
             coreFileProvider: fileProvider,
             prefs:            CoreComm.CorePreferencesFlags.None,

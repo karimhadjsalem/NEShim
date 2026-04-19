@@ -87,6 +87,9 @@ public partial class MainForm : Form
         _config = ConfigLoader.Load();
         this.Text = _config.WindowTitle;
 
+        if (_config.EnableLogging)
+            Logger.Enable();
+
         // 2. Load ROM
         string romPath = Path.IsPathRooted(_config.RomPath)
             ? _config.RomPath
@@ -104,12 +107,30 @@ public partial class MainForm : Form
         {
             var achConfig = AchievementConfigLoader.Load(_host.RomHash);
             if (achConfig is not null)
+            {
                 achievements = new AchievementManager(
                     _host.MemoryDomains, achConfig,
                     () => SteamManager.StatsReady,
                     // Marshal to the UI thread — all Steam API calls must be on the
                     // same thread that called SteamAPI.Init().
-                    id => BeginInvoke(() => SteamManager.UnlockAchievement(id)));
+                    id => BeginInvoke(() =>
+                    {
+                        if (SteamManager.UnlockAchievement(id))
+                        {
+                            string name = SteamManager.GetAchievementDisplayName(id) ?? id;
+                            _gamePanel?.ShowAchievementNotification(name);
+                        }
+                    }));
+                Logger.Log("[Achievements] Manager created — triggers active.");
+            }
+            else
+            {
+                Logger.Log("[Achievements] No valid config loaded — achievement manager not created.");
+            }
+        }
+        else
+        {
+            Logger.Log("[Achievements] MemoryDomains unavailable — achievement manager not created.");
         }
 
         // 4. Save RAM (load before first frame)

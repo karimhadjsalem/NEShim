@@ -28,6 +28,11 @@ internal sealed class GamePanel : Panel
     private string? _toastText;
     private DateTime _toastExpiry;
 
+    // Achievement notification
+    private string?  _achievementText;
+    private DateTime _achievementExpiry;
+    private const int AchievementDurationSeconds = 5;
+
     // FPS overlay — set each frame by EmulationThread
     [System.ComponentModel.Browsable(false)]
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -86,6 +91,16 @@ internal sealed class GamePanel : Panel
     {
         _toastText  = text;
         _toastExpiry = DateTime.UtcNow.AddSeconds(1.5);
+    }
+
+    /// <summary>
+    /// Shows an achievement-unlocked notification in the bottom-right corner for
+    /// <see cref="AchievementDurationSeconds"/> seconds.
+    /// </summary>
+    public void ShowAchievementNotification(string displayName)
+    {
+        _achievementText   = displayName;
+        _achievementExpiry = DateTime.UtcNow.AddSeconds(AchievementDurationSeconds);
     }
 
     /// <summary>Called from EmulationThread (via BeginInvoke) when a new frame is ready.</summary>
@@ -270,6 +285,15 @@ internal sealed class GamePanel : Panel
             _toastText = null;
         }
 
+        // Achievement notification
+        if (_achievementText is not null)
+        {
+            if (DateTime.UtcNow < _achievementExpiry)
+                DrawAchievementNotification(g, _achievementText);
+            else
+                _achievementText = null;
+        }
+
         // FPS overlay
         if (ShowFps)
             DrawFps(g, CurrentFps);
@@ -305,6 +329,36 @@ internal sealed class GamePanel : Panel
 
         using var fg = new SolidBrush(Color.White);
         g.DrawString(text, font, fg, x, y);
+    }
+
+    private void DrawAchievementNotification(Graphics g, string displayName)
+    {
+        const string header   = "Achievement Unlocked!";
+        const float  margin   = 15f;
+        const float  padding  = 10f;
+
+        using var headerFont = new Font("Segoe UI", 10f, FontStyle.Bold,  GraphicsUnit.Point);
+        using var nameFont   = new Font("Segoe UI", 13f, FontStyle.Bold,  GraphicsUnit.Point);
+
+        var headerSize = g.MeasureString(header,      headerFont);
+        var nameSize   = g.MeasureString(displayName, nameFont);
+
+        float boxW = Math.Max(headerSize.Width, nameSize.Width) + padding * 2;
+        float boxH = headerSize.Height + nameSize.Height + padding * 2 + 4f;
+        float boxX = Width  - boxW - margin;
+        float boxY = Height - boxH - margin;
+
+        g.CompositingMode = CompositingMode.SourceOver;
+
+        using var bg     = new SolidBrush(Color.FromArgb(210, 20, 20, 20));
+        using var border = new Pen(Color.FromArgb(200, 200, 160, 40), 1.5f);
+        g.FillRectangle(bg, boxX, boxY, boxW, boxH);
+        g.DrawRectangle(border, boxX, boxY, boxW, boxH);
+
+        using var headerBrush = new SolidBrush(Color.FromArgb(255, 220, 180, 50));
+        using var nameBrush   = new SolidBrush(Color.White);
+        g.DrawString(header,      headerFont, headerBrush, boxX + padding, boxY + padding);
+        g.DrawString(displayName, nameFont,   nameBrush,   boxX + padding, boxY + padding + headerSize.Height + 4f);
     }
 
     private void DrawFps(Graphics g, float fps)
