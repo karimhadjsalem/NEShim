@@ -2,7 +2,12 @@
 {
 	// Rename this file to game_actions_<SteamAppID>.vdf when the App ID is assigned.
 	// Place it in the same directory as the game executable.
-	// Upload the production version via the Steam partner dashboard.
+	// Upload the production version via the Steam partner dashboard under
+	// Steam Input -> Default Configuration.
+	//
+	// Default controller binding files live in controller_bindings/ alongside this file.
+	// Upload each VDF there as a "Default Configuration" for its controller type.
+	// Players can override these defaults from the Steam overlay configurator.
 
 	"actions"
 	{

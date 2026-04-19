@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using NEShim.Config;
 using NEShim.Saves;
+using NEShim.Steam;
 
 namespace NEShim.UI;
 
@@ -13,6 +14,15 @@ namespace NEShim.UI;
 internal sealed class MainMenuScreen : IDisposable
 {
     public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound }
+
+    // ---- Steam Input override notice (shown instead of editable bindings) ----
+    private static readonly string[] SteamInputOverrideItems =
+    {
+        "Managed by Steam Input",
+        "Configure via Steam overlay (Shift+Tab)",
+        "← Back",
+    };
+    private const int SteamOverrideBackIndex = 2;
 
     // ---- Shared binding-action table ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
@@ -58,7 +68,6 @@ internal sealed class MainMenuScreen : IDisposable
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
-    public bool    IsGamepadOverriddenBySteam => Steam.SteamInputManager.HasConnectedController;
 
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
@@ -383,6 +392,11 @@ internal sealed class MainMenuScreen : IDisposable
 
             case Screen.GamepadBindings:
             {
+                if (SteamInputManager.HasConnectedController)
+                {
+                    NavigateTo(Screen.Settings);
+                    break;
+                }
                 var (_, configKey) = BindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
@@ -531,11 +545,13 @@ internal sealed class MainMenuScreen : IDisposable
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
 
-        Screen.GamepadBindings => BindingActions
-            .Select(b => b.ConfigKey == ""
-                ? "← Back"
-                : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
-            .ToArray(),
+        Screen.GamepadBindings => SteamInputManager.HasConnectedController
+            ? SteamInputOverrideItems
+            : BindingActions
+                .Select(b => b.ConfigKey == ""
+                    ? "← Back"
+                    : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
+                .ToArray(),
         Screen.Sound => new[]
         {
             $"◀  Volume: {_config.Volume}  ▶",
@@ -550,6 +566,9 @@ internal sealed class MainMenuScreen : IDisposable
     {
         if (CurrentScreen == Screen.Main && idx == MainItemResume && !CanResume)
             return false;
+        if (CurrentScreen == Screen.GamepadBindings && SteamInputManager.HasConnectedController
+            && idx < SteamOverrideBackIndex)
+            return false;
         return true;
     }
 
@@ -559,7 +578,9 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.ResumeSlots        => _resumeOptions.Length,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => BindingActions.Length,
-        Screen.GamepadBindings    => BindingActions.Length,
+        Screen.GamepadBindings    => SteamInputManager.HasConnectedController
+                                        ? SteamInputOverrideItems.Length
+                                        : BindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         _ => 0

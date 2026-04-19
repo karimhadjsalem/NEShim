@@ -36,9 +36,7 @@ internal static class MenuRenderer
         var  items        = menu.GetCurrentItems();
         bool isConfirm    = menu.Current == InGameMenu.Screen.ConfirmMainMenu
                          || menu.Current == InGameMenu.Screen.ConfirmExit;
-        bool steamOverride = menu.Current == InGameMenu.Screen.GamepadBindings
-                          && menu.IsGamepadOverriddenBySteam;
-        int  warningRowH  = (isConfirm ? ItemH : 0) + (steamOverride ? ItemH : 0);
+        int  warningRowH  = isConfirm ? ItemH : 0;
 
         var (panelX, panelY, panelW, _) = PanelMetrics(bounds, items.Length, warningRowH);
 
@@ -67,9 +65,7 @@ internal static class MenuRenderer
         string title         = menu.GetTitle();
         bool   isConfirm     = menu.Current == InGameMenu.Screen.ConfirmMainMenu
                             || menu.Current == InGameMenu.Screen.ConfirmExit;
-        bool   steamOverride = menu.Current == InGameMenu.Screen.GamepadBindings
-                            && menu.IsGamepadOverriddenBySteam;
-        int    warningRowH   = (isConfirm ? ItemH : 0) + (steamOverride ? ItemH : 0);
+        int    warningRowH   = isConfirm ? ItemH : 0;
 
         var (panelX, panelY, panelW, panelH) = PanelMetrics(bounds, items.Length, warningRowH);
         var panelRect = new Rectangle(panelX, panelY, panelW, panelH);
@@ -101,15 +97,6 @@ internal static class MenuRenderer
             using var warnBrush = new SolidBrush(Color.FromArgb(200, 255, 180, 100));
             var warnRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, 28);
             g.DrawString("Unsaved progress will be lost.", warnFont, warnBrush, warnRect, centred);
-        }
-
-        // Steam override notice on the Gamepad Controls screen
-        if (steamOverride)
-        {
-            using var steamFont  = new Font("Segoe UI", 10f, FontStyle.Italic, GraphicsUnit.Point);
-            using var steamBrush = new SolidBrush(Color.FromArgb(230, 255, 190, 50));
-            var steamRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, ItemH - 4);
-            g.DrawString("⚠  Steam Input active — these settings are overridden", steamFont, steamBrush, steamRect, centred);
         }
 
         // Rebind prompt replaces the item list

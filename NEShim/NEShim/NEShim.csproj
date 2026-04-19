@@ -35,6 +35,9 @@
         <Content Include="game_actions_0.vdf">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Include="controller_bindings\*.vdf">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
 </Project>
