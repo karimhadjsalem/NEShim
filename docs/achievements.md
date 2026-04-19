@@ -66,7 +66,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
 | `bytes` | integer | `1` | No | Number of bytes to read starting at `address`. Supported values: `1`, `2`, `3`, `4`. Bytes are assembled into a single integer before comparison. |
 | `bigEndian` | boolean | `false` | No | When `false` (default), bytes are assembled little-endian (NES native — LSB at lowest address). When `true`, the first byte is the most significant. Required for BCD-encoded scores where the most significant digit lives at the lowest address. |
 | `encoding` | string | `"binary"` | No | `"binary"` — interpret the assembled bytes as a standard integer. `"bcd"` — decode as binary-coded decimal (see below). |
-| `comparison` | string | `"equals"` | No | Trigger condition: `"equals"`, `"greaterOrEqual"`, or `"greaterThan"`. |
+| `comparison` | string | `"equals"` | No | Trigger condition: `"equals"`, `"greaterOrEqual"`, `"greaterThan"`, `"lessOrEqual"`, or `"lessThan"`. |
 | `value` | integer | — | Yes | Threshold for the comparison. |
 | `sig` | string | — | Yes (to fire) | HMAC-SHA256 signature written by `seal-achievements`. Definitions without a valid signature are silently ignored at runtime. |
 
@@ -238,6 +238,8 @@ For games you didn't write:
 3. Use `"comparison": "greaterOrEqual"` with the score threshold as `"value"`.
 
 **Important:** Using `greaterOrEqual` or `greaterThan` is recommended over `equals` for score-based triggers. If you use `equals` and the score advances past the target value in a single frame (e.g. a large bonus), the trigger will never fire because the exact value was skipped.
+
+The `"lessOrEqual"` and `"lessThan"` comparisons are available for triggers based on values decreasing — for example, unlocking an achievement when a lives counter drops to zero, or when a timer falls below a threshold.
 
 ---
 
