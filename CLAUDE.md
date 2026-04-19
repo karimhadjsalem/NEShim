@@ -100,7 +100,7 @@ When the overlay activates (`GameOverlayActivated_t`), `GamePanel` is hidden so 
 Do **not** upgrade Steamworks.NET via NuGet — the NuGet package tops at 2024.8.0 (SDK 1.60), which is incompatible with SDK 1.63+. Use the GitHub releases zip instead:
 
 - **Steamworks.NET**: 2025.163.0 — local DLL at `NEShim/lib/Steamworks.NET.dll`
-- **steam_api64.dll**: use the copy bundled inside the Steamworks.NET GitHub release zip — it is matched to the wrapper version. Do not source it separately from the Steamworks SDK partner dashboard.
+- **steam_api64.dll**: **not stored in the repository** (Valve SDK license). At packaging time, copy it from the Steamworks.NET GitHub release zip into the output directory alongside the exe — it is matched to the wrapper version. Do not source it separately from the Steamworks SDK partner dashboard, and do not commit it to source control.
 - Reference in csproj: `<Reference Include="Steamworks.NET"><HintPath>lib\Steamworks.NET.dll</HintPath></Reference>`
 
 SDK 1.61+ loads stats automatically; do not call `SteamUserStats.RequestCurrentStats()` — it no longer exists in Steamworks.NET 2025.x.
@@ -162,6 +162,7 @@ Before building a release for a specific game:
 - **Achievements**: edit `achievements.json`, then run `seal-achievements achievements.json` to stamp HMAC signatures before shipping.
 - **HMAC key**: before the first public release, run `seal-achievements --gen-key`, paste the output into `AchievementSigner.HmacKeyBase64` in `NEShim.AchievementSigning`, rebuild, and re-seal all configs.
 - **steam_appid.txt**: the file in the output directory must contain the real Steam App ID (not `0`). `SteamAPI.RestartAppIfNecessary` and `SteamAPI.Init` both read this file. During development the source-tree copy contains `0` (skips restart, still inits if Steam is running); the publish pipeline must replace it with the real ID.
+- **steam_api64.dll**: not included in the repository. After `dotnet publish`, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper (matched version); do not pull it from the Steamworks SDK partner dashboard separately.
 
 ## License Policy
 
