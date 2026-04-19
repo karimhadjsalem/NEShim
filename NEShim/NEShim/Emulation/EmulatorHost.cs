@@ -41,6 +41,9 @@ internal sealed class EmulatorHost : IDisposable
         MemoryDomains = nes.ServiceProvider.GetService<IMemoryDomains>();
         Controller    = new NesController(nes.ControllerDefinition);
         RomHash       = romHash;
+
+        Logger.Log($"[Emulator] MemoryDomains: {(MemoryDomains is null ? "unavailable" : "available")}");
+        Logger.Log("[Emulator] Core ready.");
     }
 
     public static EmulatorHost Load(string romPath, AppConfig config)
@@ -74,8 +77,14 @@ internal sealed class EmulatorHost : IDisposable
             }
         };
 
+        Logger.Log($"[Emulator] Loading ROM: {romPath} ({rom.Length:N0} bytes)");
+
         var nes     = new NES(coreComm, gameInfo, rom, settings, syncSettings);
         string hash = SHA1Checksum.ComputeDigestHex(rom);
+
+        Logger.Log($"[Emulator] ROM hash (SHA1): {hash}");
+        Logger.Log($"[Emulator] VSync: {nes.VsyncNumerator}/{nes.VsyncDenominator}");
+
         return new EmulatorHost(nes, hash);
     }
 
@@ -86,7 +95,11 @@ internal sealed class EmulatorHost : IDisposable
     }
 
     /// <summary>Hard-resets the NES (power cycle).</summary>
-    public void Reset() => _nes.HardReset();
+    public void Reset()
+    {
+        Logger.Log("[Emulator] Hard reset.");
+        _nes.HardReset();
+    }
 
     public void Dispose() => _nes.Dispose();
 }

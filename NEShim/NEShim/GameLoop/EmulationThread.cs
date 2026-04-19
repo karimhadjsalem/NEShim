@@ -100,6 +100,14 @@ internal sealed class EmulationThread
                 : prev & ~(int)reason;
         } while (Interlocked.CompareExchange(ref _pauseReasonBits, next, prev) != prev);
 
+        if (next != prev)
+        {
+            if (next == 0)
+                Logger.Log("[Emulation] Resumed — all pause reasons cleared.");
+            else
+                Logger.Log($"[Emulation] Paused — active reasons: {(PauseReasons)next}.");
+        }
+
         if (next == 0)
         {
             _audio.SetPaused(false);
@@ -114,6 +122,7 @@ internal sealed class EmulationThread
 
     public void Start()
     {
+        Logger.Log("[Emulation] Thread starting.");
         _stopRequested = false;
         _thread = new Thread(Loop)
         {
@@ -126,9 +135,11 @@ internal sealed class EmulationThread
 
     public void Stop()
     {
+        Logger.Log("[Emulation] Thread stopping.");
         _stopRequested = true;
         _resumeEvent.Set(); // Unblock if paused so thread can exit
         _thread?.Join(2000);
+        Logger.Log("[Emulation] Thread stopped.");
     }
 
     private void Loop()
@@ -226,7 +237,11 @@ internal sealed class EmulationThread
     }
 
     /// <summary>Hard-resets the emulated NES (called via in-game menu).</summary>
-    public void ResetGame() => _host.Reset();
+    public void ResetGame()
+    {
+        Logger.Log("[Emulation] Game reset requested.");
+        _host.Reset();
+    }
 
     /// <summary>
     /// Called when the user picks New Game or Resume from the main menu.
@@ -235,6 +250,7 @@ internal sealed class EmulationThread
     /// </summary>
     public void DismissMainMenu()
     {
+        Logger.Log("[Emulation] Main menu dismissed — starting gameplay.");
         Steam.SteamInputManager.ActivateGameplaySet();
         SetPauseReason(PauseReasons.MainMenu, false);
     }
@@ -256,10 +272,14 @@ internal sealed class EmulationThread
                 // Don't close while rebinding — the Start press will be picked up by
                 // PollAnyGamepadButtonPressed and surfaced as a "reserved" toast instead.
                 if (!_menu.IsGamepadRebinding)
+                {
+                    Logger.Log("[Emulation] Hotkey: in-game menu closed.");
                     _menu.Close();
+                }
             }
             else
             {
+                Logger.Log("[Emulation] Hotkey: in-game menu opened.");
                 _menu.Open(_frameBuffer.CaptureFront());
                 // Menu is now open and emulation will pause — trigger a repaint
                 // so the overlay appears immediately rather than waiting for the next frame.
@@ -273,6 +293,7 @@ internal sealed class EmulationThread
         // Save/load active slot
         if (_input.IsHotkeyJustPressed("SaveActiveSlot", _config))
         {
+            Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
             _saveStates.SaveToActiveSlot();
             _gamePanel.BeginInvoke(() =>
                 _gamePanel.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
@@ -280,6 +301,7 @@ internal sealed class EmulationThread
 
         if (_input.IsHotkeyJustPressed("LoadActiveSlot", _config))
         {
+            Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
             bool loaded = _saveStates.LoadFromActiveSlot();
             _gamePanel.BeginInvoke(() =>
                 _gamePanel.ShowToast(loaded
@@ -293,6 +315,7 @@ internal sealed class EmulationThread
             string action = $"SelectSlot{i + 1}";
             if (_input.IsHotkeyJustPressed(action, _config))
             {
+                Logger.Log($"[Emulation] Hotkey: select slot {i + 1}.");
                 _saveStates.ActiveSlot = _config.ActiveSlot = i;
                 int slot = i; // capture
                 _gamePanel.BeginInvoke(() =>

@@ -40,6 +40,7 @@ internal sealed class SaveStateManager
 
         var meta = new SlotMeta { Timestamp = DateTime.UtcNow };
         File.WriteAllText(MetaPath(slot), JsonSerializer.Serialize(meta));
+        Logger.Log($"[SaveState] Saved slot {slot + 1} → {StatePath(slot)}");
     }
 
     public void SaveToActiveSlot() => SaveSlot(ActiveSlot);
@@ -52,8 +53,9 @@ internal sealed class SaveStateManager
             using var fs = File.OpenWrite(AutoStatePath());
             using var bw = new BinaryWriter(fs);
             _statable.SaveStateBinary(bw);
+            Logger.Log($"[SaveState] Auto-save written → {AutoStatePath()}");
         }
-        catch { /* best-effort */ }
+        catch (Exception ex) { Logger.Log($"[SaveState] Auto-save failed: {ex.Message}"); }
     }
 
     // ---- Load ----
@@ -61,17 +63,23 @@ internal sealed class SaveStateManager
     public bool LoadSlot(int slot)
     {
         string path = StatePath(slot);
-        if (!File.Exists(path)) return false;
+        if (!File.Exists(path))
+        {
+            Logger.Log($"[SaveState] Load slot {slot + 1} — file not found.");
+            return false;
+        }
 
         try
         {
             using var fs = File.OpenRead(path);
             using var br = new BinaryReader(fs);
             _statable.LoadStateBinary(br);
+            Logger.Log($"[SaveState] Loaded slot {slot + 1} ← {path}");
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Log($"[SaveState] Load slot {slot + 1} failed: {ex.Message}");
             return false;
         }
     }
@@ -81,17 +89,23 @@ internal sealed class SaveStateManager
     public bool AutoLoad()
     {
         string path = AutoStatePath();
-        if (!File.Exists(path)) return false;
+        if (!File.Exists(path))
+        {
+            Logger.Log("[SaveState] Auto-load — no file found.");
+            return false;
+        }
 
         try
         {
             using var fs = File.OpenRead(path);
             using var br = new BinaryReader(fs);
             _statable.LoadStateBinary(br);
+            Logger.Log($"[SaveState] Auto-load restored ← {path}");
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Log($"[SaveState] Auto-load failed: {ex.Message}");
             return false;
         }
     }
