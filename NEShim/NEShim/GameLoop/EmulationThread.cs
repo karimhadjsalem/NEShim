@@ -74,16 +74,18 @@ internal sealed class EmulationThread
         _menu         = menu;
         _achievements = achievements;
 
-        // Wire menu events to pause/resume and Steam Input action set switches
+        // Wire menu events to pause/resume and Steam Input action set switches.
+        // Action set switches are marshaled to the UI thread — all Steam API calls
+        // must be on the same thread as SteamAPI.Init().
         _menu.Opened += () =>
         {
             SetPauseReason(PauseReasons.Menu, true);
-            Steam.SteamInputManager.ActivateMenuSet();
+            _gamePanel.BeginInvoke(Steam.SteamInputManager.ActivateMenuSet);
         };
         _menu.Closed += () =>
         {
             SetPauseReason(PauseReasons.Menu, false);
-            Steam.SteamInputManager.ActivateGameplaySet();
+            _gamePanel.BeginInvoke(Steam.SteamInputManager.ActivateGameplaySet);
         };
     }
 

@@ -13,7 +13,10 @@
 
     <ItemGroup>
         <PackageReference Include="NAudio" Version="2.2.1" />
-        <PackageReference Include="Steamworks.NET" Version="20.2.0" />
+        <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+        <Reference Include="Steamworks.NET">
+            <HintPath>lib\Steamworks.NET.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>

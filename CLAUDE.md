@@ -46,12 +46,12 @@ Key subsystems and their responsibilities:
 | `NEShim.Config` | POCO config model + JSON load/save |
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display) |
+| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display), `D3DOverlayHook` (Steam overlay surface) |
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
-| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, per-frame tick |
+| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
 ### BizHawk Emulation Core (`BizHawk/`)
 
@@ -84,6 +84,26 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 **Pause flags** — `EmulationThread.PauseReasons` is a `[Flags]` enum. Any non-zero value blocks the loop on a `ManualResetEventSlim`. Always use `SetPauseReason(reason, active)` rather than setting bits directly — it handles the CAS loop and the audio mute side-effect.
 
 **Stateless renderer** — `MainMenuRenderer` and `MenuRenderer` are `internal static` classes with a single `Draw(Graphics, Rectangle, <StateType>)` entry point. They create and dispose all GDI+ resources within the call. Do not cache brushes, pens, or fonts across calls in these classes.
+
+### Steam overlay architecture
+
+The Steam overlay requires a D3D/OpenGL `Present()` call to hook — pure GDI+ apps have none, so `D3DOverlayHook` creates a minimal D3D11 swap chain bound to `MainForm.Handle`. `SteamManager.Tick()` calls `SteamAPI.RunCallbacks()` followed by `D3DOverlayHook.Present()` from a `System.Windows.Forms.Timer` (~60 Hz) on the UI thread. Steam must be initialised and ticked on the same thread.
+
+When the overlay activates (`GameOverlayActivated_t`), `GamePanel` is hidden so DWM exposes the swap chain surface. Steam's `GameOverlayRenderer64.dll` renders the overlay UI directly into the swap chain's back buffer via a vtable hook on `IDXGISwapChain::Present`. Without hiding `GamePanel`, the GDI+ child is composited above the swap chain by DWM and the overlay is invisible.
+
+`D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. A `Form.Resize` handler calls `D3DOverlayHook.Resize` to keep the swap chain size correct when the user toggles windowed/fullscreen.
+
+`SteamAPI.RestartAppIfNecessary(appId)` is called in `Program.Main` before `Application.Run`. It reads the App ID from `steam_appid.txt`. If the game was not launched via Steam, the call returns `true` and the process exits so Steam can relaunch it with the overlay DLL already injected.
+
+#### Steamworks.NET version pinning
+
+Do **not** upgrade Steamworks.NET via NuGet — the NuGet package tops at 2024.8.0 (SDK 1.60), which is incompatible with SDK 1.63+. Use the GitHub releases zip instead:
+
+- **Steamworks.NET**: 2025.163.0 — local DLL at `NEShim/lib/Steamworks.NET.dll`
+- **steam_api64.dll**: use the copy bundled inside the Steamworks.NET GitHub release zip — it is matched to the wrapper version. Do not source it separately from the Steamworks SDK partner dashboard.
+- Reference in csproj: `<Reference Include="Steamworks.NET"><HintPath>lib\Steamworks.NET.dll</HintPath></Reference>`
+
+SDK 1.61+ loads stats automatically; do not call `SteamUserStats.RequestCurrentStats()` — it no longer exists in Steamworks.NET 2025.x.
 
 ### Coding conventions (NEShim layer only)
 
@@ -141,6 +161,7 @@ Before building a release for a specific game:
 - **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
 - **Achievements**: edit `achievements.json`, then run `seal-achievements achievements.json` to stamp HMAC signatures before shipping.
 - **HMAC key**: before the first public release, run `seal-achievements --gen-key`, paste the output into `AchievementSigner.HmacKeyBase64` in `NEShim.AchievementSigning`, rebuild, and re-seal all configs.
+- **steam_appid.txt**: the file in the output directory must contain the real Steam App ID (not `0`). `SteamAPI.RestartAppIfNecessary` and `SteamAPI.Init` both read this file. During development the source-tree copy contains `0` (skips restart, still inits if Steam is running); the publish pipeline must replace it with the real ID.
 
 ## License Policy
 
@@ -161,6 +182,7 @@ MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All c
 | Newtonsoft.Json | MIT | Copyright © James Newton-King 2008 |
 | CommunityToolkit.HighPerformance | MIT | Copyright © .NET Foundation and Contributors |
 | Steamworks.NET | MIT | Copyright (c) Riley Labrecque |
+| Vortice.Windows (Vortice.Direct3D11) | MIT | Copyright © Amer Koleci and contributors |
 
 ### Prohibited licenses — do not add
 - **GPL v1/v2/v3** — copyleft infects the entire binary; incompatible with commercial distribution
