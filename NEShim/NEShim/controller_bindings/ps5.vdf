@@ -1,0 +1,33 @@
+"controller_mappings"
+{
+	"version"			"3"
+	"revision"			"1"
+	"title"				"Default DualSense Bindings"
+	"description"		"Default bindings for PlayStation 5 DualSense controllers"
+	"creator"			"0"
+	"controller_type"	"controller_ps5"
+	"controller_caps"	""
+	"actions"
+	{
+		"Gameplay"
+		{
+			"dpad_north"	"up"
+			"dpad_south"	"down"
+			"dpad_west"		"left"
+			"dpad_east"		"right"
+			"button_A"		"a_button"		// Cross (X)
+			"button_B"		"b_button"		// Circle (O)
+			"button_start"	"start"			// Options
+			"button_back"	"select"		// Create
+		}
+		"Menu"
+		{
+			"dpad_north"	"menu_up"
+			"dpad_south"	"menu_down"
+			"dpad_west"		"menu_left"
+			"dpad_east"		"menu_right"
+			"button_A"		"menu_confirm"	// Cross (X)
+			"button_B"		"menu_back"		// Circle (O)
+		}
+	}
+}

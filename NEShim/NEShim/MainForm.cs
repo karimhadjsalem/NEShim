@@ -30,6 +30,21 @@ public partial class MainForm : Form
     private InGameMenu?       _menu;
     private EmulationThread?  _emulationThread;
 
+    // ---- Steam ----
+    // Steam callbacks (RunCallbacks) must be dispatched on the same thread that
+    // called SteamAPI.Init(). We initialise on the UI thread, so we also tick
+    // on the UI thread via this timer rather than from the emulation thread.
+    private System.Windows.Forms.Timer? _steamTimer;
+
+    // ---- D3D11 overlay hook ----
+    // A minimal swap chain on the main window HWND. Steam's GameOverlayRenderer64.dll
+    // hooks IDXGISwapChain::Present to enable the overlay and render its UI into the
+    // swap chain buffer. GamePanel is hidden while the overlay is active so DWM
+    // exposes the swap chain surface rather than compositing GDI+ content above it.
+    private Rendering.D3DOverlayHook? _d3dHook;
+
+    private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
+
     // Processor instances kept alive so they can be swapped without re-allocation.
     private readonly NesFilterProcessor     _nesFilterProcessor     = new();
     private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
@@ -92,7 +107,9 @@ public partial class MainForm : Form
                 achievements = new AchievementManager(
                     _host.MemoryDomains, achConfig,
                     () => SteamManager.StatsReady,
-                    SteamManager.UnlockAchievement);
+                    // Marshal to the UI thread — all Steam API calls must be on the
+                    // same thread that called SteamAPI.Init().
+                    id => BeginInvoke(() => SteamManager.UnlockAchievement(id)));
         }
 
         // 4. Save RAM (load before first frame)
@@ -221,12 +238,30 @@ public partial class MainForm : Form
             _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu,
             achievements);
 
-        // Wire Steam overlay → pause
+        // Wire Steam overlay → pause + show/hide GamePanel.
+        // Steam renders its overlay into the D3D swap chain on MainForm. GamePanel is a
+        // GDI+ child that DWM composites above the swap chain, hiding the overlay.
+        // Hiding GamePanel when the overlay opens exposes the D3D surface underneath.
         SteamManager.Initialize(overlayActive =>
-            _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive));
+        {
+            _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
+            if (_gamePanel is not null)
+                _gamePanel.Visible = !overlayActive;
+        });
 
-        // 12. Apply window mode
+        // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
+        // to be called on the same thread as SteamAPI.Init() — we initialise on the UI
+        // thread, so this timer keeps all Steam API calls on that thread.
+        _steamTimer = new System.Windows.Forms.Timer { Interval = SteamCallbackIntervalMs };
+        _steamTimer.Tick += (_, _) => { SteamManager.Tick(); _d3dHook?.Present(); };
+        _steamTimer.Start();
+
+        // 12. Apply window mode, then initialise the D3D overlay hook at the final
+        // window size so Steam renders its overlay at the correct resolution.
         SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
+        _d3dHook = new Rendering.D3DOverlayHook();
+        _d3dHook.Initialize(Handle, Width, Height);
+        Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
         // 13. Start audio and emulation — thread starts paused at main menu
         _audio.Start(_config.AudioDevice);
@@ -345,6 +380,8 @@ public partial class MainForm : Form
         catch { /* best-effort on shutdown */ }
 
         // Dispose resources
+        _steamTimer?.Dispose();
+        _d3dHook?.Dispose();
         _mainMenuMusic?.Dispose();
         _mainMenuScreen?.Dispose();
         _audio?.Dispose();

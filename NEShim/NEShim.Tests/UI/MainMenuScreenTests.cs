@@ -155,13 +155,14 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void HandleKey_Escape_OnMainScreen_FiresExitChosenEvent()
+    public void HandleKey_Escape_OnMainScreen_DoesNothing()
     {
         using var screen = CreateScreen();
         bool fired = false;
         screen.ExitChosen += () => fired = true;
         screen.HandleKey(Keys.Escape);
-        Assert.That(fired, Is.True);
+        Assert.That(fired, Is.False);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
 
     [Test]

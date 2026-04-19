@@ -45,14 +45,14 @@ internal sealed class InputManager
 
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        // Steam Input takes precedence: query first so HasConnectedController is current.
-        // When a Steam controller is active its action-set mapping is authoritative;
-        // XInput is skipped entirely for that controller to prevent double-mapping conflicts.
+        // Steam Input and XInput are complementary — both are always polled.
+        // Steam Input returns empty when no Steam controller is connected or when translation
+        // is disabled; XInput returns disconnected when no physical XInput device is present.
+        // Merging both into a set is safe: duplicate button names are a no-op.
         var steamButtons = NEShim.Steam.SteamInputManager.GetActiveGameplayButtons();
         foreach (var btn in steamButtons) builder.Add(btn);
 
-        bool useXInput = !NEShim.Steam.SteamInputManager.HasConnectedController;
-        var gamepad = useXInput ? XInputHelper.GetState(0) : default;
+        var gamepad = XInputHelper.GetState(0);
 
         foreach (var (nesButton, binding) in config.InputMappings)
         {
@@ -65,7 +65,7 @@ internal sealed class InputManager
                 pressed = true;
             }
 
-            if (!pressed && useXInput && gamepad.Connected &&
+            if (!pressed && gamepad.Connected &&
                 binding.GamepadButton != "Start" &&
                 XInputHelper.GetButton(in gamepad, binding.GamepadButton))
             {
@@ -75,8 +75,8 @@ internal sealed class InputManager
             if (pressed) builder.Add(nesButton);
         }
 
-        // Analog stick → D-pad conversion (XInput only; Steam handles this via action sets)
-        if (useXInput && gamepad.Connected)
+        // Analog stick → D-pad conversion (Steam handles this via action sets when active)
+        if (gamepad.Connected)
         {
             int deadzone = config.GamepadDeadzone;
             if (gamepad.ThumbLY >  deadzone) builder.Add("P1 Up");

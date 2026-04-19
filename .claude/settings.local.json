@@ -11,7 +11,9 @@
       "Bash(wc -l \"C:\\\\\\\\Users\\\\\\\\karim\\\\\\\\.claude\\\\\\\\plans\\\\\\\\sorted-inventing-hennessy.md\")",
       "Bash(grep -E \"Error\\\\\\(s\\\\\\)|Warning.*NEShim\\\\\\\\\\\\\\\\NEShim\")",
       "Bash(grep -E \"NEShim\\\\\\\\\\\\\\\\NEShim\\\\\\\\\\\\\\\\.*error|^Build |Error\\\\\\(s\\\\\\)\")",
-      "Bash(dotnet publish *)"
+      "Bash(dotnet publish *)",
+      "WebFetch(domain:partner.steamgames.com)",
+      "WebFetch(domain:steamcommunity.com)"
     ]
   }
 }

@@ -46,18 +46,15 @@ internal static class MainMenuRenderer
         }
         else
         {
-            bool steamOverride = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
-                              && menu.IsGamepadOverriddenBySteam;
-            int steamBannerH = steamOverride ? ItemH : 0;
             int panelW = Math.Min(440, bounds.Width - 60);
-            int panelH = 52 + steamBannerH + items.Length * ItemH + Pad;
+            int panelH = 52 + items.Length * ItemH + Pad;
             int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
             int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
             panel = new Rectangle(panelX, panelY, panelW, panelH);
 
             for (int i = 0; i < items.Length; i++)
             {
-                var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + steamBannerH + i * ItemH, panel.Width - 12, ItemH - 2);
+                var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH, panel.Width - 12, ItemH - 2);
                 if (itemRect.Contains(p) && menu.IsItemEnabled(i)) return i;
             }
             return -1;
@@ -165,18 +162,14 @@ internal static class MainMenuRenderer
             return;
         }
 
-        bool steamOverride = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
-                          && menu.IsGamepadOverriddenBySteam;
-        int steamBannerH = steamOverride ? ItemH : 0;
-
         var items  = menu.GetCurrentItems();
         int panelW = Math.Min(440, bounds.Width - 60);
-        int panelH = 52 + steamBannerH + items.Length * ItemH + Pad;
+        int panelH = 52 + items.Length * ItemH + Pad;
         int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
         int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
 
         DrawPanel(g, new Rectangle(panelX, panelY, panelW, panelH),
-                  menu.GetTitle(), TitleColor, items, menu, steamBannerH);
+                  menu.GetTitle(), TitleColor, items, menu);
     }
 
     private static void DrawRebindPrompt(Graphics g, Rectangle bounds, MainMenuScreen menu)
@@ -209,7 +202,7 @@ internal static class MainMenuRenderer
     }
 
     private static void DrawPanel(Graphics g, Rectangle panel, string title, Color titleColor,
-                                  string[] items, MainMenuScreen menu, int steamBannerH = 0)
+                                  string[] items, MainMenuScreen menu)
     {
         using var pb = new SolidBrush(PanelColor);
         g.FillRectangle(pb, panel);
@@ -224,15 +217,6 @@ internal static class MainMenuRenderer
 
         using var div = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
         g.DrawLine(div, panel.X + Pad, panel.Y + 46, panel.X + panel.Width - Pad, panel.Y + 46);
-
-        // Steam Input override banner
-        if (steamBannerH > 0)
-        {
-            using var steamFont  = new Font("Segoe UI", 10f, FontStyle.Italic, GraphicsUnit.Point);
-            using var steamBrush = new SolidBrush(Color.FromArgb(230, 255, 190, 50));
-            var steamRect = new RectangleF(panel.X + Pad, panel.Y + 48, panel.Width - Pad * 2, steamBannerH - 4);
-            g.DrawString("⚠  Steam Input active — these settings are overridden", steamFont, steamBrush, steamRect, centred);
-        }
 
         using var selBrush = new SolidBrush(SelectedBg);
         using var selFont  = new Font("Segoe UI", 12f, FontStyle.Bold,    GraphicsUnit.Point);
@@ -253,7 +237,7 @@ internal static class MainMenuRenderer
 
             var itemRect = new Rectangle(
                 panel.X + 6,
-                panel.Y + 50 + steamBannerH + i * ItemH,
+                panel.Y + 50 + i * ItemH,
                 panel.Width - 12,
                 ItemH - 2);
 

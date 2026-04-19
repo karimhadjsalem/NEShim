@@ -29,6 +29,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Extract version
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
       - name: Restore
         run: dotnet restore NEShim/NEShim.sln -r win-x64 -p:PublishReadyToRun=true
 
@@ -47,6 +52,7 @@ jobs:
           -r win-x64
           --self-contained true
           -p:PublishReadyToRun=true
+          -p:Version=${{ steps.version.outputs.VERSION }}
           -o publish/NEShim
 
       - name: Publish sealer tool
@@ -56,6 +62,7 @@ jobs:
           -c Release
           -r win-x64
           --self-contained true
+          -p:Version=${{ steps.version.outputs.VERSION }}
           -o publish/SealAchievements
 
       - name: Zip game artifact

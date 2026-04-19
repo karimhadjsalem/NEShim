@@ -56,6 +56,7 @@ internal sealed class GamePanel : Panel
     protected override bool IsInputKey(Keys keyData) => true;
 
     public void SetMenu(InGameMenu menu)             => _menu     = menu;
+
     public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
     public void SetScaler(IGraphicsScaler scaler)    => _scaler   = scaler;
 

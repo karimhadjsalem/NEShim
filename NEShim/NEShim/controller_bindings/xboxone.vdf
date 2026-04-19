@@ -1,0 +1,33 @@
+"controller_mappings"
+{
+	"version"			"3"
+	"revision"			"1"
+	"title"				"Default Xbox One / Xbox Series Bindings"
+	"description"		"Default bindings for Xbox One and Xbox Series X|S controllers"
+	"creator"			"0"
+	"controller_type"	"controller_xboxone"
+	"controller_caps"	""
+	"actions"
+	{
+		"Gameplay"
+		{
+			"dpad_north"	"up"
+			"dpad_south"	"down"
+			"dpad_west"		"left"
+			"dpad_east"		"right"
+			"button_A"		"a_button"
+			"button_B"		"b_button"
+			"button_start"	"start"
+			"button_back"	"select"
+		}
+		"Menu"
+		{
+			"dpad_north"	"menu_up"
+			"dpad_south"	"menu_down"
+			"dpad_west"		"menu_left"
+			"dpad_east"		"menu_right"
+			"button_A"		"menu_confirm"
+			"button_B"		"menu_back"
+		}
+	}
+}

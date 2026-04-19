@@ -99,6 +99,8 @@ internal sealed class AchievementManager
             "equals"         => actual == threshold,
             "greaterOrEqual" => actual >= threshold,
             "greaterThan"    => actual >  threshold,
+            "lessOrEqual"    => actual <= threshold,
+            "lessThan"       => actual <  threshold,
             _                => false,
         };
 }

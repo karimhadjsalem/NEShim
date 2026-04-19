@@ -18,12 +18,12 @@ internal static class SteamManager
 
     private static volatile bool _statsReady;
 
-    public static bool IsAvailable    { get; private set; }
+    public static bool IsAvailable     { get; private set; }
     public static bool IsOverlayActive { get; private set; }
 
     /// <summary>
-    /// True once Steam has returned the initial stats/achievements snapshot via
-    /// RequestCurrentStats. Achievement unlocks are suppressed until this is true.
+    /// True once Steam has delivered the initial stats snapshot.
+    /// Achievement unlocks are suppressed until this is true.
     /// </summary>
     public static bool StatsReady => _statsReady;
 
@@ -38,7 +38,6 @@ internal static class SteamManager
         {
             if (!SteamAPI.Init())
             {
-                System.Diagnostics.Debug.WriteLine("[Steam] SteamAPI.Init() returned false — running without Steam.");
                 IsAvailable = false;
                 return;
             }
@@ -46,25 +45,22 @@ internal static class SteamManager
             _overlayCallback       = Callback<GameOverlayActivated_t>.Create(OnOverlayActivated);
             _statsReceivedCallback = Callback<UserStatsReceived_t>.Create(OnStatsReceived);
             IsAvailable = true;
-            System.Diagnostics.Debug.WriteLine("[Steam] Initialized successfully.");
 
-            // Request the initial stats/achievement snapshot so StatsReady can be set.
-            SteamUserStats.RequestCurrentStats();
+            // Stats load automatically in SDK 1.61+; UserStatsReceived_t fires without
+            // an explicit RequestCurrentStats() call.
 
-            // Initialize Steam Input for Steam Controller support
             SteamInputManager.Initialize();
             SteamInputManager.ActivateMenuSet(); // starts at the main menu
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Steam] Init exception: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[Steam] Init failed: {ex.Message}");
             IsAvailable = false;
         }
     }
 
     /// <summary>
-    /// Call once per emulation frame to dispatch Steamworks callbacks.
-    /// Must be called on the same thread as Initialize().
+    /// Dispatches Steamworks callbacks. Must be called on the same thread as Initialize().
     /// </summary>
     public static void Tick()
     {
@@ -116,6 +112,5 @@ internal static class SteamManager
     private static void OnStatsReceived(UserStatsReceived_t callback)
     {
         _statsReady = true;
-        System.Diagnostics.Debug.WriteLine("[Steam] User stats received — achievements enabled.");
     }
 }

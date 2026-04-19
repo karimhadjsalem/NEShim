@@ -186,6 +186,145 @@ internal class AchievementManagerTests
         Assert.That(unlocked, Is.Empty);
     }
 
+    // ---- LessOrEqual ----
+
+    [Test]
+    public void Tick_LessOrEqual_FiresAtExactThreshold()
+    {
+        _domain.PeekByte(0).Returns((byte)10);
+        var config = new GameAchievementConfig
+        {
+            MemoryDomain = "System Bus",
+            Achievements =
+            [
+                new AchievementDef
+                {
+                    SteamId    = "ACH_SCORE",
+                    Address    = 0,
+                    Bytes      = 1,
+                    Encoding   = "binary",
+                    Comparison = "lessOrEqual",
+                    Value      = 10,
+                }
+            ]
+        };
+        var manager = CreateManager(config, statsReady: true, out var unlocked);
+
+        manager.Tick();
+
+        Assert.That(unlocked, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Tick_LessOrEqual_FiresBelowThreshold()
+    {
+        _domain.PeekByte(0).Returns((byte)9);
+        var config = new GameAchievementConfig
+        {
+            MemoryDomain = "System Bus",
+            Achievements =
+            [
+                new AchievementDef
+                {
+                    SteamId    = "ACH_SCORE",
+                    Address    = 0,
+                    Bytes      = 1,
+                    Encoding   = "binary",
+                    Comparison = "lessOrEqual",
+                    Value      = 10,
+                }
+            ]
+        };
+        var manager = CreateManager(config, statsReady: true, out var unlocked);
+
+        manager.Tick();
+
+        Assert.That(unlocked, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Tick_LessOrEqual_DoesNotFireAboveThreshold()
+    {
+        _domain.PeekByte(0).Returns((byte)11);
+        var config = new GameAchievementConfig
+        {
+            MemoryDomain = "System Bus",
+            Achievements =
+            [
+                new AchievementDef
+                {
+                    SteamId    = "ACH_SCORE",
+                    Address    = 0,
+                    Bytes      = 1,
+                    Encoding   = "binary",
+                    Comparison = "lessOrEqual",
+                    Value      = 10,
+                }
+            ]
+        };
+        var manager = CreateManager(config, statsReady: true, out var unlocked);
+
+        manager.Tick();
+
+        Assert.That(unlocked, Is.Empty);
+    }
+
+    // ---- LessThan ----
+
+    [Test]
+    public void Tick_LessThan_FiresBelowThreshold()
+    {
+        _domain.PeekByte(0).Returns((byte)49);
+        var config = new GameAchievementConfig
+        {
+            MemoryDomain = "System Bus",
+            Achievements =
+            [
+                new AchievementDef
+                {
+                    SteamId    = "ACH_SCORE",
+                    Address    = 0,
+                    Bytes      = 1,
+                    Encoding   = "binary",
+                    Comparison = "lessThan",
+                    Value      = 50,
+                }
+            ]
+        };
+        var manager = CreateManager(config, statsReady: true, out var unlocked);
+
+        manager.Tick();
+
+        Assert.That(unlocked, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Tick_LessThan_DoesNotFireAtExactThreshold()
+    {
+        _domain.PeekByte(0).Returns((byte)50);
+        var config = new GameAchievementConfig
+        {
+            MemoryDomain = "System Bus",
+            Achievements =
+            [
+                new AchievementDef
+                {
+                    SteamId    = "ACH_SCORE",
+                    Address    = 0,
+                    Bytes      = 1,
+                    Encoding   = "binary",
+                    Comparison = "lessThan",
+                    Value      = 50,
+                }
+            ]
+        };
+        var manager = CreateManager(config, statsReady: true, out var unlocked);
+
+        manager.Tick();
+
+        Assert.That(unlocked, Is.Empty);
+    }
+
     // ---- BCD decoding ----
 
     [Test]
