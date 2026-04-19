@@ -134,6 +134,18 @@ This is separate from `inputMappings` — hotkeys are edge-triggered system acti
 
 ---
 
+## Developer / diagnostic settings
+
+These fields are not exposed in any in-game menu. They are intended for publishers building and tuning a specific release. Set them directly in `config.json`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enableLogging` | boolean | `false` | When `true`, diagnostic output is appended to `neshim.log` in the executable directory. Useful for debugging startup, audio, or Steam handshake issues. **Do not ship with this enabled** — it creates a log file on the player's machine. |
+| `region` | string | `"Auto"` | NES emulation region. Controls CPU clock rate, PPU scanline timing, APU frame counter, and the VSync rate used by the frame-timing loop. `"Auto"` detects from the ROM's iNES header (correct for most ROMs). `"NTSC"` forces ~60.099 Hz; `"PAL"` forces ~50.007 Hz; `"Dendy"` forces ~49.99 Hz (Russian clone variant). |
+| `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
+
+---
+
 ## Full example `config.json`
 
 ```json
@@ -182,6 +194,11 @@ This is separate from `inputMappings` — hotkeys are edge-triggered system acti
   "mainMenuMusicEnabled": true,
   "graphicsSmoothingEnabled": false,
   "mainMenuPosition": "BottomCenter",
-  "showFps": false
+  "showFps": false,
+
+  "_comment_developer_settings": "The fields below are developer-only and not exposed in any menu.",
+  "enableLogging": false,
+  "region": "Auto",
+  "analogStickMode": "Cardinal"
 }
 ```

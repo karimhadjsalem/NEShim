@@ -104,6 +104,15 @@ Each NES button in `inputMappings` has an optional `gamepadButton` field. Valid 
 
 The left analog stick is automatically converted to directional input using the configured deadzone (`gamepadDeadzone`). The conversion runs even if D-pad buttons are already mapped. The deadzone is a raw axis value in the range ±32767; the default of 8000 is about 24% deflection.
 
+When both axes exceed the deadzone at the same time (stick pushed diagonally), behaviour is controlled by the `analogStickMode` developer setting:
+
+| `analogStickMode` | Behaviour |
+|---|---|
+| `"Cardinal"` (default) | The axis with the larger absolute value wins. Only one direction registers, preventing accidental diagonal NES input in games with 4-directional movement. |
+| `"Diagonal"` | Both axes register simultaneously. Use this for games with genuine 8-directional movement. |
+
+Menu navigation always uses cardinal mode regardless of this setting — menus are inherently 4-directional.
+
 ---
 
 ## Steam Input

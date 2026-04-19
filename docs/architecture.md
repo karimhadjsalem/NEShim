@@ -226,6 +226,7 @@ NES pixel buffer (int[256×240], ARGB)
                       ├─ g.DrawImage(bitmap → letterboxed rect)
                       ├─ If pause menu open → MenuRenderer.Draw() overlay
                       ├─ Toast notification (if active)
+                      ├─ Achievement notification (if active, 5-second banner)
                       └─ FPS overlay (if enabled)
 ```
 

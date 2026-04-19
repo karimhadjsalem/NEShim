@@ -29,7 +29,7 @@ NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes 
 - Windows 10 or later (x64)
 - .NET 9 runtime (bundled in self-contained publish)
 - Steam client — required for achievements and overlay; the emulator runs without it but Steam features are silently disabled
-- **`steam_api64.dll`** — the native Steamworks SDK DLL, found in `sdk/redistributable_bin/win64/` of the Steamworks SDK download. Must be placed alongside the executable. Not included in the repository (Valve SDK license); obtain it from the [Steamworks partner dashboard](https://partner.steamgames.com/). Steam deployments receive it automatically via the depot.
+- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. Not included in the repository (Valve SDK license). Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
