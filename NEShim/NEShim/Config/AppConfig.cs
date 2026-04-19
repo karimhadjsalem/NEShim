@@ -80,6 +80,15 @@ public sealed class AppConfig
     // Developer option — not exposed in any menu.
     // When true, diagnostic output is appended to neshim.log next to the executable.
     public bool EnableLogging { get; set; } = false;
+
+    // Developer option — not exposed in any menu.
+    // Controls the NES region used for emulation. Affects CPU clock rate, PPU scanline
+    // timing, APU frame counter, and the VSync rate exposed to the frame-timing loop.
+    // "Auto"  — detect from the ROM's iNES header (default; correct for most ROMs)
+    // "NTSC"  — force NTSC (~60.099 Hz) regardless of ROM header
+    // "PAL"   — force PAL  (~50.007 Hz) regardless of ROM header
+    // "Dendy" — force Dendy (~49.99 Hz, Russian clone) regardless of ROM header
+    public string Region { get; set; } = "Auto";
 }
 
 public sealed class InputBinding
