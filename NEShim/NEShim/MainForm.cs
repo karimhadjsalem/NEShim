@@ -30,6 +30,12 @@ public partial class MainForm : Form
     private InGameMenu?       _menu;
     private EmulationThread?  _emulationThread;
 
+    // ---- Steam ----
+    // Steam callbacks (RunCallbacks) must be dispatched on the same thread that
+    // called SteamAPI.Init(). We initialise on the UI thread, so we also tick
+    // on the UI thread via this timer rather than from the emulation thread.
+    private System.Windows.Forms.Timer? _steamTimer;
+
     // Processor instances kept alive so they can be swapped without re-allocation.
     private readonly NesFilterProcessor     _nesFilterProcessor     = new();
     private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
@@ -92,7 +98,9 @@ public partial class MainForm : Form
                 achievements = new AchievementManager(
                     _host.MemoryDomains, achConfig,
                     () => SteamManager.StatsReady,
-                    SteamManager.UnlockAchievement);
+                    // Marshal to the UI thread — all Steam API calls must be on the
+                    // same thread that called SteamAPI.Init().
+                    id => BeginInvoke(() => SteamManager.UnlockAchievement(id)));
         }
 
         // 4. Save RAM (load before first frame)
@@ -225,6 +233,13 @@ public partial class MainForm : Form
         SteamManager.Initialize(overlayActive =>
             _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive));
 
+        // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
+        // to be called on the same thread as SteamAPI.Init() — we initialise on the UI
+        // thread, so this timer keeps all Steam API calls on that thread.
+        _steamTimer = new System.Windows.Forms.Timer { Interval = 16 };
+        _steamTimer.Tick += (_, _) => SteamManager.Tick();
+        _steamTimer.Start();
+
         // 12. Apply window mode
         SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
 
@@ -345,6 +360,7 @@ public partial class MainForm : Form
         catch { /* best-effort on shutdown */ }
 
         // Dispose resources
+        _steamTimer?.Dispose();
         _mainMenuMusic?.Dispose();
         _mainMenuScreen?.Dispose();
         _audio?.Dispose();

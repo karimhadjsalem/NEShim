@@ -148,10 +148,8 @@ internal sealed class EmulationThread
             HandleHotkeys();
             _input.AdvanceHotkeyState();
 
-            // 3. Steam callbacks
-            SteamManager.Tick();
-
-            // 4. Pause check — block here while paused, polling gamepad for menu input
+            // 3. Pause check — block here while paused, polling gamepad for menu input
+            // (Steam callbacks are ticked on the UI thread via MainForm._steamTimer)
             if (IsPaused)
             {
                 if (_gamePanel.IsWaitingForGamepadButton)
@@ -179,27 +177,27 @@ internal sealed class EmulationThread
             // frame doesn't inherit a stale start time that puts target in the past.
             long frameStart = Stopwatch.GetTimestamp();
 
-            // 5. Emulate one frame
+            // 4. Emulate one frame
             _host.RunFrame();
 
-            // 5a. Check achievement triggers against the post-frame memory state
+            // 4a. Check achievement triggers against the post-frame memory state
             _achievements?.Tick();
 
-            // 6. Copy video to front buffer
+            // 5. Copy video to front buffer
             var videoBuffer = _host.Video.GetVideoBuffer();
             _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
             _frameBuffer.Swap();
 
-            // 7. Push FPS state into panel then notify UI to repaint (non-blocking)
+            // 6. Push FPS state into panel then notify UI to repaint (non-blocking)
             _gamePanel.ShowFps   = _config.ShowFps;
             _gamePanel.CurrentFps = CurrentFps;
             _gamePanel.BeginInvoke(_gamePanel.UpdateFrame);
 
-            // 8. Submit audio
+            // 7. Submit audio
             _host.Sound.GetSamplesSync(out short[] samples, out int nsamp);
             _audio.Enqueue(samples, nsamp);
 
-            // 9. FPS tracking
+            // 8. FPS tracking
             _frameCount++;
             long now = Stopwatch.GetTimestamp();
             if (now - _fpsTimestamp >= Stopwatch.Frequency)
@@ -209,7 +207,7 @@ internal sealed class EmulationThread
                 _fpsTimestamp = now;
             }
 
-            // 10. Frame timing — coarse sleep then spin
+            // 9. Frame timing — coarse sleep then spin
             long target = frameStart + ticksPerFrame;
             long remaining = target - Stopwatch.GetTimestamp();
             if (remaining > spinThreshold * 2)
