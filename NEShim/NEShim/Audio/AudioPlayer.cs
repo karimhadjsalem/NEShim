@@ -46,7 +46,10 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _processor = processor;
     }
 
-    /// <summary>Starts audio output on the default device.</summary>
+    /// <summary>
+    /// Starts audio output. <paramref name="deviceName"/> is reserved for future use —
+    /// the current implementation always opens the default WASAPI device.
+    /// </summary>
     public void Start(string deviceName = "")
     {
         try
