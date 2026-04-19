@@ -27,6 +27,9 @@ internal sealed class EmulatorHost : IDisposable
     public int VsyncNumerator   => Video.VsyncNumerator;
     public int VsyncDenominator => Video.VsyncDenominator;
 
+    /// <summary>The region the core is actually running as (NTSC, PAL, or Dendy).</summary>
+    public string ActiveRegion => _nes.Region.ToString();
+
     private EmulatorHost(NES nes, string romHash)
     {
         _nes = nes;
@@ -41,6 +44,9 @@ internal sealed class EmulatorHost : IDisposable
         MemoryDomains = nes.ServiceProvider.GetService<IMemoryDomains>();
         Controller    = new NesController(nes.ControllerDefinition);
         RomHash       = romHash;
+
+        Logger.Log($"[Emulator] MemoryDomains: {(MemoryDomains is null ? "unavailable" : "available")}");
+        Logger.Log("[Emulator] Core ready.");
     }
 
     public static EmulatorHost Load(string romPath, AppConfig config)
@@ -50,8 +56,8 @@ internal sealed class EmulatorHost : IDisposable
         var fileProvider = new NeshimFileProvider();
         var glProvider   = new NullOpenGLProvider();
         var coreComm     = new CoreComm(
-            showMessage:      msg => System.Diagnostics.Debug.WriteLine($"[NES] {msg}"),
-            notifyMessage:    (msg, _) => System.Diagnostics.Debug.WriteLine($"[NES notify] {msg}"),
+            showMessage:      msg => Logger.Log($"[NES] {msg}"),
+            notifyMessage:    (msg, _) => Logger.Log($"[NES notify] {msg}"),
             question:         _ => null,
             coreFileProvider: fileProvider,
             prefs:            CoreComm.CorePreferencesFlags.None,
@@ -71,11 +77,25 @@ internal sealed class EmulatorHost : IDisposable
             {
                 NesLeftPort  = "ControllerNES",
                 NesRightPort = "UnpluggedNES",
-            }
+            },
+            RegionOverride = config.Region.ToUpperInvariant() switch
+            {
+                "PAL"   => NES.NESSyncSettings.Region.PAL,
+                "NTSC"  => NES.NESSyncSettings.Region.NTSC,
+                "DENDY" => NES.NESSyncSettings.Region.Dendy,
+                _       => NES.NESSyncSettings.Region.Default, // "Auto" — detect from ROM header
+            },
         };
+
+        Logger.Log($"[Emulator] Loading ROM: {romPath} ({rom.Length:N0} bytes)");
+        Logger.Log($"[Emulator] Region config: '{config.Region}' → override={syncSettings.RegionOverride}");
 
         var nes     = new NES(coreComm, gameInfo, rom, settings, syncSettings);
         string hash = SHA1Checksum.ComputeDigestHex(rom);
+
+        Logger.Log($"[Emulator] ROM hash (SHA1): {hash}");
+        Logger.Log($"[Emulator] Active region: {nes.Region} — VSync: {nes.VsyncNumerator}/{nes.VsyncDenominator}");
+
         return new EmulatorHost(nes, hash);
     }
 
@@ -86,7 +106,11 @@ internal sealed class EmulatorHost : IDisposable
     }
 
     /// <summary>Hard-resets the NES (power cycle).</summary>
-    public void Reset() => _nes.HardReset();
+    public void Reset()
+    {
+        Logger.Log("[Emulator] Hard reset.");
+        _nes.HardReset();
+    }
 
     public void Dispose() => _nes.Dispose();
 }

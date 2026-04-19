@@ -75,14 +75,32 @@ internal sealed class InputManager
             if (pressed) builder.Add(nesButton);
         }
 
-        // Analog stick → D-pad conversion (Steam handles this via action sets when active)
+        // Analog stick → D-pad conversion (Steam handles this via action sets when active).
+        // Cardinal mode (default): dominant-axis helpers ensure only one direction fires when
+        // the stick is pushed diagonally, preventing accidental diagonal NES inputs.
+        // Diagonal mode: raw per-axis threshold — both axes can register simultaneously for
+        // games that use 8-directional movement.
         if (gamepad.Connected)
         {
-            int deadzone = config.GamepadDeadzone;
-            if (gamepad.ThumbLY >  deadzone) builder.Add("P1 Up");
-            if (gamepad.ThumbLY < -deadzone) builder.Add("P1 Down");
-            if (gamepad.ThumbLX < -deadzone) builder.Add("P1 Left");
-            if (gamepad.ThumbLX >  deadzone) builder.Add("P1 Right");
+            int dz = config.GamepadDeadzone;
+            int lx = gamepad.ThumbLX;
+            int ly = gamepad.ThumbLY;
+            bool diagonal = config.AnalogStickMode.Equals("Diagonal", StringComparison.OrdinalIgnoreCase);
+
+            if (diagonal)
+            {
+                if (ly >  dz) builder.Add("P1 Up");
+                if (ly < -dz) builder.Add("P1 Down");
+                if (lx < -dz) builder.Add("P1 Left");
+                if (lx >  dz) builder.Add("P1 Right");
+            }
+            else
+            {
+                if (StickUp(lx, ly, dz))    builder.Add("P1 Up");
+                if (StickDown(lx, ly, dz))  builder.Add("P1 Down");
+                if (StickLeft(lx, ly, dz))  builder.Add("P1 Left");
+                if (StickRight(lx, ly, dz)) builder.Add("P1 Right");
+            }
         }
 
         return new InputSnapshot(builder.ToImmutable());
@@ -104,17 +122,19 @@ internal sealed class InputManager
 
         int dz = config.GamepadDeadzone;
 
-        bool up      = pad.Connected && (pad.DPadUp    || pad.ThumbLY >  dz);
-        bool down    = pad.Connected && (pad.DPadDown  || pad.ThumbLY < -dz);
-        bool left    = pad.Connected && (pad.DPadLeft  || pad.ThumbLX < -dz);
-        bool right   = pad.Connected && (pad.DPadRight || pad.ThumbLX >  dz);
+        // Menu navigation is always 4-directional: apply dominant-axis suppression
+        // unconditionally so a diagonal stick push only fires one direction.
+        bool up      = pad.Connected && (pad.DPadUp    || StickUp(pad.ThumbLX,   pad.ThumbLY,   dz));
+        bool down    = pad.Connected && (pad.DPadDown  || StickDown(pad.ThumbLX,  pad.ThumbLY,  dz));
+        bool left    = pad.Connected && (pad.DPadLeft  || StickLeft(pad.ThumbLX,  pad.ThumbLY,  dz));
+        bool right   = pad.Connected && (pad.DPadRight || StickRight(pad.ThumbLX, pad.ThumbLY,  dz));
         bool confirm = pad.Connected && pad.A;
         bool back    = pad.Connected && (pad.B || pad.Back);
 
-        bool prevUp      = prev.Connected && (prev.DPadUp    || prev.ThumbLY >  dz);
-        bool prevDown    = prev.Connected && (prev.DPadDown  || prev.ThumbLY < -dz);
-        bool prevLeft    = prev.Connected && (prev.DPadLeft  || prev.ThumbLX < -dz);
-        bool prevRight   = prev.Connected && (prev.DPadRight || prev.ThumbLX >  dz);
+        bool prevUp      = prev.Connected && (prev.DPadUp    || StickUp(prev.ThumbLX,   prev.ThumbLY,   dz));
+        bool prevDown    = prev.Connected && (prev.DPadDown  || StickDown(prev.ThumbLX,  prev.ThumbLY,  dz));
+        bool prevLeft    = prev.Connected && (prev.DPadLeft  || StickLeft(prev.ThumbLX,  prev.ThumbLY,  dz));
+        bool prevRight   = prev.Connected && (prev.DPadRight || StickRight(prev.ThumbLX, prev.ThumbLY,  dz));
         bool prevConfirm = prev.Connected && prev.A;
         bool prevBack    = prev.Connected && (prev.B || prev.Back);
 
@@ -216,6 +236,12 @@ internal sealed class InputManager
 
         return currPressed && !wasPressed;
     }
+
+    // Cardinal-mode helpers: each direction is only active when its axis is dominant.
+    private static bool StickUp(int lx, int ly, int dz)    => ly >  dz && Math.Abs(ly) >= Math.Abs(lx);
+    private static bool StickDown(int lx, int ly, int dz)  => ly < -dz && Math.Abs(ly) >= Math.Abs(lx);
+    private static bool StickLeft(int lx, int ly, int dz)  => lx < -dz && Math.Abs(lx) >  Math.Abs(ly);
+    private static bool StickRight(int lx, int ly, int dz) => lx >  dz && Math.Abs(lx) >  Math.Abs(ly);
 
     /// <summary>Called at the end of each frame to advance edge-detection state.</summary>
     public void AdvanceHotkeyState()

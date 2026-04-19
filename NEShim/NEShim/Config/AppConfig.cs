@@ -76,6 +76,28 @@ public sealed class AppConfig
 
     // When true, displays a live FPS counter in the top-right corner during gameplay.
     public bool ShowFps { get; set; } = false;
+
+    // Developer option — not exposed in any menu.
+    // When true, diagnostic output is appended to neshim.log next to the executable.
+    public bool EnableLogging { get; set; } = false;
+
+    // Developer option — not exposed in any menu.
+    // Controls the NES region used for emulation. Affects CPU clock rate, PPU scanline
+    // timing, APU frame counter, and the VSync rate exposed to the frame-timing loop.
+    // "Auto"  — detect from the ROM's iNES header (default; correct for most ROMs)
+    // "NTSC"  — force NTSC (~60.099 Hz) regardless of ROM header
+    // "PAL"   — force PAL  (~50.007 Hz) regardless of ROM header
+    // "Dendy" — force Dendy (~49.99 Hz, Russian clone) regardless of ROM header
+    public string Region { get; set; } = "Auto";
+
+    // Developer option — not exposed in any menu.
+    // Controls how the left analog stick maps to the NES d-pad when both axes exceed
+    // the deadzone at the same time (i.e. the stick is pushed diagonally).
+    // "Cardinal" — dominant axis wins; only the larger absolute axis is registered.
+    //              Prevents accidental diagonals for games that have no diagonal movement.
+    // "Diagonal" — both axes are registered simultaneously, allowing true diagonal input
+    //              for games that use it (e.g. games with 8-directional movement).
+    public string AnalogStickMode { get; set; } = "Cardinal";
 }
 
 public sealed class InputBinding

@@ -46,7 +46,10 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _processor = processor;
     }
 
-    /// <summary>Starts audio output on the default device.</summary>
+    /// <summary>
+    /// Starts audio output. <paramref name="deviceName"/> is reserved for future use —
+    /// the current implementation always opens the default WASAPI device.
+    /// </summary>
     public void Start(string deviceName = "")
     {
         try
@@ -55,20 +58,22 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
             device.Init(this);
             device.Play();
             _device = device;
+            Logger.Log("[Audio] WASAPI device started.");
         }
-        catch
+        catch (Exception wasapiEx)
         {
-            // Fall back to WaveOut if WASAPI fails
+            Logger.Log($"[Audio] WASAPI failed ({wasapiEx.Message}) — falling back to WaveOut.");
             try
             {
                 var device = new WaveOutEvent { DesiredLatency = 100 };
                 device.Init(this);
                 device.Play();
                 _device = device;
+                Logger.Log("[Audio] WaveOut device started.");
             }
-            catch
+            catch (Exception waveOutEx)
             {
-                // No audio — silently continue
+                Logger.Log($"[Audio] WaveOut also failed ({waveOutEx.Message}) — running silent.");
             }
         }
     }
@@ -82,6 +87,7 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     {
         processor.ResetState();
         _processor = processor;
+        Logger.Log($"[Audio] Processor switched to {processor.GetType().Name}.");
     }
 
     /// <summary>Sets the master volume. <paramref name="volume"/> is clamped to [0, 1].</summary>

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 using Steamworks;
 using NEShim.Input;
 
@@ -59,7 +58,7 @@ internal static class SteamInputManager
         {
             if (!SteamInput.Init(false))
             {
-                Debug.WriteLine("[SteamInput] Init returned false — Steam Controller unavailable.");
+                Logger.Log("[SteamInput] Init returned false — Steam Controller unavailable.");
                 return;
             }
 
@@ -86,11 +85,11 @@ internal static class SteamInputManager
             _hMenuBack    = SteamInput.GetDigitalActionHandle("menu_back");
 
             IsAvailable = true;
-            Debug.WriteLine("[SteamInput] Initialized — Steam Controller support active.");
+            Logger.Log("[SteamInput] Initialized — Steam Controller support active.");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SteamInput] Init exception: {ex.Message}");
+            Logger.Log($"[SteamInput] Init exception: {ex.Message}");
         }
     }
 

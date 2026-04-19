@@ -47,29 +47,57 @@ internal static class AchievementConfigLoader
     /// </summary>
     internal static GameAchievementConfig? Load(string romHash)
     {
-        if (!File.Exists(ConfigPath)) return null;
+        Logger.Log($"[Achievements] Loading for ROM hash: {romHash}");
+
+        if (!File.Exists(ConfigPath))
+        {
+            Logger.Log($"[Achievements] achievements.json not found at: {ConfigPath}");
+            return null;
+        }
 
         try
         {
             string json = File.ReadAllText(ConfigPath);
             var dict = JsonSerializer.Deserialize<Dictionary<string, GameAchievementConfig>>(json, _options);
-            if (dict is null || !dict.TryGetValue(romHash, out var config)) return null;
 
+            if (dict is null)
+            {
+                Logger.Log("[Achievements] achievements.json deserialized to null — file may be empty or malformed.");
+                return null;
+            }
+
+            if (!dict.TryGetValue(romHash, out var config))
+            {
+                Logger.Log($"[Achievements] No entry for hash '{romHash}' in achievements.json. Known hashes: {string.Join(", ", dict.Keys)}");
+                return null;
+            }
+
+            int total = config.Achievements.Count;
             config.Achievements = config.Achievements
                 .Where(def =>
                 {
                     bool valid = AchievementSigner.Verify(def);
                     if (!valid)
-                        System.Diagnostics.Debug.WriteLine(
+                        Logger.Log(
                             $"[Achievements] Rejected '{def.SteamId}' — missing or invalid signature. Run SealAchievements to fix.");
                     return valid;
                 })
                 .ToList();
 
-            return config.Achievements.Count > 0 ? config : null;
+            int loaded = config.Achievements.Count;
+            Logger.Log($"[Achievements] Loaded {loaded}/{total} definitions for hash '{romHash}'.");
+
+            if (loaded == 0)
+            {
+                Logger.Log("[Achievements] All definitions were rejected — no achievements will fire.");
+                return null;
+            }
+
+            return config;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Log($"[Achievements] Failed to load achievements.json: {ex.Message}");
             return null;
         }
     }

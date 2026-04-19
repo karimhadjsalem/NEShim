@@ -20,6 +20,7 @@ public static class ConfigLoader
     {
         if (!File.Exists(ConfigPath))
         {
+            Logger.Log($"[Config] config.json not found — writing defaults to {ConfigPath}");
             var defaults = new AppConfig();
             Save(defaults);
             return defaults;
@@ -28,10 +29,13 @@ public static class ConfigLoader
         try
         {
             string json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            Logger.Log($"[Config] Loaded from {ConfigPath}");
+            return config;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Log($"[Config] Parse error — using defaults: {ex.Message}");
             return new AppConfig();
         }
     }
@@ -40,5 +44,6 @@ public static class ConfigLoader
     {
         string json = JsonSerializer.Serialize(config, _options);
         File.WriteAllText(ConfigPath, json);
+        Logger.Log($"[Config] Saved to {ConfigPath}");
     }
 }

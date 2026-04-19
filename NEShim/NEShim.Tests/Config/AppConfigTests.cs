@@ -95,4 +95,27 @@ internal class AppConfigTests
         Assert.That(binding.Key,           Is.Null);
         Assert.That(binding.GamepadButton, Is.Null);
     }
+
+    // ---- Hidden / developer-only defaults ----
+
+    [Test]
+    public void EnableLogging_DefaultIsFalse()
+    {
+        var config = new AppConfig();
+        Assert.That(config.EnableLogging, Is.False);
+    }
+
+    [Test]
+    public void Region_DefaultIsAuto()
+    {
+        var config = new AppConfig();
+        Assert.That(config.Region, Is.EqualTo("Auto"));
+    }
+
+    [Test]
+    public void AnalogStickMode_DefaultIsCardinal()
+    {
+        var config = new AppConfig();
+        Assert.That(config.AnalogStickMode, Is.EqualTo("Cardinal"));
+    }
 }

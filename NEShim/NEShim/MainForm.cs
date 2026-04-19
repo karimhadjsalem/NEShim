@@ -87,6 +87,9 @@ public partial class MainForm : Form
         _config = ConfigLoader.Load();
         this.Text = _config.WindowTitle;
 
+        if (_config.EnableLogging)
+            Logger.Enable();
+
         // 2. Load ROM
         string romPath = Path.IsPathRooted(_config.RomPath)
             ? _config.RomPath
@@ -104,12 +107,30 @@ public partial class MainForm : Form
         {
             var achConfig = AchievementConfigLoader.Load(_host.RomHash);
             if (achConfig is not null)
+            {
                 achievements = new AchievementManager(
                     _host.MemoryDomains, achConfig,
                     () => SteamManager.StatsReady,
                     // Marshal to the UI thread — all Steam API calls must be on the
                     // same thread that called SteamAPI.Init().
-                    id => BeginInvoke(() => SteamManager.UnlockAchievement(id)));
+                    id => BeginInvoke(() =>
+                    {
+                        if (SteamManager.UnlockAchievement(id))
+                        {
+                            string name = SteamManager.GetAchievementDisplayName(id) ?? id;
+                            _gamePanel?.ShowAchievementNotification(name);
+                        }
+                    }));
+                Logger.Log("[Achievements] Manager created — triggers active.");
+            }
+            else
+            {
+                Logger.Log("[Achievements] No valid config loaded — achievement manager not created.");
+            }
+        }
+        else
+        {
+            Logger.Log("[Achievements] MemoryDomains unavailable — achievement manager not created.");
         }
 
         // 4. Save RAM (load before first frame)
@@ -125,6 +146,7 @@ public partial class MainForm : Form
             : Path.Combine(AppContext.BaseDirectory, _config.SaveStateDirectory);
         _saveStates = new SaveStateManager(_host.States, stateDir);
         _saveStates.ActiveSlot = _config.ActiveSlot;
+        Logger.Log($"[Init] Save state directory: {stateDir} (active slot: {_config.ActiveSlot + 1})");
 
         // 6. Rendering
         _frameBuffer = new FrameBuffer();
@@ -145,6 +167,7 @@ public partial class MainForm : Form
         IAudioProcessor startingProcessor = _config.SoundScrubberEnabled
             ? _soundScrubberProcessor
             : _nesFilterProcessor;
+        Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, processor={startingProcessor.GetType().Name}, volume={_config.Volume}%");
         _audio = new AudioPlayer(_config.AudioBufferFrames, startingProcessor);
         _audio.SetVolume(_config.Volume / 100f);
 
@@ -244,6 +267,7 @@ public partial class MainForm : Form
         // Hiding GamePanel when the overlay opens exposes the D3D surface underneath.
         SteamManager.Initialize(overlayActive =>
         {
+            Logger.Log($"[Steam] Overlay {(overlayActive ? "opened" : "closed")}.");
             _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
             if (_gamePanel is not null)
                 _gamePanel.Visible = !overlayActive;
@@ -261,6 +285,7 @@ public partial class MainForm : Form
         SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
         _d3dHook = new Rendering.D3DOverlayHook();
         _d3dHook.Initialize(Handle, Width, Height);
+        Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
         Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
         // 13. Start audio and emulation — thread starts paused at main menu
@@ -268,6 +293,7 @@ public partial class MainForm : Form
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel.Focus();
         _emulationThread.Start();
+        Logger.Log("[Init] Startup complete — showing main menu.");
 
         // Show main menu immediately
         _gamePanel.Invalidate();
@@ -321,6 +347,7 @@ public partial class MainForm : Form
             CenterToScreen();
         }
         _config!.WindowMode = fullscreen ? "Fullscreen" : "Windowed";
+        Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
     }
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
@@ -359,7 +386,7 @@ public partial class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
-        // Stop emulation thread first
+        Logger.Log("[Shutdown] Form closing — stopping emulation thread.");
         _emulationThread?.Stop();
 
         // Persist state — only auto-save if the game was actually running
@@ -367,6 +394,8 @@ public partial class MainForm : Form
         {
             if (_mainMenuScreen is null || !_mainMenuScreen.IsVisible)
                 _saveStates?.AutoSave();
+            else
+                Logger.Log("[Shutdown] Main menu was visible — skipping auto-save.");
 
             _saveRam?.SaveToDisk();
 
@@ -377,9 +406,10 @@ public partial class MainForm : Form
                 ConfigLoader.Save(_config);
             }
         }
-        catch { /* best-effort on shutdown */ }
+        catch (Exception ex) { Logger.Log($"[Shutdown] Persist error: {ex.Message}"); }
 
         // Dispose resources
+        Logger.Log("[Shutdown] Disposing resources.");
         _steamTimer?.Dispose();
         _d3dHook?.Dispose();
         _mainMenuMusic?.Dispose();
@@ -387,6 +417,7 @@ public partial class MainForm : Form
         _audio?.Dispose();
         _host?.Dispose();
         SteamManager.Shutdown();
+        Logger.Log("[Shutdown] Done.");
     }
 
     protected override void WndProc(ref Message m)

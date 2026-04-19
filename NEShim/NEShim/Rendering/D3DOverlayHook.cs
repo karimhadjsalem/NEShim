@@ -64,7 +64,7 @@ internal sealed class D3DOverlayHook : IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[D3DOverlayHook] Init failed: {ex.Message}");
+            Logger.Log($"[D3DOverlayHook] Init failed: {ex.Message}");
             _device?.Dispose();
             _device    = null;
             _swapChain = null;
