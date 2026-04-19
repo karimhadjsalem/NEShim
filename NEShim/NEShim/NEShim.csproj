@@ -29,6 +29,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Content Include="lib\steam_api64.dll">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Link>steam_api64.dll</Link>
+        </Content>
         <Content Include="steam_appid.txt">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
