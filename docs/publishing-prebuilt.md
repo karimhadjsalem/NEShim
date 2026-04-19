@@ -53,14 +53,13 @@ In `config.json`, set `windowTitle` to your game's name:
 
 ---
 
-## 4. Obtain `steam_api64.dll`
+## 4. `steam_api64.dll`
 
-Steamworks.NET P/Invokes into the native `steam_api64.dll` at runtime. This file is **not** included in a NEShim release (Valve SDK license) and must be added manually.
+`steam_api64.dll` is already included in the NEShim release package alongside the exe — no action required.
 
-1. Download the Steamworks SDK from the [Steamworks partner dashboard](https://partner.steamgames.com/).
-2. Copy `sdk/redistributable_bin/win64/steam_api64.dll` into the output directory (next to the exe).
+Include it in your Steam depot when uploading; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
-Include `steam_api64.dll` in your depot when uploading to Steam — Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
+If you ever need to upgrade to a newer Steamworks.NET version, use the copy bundled inside the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is pre-matched to the wrapper version.
 
 ---
 
@@ -197,7 +196,7 @@ Before uploading to Steam:
 - [ ] `NEShim.exe` renamed to `MyGame.exe` (only the exe; all other `NEShim.*` files stay as-is)
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
-- [ ] `steam_api64.dll` copied into the output directory and included in your Steam depot
+- [ ] `steam_api64.dll` included in your Steam depot (already present in the release package)
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
 - [ ] Steam Input VDF uploaded to Steamworks dashboard (optional)
@@ -219,7 +218,7 @@ MyGame/
 ├── NEShim.runtimeconfig.json   ← must keep this name
 ├── NEShim.AchievementSigning.dll
 ├── BizHawk.dll
-├── steam_api64.dll             ← from Steamworks SDK; must be included in your depot
+├── steam_api64.dll             ← from Steamworks.NET release zip; must be included in your depot
 ├── steam_appid.txt
 ├── game_actions_1234560.vdf
 ├── config.json

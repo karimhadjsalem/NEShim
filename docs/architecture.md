@@ -32,12 +32,12 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display surface), scalers |
+| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display surface), scalers, `D3DOverlayHook` (Steam overlay surface) |
 | `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` |
-| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, per-frame tick; `SteamInputManager` |
+| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
 
 ---
@@ -61,8 +61,8 @@ Program.cs
                  9a. MainMenuScreen + MainMenuMusic
                  10. InGameMenu
                  11. EmulationThread (starts paused at MainMenu)
-                 12. SteamManager.Initialize() → overlay callback, stats request
-                 13. SetWindowMode()
+                 12. SteamManager.Initialize() → overlay callback wired; UI-thread timer started (~60 Hz)
+                 13. SetWindowMode() → then D3DOverlayHook.Initialize(Handle, Width, Height)
                  14. audio.Start(), emulationThread.Start()
 ```
 
@@ -91,15 +91,16 @@ Per-frame sequence:
 2. `NesController.Update()` — push snapshot to BizHawk
 3. `HandleHotkeys()` — edge-triggered system actions (save/load slot, menu open)
 4. `InputManager.AdvanceHotkeyState()` — advance edge-detection state
-5. `SteamManager.Tick()` — dispatch Steamworks callbacks
-6. **Pause check** — if `_pauseReasonBits != 0`, block on `ManualResetEventSlim`, polling for gamepad menu nav
-7. `EmulatorHost.RunFrame()` — advance NES by one frame
-8. `AchievementManager.Tick()` — evaluate memory triggers
-9. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
-10. `GamePanel.BeginInvoke(UpdateFrame)` — notify UI thread to repaint (non-blocking)
-11. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
-12. FPS tracking
-13. Frame timing — sleep + spin to hit the target timestamp
+5. **Pause check** — if `_pauseReasonBits != 0`, block on `ManualResetEventSlim`, polling for gamepad menu nav
+6. `EmulatorHost.RunFrame()` — advance NES by one frame
+7. `AchievementManager.Tick()` — evaluate memory triggers
+8. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
+9. `GamePanel.BeginInvoke(UpdateFrame)` — notify UI thread to repaint (non-blocking)
+10. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
+11. FPS tracking
+12. Frame timing — sleep + spin to hit the target timestamp
+
+`SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) and `D3DOverlayHook.Present()` run on the **UI thread** via a `System.Windows.Forms.Timer` at ~60 Hz, not on the emulation thread. Steam requires callbacks to be dispatched on the same thread that called `SteamAPI.Init()`.
 
 **Cross-thread rules:**
 - The emulation thread never calls WinForms methods directly — always via `BeginInvoke`.
@@ -187,6 +188,26 @@ The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`.
 `MainMenuMusic` plays a looping audio file with smooth 1-second fade-in and 0.5-second fade-out transitions. Volume is split into `_fadeLevel` (0–1, driven by timer) and `_masterVolume` (user-controlled). The audible output is `_fadeLevel × _masterVolume`, so master volume changes during a fade behave correctly.
 
 Looping is handled inside `LoopingSampleProvider` (an inner class) which seeks the source back to position 0 when it is exhausted. This avoids calling `Play()` from a WaveOut callback thread, which can cause re-entrancy issues.
+
+---
+
+## Steam overlay
+
+NEShim renders with GDI+ and has no D3D or OpenGL `Present()` call by default. Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present` at the vtable level to enable itself — without that hook, `SteamUtils.IsOverlayEnabled()` stays `false` and Shift+Tab does nothing.
+
+**`D3DOverlayHook`** solves this by creating a minimal D3D11 device and swap chain bound to `MainForm.Handle` (the top-level window). Its `Present()` method is called from the UI-thread timer every ~16 ms alongside `SteamAPI.RunCallbacks()`. This gives Steam's DLL a `Present()` call to intercept, which enables the overlay.
+
+### Why GamePanel must be hidden during the overlay
+
+Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* `MainForm`'s swap chain surface — so Steam's overlay content is always painted over by GDI+. When `GameOverlayActivated_t` fires, NEShim sets `GamePanel.Visible = false`, exposing the swap chain surface so the overlay becomes visible. `GamePanel` is restored when the overlay closes.
+
+### Initialisation order
+
+`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions. A `Form.Resize` handler calls `D3DOverlayHook.Resize()` to keep the swap chain size correct when the player toggles windowed/fullscreen with F11.
+
+### `SteamAPI.RestartAppIfNecessary`
+
+`Program.Main` calls `SteamAPI.RestartAppIfNecessary(appId)` before `Application.Run`. It reads the App ID from `steam_appid.txt`. If the game was launched directly (not via Steam), the call returns `true` and the process exits so Steam can relaunch it with `GameOverlayRenderer64.dll` already injected into the process before any D3D device is created.
 
 ---
 
