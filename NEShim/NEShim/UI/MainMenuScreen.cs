@@ -69,6 +69,7 @@ internal sealed class MainMenuScreen : IDisposable
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
 
+
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
 

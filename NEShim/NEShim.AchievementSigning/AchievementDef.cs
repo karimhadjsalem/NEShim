@@ -33,7 +33,7 @@ public sealed record AchievementDef
 
     /// <summary>
     /// Comparison operator applied as: <c>readValue {comparison} Value</c>.
-    /// Supported: "equals", "greaterOrEqual", "greaterThan".
+    /// Supported: "equals", "greaterOrEqual", "greaterThan", "lessOrEqual", "lessThan".
     /// </summary>
     public string Comparison { get; init; } = "equals";
 
