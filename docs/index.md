@@ -29,7 +29,7 @@ NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes 
 - Windows 10 or later (x64)
 - .NET 9 runtime (bundled in self-contained publish)
 - Steam client — required for achievements and overlay; the emulator runs without it but Steam features are silently disabled
-- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. Not included in the repository (Valve SDK license). Games deployed through Steam receive it automatically via the Steam depot.
+- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. Not included in the repository (Valve SDK license). Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
@@ -65,6 +65,6 @@ dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-containe
 dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements
 ```
 
-After publishing, copy `steam_api64.dll` (from `sdk/redistributable_bin/win64/` in the Steamworks SDK) into the output directory alongside the exe. See the [publishing guide](publishing.md#4-obtain-steam_api64dll) for details.
+After publishing, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe — it is not included in the repository. See the [publishing guide](publishing-source.md#5-steam_api64dll) for details.
 
 See the [architecture guide](architecture.md) for a detailed walkthrough of the codebase.

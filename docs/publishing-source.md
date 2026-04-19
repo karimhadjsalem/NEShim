@@ -72,11 +72,11 @@ This file is copied to the output directory at build time. During development it
 
 ## 5. `steam_api64.dll`
 
-`steam_api64.dll` is pre-packaged in `NEShim/NEShim/lib/` alongside `Steamworks.NET.dll` — no download required. The build copies it to the output directory automatically.
+`steam_api64.dll` is **not** stored in the repository (Valve SDK license). After `dotnet publish`, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version and must not be sourced separately from the Steamworks SDK partner dashboard. The current build targets **Steamworks.NET 2025.163.0**.
 
 Include it in your Steam depot when uploading; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
-If you ever need to upgrade Steamworks.NET, replace both `lib/Steamworks.NET.dll` and `lib/steam_api64.dll` with the copies from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) for the target version — they must be kept in sync.
+If you ever need to upgrade Steamworks.NET, replace `lib/Steamworks.NET.dll` with the new version from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) and supply the matching `steam_api64.dll` from the same zip at packaging time — they must be kept in sync.
 
 ---
 
@@ -242,7 +242,7 @@ dotnet publish NEShim/NEShim/NEShim.csproj \
   -o publish/MyGame
 ```
 
-After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into the output directory. `steam_api64.dll` is copied automatically from `lib/` by the build.
+After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into the output directory, then copy `steam_api64.dll` from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) alongside the exe (see [step 5](#5-steam_api64dll)).
 
 ---
 
@@ -269,7 +269,7 @@ Before uploading to Steam:
 - [ ] HMAC key rotated in `AchievementSigner.cs` and solution rebuilt
 - [ ] `steam_appid.txt` updated with your production App ID
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf` in source
-- [ ] `steam_api64.dll` included in your Steam depot (copied automatically from `lib/` by the build)
+- [ ] `steam_api64.dll` copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory and included in your Steam depot
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type

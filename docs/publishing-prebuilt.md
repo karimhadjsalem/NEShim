@@ -55,7 +55,7 @@ In `config.json`, set `windowTitle` to your game's name:
 
 ## 4. `steam_api64.dll`
 
-`steam_api64.dll` is already included in the NEShim release package alongside the exe — no action required.
+`steam_api64.dll` is **not** included in the NEShim release package. Before uploading to Steam, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version. The current build targets **Steamworks.NET 2025.163.0**.
 
 Include it in your Steam depot when uploading; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
@@ -219,7 +219,7 @@ Before uploading to Steam:
 - [ ] `NEShim.exe` renamed to `MyGame.exe` (only the exe; all other `NEShim.*` files stay as-is)
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
-- [ ] `steam_api64.dll` included in your Steam depot (already present in the release package)
+- [ ] `steam_api64.dll` copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory and included in your Steam depot
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
