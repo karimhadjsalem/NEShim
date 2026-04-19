@@ -97,11 +97,34 @@ In the output directory, rename `game_actions_0.vdf` to `game_actions_<YourAppID
 
 ---
 
-## 7. Configure Steam Input (optional but recommended)
+## 7. Configure Steam Input
 
-Upload the renamed VDF via the Steamworks partner dashboard under **Steam Input → Default Configuration**.
+Upload the renamed VDF and the default controller bindings to the Steamworks partner dashboard.
 
-The VDF defines two action sets — `Gameplay` and `Menu` — that NEShim switches between automatically. Optionally customise the `localization` block with your game's terminology. The action names in the VDF must match what `SteamInputManager` requests (see [Input system](input.md#steam-input)).
+### Upload the action definition file
+
+1. Open the Steamworks partner dashboard for your app.
+2. Go to **Steam Input → Default Configuration**.
+3. Upload `game_actions_<YourAppID>.vdf` as the **Game Actions** file.
+
+The VDF defines two action sets — `Gameplay` and `Menu` — that NEShim switches between automatically. Optionally customise the `localization` block with your game's terminology.
+
+### Upload default controller bindings
+
+The `controller_bindings/` directory contains a pre-built default configuration for each supported controller type. Upload each file in the Steamworks dashboard as the **Default Configuration** for its controller type:
+
+| File | Controller type |
+|---|---|
+| `xbox360.vdf` | Xbox 360 |
+| `xboxone.vdf` | Xbox One / Xbox Series X\|S |
+| `ps4.vdf` | PlayStation 4 DualShock 4 |
+| `ps5.vdf` | PlayStation 5 DualSense |
+| `switch_pro.vdf` | Nintendo Switch Pro Controller |
+| `steam_controller.vdf` | Valve Steam Controller |
+
+Without these defaults, players must configure their controller bindings manually from the Steam overlay. With them, supported controllers work immediately at first launch.
+
+Xbox controllers work via XInput regardless — the Xbox bindings above are still useful if players want to customise their layout through the Steam overlay.
 
 ---
 
@@ -199,7 +222,8 @@ Before uploading to Steam:
 - [ ] `steam_api64.dll` included in your Steam depot (already present in the release package)
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
-- [ ] Steam Input VDF uploaded to Steamworks dashboard (optional)
+- [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
+- [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] `achievements.json` authored and sealed with `seal-achievements`
 - [ ] Artwork and music assets in place and referenced in `config.json`
@@ -221,6 +245,13 @@ MyGame/
 ├── steam_api64.dll             ← from Steamworks.NET release zip; must be included in your depot
 ├── steam_appid.txt
 ├── game_actions_1234560.vdf
+├── controller_bindings/
+│   ├── xbox360.vdf
+│   ├── xboxone.vdf
+│   ├── ps4.vdf
+│   ├── ps5.vdf
+│   ├── switch_pro.vdf
+│   └── steam_controller.vdf
 ├── config.json
 ├── achievements.json
 ├── game.nes

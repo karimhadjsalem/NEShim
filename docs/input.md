@@ -13,11 +13,16 @@ NEShim supports three input sources that are combined every frame: keyboard, XIn
 
 ## Overview
 
-Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — a set of NES button names that are currently pressed. The snapshot combines:
+Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — a set of NES button names that are currently pressed. The snapshot combines all three sources simultaneously:
 
-1. **Steam Input** (if a Steam controller is connected): reads action states from the active Steam Input action set. When a Steam controller is present, XInput is skipped for gameplay to prevent double-input.
-2. **XInput** (if no Steam controller is connected): reads raw gamepad state from `xinput1_4.dll` for player 0.
+1. **Steam Input**: reads action states from the active Steam Input action set. Returns an empty set if Steam Input is unavailable or no controller is connected.
+2. **XInput**: reads raw gamepad state from `xinput1_4.dll` for player 0. Returns nothing if no XInput device is present.
 3. **Keyboard**: reads the current set of pressed keys.
+
+Both Steam Input and XInput are always polled. If both report input for the same NES button, it is deduplicated harmlessly. This means:
+- An **Xbox controller** works via XInput even when Steam Input is disabled in Steam.
+- A **PS4, PS5, or Switch Pro controller** requires Steam Input (since these are not natively XInput devices). When Steam Input is enabled and default bindings are configured, these controllers work without further setup.
+- A player can use a keyboard and a gamepad simultaneously.
 
 All three sources map to the same NES button names (`P1 Up`, `P1 Down`, `P1 Left`, `P1 Right`, `P1 A`, `P1 B`, `P1 Start`, `P1 Select`) defined in `config.json`'s `inputMappings`.
 
@@ -103,11 +108,13 @@ The left analog stick is automatically converted to directional input using the 
 
 ## Steam Input
 
-When a Steam Controller or other Steam Input-supported controller is connected and Steam is running, NEShim switches to Steam Input for that controller. XInput is skipped for gameplay to prevent double-mapping conflicts.
+Steam Input is the recommended path for non-Xbox controllers. It maps physical hardware to abstract game actions, enabling PS4, PS5, Switch Pro, Steam Controller, and other controllers to work without XInput.
 
 ### How it works
 
-Steam Input maps physical hardware through a layer defined in a VDF (value definition) file. The game declares *abstract actions* (`up`, `a_button`, `menu_confirm`, etc.) and the player maps their physical hardware to those actions through Steam's controller configurator. This means the same game code works transparently across PS4 controllers, Nintendo Pro Controllers, Steam Controllers, and any other Steam Input-supported hardware.
+Steam Input maps physical hardware through a layer defined in a VDF (value definition) file. The game declares *abstract actions* (`up`, `a_button`, `menu_confirm`, etc.) and Steam maps the player's physical hardware to those actions. Default mappings ship with the game so players can use supported controllers immediately. Players can override the defaults from the Steam overlay configurator at any time.
+
+Steam Input and XInput are both always active. They produce independent sets of pressed buttons that are merged each frame. This avoids double-input problems — button names are deduplicated in the merge — and means Xbox controllers continue to work even if Steam Input is also reporting them.
 
 ### Action sets
 
@@ -152,13 +159,37 @@ The VDF file must be present alongside the executable and named `game_actions_<A
 Steps for production:
 1. Rename the file: `game_actions_0.vdf` → `game_actions_<YourAppID>.vdf`.
 2. Upload the file via the Steamworks partner dashboard under **Steam Input → Default Configuration**.
-3. Players can then customise their own bindings through Steam's controller configurator.
+3. Upload the controller binding VDF files from `controller_bindings/` as the default configuration for each controller type (see **Default controller bindings** below).
 
-If the VDF file is missing or Steam Input fails to initialise, `SteamInputManager.IsAvailable` will be `false` and the code falls back to XInput transparently.
+If the VDF file is missing or Steam Input fails to initialise, `SteamInputManager.IsAvailable` will be `false` and the code falls back to XInput.
 
-### Steam vs. XInput conflict detection
+### Default controller bindings
 
-The in-game gamepad bindings screen detects when a Steam Input controller is active and displays a notice that the bindings displayed are XInput defaults which may not match the player's Steam Input configuration. This prevents confusion when the in-game config screen shows XInput button names while the Steam Input layer is routing a completely different physical button to those actions.
+Default bindings ship in the `controller_bindings/` directory alongside the executable:
+
+| File | Controller type |
+|---|---|
+| `xbox360.vdf` | Xbox 360 |
+| `xboxone.vdf` | Xbox One / Xbox Series X\|S |
+| `ps4.vdf` | PlayStation 4 DualShock 4 |
+| `ps5.vdf` | PlayStation 5 DualSense |
+| `switch_pro.vdf` | Nintendo Switch Pro Controller |
+| `steam_controller.vdf` | Valve Steam Controller |
+
+Each file maps D-pad and face buttons to the NES actions (`up`, `down`, `left`, `right`, `a_button`, `b_button`, `start`, `select`) in the `Gameplay` action set, and D-pad/confirm/back to the `Menu` action set.
+
+Upload each file to the Steamworks partner dashboard as the **Default Configuration** for its controller type. Players can override these defaults at any time from the Steam overlay configurator (Shift+Tab).
+
+> **Note on Switch Pro button labels.** Steam Input normalises button positions across controllers using a positional mapping. The "A" button in the binding file maps to the bottom face button on the physical controller, which is **B** on a Switch Pro. The NES-style labels (A = right face, B = bottom face) are correct for gameplay feel.
+
+### Gamepad bindings screen behaviour
+
+When Steam Input has an active controller connected, the in-game **Gamepad Controls** settings screen shows a notice instead of the editable XInput binding list:
+
+> *Managed by Steam Input*  
+> *Configure via Steam overlay (Shift+Tab)*
+
+This prevents confusion: the XInput button names shown in the binding list would not match the physical buttons on a Steam Input-managed controller. The player configures their controller through the Steam overlay's controller configurator instead.
 
 ---
 
@@ -221,11 +252,11 @@ Keyboard events (UI thread)
          ↓
 Emulation thread: PollSnapshot()
   ├─ Steam Input: SteamInputManager.GetActiveGameplayButtons()
-  │    └─ ImmutableHashSet<string> of NES button names
-  ├─ XInput (if no Steam controller): XInputHelper.GetState(0)
-  │    └─ Digital buttons + analog stick → D-pad
+  │    └─ ImmutableHashSet<string> of NES button names (empty if unavailable)
+  ├─ XInput: XInputHelper.GetState(0)
+  │    └─ Digital buttons + analog stick → D-pad (empty if disconnected)
   └─ Keyboard: _pressedKeys → Keys enum → inputMappings lookup
-       ↓
+       ↓  (all three merged; duplicates deduplicated)
   InputSnapshot (ImmutableHashSet<string>)
        ↓
   NesController.Update(snapshot)
