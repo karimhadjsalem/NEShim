@@ -176,12 +176,7 @@ internal sealed class MainMenuScreen : IDisposable
         switch (key)
         {
             case Keys.Escape:
-                if (CurrentScreen == Screen.Main)
-                {
-                    IsVisible = false;
-                    ExitChosen?.Invoke();
-                }
-                else
+                if (CurrentScreen != Screen.Main)
                     NavigateTo(ParentScreen(CurrentScreen));
                 return true;
 
@@ -242,12 +237,7 @@ internal sealed class MainMenuScreen : IDisposable
 
         if (nav.Back)
         {
-            if (CurrentScreen == Screen.Main)
-            {
-                IsVisible = false;
-                ExitChosen?.Invoke();
-            }
-            else
+            if (CurrentScreen != Screen.Main)
                 NavigateTo(ParentScreen(CurrentScreen));
         }
     }
