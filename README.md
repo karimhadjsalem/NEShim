@@ -27,7 +27,7 @@ https://karimhadjsalem.github.io/NEShim/
 - Windows 10 or later (x64)
 - .NET 9 runtime
 - Steam client (required for achievement and overlay features; the emulator runs without it but Steam features are silently disabled)
-- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. This file is **not** included in the repository (Valve SDK license); do not commit it to source control. Games deployed through Steam receive it automatically via the Steam depot.
+- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. This file is **not** included in the repository (Valve SDK license); do not commit it to source control. Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
@@ -98,7 +98,7 @@ dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-containe
 dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements
 ```
 
-**After publishing**, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version. Do not commit it to source control.
+**After publishing**, copy `steam_api64.dll` from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version. Do not commit it to source control.
 
 Releases are built and published automatically on version tags (`v*.*.*`) via GitHub Actions.
 
