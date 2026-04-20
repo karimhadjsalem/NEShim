@@ -6,8 +6,45 @@
 	// Steam Input -> Default Configuration.
 	//
 	// Default controller binding files live in controller_bindings/ alongside this file.
-	// Upload each VDF there as a "Default Configuration" for its controller type.
-	// Players can override these defaults from the Steam overlay configurator.
+	// The "configurations" block below tells Steam which binding VDF to load for each
+	// controller type so defaults apply automatically without requiring a partner upload
+	// during development.
+
+	"configurations"
+	{
+		"controller_xbox360"
+		{
+			"0"		{ "path"	"controller_bindings/xbox360.vdf" }
+		}
+		"controller_xboxone"
+		{
+			"0"		{ "path"	"controller_bindings/xboxone.vdf" }
+		}
+		"controller_xboxelite"
+		{
+			"0"		{ "path"	"controller_bindings/xboxone.vdf" }
+		}
+		"controller_neptune"
+		{
+			"0"		{ "path"	"controller_bindings/neptune.vdf" }
+		}
+		"controller_ps4"
+		{
+			"0"		{ "path"	"controller_bindings/ps4.vdf" }
+		}
+		"controller_ps5"
+		{
+			"0"		{ "path"	"controller_bindings/ps5.vdf" }
+		}
+		"controller_switch_pro"
+		{
+			"0"		{ "path"	"controller_bindings/switch_pro.vdf" }
+		}
+		"controller_steamcontroller_gordon"
+		{
+			"0"		{ "path"	"controller_bindings/steam_controller.vdf" }
+		}
+	}
 
 	"actions"
 	{

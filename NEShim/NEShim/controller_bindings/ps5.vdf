@@ -3,31 +3,260 @@
 	"version"			"3"
 	"revision"			"1"
 	"title"				"Default DualSense Bindings"
-	"description"		"Default bindings for PlayStation 5 DualSense controllers"
+	"description"		"Default XInput passthrough bindings for PlayStation 5 DualSense controllers"
 	"creator"			"0"
 	"controller_type"	"controller_ps5"
 	"controller_caps"	""
-	"actions"
+	"group"
 	{
-		"Gameplay"
+		"id"		"0"
+		"mode"		"switches"
+		"name"		""
+		"description"	""
+		"inputs"
 		{
-			"dpad_north"	"up"
-			"dpad_south"	"down"
-			"dpad_west"		"left"
-			"dpad_east"		"right"
-			"button_A"		"a_button"		// Cross (X)
-			"button_B"		"b_button"		// Circle (O)
-			"button_start"	"start"			// Options
-			"button_back"	"select"		// Create
+			"button_escape"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button START, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_menu"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button SELECT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
 		}
-		"Menu"
+	}
+	"group"
+	{
+		"id"		"1"
+		"mode"		"trigger"
+		"name"		""
+		"description"	""
+		"inputs"
 		{
-			"dpad_north"	"menu_up"
-			"dpad_south"	"menu_down"
-			"dpad_west"		"menu_left"
-			"dpad_east"		"menu_right"
-			"button_A"		"menu_confirm"	// Cross (X)
-			"button_B"		"menu_back"		// Circle (O)
 		}
+	}
+	"group"
+	{
+		"id"		"2"
+		"mode"		"trigger"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+		}
+	}
+	"group"
+	{
+		"id"		"6"
+		"mode"		"dpad"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+			"dpad_north"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_UP, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_south"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_DOWN, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_west"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_LEFT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_east"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_RIGHT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+		}
+		"settings"
+		{
+			"requires_click"	"0"
+		}
+	}
+	"group"
+	{
+		"id"		"10"
+		"mode"		"joystick_move"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+		}
+	}
+	"group"
+	{
+		"id"		"11"
+		"mode"		"four_buttons"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+			"button_a"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button A, , "		// Cross (X)
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_b"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button B, , "		// Circle (O)
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_x"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button X, , "		// Square
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_y"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button Y, , "		// Triangle
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"13"
+		"mode"		"joystick_move"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+		}
+	}
+	"preset"
+	{
+		"id"		"0"
+		"name"		"Default"
+		"group_source_bindings"
+		{
+			"0"		"switch active"
+			"1"		"left_trigger active"
+			"2"		"right_trigger active"
+			"6"		"dpad active"
+			"10"	"right_joystick inactive"
+			"11"	"button_diamond active"
+			"13"	"joystick active"
+		}
+	}
+	"settings"
+	{
 	}
 }
