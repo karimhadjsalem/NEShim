@@ -2,10 +2,10 @@
 {
 	"version"			"3"
 	"revision"			"1"
-	"title"				"Default DualShock 4 Bindings"
-	"description"		"Default XInput passthrough bindings for PlayStation 4 DualShock 4 controllers"
+	"title"				"Default Steam Deck Bindings"
+	"description"		"Default XInput passthrough bindings for Steam Deck"
 	"creator"			"0"
-	"controller_type"	"controller_ps4"
+	"controller_type"	"controller_neptune"
 	"controller_caps"	""
 	"group"
 	{
@@ -173,7 +173,7 @@
 					{
 						"bindings"
 						{
-							"binding"		"xinput_button A, , "		// Cross (X)
+							"binding"		"xinput_button A, , "
 						}
 					}
 				}
@@ -189,7 +189,7 @@
 					{
 						"bindings"
 						{
-							"binding"		"xinput_button B, , "		// Circle (O)
+							"binding"		"xinput_button B, , "
 						}
 					}
 				}
@@ -205,7 +205,7 @@
 					{
 						"bindings"
 						{
-							"binding"		"xinput_button X, , "		// Square
+							"binding"		"xinput_button X, , "
 						}
 					}
 				}
@@ -221,7 +221,7 @@
 					{
 						"bindings"
 						{
-							"binding"		"xinput_button Y, , "		// Triangle
+							"binding"		"xinput_button Y, , "
 						}
 					}
 				}

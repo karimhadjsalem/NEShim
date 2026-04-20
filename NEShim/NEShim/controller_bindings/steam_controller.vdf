@@ -3,31 +3,249 @@
 	"version"			"3"
 	"revision"			"1"
 	"title"				"Default Steam Controller Bindings"
-	"description"		"Default bindings for Valve Steam Controller"
+	"description"		"Default XInput passthrough bindings for Valve Steam Controller"
 	"creator"			"0"
 	"controller_type"	"controller_steamcontroller_gordon"
 	"controller_caps"	""
-	"actions"
+	"group"
 	{
-		"Gameplay"
+		"id"		"0"
+		"mode"		"switches"
+		"name"		""
+		"description"	""
+		"inputs"
 		{
-			"dpad_north"	"up"
-			"dpad_south"	"down"
-			"dpad_west"		"left"
-			"dpad_east"		"right"
-			"button_A"		"a_button"
-			"button_B"		"b_button"
-			"button_start"	"start"
-			"button_back"	"select"
+			"button_escape"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button START, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_menu"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button SELECT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
 		}
-		"Menu"
+	}
+	"group"
+	{
+		"id"		"1"
+		"mode"		"trigger"
+		"name"		""
+		"description"	""
+		"inputs"
 		{
-			"dpad_north"	"menu_up"
-			"dpad_south"	"menu_down"
-			"dpad_west"		"menu_left"
-			"dpad_east"		"menu_right"
-			"button_A"		"menu_confirm"
-			"button_B"		"menu_back"
 		}
+	}
+	"group"
+	{
+		"id"		"2"
+		"mode"		"trigger"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+		}
+	}
+	"group"
+	{
+		"id"		"3"
+		"mode"		"dpad"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+			"dpad_north"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_UP, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_south"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_DOWN, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_west"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_LEFT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"dpad_east"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button DPAD_RIGHT, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+		}
+		"settings"
+		{
+			"requires_click"	"0"
+		}
+	}
+	"group"
+	{
+		"id"		"11"
+		"mode"		"four_buttons"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+			"button_a"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button A, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_b"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button B, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_x"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button X, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+			"button_y"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"xinput_button Y, , "
+						}
+					}
+				}
+				"disabled_activators"
+				{
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"13"
+		"mode"		"joystick_move"
+		"name"		""
+		"description"	""
+		"inputs"
+		{
+		}
+	}
+	"preset"
+	{
+		"id"		"0"
+		"name"		"Default"
+		"group_source_bindings"
+		{
+			"0"		"switch active"
+			"1"		"left_trigger active"
+			"2"		"right_trigger active"
+			"3"		"left_trackpad active"
+			"11"	"button_diamond active"
+			"13"	"joystick active"
+		}
+	}
+	"settings"
+	{
 	}
 }
