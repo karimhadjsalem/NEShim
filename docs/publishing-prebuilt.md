@@ -116,15 +116,14 @@ The `controller_bindings/` directory contains a pre-built default configuration 
 | File | Controller type |
 |---|---|
 | `xbox360.vdf` | Xbox 360 |
-| `xboxone.vdf` | Xbox One / Xbox Series X\|S |
+| `xboxone.vdf` | Xbox One / Xbox Series X\|S / Xbox One Elite |
+| `neptune.vdf` | Steam Deck |
 | `ps4.vdf` | PlayStation 4 DualShock 4 |
 | `ps5.vdf` | PlayStation 5 DualSense |
 | `switch_pro.vdf` | Nintendo Switch Pro Controller |
 | `steam_controller.vdf` | Valve Steam Controller |
 
 Without these defaults, players must configure their controller bindings manually from the Steam overlay. With them, supported controllers work immediately at first launch.
-
-Xbox controllers work via XInput regardless — the Xbox bindings above are still useful if players want to customise their layout through the Steam overlay.
 
 ---
 
@@ -248,6 +247,7 @@ MyGame/
 ├── controller_bindings/
 │   ├── xbox360.vdf
 │   ├── xboxone.vdf
+│   ├── neptune.vdf
 │   ├── ps4.vdf
 │   ├── ps5.vdf
 │   ├── switch_pro.vdf

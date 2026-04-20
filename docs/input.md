@@ -20,7 +20,7 @@ Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot`
 3. **Keyboard**: reads the current set of pressed keys.
 
 Both Steam Input and XInput are always polled. If both report input for the same NES button, it is deduplicated harmlessly. This means:
-- An **Xbox controller** works via XInput even when Steam Input is disabled in Steam.
+- An **Xbox controller** detected by Steam Input uses the XInput passthrough bindings in the default VDF, which forward all input back through XInput. The result is identical to a controller that Steam never touched.
 - A **PS4, PS5, or Switch Pro controller** requires Steam Input (since these are not natively XInput devices). When Steam Input is enabled and default bindings are configured, these controllers work without further setup.
 - A player can use a keyboard and a gamepad simultaneously.
 
@@ -163,7 +163,9 @@ The action set is switched automatically:
 
 ### VDF file setup
 
-The VDF file must be present alongside the executable and named `game_actions_<AppID>.vdf`. During development the placeholder file is named `game_actions_0.vdf`.
+The action definition file must be present alongside the executable and named `game_actions_<AppID>.vdf`. During development the placeholder file is named `game_actions_0.vdf`.
+
+The file contains a `configurations` block that tells Steam which binding VDF to load for each controller type. This makes the defaults apply automatically in local development without requiring an upload to the Steamworks partner dashboard first.
 
 Steps for production:
 1. Rename the file: `game_actions_0.vdf` → `game_actions_<YourAppID>.vdf`.
@@ -179,15 +181,14 @@ Default bindings ship in the `controller_bindings/` directory alongside the exec
 | File | Controller type |
 |---|---|
 | `xbox360.vdf` | Xbox 360 |
-| `xboxone.vdf` | Xbox One / Xbox Series X\|S |
+| `xboxone.vdf` | Xbox One / Xbox Series X\|S / Xbox One Elite |
+| `neptune.vdf` | Steam Deck |
 | `ps4.vdf` | PlayStation 4 DualShock 4 |
 | `ps5.vdf` | PlayStation 5 DualSense |
 | `switch_pro.vdf` | Nintendo Switch Pro Controller |
 | `steam_controller.vdf` | Valve Steam Controller |
 
-Each file maps D-pad and face buttons to the NES actions (`up`, `down`, `left`, `right`, `a_button`, `b_button`, `start`, `select`) in the `Gameplay` action set, and D-pad/confirm/back to the `Menu` action set.
-
-Upload each file to the Steamworks partner dashboard as the **Default Configuration** for its controller type. Players can override these defaults at any time from the Steam overlay configurator (Shift+Tab).
+Each file uses **XInput passthrough** bindings: face buttons, D-pad, Start, and Back are forwarded to the game as XInput signals, and the left analog stick passes through automatically. The existing XInput code in `InputManager` handles all mapping from there via `config.json`. Players can override the defaults at any time from the Steam overlay configurator (Shift+Tab).
 
 > **Note on Switch Pro button labels.** Steam Input normalises button positions across controllers using a positional mapping. The "A" button in the binding file maps to the bottom face button on the physical controller, which is **B** on a Switch Pro. The NES-style labels (A = right face, B = bottom face) are correct for gameplay feel.
 
