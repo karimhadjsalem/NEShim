@@ -17,6 +17,37 @@ namespace NEShim.Steam;
 /// </summary>
 internal static class SteamInputManager
 {
+    // -- VDF action ↔ NES button constant tables --
+    // Fixed by game_actions_<appid>.vdf; not user-configurable.
+
+    /// <summary>Maps VDF action names to NES button names for input polling.</summary>
+    public static readonly IReadOnlyDictionary<string, string> ActionToNesButton =
+        new Dictionary<string, string>
+        {
+            ["up"]       = "P1 Up",
+            ["down"]     = "P1 Down",
+            ["left"]     = "P1 Left",
+            ["right"]    = "P1 Right",
+            ["a_button"] = "P1 A",
+            ["b_button"] = "P1 B",
+            ["start"]    = "P1 Start",
+            ["select"]   = "P1 Select",
+        };
+
+    /// <summary>Reverse of ActionToNesButton — used for label lookups in the binding menu.</summary>
+    public static readonly IReadOnlyDictionary<string, string> NesButtonToAction =
+        new Dictionary<string, string>
+        {
+            ["P1 Up"]     = "up",
+            ["P1 Down"]   = "down",
+            ["P1 Left"]   = "left",
+            ["P1 Right"]  = "right",
+            ["P1 A"]      = "a_button",
+            ["P1 B"]      = "b_button",
+            ["P1 Start"]  = "start",
+            ["P1 Select"] = "select",
+        };
+
     // -- Controller handle buffer (reused to avoid allocation) --
     private static readonly InputHandle_t[] _controllerBuf =
         new InputHandle_t[Constants.STEAM_INPUT_MAX_COUNT];
@@ -27,6 +58,20 @@ internal static class SteamInputManager
 
     /// <summary>True when at least one Steam Input controller is connected and active.</summary>
     public static bool HasConnectedController => IsAvailable && _connectedCount > 0;
+
+    /// <summary>
+    /// True when the connected controller uses native Steam digital action bindings
+    /// (e.g. PS4/PS5/Switch Pro with a full action-binding VDF). False when the VDF
+    /// uses XInput passthrough, in which case Gameplay action handles have no origins
+    /// and all input flows through XInput instead.
+    /// </summary>
+    public static bool IsUsingNativeActions()
+    {
+        if (!IsAvailable || _connectedCount == 0) return false;
+        var h = _controllerBuf[0];
+        var origins = new EInputActionOrigin[Constants.STEAM_INPUT_MAX_ORIGINS];
+        return SteamInput.GetDigitalActionOrigins(h, _gameplaySet, _hA, origins) > 0;
+    }
 
     // -- Action set handles --
     private static InputActionSetHandle_t _gameplaySet;
@@ -43,10 +88,6 @@ internal static class SteamInputManager
     // -- Menu nav edge detection --
     private static bool _prevMenuUp, _prevMenuDown, _prevMenuLeft, _prevMenuRight;
     private static bool _prevMenuConfirm, _prevMenuBack;
-
-    // -- Gameplay action edge detection (for rebind mode) --
-    private static bool _prevActionUp, _prevActionDown, _prevActionLeft, _prevActionRight;
-    private static bool _prevActionA, _prevActionB, _prevActionStart, _prevActionSelect;
 
     public static bool IsAvailable { get; private set; }
 
@@ -130,7 +171,7 @@ internal static class SteamInputManager
     /// <summary>
     /// Returns active VDF action names for the first connected Steam controller.
     /// Returns an empty set when Steam Input is unavailable or no controller is connected.
-    /// Intended to be resolved through InputBinding.SteamAction in InputManager.PollSnapshot().
+    /// Intended to be resolved via SteamInputManager.ActionToNesButton in InputManager.PollSnapshot().
     /// </summary>
     public static ImmutableHashSet<string> GetActiveActions()
     {
@@ -201,49 +242,6 @@ internal static class SteamInputManager
 
         string? native = SteamInput.GetStringForActionOrigin(origins[0]);
         return string.IsNullOrEmpty(native) ? formatted : native;
-    }
-
-    /// <summary>
-    /// Returns the VDF action name of the first gameplay action that was just pressed
-    /// this call (edge-triggered), or null if none. Used in rebind mode.
-    /// Resets edge state when no controller is connected.
-    /// </summary>
-    public static string? PollAnyActionJustPressed()
-    {
-        if (!IsAvailable) return null;
-        int count = RefreshControllers();
-        if (count == 0)
-        {
-            _prevActionUp = _prevActionDown = _prevActionLeft = _prevActionRight = false;
-            _prevActionA  = _prevActionB  = _prevActionStart = _prevActionSelect = false;
-            return null;
-        }
-
-        var h = _controllerBuf[0];
-        bool up    = Digital(h, _hUp);
-        bool down  = Digital(h, _hDown);
-        bool left  = Digital(h, _hLeft);
-        bool right = Digital(h, _hRight);
-        bool a     = Digital(h, _hA);
-        bool b     = Digital(h, _hB);
-        bool start = Digital(h, _hStart);
-        bool sel   = Digital(h, _hSelect);
-
-        string? pressed = null;
-        if (up    && !_prevActionUp)    pressed = "up";
-        if (down  && !_prevActionDown)  pressed ??= "down";
-        if (left  && !_prevActionLeft)  pressed ??= "left";
-        if (right && !_prevActionRight) pressed ??= "right";
-        if (a     && !_prevActionA)     pressed ??= "a_button";
-        if (b     && !_prevActionB)     pressed ??= "b_button";
-        if (start && !_prevActionStart) pressed ??= "start";
-        if (sel   && !_prevActionSelect) pressed ??= "select";
-
-        _prevActionUp    = up;    _prevActionDown   = down;
-        _prevActionLeft  = left;  _prevActionRight  = right;
-        _prevActionA     = a;     _prevActionB      = b;
-        _prevActionStart = start; _prevActionSelect = sel;
-        return pressed;
     }
 
     // ---- Menu navigation input ----

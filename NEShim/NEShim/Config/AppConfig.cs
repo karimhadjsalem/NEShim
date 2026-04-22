@@ -16,14 +16,14 @@ public sealed class AppConfig
 
     public Dictionary<string, InputBinding> InputMappings { get; set; } = new()
     {
-        ["P1 Up"]     = new InputBinding("W",         "DPadUp",   "up"),
-        ["P1 Down"]   = new InputBinding("S",         "DPadDown", "down"),
-        ["P1 Left"]   = new InputBinding("A",         "DPadLeft", "left"),
-        ["P1 Right"]  = new InputBinding("D",         "DPadRight","right"),
-        ["P1 A"]      = new InputBinding("OemPeriod", "A",        "a_button"),
-        ["P1 B"]      = new InputBinding("OemComma",  "B",        "b_button"),
-        ["P1 Start"]  = new InputBinding("Return",    "Y",        "start"),
-        ["P1 Select"] = new InputBinding("RShiftKey", "Back",     "select"),
+        ["P1 Up"]     = new InputBinding("W",         "DPadUp"),
+        ["P1 Down"]   = new InputBinding("S",         "DPadDown"),
+        ["P1 Left"]   = new InputBinding("A",         "DPadLeft"),
+        ["P1 Right"]  = new InputBinding("D",         "DPadRight"),
+        ["P1 A"]      = new InputBinding("OemPeriod", "A"),
+        ["P1 B"]      = new InputBinding("OemComma",  "B"),
+        ["P1 Start"]  = new InputBinding("Return",    "Y"),
+        ["P1 Select"] = new InputBinding("RShiftKey", "Back"),
     };
 
     /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>
@@ -102,16 +102,14 @@ public sealed class AppConfig
 
 public sealed class InputBinding
 {
-    public string? Key { get; set; }
+    public string? Key           { get; set; }
     public string? GamepadButton { get; set; }
-    public string? SteamAction { get; set; }
 
     public InputBinding() { }
-    public InputBinding(string? key, string? gamepadButton, string? steamAction = null)
+    public InputBinding(string? key, string? gamepadButton)
     {
-        Key = key;
+        Key           = key;
         GamepadButton = gamepadButton;
-        SteamAction = steamAction;
     }
 }
 
