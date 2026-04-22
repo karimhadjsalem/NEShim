@@ -70,14 +70,6 @@ internal sealed class InGameMenu
     private const int SoundItemBack     = 2;
     private const int SoundItemCount    = 3;
 
-    // ---- Steam Input override notice (shown instead of editable bindings) ----
-    private static readonly string[] SteamInputOverrideItems =
-    {
-        "Managed by Steam Input",
-        "Configure via Steam overlay (Shift+Tab)",
-        "← Back",
-    };
-    private const int SteamOverrideBackIndex = 2;
 
     // ---- Key-binding action order ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
@@ -201,6 +193,19 @@ internal sealed class InGameMenu
     // ---- Gamepad input ----
 
     /// <summary>
+    /// Called when a Steam action is pressed during rebind mode.
+    /// Updates the SteamAction field on the binding and saves config.
+    /// </summary>
+    public string? HandleSteamActionPress(string actionName)
+    {
+        if (GamepadRebindingAction == null) return null;
+        SetSteamActionBinding(GamepadRebindingAction, actionName);
+        _onConfigSaved();
+        GamepadRebindingAction = null;
+        return null;
+    }
+
+    /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
     /// Returns a toast message to display, or null if no message is needed.
     /// Start cancels and returns an explanatory message; anything else binds.
@@ -306,9 +311,7 @@ internal sealed class InGameMenu
         Screen.SaveSlotSelect     => SaveStateManager.SlotCount + 1,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => BindingActions.Length,
-        Screen.GamepadBindings    => SteamInputManager.HasConnectedController
-                                        ? SteamInputOverrideItems.Length
-                                        : BindingActions.Length,
+        Screen.GamepadBindings    => BindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         Screen.ConfirmLoad        => ConfirmLoadItems.Length,
@@ -416,11 +419,6 @@ internal sealed class InGameMenu
 
             case Screen.GamepadBindings:
             {
-                if (SteamInputManager.HasConnectedController)
-                {
-                    NavigateTo(Screen.Settings);
-                    break;
-                }
                 var (_, configKey) = BindingActions[SelectedItem];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
@@ -496,15 +494,26 @@ internal sealed class InGameMenu
             _config.InputMappings[action] = new InputBinding(null, buttonName);
     }
 
+    private void SetSteamActionBinding(string action, string actionName)
+    {
+        foreach (var kvp in _config.InputMappings)
+        {
+            if (kvp.Key != action && kvp.Value.SteamAction == actionName)
+                kvp.Value.SteamAction = null;
+        }
+
+        if (_config.InputMappings.TryGetValue(action, out var binding))
+            binding.SteamAction = actionName;
+        else
+            _config.InputMappings[action] = new InputBinding(null, null, actionName);
+    }
+
     // ---- Enabled state ----
 
     public bool IsItemEnabled(int index)
     {
         if (Current == Screen.Root && index == RootItemLoadGame)
             return _saveStates.SlotExists(_saveStates.ActiveSlot);
-        if (Current == Screen.GamepadBindings && SteamInputManager.HasConnectedController
-            && index < SteamOverrideBackIndex)
-            return false;
         return true;
     }
 
@@ -542,13 +551,11 @@ internal sealed class InGameMenu
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
 
-        Screen.GamepadBindings => SteamInputManager.HasConnectedController
-            ? SteamInputOverrideItems
-            : BindingActions
-                .Select(b => b.ConfigKey == ""
-                    ? "← Back"
-                    : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
-                .ToArray(),
+        Screen.GamepadBindings => BindingActions
+            .Select(b => b.ConfigKey == ""
+                ? "← Back"
+                : $"{b.Label,-8}  {(SteamInputManager.HasConnectedController ? SteamActionLabel(b.ConfigKey) : GamepadLabel(b.ConfigKey))}")
+            .ToArray(),
 
         Screen.Sound => new[]
         {
@@ -569,6 +576,13 @@ internal sealed class InGameMenu
 
     private string GamepadLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton ?? "(none)" : "(none)";
+
+    private string SteamActionLabel(string configKey)
+    {
+        if (!_config.InputMappings.TryGetValue(configKey, out var b) || b.SteamAction is null)
+            return "(none)";
+        return SteamInputManager.GetNativeLabel(b.SteamAction);
+    }
 
     public string GetTitle() => Current switch
     {

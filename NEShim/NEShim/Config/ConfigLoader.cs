@@ -30,6 +30,7 @@ public static class ConfigLoader
         {
             string json = File.ReadAllText(ConfigPath);
             var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            ApplySteamActionDefaults(config);
             Logger.Log($"[Config] Loaded from {ConfigPath}");
             return config;
         }
@@ -37,6 +38,20 @@ public static class ConfigLoader
         {
             Logger.Log($"[Config] Parse error — using defaults: {ex.Message}");
             return new AppConfig();
+        }
+    }
+
+    private static void ApplySteamActionDefaults(AppConfig config)
+    {
+        var defaults = new AppConfig().InputMappings;
+        foreach (var (key, defaultBinding) in defaults)
+        {
+            if (config.InputMappings.TryGetValue(key, out var existing)
+                && existing.SteamAction is null
+                && defaultBinding.SteamAction is not null)
+            {
+                existing.SteamAction = defaultBinding.SteamAction;
+            }
         }
     }
 

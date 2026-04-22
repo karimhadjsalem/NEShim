@@ -44,6 +44,10 @@ internal static class SteamInputManager
     private static bool _prevMenuUp, _prevMenuDown, _prevMenuLeft, _prevMenuRight;
     private static bool _prevMenuConfirm, _prevMenuBack;
 
+    // -- Gameplay action edge detection (for rebind mode) --
+    private static bool _prevActionUp, _prevActionDown, _prevActionLeft, _prevActionRight;
+    private static bool _prevActionA, _prevActionB, _prevActionStart, _prevActionSelect;
+
     public static bool IsAvailable { get; private set; }
 
     /// <summary>
@@ -124,11 +128,11 @@ internal static class SteamInputManager
     // ---- Gameplay input ----
 
     /// <summary>
-    /// Returns NES button names currently pressed on the first connected Steam controller.
+    /// Returns active VDF action names for the first connected Steam controller.
     /// Returns an empty set when Steam Input is unavailable or no controller is connected.
-    /// Intended to be OR-ed with XInput results in InputManager.PollSnapshot().
+    /// Intended to be resolved through InputBinding.SteamAction in InputManager.PollSnapshot().
     /// </summary>
-    public static ImmutableHashSet<string> GetActiveGameplayButtons()
+    public static ImmutableHashSet<string> GetActiveActions()
     {
         if (!IsAvailable) return ImmutableHashSet<string>.Empty;
 
@@ -138,16 +142,108 @@ internal static class SteamInputManager
         var h = _controllerBuf[0];
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        if (Digital(h, _hUp))     builder.Add("P1 Up");
-        if (Digital(h, _hDown))   builder.Add("P1 Down");
-        if (Digital(h, _hLeft))   builder.Add("P1 Left");
-        if (Digital(h, _hRight))  builder.Add("P1 Right");
-        if (Digital(h, _hA))      builder.Add("P1 A");
-        if (Digital(h, _hB))      builder.Add("P1 B");
-        if (Digital(h, _hStart))  builder.Add("P1 Start");
-        if (Digital(h, _hSelect)) builder.Add("P1 Select");
+        if (Digital(h, _hUp))     builder.Add("up");
+        if (Digital(h, _hDown))   builder.Add("down");
+        if (Digital(h, _hLeft))   builder.Add("left");
+        if (Digital(h, _hRight))  builder.Add("right");
+        if (Digital(h, _hA))      builder.Add("a_button");
+        if (Digital(h, _hB))      builder.Add("b_button");
+        if (Digital(h, _hStart))  builder.Add("start");
+        if (Digital(h, _hSelect)) builder.Add("select");
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Returns the native controller button label for the given VDF action name.
+    /// Queries Steam's GetDigitalActionOrigins + GetStringForActionOrigin to get the
+    /// localised physical button name (e.g. "A Button", "Cross Button").
+    /// Falls back to a human-readable formatting of the action name when Steam is
+    /// unavailable, no controller is connected, or no origin is configured.
+    /// </summary>
+    public static string GetNativeLabel(string actionName)
+    {
+        string formatted = actionName switch
+        {
+            "up"       => "Up",
+            "down"     => "Down",
+            "left"     => "Left",
+            "right"    => "Right",
+            "a_button" => "A Button",
+            "b_button" => "B Button",
+            "start"    => "Start",
+            "select"   => "Select",
+            _          => actionName,
+        };
+
+        if (!IsAvailable) return formatted;
+        int count = RefreshControllers();
+        if (count == 0) return formatted;
+
+        var h = _controllerBuf[0];
+        var handle = actionName switch
+        {
+            "up"       => _hUp,
+            "down"     => _hDown,
+            "left"     => _hLeft,
+            "right"    => _hRight,
+            "a_button" => _hA,
+            "b_button" => _hB,
+            "start"    => _hStart,
+            "select"   => _hSelect,
+            _          => default,
+        };
+        if (handle == default) return formatted;
+
+        var origins = new EInputActionOrigin[Constants.STEAM_INPUT_MAX_ORIGINS];
+        int n = SteamInput.GetDigitalActionOrigins(h, _gameplaySet, handle, origins);
+        if (n <= 0) return formatted;
+
+        string? native = SteamInput.GetStringForActionOrigin(origins[0]);
+        return string.IsNullOrEmpty(native) ? formatted : native;
+    }
+
+    /// <summary>
+    /// Returns the VDF action name of the first gameplay action that was just pressed
+    /// this call (edge-triggered), or null if none. Used in rebind mode.
+    /// Resets edge state when no controller is connected.
+    /// </summary>
+    public static string? PollAnyActionJustPressed()
+    {
+        if (!IsAvailable) return null;
+        int count = RefreshControllers();
+        if (count == 0)
+        {
+            _prevActionUp = _prevActionDown = _prevActionLeft = _prevActionRight = false;
+            _prevActionA  = _prevActionB  = _prevActionStart = _prevActionSelect = false;
+            return null;
+        }
+
+        var h = _controllerBuf[0];
+        bool up    = Digital(h, _hUp);
+        bool down  = Digital(h, _hDown);
+        bool left  = Digital(h, _hLeft);
+        bool right = Digital(h, _hRight);
+        bool a     = Digital(h, _hA);
+        bool b     = Digital(h, _hB);
+        bool start = Digital(h, _hStart);
+        bool sel   = Digital(h, _hSelect);
+
+        string? pressed = null;
+        if (up    && !_prevActionUp)    pressed = "up";
+        if (down  && !_prevActionDown)  pressed ??= "down";
+        if (left  && !_prevActionLeft)  pressed ??= "left";
+        if (right && !_prevActionRight) pressed ??= "right";
+        if (a     && !_prevActionA)     pressed ??= "a_button";
+        if (b     && !_prevActionB)     pressed ??= "b_button";
+        if (start && !_prevActionStart) pressed ??= "start";
+        if (sel   && !_prevActionSelect) pressed ??= "select";
+
+        _prevActionUp    = up;    _prevActionDown   = down;
+        _prevActionLeft  = left;  _prevActionRight  = right;
+        _prevActionA     = a;     _prevActionB      = b;
+        _prevActionStart = start; _prevActionSelect = sel;
+        return pressed;
     }
 
     // ---- Menu navigation input ----

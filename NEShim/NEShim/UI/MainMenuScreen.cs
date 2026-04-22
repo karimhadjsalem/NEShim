@@ -15,15 +15,6 @@ internal sealed class MainMenuScreen : IDisposable
 {
     public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound }
 
-    // ---- Steam Input override notice (shown instead of editable bindings) ----
-    private static readonly string[] SteamInputOverrideItems =
-    {
-        "Managed by Steam Input",
-        "Configure via Steam overlay (Shift+Tab)",
-        "← Back",
-    };
-    private const int SteamOverrideBackIndex = 2;
-
     // ---- Shared binding-action table ----
     private static readonly (string Label, string ConfigKey)[] BindingActions =
     {
@@ -199,6 +190,19 @@ internal sealed class MainMenuScreen : IDisposable
     }
 
     // ---- Gamepad input ----
+
+    /// <summary>
+    /// Called when a Steam action is pressed during rebind mode.
+    /// Updates the SteamAction field on the binding and saves config.
+    /// </summary>
+    public string? HandleSteamActionPress(string actionName)
+    {
+        if (GamepadRebindingAction == null) return null;
+        SetSteamActionBinding(GamepadRebindingAction, actionName);
+        _onConfigSaved();
+        GamepadRebindingAction = null;
+        return null;
+    }
 
     /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
@@ -383,11 +387,6 @@ internal sealed class MainMenuScreen : IDisposable
 
             case Screen.GamepadBindings:
             {
-                if (SteamInputManager.HasConnectedController)
-                {
-                    NavigateTo(Screen.Settings);
-                    break;
-                }
                 var (_, configKey) = BindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
@@ -469,6 +468,20 @@ internal sealed class MainMenuScreen : IDisposable
             _config.InputMappings[action] = new InputBinding(null, buttonName);
     }
 
+    private void SetSteamActionBinding(string action, string actionName)
+    {
+        foreach (var kvp in _config.InputMappings)
+        {
+            if (kvp.Key != action && kvp.Value.SteamAction == actionName)
+                kvp.Value.SteamAction = null;
+        }
+
+        if (_config.InputMappings.TryGetValue(action, out var binding))
+            binding.SteamAction = actionName;
+        else
+            _config.InputMappings[action] = new InputBinding(null, null, actionName);
+    }
+
     // ---- Resume-slot list ----
 
     private void BuildResumeOptions()
@@ -536,13 +549,11 @@ internal sealed class MainMenuScreen : IDisposable
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
 
-        Screen.GamepadBindings => SteamInputManager.HasConnectedController
-            ? SteamInputOverrideItems
-            : BindingActions
-                .Select(b => b.ConfigKey == ""
-                    ? "← Back"
-                    : $"{b.Label,-8}  {GamepadLabel(b.ConfigKey)}")
-                .ToArray(),
+        Screen.GamepadBindings => BindingActions
+            .Select(b => b.ConfigKey == ""
+                ? "← Back"
+                : $"{b.Label,-8}  {(SteamInputManager.HasConnectedController ? SteamActionLabel(b.ConfigKey) : GamepadLabel(b.ConfigKey))}")
+            .ToArray(),
         Screen.Sound => new[]
         {
             $"◀  Volume: {_config.Volume}  ▶",
@@ -557,9 +568,6 @@ internal sealed class MainMenuScreen : IDisposable
     {
         if (CurrentScreen == Screen.Main && idx == MainItemResume && !CanResume)
             return false;
-        if (CurrentScreen == Screen.GamepadBindings && SteamInputManager.HasConnectedController
-            && idx < SteamOverrideBackIndex)
-            return false;
         return true;
     }
 
@@ -569,9 +577,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.ResumeSlots        => _resumeOptions.Length,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => BindingActions.Length,
-        Screen.GamepadBindings    => SteamInputManager.HasConnectedController
-                                        ? SteamInputOverrideItems.Length
-                                        : BindingActions.Length,
+        Screen.GamepadBindings    => BindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         _ => 0
@@ -582,6 +588,13 @@ internal sealed class MainMenuScreen : IDisposable
 
     private string GamepadLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton ?? "(none)" : "(none)";
+
+    private string SteamActionLabel(string configKey)
+    {
+        if (!_config.InputMappings.TryGetValue(configKey, out var b) || b.SteamAction is null)
+            return "(none)";
+        return SteamInputManager.GetNativeLabel(b.SteamAction);
+    }
 
     public void Dispose() => Background?.Dispose();
 

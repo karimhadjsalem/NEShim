@@ -156,6 +156,20 @@ internal sealed class GamePanel : Panel
     }
 
     /// <summary>
+    /// Dispatches a detected Steam action press to the active menu's rebind handler.
+    /// Called on the UI thread via BeginInvoke from the emulation thread.
+    /// </summary>
+    public void HandleSteamActionPress(string actionName)
+    {
+        string? toast = null;
+        if (_mainMenu?.IsVisible == true)
+            toast = _mainMenu.HandleSteamActionPress(actionName);
+        else if (_menu?.IsOpen == true)
+            toast = _menu.HandleSteamActionPress(actionName);
+        if (toast != null) ShowToast(toast);
+    }
+
+    /// <summary>
     /// Dispatches gamepad menu navigation to whichever menu is currently active.
     /// Called on the UI thread via BeginInvoke from the emulation thread.
     /// Returns true if a repaint is needed.
