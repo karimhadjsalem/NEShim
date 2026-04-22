@@ -45,13 +45,10 @@ internal sealed class InputManager
 
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        // Steam Input and XInput are complementary — both are always polled.
-        // Steam Input returns empty when no Steam controller is connected or when translation
-        // is disabled; XInput returns disconnected when no physical XInput device is present.
-        // Merging both into a set is safe: duplicate button names are a no-op.
-        var steamButtons = NEShim.Steam.SteamInputManager.GetActiveGameplayButtons();
-        foreach (var btn in steamButtons) builder.Add(btn);
-
+        // All three input sources are polled every frame and resolved through InputMappings.
+        // Each source returns empty/disconnected when unavailable; duplicates across sources
+        // are harmlessly deduplicated by the ImmutableHashSet builder.
+        var steamActions = NEShim.Steam.SteamInputManager.GetActiveActions();
         var gamepad = XInputHelper.GetState(0);
 
         foreach (var (nesButton, binding) in config.InputMappings)
@@ -68,6 +65,12 @@ internal sealed class InputManager
             if (!pressed && gamepad.Connected &&
                 binding.GamepadButton != "Start" &&
                 XInputHelper.GetButton(in gamepad, binding.GamepadButton))
+            {
+                pressed = true;
+            }
+
+            if (!pressed && binding.SteamAction is not null &&
+                steamActions.Contains(binding.SteamAction))
             {
                 pressed = true;
             }
