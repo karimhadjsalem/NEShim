@@ -45,37 +45,31 @@ internal sealed class InputManager
 
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        // All three input sources are polled every frame and resolved through InputMappings.
-        // Each source returns empty/disconnected when unavailable; duplicates across sources
-        // are harmlessly deduplicated by the ImmutableHashSet builder.
+        // Steam Input: apply the fixed VDF action→NES button table.
+        // No config lookup — the mapping is defined by the VDF file, not by the user.
         var steamActions = NEShim.Steam.SteamInputManager.GetActiveActions();
-        var gamepad = XInputHelper.GetState(0);
+        foreach (var (action, nesButton) in NEShim.Steam.SteamInputManager.ActionToNesButton)
+            if (steamActions.Contains(action))
+                builder.Add(nesButton);
 
+        // Keyboard + XInput: from config.InputMappings.
+        var gamepad = XInputHelper.GetState(0);
         foreach (var (nesButton, binding) in config.InputMappings)
         {
-            bool pressed = false;
-
             if (binding.Key is not null &&
                 Enum.TryParse<Keys>(binding.Key, out var mappedKey) &&
                 keys.Contains(mappedKey))
             {
-                pressed = true;
+                builder.Add(nesButton);
+                continue;
             }
 
-            if (!pressed && gamepad.Connected &&
+            if (gamepad.Connected &&
                 binding.GamepadButton != "Start" &&
                 XInputHelper.GetButton(in gamepad, binding.GamepadButton))
             {
-                pressed = true;
+                builder.Add(nesButton);
             }
-
-            if (!pressed && binding.SteamAction is not null &&
-                steamActions.Contains(binding.SteamAction))
-            {
-                pressed = true;
-            }
-
-            if (pressed) builder.Add(nesButton);
         }
 
         // Analog stick → D-pad conversion (Steam handles this via action sets when active).

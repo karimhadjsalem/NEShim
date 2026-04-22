@@ -24,6 +24,9 @@ internal sealed class GamePanel : Panel
     private Bitmap?          _sidebarLeft;
     private Bitmap?          _sidebarRight;
 
+    // Cursor visibility — tracked so Hide/Show calls stay balanced (they're reference-counted).
+    private bool _cursorHidden = false;
+
     // Toast notification
     private string? _toastText;
     private DateTime _toastExpiry;
@@ -60,9 +63,25 @@ internal sealed class GamePanel : Panel
     // Allow all keys (including arrows, escape, enter) to reach KeyDown
     protected override bool IsInputKey(Keys keyData) => true;
 
-    public void SetMenu(InGameMenu menu)             => _menu     = menu;
+    public void SetMenu(InGameMenu menu)
+    {
+        _menu = menu;
+        // Events fire on the emulation thread — marshal to UI thread.
+        menu.Opened += () => BeginInvoke(() => SetCursorVisible(true));
+        menu.Closed += () => BeginInvoke(() => SetCursorVisible(false));
+    }
 
-    public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
+    public void SetMainMenu(MainMenuScreen mainMenu)
+    {
+        _mainMenu = mainMenu;
+        SetCursorVisible(true); // main menu is visible on startup
+    }
+
+    private void SetCursorVisible(bool visible)
+    {
+        if (visible && _cursorHidden)  { Cursor.Show(); _cursorHidden = false; }
+        if (!visible && !_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
+    }
     public void SetScaler(IGraphicsScaler scaler)    => _scaler   = scaler;
 
     /// <summary>
@@ -106,6 +125,7 @@ internal sealed class GamePanel : Panel
     /// <summary>Called from EmulationThread (via BeginInvoke) when a new frame is ready.</summary>
     public void UpdateFrame()
     {
+        SetCursorVisible(false); // game is running — no menu is open
         // Copy front buffer into the GDI+ bitmap
         var front = _frameBuffer.FrontBuffer;
         var data = _bitmap.LockBits(
@@ -124,23 +144,6 @@ internal sealed class GamePanel : Panel
         Invalidate();
     }
 
-    private const int WM_SETCURSOR = 0x0020;
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetCursor(IntPtr hCursor);
-
-    protected override void WndProc(ref Message m)
-    {
-        // When no menu is active, suppress the default cursor so the pointer is hidden
-        if (m.Msg == WM_SETCURSOR && !IsMenuActive)
-        {
-            SetCursor(IntPtr.Zero);
-            m.Result = new IntPtr(1);
-            return;
-        }
-        base.WndProc(ref m);
-    }
-
     /// <summary>
     /// Dispatches a detected gamepad button press to the active menu's rebind handler.
     /// Called on the UI thread via BeginInvoke from the emulation thread.
@@ -152,20 +155,6 @@ internal sealed class GamePanel : Panel
             toast = _mainMenu.HandleGamepadButtonPress(buttonName);
         else if (_menu?.IsOpen == true)
             toast = _menu.HandleGamepadButtonPress(buttonName);
-        if (toast != null) ShowToast(toast);
-    }
-
-    /// <summary>
-    /// Dispatches a detected Steam action press to the active menu's rebind handler.
-    /// Called on the UI thread via BeginInvoke from the emulation thread.
-    /// </summary>
-    public void HandleSteamActionPress(string actionName)
-    {
-        string? toast = null;
-        if (_mainMenu?.IsVisible == true)
-            toast = _mainMenu.HandleSteamActionPress(actionName);
-        else if (_menu?.IsOpen == true)
-            toast = _menu.HandleSteamActionPress(actionName);
         if (toast != null) ShowToast(toast);
     }
 
@@ -192,6 +181,7 @@ internal sealed class GamePanel : Panel
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        SetCursorVisible(IsMenuActive);
 
         if (!IsMenuActive) return;
 

@@ -175,20 +175,12 @@ internal sealed class EmulationThread
             {
                 if (_gamePanel.IsWaitingForGamepadButton)
                 {
-                    // Rebind mode: try Steam actions first (for native Steam controllers),
-                    // then fall back to XInput (for XInput passthrough controllers where
-                    // the Gameplay action set has no digital action bindings).
-                    string? steamAction = SteamInputManager.HasConnectedController
-                        ? SteamInputManager.PollAnyActionJustPressed()
-                        : null;
-                    if (steamAction != null)
-                        _gamePanel.BeginInvoke(() => { _gamePanel.HandleSteamActionPress(steamAction); _gamePanel.Invalidate(); });
-                    else
-                    {
-                        string? btn = _input.PollAnyGamepadButtonPressed();
-                        if (btn != null)
-                            _gamePanel.BeginInvoke(() => { _gamePanel.HandleGamepadButtonPress(btn); _gamePanel.Invalidate(); });
-                    }
+                    // Rebind is always XInput-only. Native Steam controllers remap via
+                    // Steam's controller configurator; their binding rows are read-only
+                    // in the menu when IsUsingNativeActions() is true.
+                    string? btn = _input.PollAnyGamepadButtonPressed();
+                    if (btn != null)
+                        _gamePanel.BeginInvoke(() => { _gamePanel.HandleGamepadButtonPress(btn); _gamePanel.Invalidate(); });
                 }
                 else
                 {

@@ -193,19 +193,6 @@ internal sealed class InGameMenu
     // ---- Gamepad input ----
 
     /// <summary>
-    /// Called when a Steam action is pressed during rebind mode.
-    /// Updates the SteamAction field on the binding and saves config.
-    /// </summary>
-    public string? HandleSteamActionPress(string actionName)
-    {
-        if (GamepadRebindingAction == null) return null;
-        SetSteamActionBinding(GamepadRebindingAction, actionName);
-        _onConfigSaved();
-        GamepadRebindingAction = null;
-        return null;
-    }
-
-    /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
     /// Returns a toast message to display, or null if no message is needed.
     /// Start cancels and returns an explanatory message; anything else binds.
@@ -338,6 +325,8 @@ internal sealed class InGameMenu
     {
         Current      = screen;
         SelectedItem = 0;
+        if (!IsItemEnabled(0))
+            MoveCursor(1);
     }
 
     private void Activate()
@@ -494,26 +483,20 @@ internal sealed class InGameMenu
             _config.InputMappings[action] = new InputBinding(null, buttonName);
     }
 
-    private void SetSteamActionBinding(string action, string actionName)
-    {
-        foreach (var kvp in _config.InputMappings)
-        {
-            if (kvp.Key != action && kvp.Value.SteamAction == actionName)
-                kvp.Value.SteamAction = null;
-        }
-
-        if (_config.InputMappings.TryGetValue(action, out var binding))
-            binding.SteamAction = actionName;
-        else
-            _config.InputMappings[action] = new InputBinding(null, null, actionName);
-    }
-
     // ---- Enabled state ----
 
     public bool IsItemEnabled(int index)
     {
         if (Current == Screen.Root && index == RootItemLoadGame)
             return _saveStates.SlotExists(_saveStates.ActiveSlot);
+
+        // When a native Steam controller is active, in-game rebinding is not possible —
+        // the user remaps via Steam's controller configurator. Show labels read-only.
+        if (Current == Screen.GamepadBindings
+            && SteamInputManager.IsUsingNativeActions()
+            && BindingActions[index].ConfigKey != "")
+            return false;
+
         return true;
     }
 
@@ -554,7 +537,7 @@ internal sealed class InGameMenu
         Screen.GamepadBindings => BindingActions
             .Select(b => b.ConfigKey == ""
                 ? "← Back"
-                : $"{b.Label,-8}  {(SteamInputManager.HasConnectedController ? SteamActionLabel(b.ConfigKey) : GamepadLabel(b.ConfigKey))}")
+                : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
             .ToArray(),
 
         Screen.Sound => new[]
@@ -574,14 +557,15 @@ internal sealed class InGameMenu
     private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
 
-    private string GamepadLabel(string configKey)
-        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton ?? "(none)" : "(none)";
-
-    private string SteamActionLabel(string configKey)
+    private string GetGamepadLabel(string nesButton)
     {
-        if (!_config.InputMappings.TryGetValue(configKey, out var b) || b.SteamAction is null)
-            return "(none)";
-        return SteamInputManager.GetNativeLabel(b.SteamAction);
+        if (SteamInputManager.IsUsingNativeActions()
+            && SteamInputManager.NesButtonToAction.TryGetValue(nesButton, out var actionName))
+            return SteamInputManager.GetNativeLabel(actionName);
+
+        return _config.InputMappings.TryGetValue(nesButton, out var b)
+            ? b.GamepadButton ?? "(none)"
+            : "(none)";
     }
 
     public string GetTitle() => Current switch
