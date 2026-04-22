@@ -13,28 +13,27 @@ NEShim supports three input sources that are combined every frame: keyboard, XIn
 
 ## Overview
 
-Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — a set of NES button names that are currently pressed. The snapshot combines all three sources simultaneously, all resolved through the unified `inputMappings` table in `config.json`:
+Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — an immutable set of NES button names that are currently pressed. The snapshot merges all three sources, with duplicates deduplicated harmlessly by the `ImmutableHashSet` builder:
 
-1. **Steam Input**: reads active action names from the Gameplay action set and resolves them through each mapping's `steamAction` field.
-2. **XInput**: reads raw gamepad state from `xinput1_4.dll` for player 0 and resolves each button through the `gamepadButton` field.
-3. **Keyboard**: reads pressed keys and resolves them through the `key` field.
+1. **Steam Input**: reads active Gameplay action names from `SteamInputManager.GetActiveActions()` and maps them to NES button names via a fixed constant table in code (`SteamInputManager.ActionToNesButton`).
+2. **XInput**: reads raw gamepad state from `xinput1_4.dll` for player 0 and resolves each button through each binding's `gamepadButton` field in `config.json`.
+3. **Keyboard**: reads pressed keys and resolves them through each binding's `key` field in `config.json`.
 
-All three sources are always polled. If multiple sources produce the same NES button in the same frame, it is deduplicated harmlessly. This means:
-- An **Xbox controller** detected by Steam Input uses XInput passthrough bindings, which forward inputs back through XInput. Both the Steam and XInput paths register the same NES button — deduplication is a no-op.
-- A **PS4, PS5, or Switch Pro controller** requires Steam Input (these are not natively XInput devices). When Steam Input is enabled and default bindings are configured, these controllers work without further setup.
-- A player can use a keyboard and a gamepad simultaneously.
+Steam actions are **not** stored in `config.json`. The mapping from VDF action name to NES button name is fixed by the VDF file and lives as a compile-time constant — it is not user-configurable. Only keyboard and XInput bindings are stored in config and editable in-game.
 
-Each entry in `inputMappings` maps a NES button name to up to three source bindings:
+Each entry in `inputMappings` maps a NES button name to two source bindings:
 
 ```json
 "P1 A": {
   "key": "OemPeriod",
-  "gamepadButton": "A",
-  "steamAction": "a_button"
+  "gamepadButton": "A"
 }
 ```
 
-The `steamAction` value must match an action name declared in the VDF `Gameplay` action set.
+This means:
+- An **Xbox controller** detected by Steam Input uses XInput passthrough — all input flows through XInput. Both Steam polling (empty) and XInput polling (button pressed) are checked; only the XInput path fires.
+- A **PS4, PS5, or Switch Pro controller** requires Steam Input (these are not natively XInput devices). The Steam Gameplay action set defines the mapping; `ActionToNesButton` in `SteamInputManager` converts action names to NES buttons each frame.
+- A player can use a keyboard and a gamepad simultaneously.
 
 ---
 
@@ -133,7 +132,20 @@ Steam Input is the recommended path for non-Xbox controllers. It maps physical h
 
 Steam Input maps physical hardware through a layer defined in a VDF (value definition) file. The game declares *abstract actions* (`up`, `a_button`, `menu_confirm`, etc.) and Steam maps the player's physical hardware to those actions. Default mappings ship with the game so players can use supported controllers immediately. Players can override the defaults from the Steam overlay configurator at any time.
 
-Steam Input and XInput are both always active. They produce independent sets of pressed buttons that are merged each frame. This avoids double-input problems — button names are deduplicated in the merge — and means Xbox controllers continue to work even if Steam Input is also reporting them.
+Each frame, `SteamInputManager.GetActiveActions()` returns the set of VDF action names currently pressed. `InputManager.PollSnapshot()` applies the constant mapping table (`SteamInputManager.ActionToNesButton`) to convert those action names to NES button names — no config lookup is needed. This table is:
+
+| VDF action | NES button |
+|---|---|
+| `up` | `P1 Up` |
+| `down` | `P1 Down` |
+| `left` | `P1 Left` |
+| `right` | `P1 Right` |
+| `a_button` | `P1 A` |
+| `b_button` | `P1 B` |
+| `start` | `P1 Start` |
+| `select` | `P1 Select` |
+
+This mapping is fixed in code (`SteamInputManager.ActionToNesButton` / `NesButtonToAction`). It is not stored in `config.json` and cannot be changed without modifying both the code and the VDF file.
 
 ### Action sets
 
@@ -202,33 +214,27 @@ Each file uses **XInput passthrough** bindings: face buttons, D-pad, Start, and 
 
 > **Note on Switch Pro button labels.** Steam Input normalises button positions across controllers using a positional mapping. The "A" button in the binding file maps to the bottom face button on the physical controller, which is **B** on a Switch Pro. The NES-style labels (A = right face, B = bottom face) are correct for gameplay feel.
 
-### Mapping Steam actions
-
-The `steamAction` field in each `inputMappings` entry holds the VDF action name that triggers the NES button when a Steam Input controller is active. Default values match the `Gameplay` action set declared in `game_actions_<appid>.vdf`:
-
-| NES button | Default `steamAction` |
-|---|---|
-| `P1 Up` | `up` |
-| `P1 Down` | `down` |
-| `P1 Left` | `left` |
-| `P1 Right` | `right` |
-| `P1 A` | `a_button` |
-| `P1 B` | `b_button` |
-| `P1 Start` | `start` |
-| `P1 Select` | `select` |
-
-You can rebind these through the **Gamepad Controls** screen when a Steam Input controller is connected (see below).
-
 ### Gamepad bindings screen behaviour
 
-When a Steam Input controller is connected, the **Gamepad Controls** settings screen shows the native controller button labels for each NES button — queried live from Steam using `GetDigitalActionOrigins` + `GetStringForActionOrigin`, so they reflect the player's current Steam controller configurator layout (e.g. "A Button", "Cross Button", "South Button").
+The **Gamepad Controls** settings screen behaves differently depending on the active controller type:
 
-To rebind, select the entry and press the desired physical button. The rebind screen detects input from whichever source actually fires:
+**XInput / XInput passthrough controllers (Xbox, most gamepads)**
 
-- **Native Steam controllers** (PS4, PS5, Switch Pro, Steam Controller): the Gameplay action set has digital action bindings, so NEShim captures the Steam action name and updates the `steamAction` field in `config.json`. Deduplication is enforced across all Steam action bindings.
-- **Xbox controllers via Steam (XInput passthrough)**: the Gameplay action set uses XInput passthrough instead of digital action bindings, so no Steam action fires. NEShim falls back to the XInput poller and updates the `gamepadButton` field instead.
+`SteamInputManager.IsUsingNativeActions()` returns false — all input flows through XInput.
 
-The first stage — which physical button maps to which Steam action — is configured through the Steam overlay controller configurator (Shift+Tab). This only applies to native Steam controllers; Xbox controllers are always XInput passthrough.
+- Each binding row shows the XInput button name from `config.json` (e.g. `DPadUp`, `Y`, `Back`).
+- All rows are selectable and editable.
+- To rebind: select a row, press the desired physical button. The binding is saved immediately.
+- Start is reserved — pressing it during rebind shows a toast and cancels the operation.
+
+**Native Steam controllers (PS4, PS5, Switch Pro, Steam Controller with full action bindings)**
+
+`SteamInputManager.IsUsingNativeActions()` returns true — the Gameplay action set has real digital action bindings, not XInput passthrough.
+
+- Each binding row shows the physical button label from Steam (e.g. "Cross Button", "Triangle Button"), queried live via `GetDigitalActionOrigins` + `GetStringForActionOrigin`. Labels reflect the player's current Steam controller configurator layout.
+- All binding rows are shown **read-only** (greyed out). In-game rebinding is not possible for native Steam controllers.
+- To remap: open the Steam overlay (Shift+Tab) → Controller Settings, and adjust bindings there. The change is reflected live in the binding labels on next visit to this screen.
+- The **Back** row remains active so the player can exit the screen.
 
 ---
 
@@ -292,16 +298,17 @@ Keyboard events (UI thread)
 Emulation thread: PollSnapshot()
   ├─ Steam Input: SteamInputManager.GetActiveActions()
   │    └─ ImmutableHashSet<string> of VDF action names (empty if unavailable)
+  │         └─ SteamInputManager.ActionToNesButton (constant table)
+  │              └─ NES button names added directly to builder
   ├─ XInput: XInputHelper.GetState(0)
   │    └─ Digital buttons + analog axes (empty if disconnected)
   └─ Keyboard: _pressedKeys → Keys enum
        ↓
-  InputMappings loop (config.json)
-    per NES button: check binding.SteamAction ∈ activeActions
-                    check binding.GamepadButton pressed on XInput
+  InputMappings loop (config.json) — keyboard + XInput only
+    per NES button: check binding.GamepadButton pressed on XInput
                     check binding.Key ∈ pressedKeys
     + analog stick → D-pad conversion (XInput only)
-       ↓  (all three sources resolved; duplicates deduplicated)
+       ↓  (all sources resolved; duplicates deduplicated)
   InputSnapshot (ImmutableHashSet<string> of NES button names)
        ↓
   NesController.Update(snapshot)
