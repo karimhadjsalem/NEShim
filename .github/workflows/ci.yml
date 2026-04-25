@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    permissions:
+      contents: read
+      pull-requests: write
     env:
       COVERAGE_THRESHOLD: 30
 
@@ -52,7 +55,11 @@ jobs:
           reportgenerator
           "-reports:TestResults/**/coverage.cobertura.xml"
           "-targetdir:CoverageReport"
-          "-reporttypes:HtmlInline;TextSummary"
+          "-reporttypes:HtmlInline;TextSummary;MarkdownSummaryGithub"
+
+      - name: Write coverage to job summary
+        shell: bash
+        run: cat CoverageReport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
       - name: Check coverage gate
         shell: pwsh
@@ -83,3 +90,17 @@ jobs:
         with:
           name: coverage-report
           path: CoverageReport/
+
+      - name: Find coverage XML
+        if: github.event_name == 'pull_request'
+        id: find-coverage
+        shell: bash
+        run: echo "path=$(find TestResults -name 'coverage.cobertura.xml' | head -1)" >> $GITHUB_OUTPUT
+
+      - name: Post coverage comment on PR
+        uses: orgoro/coverage@v3
+        if: github.event_name == 'pull_request'
+        with:
+          coverageFile: ${{ steps.find-coverage.outputs.path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          thresholdAll: 0.30
