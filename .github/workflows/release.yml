@@ -11,6 +11,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      COVERAGE_THRESHOLD: 30
 
     steps:
       - name: Checkout
@@ -43,6 +45,41 @@ jobs:
           --no-restore
           --logger "trx;LogFileName=results.trx"
           --results-directory TestResults
+          --collect:"XPlat Code Coverage"
+          --settings NEShim/coverage.runsettings
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: >
+          reportgenerator
+          "-reports:TestResults/**/coverage.cobertura.xml"
+          "-targetdir:CoverageReport"
+          "-reporttypes:HtmlInline;TextSummary"
+
+      - name: Check coverage gate
+        shell: pwsh
+        run: |
+          $summary = Get-Content CoverageReport/Summary.txt -Raw
+          if ($summary -match 'Line coverage:\s+([\d.]+)%') {
+            $pct = [double]$Matches[1]
+            Write-Host "Line coverage: $pct%"
+            if ($pct -lt $env:COVERAGE_THRESHOLD) {
+              Write-Error "Line coverage $pct% is below the required $env:COVERAGE_THRESHOLD%"
+              exit 1
+            }
+          } else {
+            Write-Error "Could not parse coverage summary"
+            exit 1
+          }
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: CoverageReport/
 
       - name: Publish game
         run: >
