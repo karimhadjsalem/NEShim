@@ -86,7 +86,7 @@ Do **not** sync `config.json`. Settings like `windowMode` and `volume` are machi
 ### Limitations
 
 - **Conflict resolution is opaque.** Steam uses last-write-wins. There is no in-game conflict UI.
-- **The auto-save is not crash-safe.** It is written only on graceful exit. See [Auto-save](configuration.md#auto-save) in the configuration reference.
+- **A crash can lose up to ~5 minutes of progress.** The auto-save fires when the in-game menu opens, every ~5 minutes during active play, and on graceful exit — so the worst-case exposure window on a crash is one periodic interval. See [Auto-save](configuration.md#auto-save) in the configuration reference.
 - **Manual slot saves are immediately safe.** Each manual save writes synchronously; Steam picks it up on the next sync.
 
 ---

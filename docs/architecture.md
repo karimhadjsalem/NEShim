@@ -245,7 +245,7 @@ NES pixel buffer (int[256×240], ARGB)
 `SaveStateManager` wraps BizHawk's `IStatable` interface:
 
 - **8 named slots** stored as `slot{n}.state` (binary) + `slot{n}.meta` (JSON timestamp).
-- **Auto-save** stored as `autosave.state`. Written on exit if the main menu is not showing (i.e., the player was actively in-game).
+- **Auto-save** stored as `autosave.state`. Written when the in-game menu opens, every ~5 minutes during active play (18,000-frame counter in `EmulationThread.Loop`), and on graceful exit — never while the pre-game main menu is showing.
 - `ActiveSlot` is persisted to `config.json` on exit.
 
 BizHawk's `IStatable` serialises the full emulator state (CPU registers, RAM, PPU, APU, mapper) to a `BinaryWriter`. Restoring from a state is immediate and cycle-accurate.

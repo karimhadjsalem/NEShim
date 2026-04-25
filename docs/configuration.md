@@ -31,11 +31,17 @@ NEShim is configured entirely through `config.json` placed alongside the executa
 
 ### Auto-save
 
-On a **graceful exit** (window closed, Exit chosen from the menu), NEShim automatically writes a snapshot to `autosave.state` inside `saveStateDirectory`. This happens only when the game is running — if the player exits from the pre-game main menu before starting, no snapshot is written.
+NEShim writes `autosave.state` inside `saveStateDirectory` at three points:
 
-The auto-save file is separate from the eight manual slots and cannot be loaded from within the game. It exists solely as a recovery file for Steam Cloud — if the player's session ends without a manual save, the auto-save gives Steam something to sync so progress is not lost on the next machine.
+- **When the in-game menu opens** — captures the exact state at the moment the player pauses.
+- **Every ~5 minutes during active gameplay** — a frame counter fires after approximately 18,000 frames (~5 min at 60 fps).
+- **On graceful exit** — written when the window is closed or Exit is chosen from the menu, if the game is running.
 
-**Auto-save is not crash-safe.** If the process is terminated unexpectedly (crash, task manager, power loss), the file is not written and the previous auto-save, if any, remains on disk unchanged.
+No auto-save is written while the pre-game main menu is showing (i.e., before the player has started a game).
+
+The auto-save file is separate from the eight manual slots and cannot be loaded from within the game. It exists as a recovery file for Steam Cloud — if the player's session ends without a manual save, the auto-save gives Steam something to sync so progress is not lost on the next machine.
+
+On a crash or force-quit, the most recent periodic or menu-triggered save remains on disk. At most ~5 minutes of progress is exposed between periodic saves; a clean shutdown always writes a fresh snapshot on exit regardless of when the last periodic save fired.
 
 There are no config fields to enable, disable, or rename the auto-save file. The path is always `<saveStateDirectory>/autosave.state`.
 
