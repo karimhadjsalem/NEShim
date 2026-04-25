@@ -1,0 +1,30 @@
+{% if site.prerelease %}{% unless page.url contains '/versions/' %}
+<style>
+  .prerelease-notice {
+    background-color: #3d2200;
+    border: 1px solid #a0530a;
+    border-radius: 4px;
+    color: #ffd9a8;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    padding: 0.6rem 1rem;
+  }
+  .prerelease-notice a {
+    color: #ffd9a8;
+    text-decoration: underline;
+  }
+  .prerelease-notice a:hover {
+    color: #fff;
+  }
+</style>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var main = document.getElementById('main-content');
+    if (!main) return;
+    var el = document.createElement('div');
+    el.className = 'prerelease-notice';
+    el.innerHTML = '&#9888;&ensp;Pre-release documentation &mdash; these pages describe features not yet in a stable release. Current stable: <a href="{{ '/versions/' | relative_url }}{{ site.latest_version }}/">{{ site.latest_version }}</a>';
+    main.insertBefore(el, main.firstChild);
+  });
+</script>
+{% endunless %}{% endif %}

@@ -1,0 +1,50 @@
+name: Release docs snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to snapshot (e.g. v1.0.4)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          if ! echo "${{ inputs.version }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Error: version must match vX.Y.Z (e.g. v1.0.4)"
+            exit 1
+          fi
+
+      - name: Check snapshot does not already exist
+        run: |
+          if [ -d "versions/${{ inputs.version }}" ]; then
+            echo "Error: versions/${{ inputs.version }} already exists — delete it first if you want to re-snapshot."
+            exit 1
+          fi
+
+      - name: Copy docs to versioned snapshot
+        run: cp -r docs "versions/${{ inputs.version }}"
+
+      - name: Update latest_version in _config.yml
+        run: |
+          sed -i 's/^latest_version:.*/latest_version: "${{ inputs.version }}"/' _config.yml
+
+      - name: Add version entry to version history
+        run: |
+          sed -i '/<!-- versions-insert-here -->/a\- [${{ inputs.version }}](${{ inputs.version }}\/)' versions/index.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "docs: snapshot ${{ inputs.version }}"
+          git push
