@@ -66,8 +66,8 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 |---|---|---|---|
 | `graphicsSmoothingEnabled` | boolean | `false` | When `false`, uses nearest-neighbour (pixel-perfect) scaling. When `true`, uses bilinear filtering for a softer look. Togglable in the Video menu. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
-| `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. The image is displayed at 1:1 resolution, cropped if larger than the bar. Leave empty for black bars. |
-| `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. |
+| `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. |
+| `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. |
 | `mainMenuPosition` | string | `"BottomCenter"` | Position of the menu panel on the main menu screen. Accepted values: `"BottomCenter"`, `"Center"`, `"BottomLeft"`, `"BottomRight"`, `"TopLeft"`, `"TopCenter"`, `"TopRight"`. |
 | `showFps` | boolean | `false` | Displays a live FPS counter in the top-right corner during gameplay. Toggleable in the Video menu. |
 

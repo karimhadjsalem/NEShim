@@ -233,7 +233,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 | Config field | Purpose | Notes |
 |---|---|---|
 | `mainMenuBackgroundPath` | Full-screen background on the pre-game menu | Any common image format. Stretched/filled to the window size. |
-| `sidebarLeftPath` | Image in the left letterbox bar during gameplay | Drawn at 1:1 pixel resolution, centered, cropped to bar width. |
+| `sidebarLeftPath` | Image in the left letterbox bar during gameplay | Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, overflow cropped. |
 | `sidebarRightPath` | Image in the right letterbox bar during gameplay | Same rules as left sidebar. |
 | `mainMenuMusicPath` | Looping audio for the pre-game menu | MP3 or WAV recommended. Plays with fade-in/fade-out transitions. |
 
