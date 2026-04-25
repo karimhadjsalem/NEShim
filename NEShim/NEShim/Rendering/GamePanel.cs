@@ -305,19 +305,15 @@ internal sealed class GamePanel : Panel
 
     private static void DrawSidebar(Graphics g, Bitmap bmp, Rectangle dest)
     {
-        // Draw at 1:1 pixel resolution, centered, cropping any overflow
-        int srcW = Math.Min(bmp.Width,  dest.Width);
-        int srcH = Math.Min(bmp.Height, dest.Height);
-        int srcX = (bmp.Width  - srcW) / 2;
-        int srcY = (bmp.Height - srcH) / 2;
-        int dstX = dest.X + (dest.Width  - srcW) / 2;
-        int dstY = dest.Y + (dest.Height - srcH) / 2;
+        // Cover: scale uniformly so the image fills the entire dest area, then center-crop overflow.
+        float scale = Math.Max((float)dest.Width / bmp.Width, (float)dest.Height / bmp.Height);
+        float srcW  = dest.Width  / scale;
+        float srcH  = dest.Height / scale;
+        float srcX  = (bmp.Width  - srcW) / 2f;
+        float srcY  = (bmp.Height - srcH) / 2f;
 
         g.CompositingMode = CompositingMode.SourceCopy;
-        g.DrawImage(bmp,
-            new Rectangle(dstX, dstY, srcW, srcH),
-            new Rectangle(srcX, srcY, srcW, srcH),
-            GraphicsUnit.Pixel);
+        g.DrawImage(bmp, dest, new RectangleF(srcX, srcY, srcW, srcH), GraphicsUnit.Pixel);
     }
 
     private void DrawToast(Graphics g, string text)
