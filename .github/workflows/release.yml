@@ -127,12 +127,28 @@ jobs:
           path: ghpages-work
 
       - name: Snapshot docs for this version
-        shell: bash
+        shell: python
         working-directory: ghpages-work
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          mkdir -p "versions/v${VERSION}"
-          cp -r docs/. "versions/v${VERSION}/"
+          import os, re, shutil
+
+          version = "${{ steps.version.outputs.VERSION }}"
+          src = "docs"
+          dst = f"versions/v{version}"
+          os.makedirs(dst, exist_ok=True)
+          shutil.copytree(src, dst, dirs_exist_ok=True)
+
+          # Strip explicit permalink: lines from copied front matter so Jekyll
+          # builds each page at its natural path rather than the original /
+          for fname in os.listdir(dst):
+              if not fname.endswith(".md"):
+                  continue
+              path = os.path.join(dst, fname)
+              with open(path) as f:
+                  content = f.read()
+              content = re.sub(r"^permalink:.*\n", "", content, flags=re.MULTILINE)
+              with open(path, "w") as f:
+                  f.write(content)
 
       - name: Update version history and footer
         shell: python
