@@ -2,7 +2,7 @@
 layout: default
 title: Achievements
 nav_order: 3
-description: "Memory-watch triggers, achievements.json format, BCD encoding, HMAC signing, and the SealAchievements tool."
+description: "Memory-watch triggers, achievements.json format, BCD encoding, ECDSA-P256 signature verification, and the seal-achievements tool."
 ---
 
 # Achievement system
@@ -15,12 +15,12 @@ NEShim supports Steam achievements without requiring recompilation or ROM modifi
 
 1. At startup, `EmulatorHost` computes the SHA1 hash of the raw ROM bytes.
 2. `AchievementConfigLoader` reads `achievements.json` and looks up the entry for that ROM hash.
-3. Each `AchievementDef` in the entry is signature-verified with HMAC-SHA256. Any definition with a missing or invalid signature is silently dropped.
+3. Each `AchievementDef` in the entry is signature-verified with ECDSA-P256. Any definition with a missing or invalid signature is silently dropped.
 4. `AchievementManager` is constructed with the verified definitions and a reference to the NES memory domain.
 5. Once per frame (after `RunFrame()` completes), `AchievementManager.Tick()` reads each watched address and evaluates the trigger condition.
 6. When a condition matches and `StatsReady` is true (Steam's initial stats snapshot has been received), `SteamManager.UnlockAchievement()` is called. The achievement fires at most once per session — a `HashSet` tracks which ones have already fired.
 
-**The HMAC check prevents casual text-file editing** from unlocking achievements. A player who edits `achievements.json` directly will invalidate the signature and the modified entry will never fire. See [Signing and sealing](#signing-and-sealing).
+**The signature check prevents casual text-file editing** from unlocking achievements. A player who edits `achievements.json` directly will invalidate the signature and the modified entry will never fire. See [Signing and sealing](#signing-and-sealing).
 
 ---
 
@@ -40,7 +40,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
         "encoding":   "binary",
         "comparison": "equals",
         "value":      1,
-        "sig":        "base64-hmac-written-by-seal-achievements"
+        "sig":        "base64-ecdsa-p256-written-by-seal-achievements"
       }
     ]
   }
@@ -68,7 +68,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
 | `encoding` | string | `"binary"` | No | `"binary"` — interpret the assembled bytes as a standard integer. `"bcd"` — decode as binary-coded decimal (see below). |
 | `comparison` | string | `"equals"` | No | Trigger condition: `"equals"`, `"greaterOrEqual"`, `"greaterThan"`, `"lessOrEqual"`, or `"lessThan"`. |
 | `value` | integer | — | Yes | Threshold for the comparison. |
-| `sig` | string | — | Yes (to fire) | HMAC-SHA256 signature written by `seal-achievements`. Definitions without a valid signature are silently ignored at runtime. |
+| `sig` | string | — | Yes (to fire) | ECDSA-P256 signature (64 bytes, IEEE P1363, base64-encoded) written by `seal-achievements --key <keyfile>`. Definitions without a valid signature are silently ignored at runtime. |
 
 ---
 
@@ -159,16 +159,30 @@ Use this hash as the key in `achievements.json`.
 
 ## Signing and sealing
 
-Achievement definitions must be signed before they will fire in-game. The `seal-achievements` tool computes an HMAC-SHA256 signature for each definition's trigger fields and writes it into the `"sig"` field.
+Achievement definitions must be signed before they will fire in-game. NEShim uses **ECDSA-P256** asymmetric signing: the private key lives only on the publisher's build machine and is used by `seal-achievements` to sign definitions; the public key is used at runtime to verify them. Possession of the public key cannot forge signatures.
+
+There is no default key — achievements will not fire until a key is configured. Two paths are available:
+
+| Path | How | Security |
+|---|---|---|
+| **Binary-embedded** | Set `EmbeddedPublicKeyBase64` in `AchievementSigner.cs` at build time | Highest — key cannot be overridden by editing a file |
+| **Config file** | Set `achievementPublicKey` in `config.json` | Good — no rebuild needed, suitable for pre-built releases |
+
+The binary-embedded key takes precedence over the config key when both are present.
 
 ### Running the sealer
 
+Sealing requires the private half of your signing keypair:
+
 ```bash
-# Seal the default achievements.json in the current directory
-seal-achievements
+# Seal achievements.json in the current directory using a key file
+seal-achievements --key private_key.txt
 
 # Seal a specific file
-seal-achievements path/to/achievements.json
+seal-achievements --key private_key.txt path/to/achievements.json
+
+# Seal using a private key from an environment variable (useful in CI)
+seal-achievements --key-env NESHIM_SIGNING_KEY achievements.json
 ```
 
 Output:
@@ -185,7 +199,7 @@ Done. 2 sealed, 0 skipped → achievements.json
 
 ### What the signature covers
 
-The HMAC is computed over a `|`-delimited canonical string of all trigger fields:
+The signature is computed over a `|`-delimited canonical string of all trigger fields:
 
 ```
 {steamId}|{address}|{bytes}|{bigEndian}|{encoding}|{comparison}|{value}
@@ -193,27 +207,59 @@ The HMAC is computed over a `|`-delimited canonical string of all trigger fields
 
 The `"sig"` field itself is excluded. Changing any trigger field without re-sealing produces a mismatch.
 
-### Rotating the HMAC key
+### Key management
 
-The HMAC key is embedded in `NEShim.AchievementSigning/AchievementSigner.cs`. Before shipping a production release, generate a new key specific to your game:
+#### 1. Generate a keypair
 
 ```bash
-seal-achievements --gen-key
+seal-achievements --gen-keypair
 ```
 
-This prints a random 32-byte key in base64:
+Output:
 
 ```
-Generated key (paste into AchievementSigner.HmacKeyBase64):
-WWGKiRD2jDNaDdyA4ociUifvT2TSNZVHF4Y3HmPpxg4=
+Private key (keep secret — never commit; store in 1Password, a local file, or a CI secret):
+MHcCAQEEI...
+
+Public key (embed in AchievementSigner.DefaultPublicKeyBase64 OR set as achievementPublicKey in config.json):
+MFkwEwYHKo...
 ```
 
-1. Copy the output value.
-2. Replace `HmacKeyBase64` in `NEShim/NEShim.AchievementSigning/AchievementSigner.cs`.
-3. Rebuild the solution.
-4. Re-run `seal-achievements` on all `achievements.json` files to re-stamp signatures with the new key.
+#### 2. Store the private key securely
 
-**Do this before any public release.** The default key in the source is publicly known and provides no meaningful tamper protection.
+Never commit the private key to source control. Options:
+
+- Save it to a local file (e.g. `private_key.txt`) outside the repository.
+- Store it in a password manager (1Password, Bitwarden).
+- For CI builds, store it as an encrypted secret and pass via `--key-env`.
+
+#### 3. Provide the public key to the runtime
+
+Two options — use whichever fits your release path:
+
+**Binary embedding (source build):** Set `EmbeddedPublicKeyBase64` in `NEShim/NEShim.AchievementSigning/AchievementSigner.cs`, then rebuild:
+
+```csharp
+public const string? EmbeddedPublicKeyBase64 = "MFkwEwYHKo..."; // your public key
+```
+
+The key is compiled into the binary and cannot be overridden by editing any file. This takes precedence over `achievementPublicKey` in config.json.
+
+**Config file (pre-built release, no rebuild required):** Set `achievementPublicKey` in `config.json`:
+
+```json
+{
+  "achievementPublicKey": "MFkwEwYHKo..."
+}
+```
+
+If neither is set, the loader logs a warning and no achievements fire.
+
+#### 4. Re-seal after a key change
+
+Whenever you rotate to a new keypair, re-run `seal-achievements --key <newkeyfile> achievements.json`. Signatures from the old private key will fail verification with the new public key and be silently rejected.
+
+**A key must be configured before any achievements will fire.** There is no default key — achievements are silently disabled until either `EmbeddedPublicKeyBase64` is set at build time (source build) or `achievementPublicKey` is set in `config.json` (pre-built release).
 
 ---
 

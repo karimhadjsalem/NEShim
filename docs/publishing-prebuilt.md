@@ -165,15 +165,41 @@ Example:
 }
 ```
 
-4. Seal the file:
+4. Seal the file using your private key:
 
 ```bash
-seal-achievements achievements.json
+seal-achievements --key private_key.txt achievements.json
 ```
 
 Verify all definitions are listed as `[sealed]` in the output. Never edit `achievements.json` after sealing without re-sealing — any changed definition will fail signature verification and silently stop firing.
 
-**Note:** A pre-built release ships with a publicly known HMAC key. Sealed achievements will verify correctly, but anyone with the key can forge signatures. If this matters for your project, use [Building from source](publishing-source) and rotate the key.
+### Protecting your achievements
+
+There is no default signing key — achievements are disabled until you configure one. Set `achievementPublicKey` in `config.json` to enable and protect achievements without rebuilding from source:
+
+1. Generate your own keypair:
+
+   ```bash
+   seal-achievements --gen-keypair
+   ```
+
+2. Set `achievementPublicKey` in `config.json` to the printed public key:
+
+   ```json
+   {
+     "achievementPublicKey": "MFkwEwYHKo..."
+   }
+   ```
+
+3. Re-seal your `achievements.json` with your private key:
+
+   ```bash
+   seal-achievements --key private_key.txt achievements.json
+   ```
+
+Store the private key securely (1Password, local file outside source control, or CI secret). See [Achievement system — Key management](achievements.md#key-management).
+
+If you need the public key baked into the binary itself, use [Building from source](publishing-source) instead.
 
 ---
 
@@ -225,7 +251,8 @@ Before uploading to Steam:
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
-- [ ] `achievements.json` authored and sealed with `seal-achievements`
+- [ ] Signing keypair generated with `seal-achievements --gen-keypair`; `achievementPublicKey` set in `config.json`; private key stored outside source control (if protecting achievements)
+- [ ] `achievements.json` authored and sealed with `seal-achievements --key <keyfile>`
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
 - [ ] Release passes local smoke test (saves, Steam overlay, achievements)
