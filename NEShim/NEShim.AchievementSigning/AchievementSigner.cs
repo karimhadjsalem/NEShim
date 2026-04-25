@@ -4,59 +4,72 @@ using System.Text;
 namespace NEShim.Achievements;
 
 /// <summary>
-/// Signs and verifies <see cref="AchievementDef"/> trigger fields using HMAC-SHA256.
+/// Signs and verifies <see cref="AchievementDef"/> trigger fields using ECDSA-P256.
 ///
-/// The HMAC key is embedded in this binary. Changing any trigger field (address, value,
-/// comparison, etc.) without re-running SealAchievements will produce a signature mismatch
-/// and the achievement will be silently ignored at runtime.
+/// The private key lives only on the publisher's build machine and is passed to
+/// <see cref="ComputeSig"/> by the seal-achievements tool — it never ships with the game.
 ///
-/// To regenerate the key before shipping:
-///   dotnet run --project NEShim.SealAchievements -- --gen-key
-/// Copy the printed value into the HmacKeyBase64 constant below, then re-seal all configs.
+/// The public key is resolved at runtime by <c>AchievementConfigLoader</c> using this precedence:
+///   1. <see cref="EmbeddedPublicKeyBase64"/> — set this constant at build time for maximum
+///      security; the key cannot be overridden by editing a config file.
+///   2. <c>achievementPublicKey</c> in config.json — the pre-built release path; no rebuild needed.
+///   3. Neither set → achievements are disabled.
+///
+/// There is no default key. To generate a keypair: seal-achievements --gen-keypair
 /// </summary>
 public static class AchievementSigner
 {
-    // 32-byte (256-bit) HMAC key, base64-encoded.
-    // IMPORTANT: Replace this with your own generated key before shipping if you want a new key.
-    // Run: dotnet run --project NEShim/NEShim.SealAchievements -- --gen-key
-    private const string HmacKeyBase64 = "Kf9pXzQ3mNb8LvuYR+2tHoEJ0gWIasDcCe4rMjViywU=";
+    // ECDSA-P256 public key, SubjectPublicKeyInfo DER format, base64-encoded.
+    // Set this to your public key at build time to bake it into the binary.
+    // When non-null, this key takes precedence over achievementPublicKey in config.json —
+    // the key cannot be changed without recompiling. Leave null to use config.json instead.
+    public const string? EmbeddedPublicKeyBase64 = null;
 
-    private static readonly byte[] Key = Convert.FromBase64String(HmacKeyBase64);
-
-    /// <summary>
-    /// Computes the HMAC-SHA256 signature for the trigger fields of <paramref name="def"/>.
-    /// The <see cref="AchievementDef.Sig"/> field is excluded from the computation.
-    /// </summary>
-    public static string ComputeSig(AchievementDef def)
-    {
-        string canonical = FormattableString.Invariant(
+    private static string Canonical(AchievementDef def) =>
+        FormattableString.Invariant(
             $"{def.SteamId}|{def.Address}|{def.Bytes}|{def.BigEndian}|{def.Encoding}|{def.Comparison}|{def.Value}");
 
-        using var hmac = new HMACSHA256(Key);
-        byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(canonical));
-        return Convert.ToBase64String(hash);
+    /// <summary>
+    /// Signs the trigger fields of <paramref name="def"/> with <paramref name="privateKeyBase64"/>
+    /// (SEC1 DER format, base64-encoded) and returns the ECDSA-P256 signature as a base64 string.
+    /// Called only by the seal-achievements build tool — never at runtime.
+    /// </summary>
+    public static string ComputeSig(AchievementDef def, string privateKeyBase64)
+    {
+        byte[] privKeyBytes = Convert.FromBase64String(privateKeyBase64);
+        using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        ecdsa.ImportECPrivateKey(privKeyBytes, out _);
+        byte[] sig = ecdsa.SignData(
+            Encoding.UTF8.GetBytes(Canonical(def)),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+        return Convert.ToBase64String(sig);
     }
 
     /// <summary>
-    /// Returns true if <paramref name="def"/>'s <see cref="AchievementDef.Sig"/> matches
-    /// the expected HMAC for its trigger fields.
+    /// Returns true if <paramref name="def"/>'s <see cref="AchievementDef.Sig"/> is a valid
+    /// ECDSA-P256 signature over its trigger fields, verified with <paramref name="publicKeyBase64"/>
+    /// (SubjectPublicKeyInfo DER format, base64-encoded).
     /// </summary>
-    public static bool Verify(AchievementDef def)
+    public static bool Verify(AchievementDef def, string publicKeyBase64)
     {
         if (string.IsNullOrEmpty(def.Sig)) return false;
 
-        string expected = ComputeSig(def);
-
         try
         {
-            // Constant-time comparison to prevent timing attacks.
-            return CryptographicOperations.FixedTimeEquals(
-                Convert.FromBase64String(def.Sig),
-                Convert.FromBase64String(expected));
+            byte[] sig    = Convert.FromBase64String(def.Sig);
+            byte[] pubKey = Convert.FromBase64String(publicKeyBase64);
+            using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            ecdsa.ImportSubjectPublicKeyInfo(pubKey, out _);
+            return ecdsa.VerifyData(
+                Encoding.UTF8.GetBytes(Canonical(def)),
+                sig,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
-        catch (FormatException)
+        catch
         {
-            return false; // malformed base64 in the Sig field
+            return false;
         }
     }
 }

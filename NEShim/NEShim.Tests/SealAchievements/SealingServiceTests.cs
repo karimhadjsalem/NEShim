@@ -6,6 +6,18 @@ namespace NEShim.Tests.SealAchievements;
 [TestFixture]
 internal class SealingServiceTests
 {
+    // Same test keypairs as AchievementSignerTests — test-only keys, not production.
+    private const string TestPrivateKeyBase64 =
+        "MHcCAQEEIJX+aCzo2G6R5dUkmZWSRbUDpJMqj57dNvMZBNRhdjoqoAoGCCqGSM49AwEHoUQDQgAE" +
+        "aAlvnWP1jf2S6o45HLmZB0se6yQFFdTU3B/IZWrG1UrpLxMjW3kP5m6l5ZK6wo2JjZ2AA7Y0JK3S" +
+        "LZyvfmHJhw==";
+    private const string TestPublicKeyBase64 =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaAlvnWP1jf2S6o45HLmZB0se6yQFFdTU3B/IZWrG" +
+        "1UrpLxMjW3kP5m6l5ZK6wo2JjZ2AA7Y0JK3SLZyvfmHJhw==";
+    private const string OtherPublicKeyBase64 =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAgCiqeoxm0UuLd9EiZt/ONVA6SybkplDzznY8s1f" +
+        "YPCo1hbCAiaFWf3bJl33Sz2qXdYvH+UqQDaSQio5nP3SpQ==";
+
     private static AchievementDef MakeDef(string steamId = "ACH_TEST", long value = 1) =>
         new()
         {
@@ -31,10 +43,21 @@ internal class SealingServiceTests
     {
         var configs = SingleConfig(MakeDef("ACH_A"), MakeDef("ACH_B"));
 
-        SealingService.Seal(configs);
+        SealingService.Seal(configs, TestPrivateKeyBase64);
 
         foreach (var def in configs["ROMHASH"].Achievements)
-            Assert.That(AchievementSigner.Verify(def), Is.True, $"{def.SteamId} should verify");
+            Assert.That(AchievementSigner.Verify(def, TestPublicKeyBase64), Is.True, $"{def.SteamId} should verify");
+    }
+
+    [Test]
+    public void Seal_ProducedSig_FailsVerificationWithDifferentPublicKey()
+    {
+        var configs = SingleConfig(MakeDef());
+
+        SealingService.Seal(configs, TestPrivateKeyBase64);
+
+        var def = configs["ROMHASH"].Achievements[0];
+        Assert.That(AchievementSigner.Verify(def, OtherPublicKeyBase64), Is.False);
     }
 
     // ---- Skipping ----
@@ -45,7 +68,7 @@ internal class SealingServiceTests
         var def     = MakeDef() with { SteamId = null! };
         var configs = SingleConfig(def);
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Skipped, Is.EqualTo(1));
         Assert.That(def.Sig, Is.Null);
@@ -57,7 +80,7 @@ internal class SealingServiceTests
         var def     = MakeDef() with { SteamId = "" };
         var configs = SingleConfig(def);
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Skipped, Is.EqualTo(1));
         Assert.That(def.Sig, Is.Null);
@@ -69,7 +92,7 @@ internal class SealingServiceTests
         var def     = MakeDef() with { SteamId = "   " };
         var configs = SingleConfig(def);
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Skipped, Is.EqualTo(1));
         Assert.That(def.Sig, Is.Null);
@@ -82,7 +105,7 @@ internal class SealingServiceTests
     {
         var configs = SingleConfig(MakeDef("ACH_A"), MakeDef("ACH_B"), MakeDef("ACH_C"));
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Sealed, Is.EqualTo(3));
     }
@@ -95,27 +118,25 @@ internal class SealingServiceTests
             MakeDef() with { SteamId = "" },
             MakeDef() with { SteamId = null! });
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Sealed,  Is.EqualTo(1));
         Assert.That(result.Skipped, Is.EqualTo(2));
     }
 
-    // ---- Idempotency ----
+    // ---- Re-sealing ----
 
     [Test]
-    public void Seal_IsIdempotent_ResealProducesSameValidSig()
+    public void Seal_Reseal_OverwritesSigWithNewValidSig()
     {
+        // ECDSA-P256 is non-deterministic; the two sigs may differ but both must verify.
         var configs = SingleConfig(MakeDef());
 
-        SealingService.Seal(configs);
-        string firstSig = configs["ROMHASH"].Achievements[0].Sig!;
+        SealingService.Seal(configs, TestPrivateKeyBase64);
+        SealingService.Seal(configs, TestPrivateKeyBase64);
 
-        SealingService.Seal(configs);
-        string secondSig = configs["ROMHASH"].Achievements[0].Sig!;
-
-        Assert.That(secondSig, Is.EqualTo(firstSig));
-        Assert.That(AchievementSigner.Verify(configs["ROMHASH"].Achievements[0]), Is.True);
+        var def = configs["ROMHASH"].Achievements[0];
+        Assert.That(AchievementSigner.Verify(def, TestPublicKeyBase64), Is.True);
     }
 
     // ---- Edge cases ----
@@ -125,7 +146,7 @@ internal class SealingServiceTests
     {
         var configs = SingleConfig(); // no defs
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Sealed,  Is.EqualTo(0));
         Assert.That(result.Skipped, Is.EqualTo(0));
@@ -140,12 +161,12 @@ internal class SealingServiceTests
             ["HASH_B"] = new() { Achievements = [MakeDef("ACH_2"), MakeDef("ACH_3")] },
         };
 
-        var result = SealingService.Seal(configs);
+        var result = SealingService.Seal(configs, TestPrivateKeyBase64);
 
         Assert.That(result.Sealed, Is.EqualTo(3));
-        Assert.That(AchievementSigner.Verify(configs["HASH_A"].Achievements[0]), Is.True);
-        Assert.That(AchievementSigner.Verify(configs["HASH_B"].Achievements[0]), Is.True);
-        Assert.That(AchievementSigner.Verify(configs["HASH_B"].Achievements[1]), Is.True);
+        Assert.That(AchievementSigner.Verify(configs["HASH_A"].Achievements[0], TestPublicKeyBase64), Is.True);
+        Assert.That(AchievementSigner.Verify(configs["HASH_B"].Achievements[0], TestPublicKeyBase64), Is.True);
+        Assert.That(AchievementSigner.Verify(configs["HASH_B"].Achievements[1], TestPublicKeyBase64), Is.True);
     }
 
     [Test]
@@ -153,13 +174,11 @@ internal class SealingServiceTests
     {
         var def     = MakeDef(value: 10000);
         var configs = SingleConfig(def);
-        SealingService.Seal(configs);
+        SealingService.Seal(configs, TestPrivateKeyBase64);
 
-        // Produce a tampered copy: keep the original sig but change the trigger value.
-        // The with-expression copies Sig from def, so the tampered def carries a sig
-        // that was signed for value=10000 — verify must reject it.
+        // Tampered copy: keep the original sig but change the trigger value.
         var tampered = def with { Value = 0 };
 
-        Assert.That(AchievementSigner.Verify(tampered), Is.False);
+        Assert.That(AchievementSigner.Verify(tampered, TestPublicKeyBase64), Is.False);
     }
 }

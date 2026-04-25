@@ -105,7 +105,7 @@ public partial class MainForm : Form
         AchievementManager? achievements = null;
         if (_host.MemoryDomains is not null)
         {
-            var achConfig = AchievementConfigLoader.Load(_host.RomHash);
+            var achConfig = AchievementConfigLoader.Load(_host.RomHash, _config.AchievementPublicKey);
             if (achConfig is not null)
             {
                 achievements = new AchievementManager(

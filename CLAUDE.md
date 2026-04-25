@@ -159,8 +159,8 @@ Before building a release for a specific game:
 
 - **Window title**: set `WindowTitle` in `config.json` to the game's name.
 - **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
-- **Achievements**: edit `achievements.json`, then run `seal-achievements achievements.json` to stamp HMAC signatures before shipping.
-- **HMAC key**: before the first public release, run `seal-achievements --gen-key`, paste the output into `AchievementSigner.HmacKeyBase64` in `NEShim.AchievementSigning`, rebuild, and re-seal all configs.
+- **Achievements**: edit `achievements.json`, then run `seal-achievements --key private_key.txt achievements.json` to stamp ECDSA-P256 signatures before shipping.
+- **Signing keypair**: run `seal-achievements --gen-keypair` before shipping. Set the printed public key as `achievementPublicKey` in `config.json` (pre-built release) or wire it into the build pipeline (source build). Store the private key outside source control. Achievements are disabled until a key is configured — there is no shipped default.
 - **steam_appid.txt**: the file in the output directory must contain the real Steam App ID (not `0`). `SteamAPI.RestartAppIfNecessary` and `SteamAPI.Init` both read this file. During development the source-tree copy contains `0` (skips restart, still inits if Steam is running); the publish pipeline must replace it with the real ID.
 - **steam_api64.dll**: not included in the repository. After `dotnet publish`, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper (matched version); do not pull it from the Steamworks SDK partner dashboard separately.
 
