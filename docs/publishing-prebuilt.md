@@ -88,6 +88,7 @@ Do **not** sync `config.json`. Settings like `windowMode` and `volume` are machi
 - **Conflict resolution is opaque.** Steam uses last-write-wins. There is no in-game conflict UI.
 - **A crash can lose up to ~5 minutes of progress.** The auto-save fires when the in-game menu opens, every ~5 minutes during active play, and on graceful exit — so the worst-case exposure window on a crash is one periodic interval. See [Auto-save](configuration.md#auto-save) in the configuration reference.
 - **Manual slot saves are immediately safe.** Each manual save writes synchronously; Steam picks it up on the next sync.
+- **NEShim collects no data.** There is no telemetry or automatic crash reporting. A `crash.log` is written locally on crash but never transmitted. For your Steam store privacy policy, any applicable data collection comes from Steam itself (playtime, achievements, cloud saves) and is covered by Valve's Privacy Policy. See [Network activity and telemetry](architecture.md#network-activity-and-telemetry).
 
 ---
 
