@@ -150,17 +150,13 @@ jobs:
               with open(path, "w") as f:
                   f.write(content)
 
-      - name: Update version history and footer
+      - name: Update version history
         shell: python
         working-directory: ghpages-work
         run: |
           import re
 
           version = "${{ steps.version.outputs.VERSION }}"
-          tag     = "${{ github.ref_name }}"
-          repo    = "${{ github.repository }}"
-          url     = "https://github.com/" + repo + "/releases/tag/" + tag
-          lic_url = "https://www.apache.org/licenses/LICENSE-2.0"
 
           new_entry = f"- [v{version}](v{version}/)\n"
           with open("versions/index.md") as f:
@@ -170,16 +166,9 @@ jobs:
           with open("versions/index.md", "w") as f:
               f.write(idx)
 
-          new_footer = (
-              'footer_content: "Docs for '
-              '<a href=\\"versions/\\">version history</a>'
-              f' &nbsp;&middot;&nbsp; Current: <a href=\\"{url}\\">v{version}</a>'
-              f' &nbsp;&middot;&nbsp; NEShim is licensed under the'
-              f' <a href=\\"{lic_url}\\">Apache License 2.0</a>."'
-          )
           with open("_config.yml") as f:
               cfg = f.read()
-          cfg = re.sub(r"^footer_content:.*", new_footer, cfg, flags=re.MULTILINE)
+          cfg = re.sub(r'^latest_version:.*', f'latest_version: "v{version}"', cfg, flags=re.MULTILINE)
           with open("_config.yml", "w") as f:
               f.write(cfg)
 
