@@ -11,7 +11,14 @@ aux_links:
   "GitHub":
     - "https://github.com/karimhadjsalem/NEShim"
 
-footer_content: "NEShim is licensed under the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>."
+footer_content: "Docs for <a href=\"versions/\">version history</a> &nbsp;&middot;&nbsp; Current: <a href=\"https://github.com/karimhadjsalem/NEShim/releases/tag/v1.0.3\">v1.0.3</a> &nbsp;&middot;&nbsp; NEShim is licensed under the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>."
+
+defaults:
+  - scope:
+      path: "versions"
+    values:
+      nav_exclude: true
+      search_exclude: true
 
 back_to_top: true
 back_to_top_text: "Back to top"
