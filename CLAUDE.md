@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-NEShim is a Windows application that wraps the BizHawk NES emulation core to allow integration with external SDKs (e.g., Steamworks). The BizHawk emulation code lives in `BizHawk/` and was adapted from the BizHawk multi-system emulator — it is the authoritative NES emulation layer and generally should not be modified unless fixing compatibility issues.
+NEShim is a Windows application that wraps the BizHawk NES emulation core to allow integration with external SDKs (e.g., Steamworks). The BizHawk emulation code lives in `BizHawk/` and was adapted from the BizHawk multi-system emulator — it is the authoritative NES emulation layer and generally should not be modified unless fixing compatibility issues. The BizHawk code is treated as a frozen vendored dependency with no proactive upstream sync cadence — the NES core is decades-stable. Sync only when a specific emulation accuracy bug or confirmed security issue warrants it; cherry-pick the specific fix, do not bulk-merge.
 
 ## Build & Run Commands
 
@@ -114,7 +114,7 @@ SDK 1.61+ loads stats automatically; do not call `SteamUserStats.RequestCurrentS
 - **No magic numbers**: Give all frame dimensions, timing constants, and UI sizes a named `const` or `static readonly` in the class that owns them.
 - **Dispose discipline**: Every `IDisposable` created inside a method must be in a `using` declaration or `using` block. Classes that own `Bitmap`, audio, or host resources must implement `IDisposable` and be disposed in `MainForm.OnFormClosing`.
 - **Thread safety**: Emulation thread and UI thread share `_pauseReasonBits` (volatile `int` + CAS) and `FrameBuffer` (SpinLock). All other mutable state is owned by one thread. Use `BeginInvoke` to marshal work to the UI thread; never call WinForms methods directly from the emulation thread.
-- **Don't modify BizHawk source** unless fixing a direct compatibility issue. Prefer adapter/wrapper classes in `NEShim/Emulation/` to bridge BizHawk interfaces.
+- **Don't modify BizHawk source** unless fixing a direct compatibility issue (emulation accuracy bug or confirmed security fix). Prefer adapter/wrapper classes in `NEShim/Emulation/` to bridge BizHawk interfaces. See the upstream sync policy in "What This Project Is" above.
 
 ## Testing
 
@@ -159,8 +159,8 @@ Before building a release for a specific game:
 
 - **Window title**: set `WindowTitle` in `config.json` to the game's name.
 - **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
-- **Achievements**: edit `achievements.json`, then run `seal-achievements achievements.json` to stamp HMAC signatures before shipping.
-- **HMAC key**: before the first public release, run `seal-achievements --gen-key`, paste the output into `AchievementSigner.HmacKeyBase64` in `NEShim.AchievementSigning`, rebuild, and re-seal all configs.
+- **Achievements**: edit `achievements.json`, then run `seal-achievements --key-file private_key.txt achievements.json` to stamp ECDSA-P256 signatures before shipping.
+- **Signing keypair**: run `seal-achievements --gen-keypair` before shipping. Set the printed public key as `achievementPublicKey` in `config.json` (pre-built release) or wire it into the build pipeline (source build). Store the private key outside source control. Achievements are disabled until a key is configured — there is no shipped default.
 - **steam_appid.txt**: the file in the output directory must contain the real Steam App ID (not `0`). `SteamAPI.RestartAppIfNecessary` and `SteamAPI.Init` both read this file. During development the source-tree copy contains `0` (skips restart, still inits if Steam is running); the publish pipeline must replace it with the real ID.
 - **steam_api64.dll**: not included in the repository. After `dotnet publish`, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper (matched version); do not pull it from the Steamworks SDK partner dashboard separately.
 

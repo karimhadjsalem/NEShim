@@ -303,21 +303,25 @@ internal sealed class GamePanel : Panel
             DrawFps(g, CurrentFps);
     }
 
-    private static void DrawSidebar(Graphics g, Bitmap bmp, Rectangle dest)
+    /// <summary>
+    /// Computes the source and destination rectangles for cover-scale sidebar rendering.
+    /// The image is scaled uniformly so it fills the entire dest area, then center-cropped.
+    /// </summary>
+    internal static (RectangleF src, Rectangle dst) ComputeSidebarCover(Size imageSize, Rectangle dest)
     {
-        // Draw at 1:1 pixel resolution, centered, cropping any overflow
-        int srcW = Math.Min(bmp.Width,  dest.Width);
-        int srcH = Math.Min(bmp.Height, dest.Height);
-        int srcX = (bmp.Width  - srcW) / 2;
-        int srcY = (bmp.Height - srcH) / 2;
-        int dstX = dest.X + (dest.Width  - srcW) / 2;
-        int dstY = dest.Y + (dest.Height - srcH) / 2;
+        float scale = Math.Max((float)dest.Width / imageSize.Width, (float)dest.Height / imageSize.Height);
+        float srcW  = dest.Width  / scale;
+        float srcH  = dest.Height / scale;
+        float srcX  = (imageSize.Width  - srcW) / 2f;
+        float srcY  = (imageSize.Height - srcH) / 2f;
+        return (new RectangleF(srcX, srcY, srcW, srcH), dest);
+    }
 
+    internal static void DrawSidebar(Graphics g, Bitmap bmp, Rectangle dest)
+    {
+        var (src, dst) = ComputeSidebarCover(bmp.Size, dest);
         g.CompositingMode = CompositingMode.SourceCopy;
-        g.DrawImage(bmp,
-            new Rectangle(dstX, dstY, srcW, srcH),
-            new Rectangle(srcX, srcY, srcW, srcH),
-            GraphicsUnit.Pixel);
+        g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
     }
 
     private void DrawToast(Graphics g, string text)

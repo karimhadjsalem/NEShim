@@ -1,3 +1,4 @@
+using System.Reflection;
 using BizHawk.Common;
 using Steamworks;
 
@@ -8,6 +9,13 @@ static class Program
     [STAThread]
     static void Main()
     {
+        // Catch unhandled exceptions on both the UI thread and background threads,
+        // write a local crash.log, and show a dialog pointing to it.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => HandleCrash(e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            HandleCrash(e.ExceptionObject as Exception);
+
         // If the app was not launched through Steam, RestartAppIfNecessary()
         // relaunches it via Steam so the overlay DLL is injected correctly.
         // Must be called before SteamAPI.Init().
@@ -35,5 +43,28 @@ static class Program
         {
             Win32Imports.timeEndPeriod(1);
         }
+    }
+
+    private static void HandleCrash(Exception? ex)
+    {
+        try
+        {
+            string path    = Path.Combine(AppContext.BaseDirectory, "crash.log");
+            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+            File.WriteAllText(path,
+                $"NEShim crash log\n" +
+                $"Time:    {DateTime.UtcNow:O}\n" +
+                $"Version: {version}\n\n" +
+                $"{ex}\n");
+            MessageBox.Show(
+                $"NEShim encountered an unexpected error and must close.\n\n" +
+                $"A crash log has been written to:\n{path}\n\n" +
+                "If you report this issue, please attach the log.",
+                "NEShim — Unexpected Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        catch { /* swallow — already crashing */ }
+        finally { Environment.Exit(1); }
     }
 }

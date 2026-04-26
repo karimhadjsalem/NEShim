@@ -5,3 +5,6 @@
 game.nes
 /publish
 NEShim/NEShim.sln.DotSettings.user
+/.claude
+/TestResults
+/NEShim/TestResults

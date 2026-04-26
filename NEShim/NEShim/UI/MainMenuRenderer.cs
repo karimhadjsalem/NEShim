@@ -74,7 +74,7 @@ internal static class MainMenuRenderer
     /// Computes the main-screen panel <see cref="Rectangle"/> from <paramref name="position"/>.
     /// Supported values: BottomCenter, Center, BottomLeft, BottomRight, TopLeft, TopCenter, TopRight.
     /// </summary>
-    private static Rectangle GetMainPanelRect(Rectangle bounds, int panelW, int panelH, string position)
+    internal static Rectangle GetMainPanelRect(Rectangle bounds, int panelW, int panelH, string position)
     {
         int panelX = position switch
         {

@@ -11,6 +11,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      COVERAGE_THRESHOLD: 80
 
     steps:
       - name: Checkout
@@ -43,6 +45,41 @@ jobs:
           --no-restore
           --logger "trx;LogFileName=results.trx"
           --results-directory TestResults
+          --collect:"XPlat Code Coverage"
+          --settings NEShim/coverage.runsettings
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: >
+          reportgenerator
+          "-reports:TestResults/**/coverage.cobertura.xml"
+          "-targetdir:CoverageReport"
+          "-reporttypes:HtmlInline;TextSummary"
+
+      - name: Check coverage gate
+        shell: pwsh
+        run: |
+          $summary = Get-Content CoverageReport/Summary.txt -Raw
+          if ($summary -match 'Line coverage:\s+([\d.]+)%') {
+            $pct = [double]$Matches[1]
+            Write-Host "Line coverage: $pct%"
+            if ($pct -lt $env:COVERAGE_THRESHOLD) {
+              Write-Error "Line coverage $pct% is below the required $env:COVERAGE_THRESHOLD%"
+              exit 1
+            }
+          } else {
+            Write-Error "Could not parse coverage summary"
+            exit 1
+          }
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: CoverageReport/
 
       - name: Publish game
         run: >
@@ -82,3 +119,67 @@ jobs:
           files: |
             NEShim-${{ github.ref_name }}-win-x64.zip
             SealAchievements-${{ github.ref_name }}-win-x64.zip
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: ghpages-work
+
+      - name: Snapshot docs for this version
+        shell: python
+        working-directory: ghpages-work
+        run: |
+          import os, re, shutil
+
+          version = "${{ steps.version.outputs.VERSION }}"
+          src = "docs"
+          dst = f"versions/v{version}"
+          os.makedirs(dst, exist_ok=True)
+          shutil.copytree(src, dst, dirs_exist_ok=True)
+
+          # Strip explicit permalink: lines from copied front matter so Jekyll
+          # builds each page at its natural path rather than the original /
+          for fname in os.listdir(dst):
+              if not fname.endswith(".md"):
+                  continue
+              path = os.path.join(dst, fname)
+              with open(path) as f:
+                  content = f.read()
+              content = re.sub(r"^permalink:.*\n", "", content, flags=re.MULTILINE)
+              with open(path, "w") as f:
+                  f.write(content)
+
+      - name: Update version history
+        shell: python
+        working-directory: ghpages-work
+        run: |
+          import re
+
+          version = "${{ steps.version.outputs.VERSION }}"
+
+          new_entry = f"- [v{version}](v{version}/)\n"
+          with open("versions/index.md") as f:
+              idx = f.read()
+          idx = idx.replace("<!-- versions-insert-here -->\n",
+                            f"<!-- versions-insert-here -->\n{new_entry}")
+          with open("versions/index.md", "w") as f:
+              f.write(idx)
+
+          with open("_config.yml") as f:
+              cfg = f.read()
+          cfg = re.sub(r'^latest_version:.*', f'latest_version: "v{version}"', cfg, flags=re.MULTILINE)
+          with open("_config.yml", "w") as f:
+              f.write(cfg)
+
+      - name: Commit and tag docs
+        shell: bash
+        working-directory: ghpages-work
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add _config.yml versions/
+          git commit -m "docs: stamp version ${{ steps.version.outputs.VERSION }}"
+          git tag "docs-${{ github.ref_name }}"
+          git push origin gh-pages
+          git push origin "docs-${{ github.ref_name }}"

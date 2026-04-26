@@ -7,7 +7,7 @@ namespace NEShim.Achievements;
 ///
 /// Call <see cref="Tick"/> once per emulation frame (on the emulation thread, after RunFrame).
 /// The <paramref name="statsReady"/> delegate must return true before any unlocks are attempted —
-/// this guards against calling SetAchievement before Steam's RequestCurrentStats round-trip completes.
+/// this guards against calling SetAchievement before Steam has delivered the initial stats snapshot via UserStatsReceived_t.
 /// The <paramref name="unlock"/> delegate is invoked at most once per achievement per session;
 /// subsequent frames that still satisfy the trigger condition are ignored.
 /// </summary>

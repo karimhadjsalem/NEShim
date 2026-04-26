@@ -118,4 +118,11 @@ internal class AppConfigTests
         var config = new AppConfig();
         Assert.That(config.AnalogStickMode, Is.EqualTo("Cardinal"));
     }
+
+    [Test]
+    public void AchievementPublicKey_DefaultIsEmpty()
+    {
+        var config = new AppConfig();
+        Assert.That(config.AchievementPublicKey, Is.Empty);
+    }
 }

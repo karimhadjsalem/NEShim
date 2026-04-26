@@ -3,7 +3,7 @@ using NEShim.Achievements;
 namespace NEShim.SealAchievements;
 
 /// <summary>
-/// Stamps HMAC signatures onto every <see cref="AchievementDef"/> in a config dictionary.
+/// Stamps ECDSA-P256 signatures onto every <see cref="AchievementDef"/> in a config dictionary.
 /// I/O-free — operates entirely on the in-memory data structure so it can be unit tested.
 /// </summary>
 internal static class SealingService
@@ -12,10 +12,13 @@ internal static class SealingService
 
     /// <summary>
     /// Iterates every achievement definition in <paramref name="configs"/>, computes its
-    /// HMAC-SHA256 signature, and writes it to <see cref="AchievementDef.Sig"/>.
+    /// ECDSA-P256 signature using <paramref name="privateKeyBase64"/>, and writes it to
+    /// <see cref="AchievementDef.Sig"/>.
     /// Definitions with a null or whitespace <see cref="AchievementDef.SteamId"/> are skipped.
     /// </summary>
-    internal static SealResult Seal(Dictionary<string, GameAchievementConfig> configs)
+    internal static SealResult Seal(
+        Dictionary<string, GameAchievementConfig> configs,
+        string privateKeyBase64)
     {
         int sealedCount  = 0;
         int skippedCount = 0;
@@ -30,7 +33,7 @@ internal static class SealingService
                     continue;
                 }
 
-                def.Sig = AchievementSigner.ComputeSig(def);
+                def.Sig = AchievementSigner.ComputeSig(def, privateKeyBase64);
                 sealedCount++;
             }
         }

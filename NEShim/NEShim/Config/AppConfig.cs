@@ -98,6 +98,13 @@ public sealed class AppConfig
     // "Diagonal" — both axes are registered simultaneously, allowing true diagonal input
     //              for games that use it (e.g. games with 8-directional movement).
     public string AnalogStickMode { get; set; } = "Cardinal";
+
+    // Developer option — not exposed in any menu.
+    // ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify
+    // achievement signatures at runtime. Must be set to the public half of the keypair used
+    // to seal achievements.json; when empty, no achievements will fire.
+    // Generate with: seal-achievements --gen-keypair
+    public string AchievementPublicKey { get; set; } = "";
 }
 
 public sealed class InputBinding

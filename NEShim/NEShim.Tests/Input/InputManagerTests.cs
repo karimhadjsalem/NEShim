@@ -158,4 +158,72 @@ internal class InputManagerTests
         Assert.That(save, Is.True);
         Assert.That(load, Is.True);
     }
+
+    // ---- PollMenuNav (no gamepad connected) ----
+
+    [Test]
+    public void PollMenuNav_WhenNoPadConnected_ReturnsAllFalseNav()
+    {
+        var nav = _manager.PollMenuNav(_config);
+        Assert.That(nav.Any, Is.False);
+    }
+
+    [Test]
+    public void PollMenuNav_CalledTwice_ReturnsFalseEachTime()
+    {
+        _manager.PollMenuNav(_config);
+        var nav = _manager.PollMenuNav(_config);
+        Assert.That(nav.Any, Is.False);
+    }
+
+    // ---- PollAnyGamepadButtonPressed (no gamepad connected) ----
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_WhenNoPadConnected_ReturnsNull()
+    {
+        Assert.That(_manager.PollAnyGamepadButtonPressed(), Is.Null);
+    }
+
+    // ---- IsGamepadStartJustPressed (no gamepad connected) ----
+
+    [Test]
+    public void IsGamepadStartJustPressed_WhenNoPadConnected_ReturnsFalse()
+    {
+        Assert.That(_manager.IsGamepadStartJustPressed(), Is.False);
+    }
+
+    // ---- IsGamepadHotkeyJustPressed ----
+
+    [Test]
+    public void IsGamepadHotkeyJustPressed_ActionNotInConfig_ReturnsFalse()
+    {
+        bool result = _manager.IsGamepadHotkeyJustPressed("NonExistentAction", _config);
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void IsGamepadHotkeyJustPressed_ActionFoundButNoPad_ReturnsFalse()
+    {
+        _config.GamepadHotkeyMappings["TestAction"] = "A";
+        bool result = _manager.IsGamepadHotkeyJustPressed("TestAction", _config);
+        Assert.That(result, Is.False);
+    }
+
+    // ---- PollSnapshot edge cases ----
+
+    [Test]
+    public void PollSnapshot_NullKeyInBinding_DoesNotMapButton()
+    {
+        _config.InputMappings["P1 Up"] = new NEShim.Config.InputBinding(null, null);
+        var snapshot = _manager.PollSnapshot(_config);
+        Assert.That(snapshot.IsPressed("P1 Up"), Is.False);
+    }
+
+    [Test]
+    public void PollSnapshot_InvalidKeyName_DoesNotMapButton()
+    {
+        _config.InputMappings["P1 Up"] = new NEShim.Config.InputBinding("NotAValidKey!!!", null);
+        var snapshot = _manager.PollSnapshot(_config);
+        Assert.That(snapshot.IsPressed("P1 Up"), Is.False);
+    }
 }

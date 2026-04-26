@@ -48,6 +48,10 @@ internal sealed class EmulationThread
     private int _frameCount;
     private long _fpsTimestamp;
 
+    // Periodic auto-save
+    private const int AutoSaveIntervalFrames = 18_000; // ~5 min at 60 fps
+    private int _autoSaveFrameCounter;
+
     public float CurrentFps { get; private set; }
 
     public PauseReasons ActivePauseReasons => (PauseReasons)_pauseReasonBits;
@@ -79,6 +83,7 @@ internal sealed class EmulationThread
         // must be on the same thread as SteamAPI.Init().
         _menu.Opened += () =>
         {
+            _saveStates.AutoSave();
             SetPauseReason(PauseReasons.Menu, true);
             _gamePanel.BeginInvoke(Steam.SteamInputManager.ActivateMenuSet);
         };
@@ -205,6 +210,13 @@ internal sealed class EmulationThread
 
             // 4a. Check achievement triggers against the post-frame memory state
             _achievements?.Tick();
+
+            // 4b. Periodic auto-save (~5 min)
+            if (++_autoSaveFrameCounter >= AutoSaveIntervalFrames)
+            {
+                _autoSaveFrameCounter = 0;
+                _saveStates.AutoSave();
+            }
 
             // 5. Copy video to front buffer
             var videoBuffer = _host.Video.GetVideoBuffer();

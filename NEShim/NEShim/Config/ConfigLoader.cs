@@ -16,21 +16,24 @@ public static class ConfigLoader
     private static string ConfigPath =>
         Path.Combine(AppContext.BaseDirectory, "config.json");
 
-    public static AppConfig Load()
+    public static AppConfig Load() => LoadFrom(ConfigPath);
+    public static void Save(AppConfig config) => SaveTo(config, ConfigPath);
+
+    internal static AppConfig LoadFrom(string configPath)
     {
-        if (!File.Exists(ConfigPath))
+        if (!File.Exists(configPath))
         {
-            Logger.Log($"[Config] config.json not found — writing defaults to {ConfigPath}");
+            Logger.Log($"[Config] config.json not found — writing defaults to {configPath}");
             var defaults = new AppConfig();
-            Save(defaults);
+            SaveTo(defaults, configPath);
             return defaults;
         }
 
         try
         {
-            string json = File.ReadAllText(ConfigPath);
+            string json = File.ReadAllText(configPath);
             var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
-            Logger.Log($"[Config] Loaded from {ConfigPath}");
+            Logger.Log($"[Config] Loaded from {configPath}");
             return config;
         }
         catch (Exception ex)
@@ -40,10 +43,10 @@ public static class ConfigLoader
         }
     }
 
-    public static void Save(AppConfig config)
+    internal static void SaveTo(AppConfig config, string configPath)
     {
         string json = JsonSerializer.Serialize(config, _options);
-        File.WriteAllText(ConfigPath, json);
-        Logger.Log($"[Config] Saved to {ConfigPath}");
+        File.WriteAllText(configPath, json);
+        Logger.Log($"[Config] Saved to {configPath}");
     }
 }
