@@ -173,7 +173,7 @@ Public key (embed in AchievementSigner.DefaultPublicKeyBase64 OR set as achievem
    This bakes the key into the binary. It takes precedence over `achievementPublicKey` in config.json and cannot be overridden without recompiling.
 
 3. Rebuild the solution.
-4. Re-seal all `achievements.json` files: `seal-achievements --key private_key.txt achievements.json`.
+4. Re-seal all `achievements.json` files: `seal-achievements --key-file private_key.txt achievements.json`.
 
 The keypair only needs to be generated once for the lifetime of the game. Achievements will not fire until a key is configured. See [Achievement system — Key management](achievements.md#key-management).
 
@@ -219,7 +219,7 @@ Example:
 4. Seal the file using your private key:
 
 ```bash
-seal-achievements --key private_key.txt achievements.json
+seal-achievements --key-file private_key.txt achievements.json
 ```
 
 Verify all definitions are listed as `[sealed]` in the output. Never edit `achievements.json` after sealing without re-sealing — any changed definition will fail signature verification and silently stop firing.
@@ -290,7 +290,7 @@ Before uploading to Steam:
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
-- [ ] `achievements.json` authored and sealed with `seal-achievements --key <keyfile>`
+- [ ] `achievements.json` authored and sealed with `seal-achievements --key-file <keyfile>`
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
 - [ ] Release build passes local smoke test (saves, Steam overlay, achievements)

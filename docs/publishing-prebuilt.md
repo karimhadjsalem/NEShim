@@ -168,7 +168,7 @@ Example:
 4. Seal the file using your private key:
 
 ```bash
-seal-achievements --key private_key.txt achievements.json
+seal-achievements --key-file private_key.txt achievements.json
 ```
 
 Verify all definitions are listed as `[sealed]` in the output. Never edit `achievements.json` after sealing without re-sealing — any changed definition will fail signature verification and silently stop firing.
@@ -194,7 +194,7 @@ There is no default signing key — achievements are disabled until you configur
 3. Re-seal your `achievements.json` with your private key:
 
    ```bash
-   seal-achievements --key private_key.txt achievements.json
+   seal-achievements --key-file private_key.txt achievements.json
    ```
 
 Store the private key securely (1Password, local file outside source control, or CI secret). See [Achievement system — Key management](achievements.md#key-management).
@@ -252,7 +252,7 @@ Before uploading to Steam:
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] Signing keypair generated with `seal-achievements --gen-keypair`; `achievementPublicKey` set in `config.json`; private key stored outside source control (if protecting achievements)
-- [ ] `achievements.json` authored and sealed with `seal-achievements --key <keyfile>`
+- [ ] `achievements.json` authored and sealed with `seal-achievements --key-file <keyfile>`
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
 - [ ] Release passes local smoke test (saves, Steam overlay, achievements)

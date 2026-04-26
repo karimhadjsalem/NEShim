@@ -68,7 +68,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
 | `encoding` | string | `"binary"` | No | `"binary"` — interpret the assembled bytes as a standard integer. `"bcd"` — decode as binary-coded decimal (see below). |
 | `comparison` | string | `"equals"` | No | Trigger condition: `"equals"`, `"greaterOrEqual"`, `"greaterThan"`, `"lessOrEqual"`, or `"lessThan"`. |
 | `value` | integer | — | Yes | Threshold for the comparison. |
-| `sig` | string | — | Yes (to fire) | ECDSA-P256 signature (64 bytes, IEEE P1363, base64-encoded) written by `seal-achievements --key <keyfile>`. Definitions without a valid signature are silently ignored at runtime. |
+| `sig` | string | — | Yes (to fire) | ECDSA-P256 signature (64 bytes, IEEE P1363, base64-encoded) written by `seal-achievements --key-file <keyfile>`. Definitions without a valid signature are silently ignored at runtime. |
 
 ---
 
@@ -176,10 +176,13 @@ Sealing requires the private half of your signing keypair:
 
 ```bash
 # Seal achievements.json in the current directory using a key file
-seal-achievements --key private_key.txt
+seal-achievements --key-file private_key.txt
 
 # Seal a specific file
-seal-achievements --key private_key.txt path/to/achievements.json
+seal-achievements --key-file private_key.txt path/to/achievements.json
+
+# Pass the private key directly as base64 (useful in scripts)
+seal-achievements --key <base64_private_key> achievements.json
 
 # Seal using a private key from an environment variable (useful in CI)
 seal-achievements --key-env NESHIM_SIGNING_KEY achievements.json
