@@ -1,7 +1,9 @@
+using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
 using NEShim.Config;
+using NEShim.Input;
 using NSubstitute;
 using NEShim.Saves;
 using NEShim.UI;
@@ -544,7 +546,6 @@ internal class InGameMenuTests
     [Test]
     public void Settings_WindowMode_Activate_TogglesMode()
     {
-        bool toggledTo = false;
         var menu = CreateMenu(onConfigSaved: () => { }); // need window mode toggle
         // Wire a custom toggle capture
         bool receivedFullscreen = false;
@@ -849,5 +850,222 @@ internal class InGameMenuTests
         Assert.That(toast, Is.Null);
         Assert.That(menu.IsGamepadRebinding, Is.False);
         Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("Back"));
+    }
+
+    // ---- HandleGamepadNav ----
+    // Root screen, 8 items — geometry mirrored by MenuRenderer (but nav uses selection only)
+
+    [Test]
+    public void HandleGamepadNav_WhenClosed_DoesNothing()
+    {
+        var menu = CreateMenu();
+        menu.HandleGamepadNav(new MenuNavInput { Down = true });
+        Assert.That(menu.SelectedItem, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void HandleGamepadNav_NoInputs_DoesNothing()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleGamepadNav(new MenuNavInput());
+        Assert.That(menu.SelectedItem, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Down_MovesSelection()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleGamepadNav(new MenuNavInput { Down = true });
+        Assert.That(menu.SelectedItem, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Up_AtFirst_WrapsToLast()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleGamepadNav(new MenuNavInput { Up = true });
+        Assert.That(menu.SelectedItem, Is.EqualTo(7));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Confirm_OnResume_ClosesMenu()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleGamepadNav(new MenuNavInput { Confirm = true });
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void HandleGamepadNav_Back_OnRoot_ClosesMenu()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleGamepadNav(new MenuNavInput { Back = true });
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void HandleGamepadNav_Back_OnSubScreen_NavigatesUp()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // → SaveSlotSelect
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.SaveSlotSelect));
+
+        menu.HandleGamepadNav(new MenuNavInput { Back = true });
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
+        Assert.That(menu.IsOpen,  Is.True);
+    }
+
+    [Test]
+    public void HandleGamepadNav_DuringKeyRebinding_Ignores()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings
+        menu.HandleKey(Keys.Return); // start rebind
+        Assert.That(menu.RebindingAction, Is.Not.Null);
+
+        int itemBefore = menu.SelectedItem;
+        menu.HandleGamepadNav(new MenuNavInput { Down = true });
+        Assert.That(menu.SelectedItem, Is.EqualTo(itemBefore));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Left_OnSoundVolume_DecreasesVolume()
+    {
+        _config.Volume = 60;
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Navigate to Sound screen, select Volume (index 0)
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+        Assert.That(menu.SelectedItem, Is.EqualTo(0)); // Volume
+
+        menu.HandleGamepadNav(new MenuNavInput { Left = true });
+        Assert.That(_config.Volume, Is.EqualTo(55));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Right_OnSoundVolume_IncreasesVolume()
+    {
+        _config.Volume = 60;
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+
+        menu.HandleGamepadNav(new MenuNavInput { Right = true });
+        Assert.That(_config.Volume, Is.EqualTo(65));
+    }
+
+    // ---- HandleMouseMove ----
+    // Root screen, bounds (0,0,640,480):
+    //   Item 0: (106, 104, 428, 36) → center (320, 122)
+    //   Item 1: (106, 142, 428, 36) → center (320, 160)
+
+    private static readonly Rectangle Bounds640 = new(0, 0, 640, 480);
+
+    [Test]
+    public void HandleMouseMove_WhenClosed_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        Assert.That(menu.HandleMouseMove(new Point(320, 160), Bounds640), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_DuringRebinding_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return); // RebindingAction set
+        Assert.That(menu.HandleMouseMove(new Point(320, 160), Bounds640), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_HitsNewItem_UpdatesSelectionAndReturnsTrue()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // SelectedItem = 0; hover over item 1
+        bool result = menu.HandleMouseMove(new Point(320, 160), Bounds640);
+        Assert.That(result,           Is.True);
+        Assert.That(menu.SelectedItem, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void HandleMouseMove_HitsSameItem_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // SelectedItem = 0; hover over item 0 again
+        bool result = menu.HandleMouseMove(new Point(320, 122), Bounds640);
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_NoHit_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        bool result = menu.HandleMouseMove(new Point(320, 50), Bounds640);
+        Assert.That(result, Is.False);
+    }
+
+    // ---- HandleMouseClick ----
+
+    [Test]
+    public void HandleMouseClick_WhenClosed_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        Assert.That(menu.HandleMouseClick(new Point(320, 122), Bounds640), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseClick_DuringRebinding_ReturnsTrue()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return); // RebindingAction set
+        Assert.That(menu.HandleMouseClick(new Point(320, 122), Bounds640), Is.True);
+    }
+
+    [Test]
+    public void HandleMouseClick_HitsItem_ActivatesIt()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        // Click on item 0 (Resume) → closes menu
+        bool result = menu.HandleMouseClick(new Point(320, 122), Bounds640);
+        Assert.That(result,      Is.True);
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void HandleMouseClick_NoHit_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        bool result = menu.HandleMouseClick(new Point(320, 50), Bounds640);
+        Assert.That(result, Is.False);
     }
 }

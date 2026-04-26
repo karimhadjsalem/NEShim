@@ -1,7 +1,9 @@
+using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
 using NEShim.Config;
+using NEShim.Input;
 using NSubstitute;
 using NEShim.Saves;
 using NEShim.UI;
@@ -442,5 +444,204 @@ internal class MainMenuScreenTests
 
         Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
         Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
+    }
+
+    // ---- HandleGamepadNav ----
+    // Main screen: New Game(0), Resume(1 disabled), Settings(2), Exit(3)
+
+    [Test]
+    public void HandleGamepadNav_WhenNotVisible_DoesNothing()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Return); // New Game → IsVisible = false
+        screen.HandleGamepadNav(new MenuNavInput { Down = true });
+        // Should do nothing (IsVisible = false)
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void HandleGamepadNav_NoInputs_DoesNothing()
+    {
+        using var screen = CreateScreen();
+        screen.HandleGamepadNav(new MenuNavInput());
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Down_MovesSelection()
+    {
+        using var screen = CreateScreen();
+        screen.HandleGamepadNav(new MenuNavInput { Down = true });
+        // Skips disabled Resume (index 1) → lands on Settings (index 2)
+        Assert.That(screen.SelectedIndex, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Up_AtFirst_WrapsToLast()
+    {
+        using var screen = CreateScreen();
+        screen.HandleGamepadNav(new MenuNavInput { Up = true });
+        Assert.That(screen.SelectedIndex, Is.EqualTo(3)); // Exit (last enabled)
+    }
+
+    [Test]
+    public void HandleGamepadNav_Confirm_OnNewGame_FiresEvent()
+    {
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.NewGameChosen += () => fired = true;
+        screen.HandleGamepadNav(new MenuNavInput { Confirm = true });
+        Assert.That(fired, Is.True);
+    }
+
+    [Test]
+    public void HandleGamepadNav_Back_OnSubScreen_NavigatesUp()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+
+        screen.HandleGamepadNav(new MenuNavInput { Back = true });
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+    }
+
+    [Test]
+    public void HandleGamepadNav_DuringRebinding_Ignores()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // KeyboardBindings
+        screen.HandleKey(Keys.Return);  // start rebinding "P1 Up"
+        Assert.That(screen.RebindingAction, Is.Not.Null);
+
+        int indexBefore = screen.SelectedIndex;
+        screen.HandleGamepadNav(new MenuNavInput { Down = true });
+        Assert.That(screen.SelectedIndex, Is.EqualTo(indexBefore));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Left_OnSoundVolume_DecreasesVolume()
+    {
+        _config.Volume = 50;
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0)); // Volume selected
+
+        screen.HandleGamepadNav(new MenuNavInput { Left = true });
+        Assert.That(_config.Volume, Is.EqualTo(45));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Right_OnSoundVolume_IncreasesVolume()
+    {
+        _config.Volume = 50;
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+
+        screen.HandleGamepadNav(new MenuNavInput { Right = true });
+        Assert.That(_config.Volume, Is.EqualTo(55));
+    }
+
+    // ---- HandleMouseMove ----
+    // Main screen BottomCenter, bounds (0,0,800,600):
+    //   Item 0 (New Game):  center (400, 336)
+    //   Item 2 (Settings):  center (400, 420)
+
+    private static readonly Rectangle Bounds800 = new(0, 0, 800, 600);
+
+    [Test]
+    public void HandleMouseMove_WhenNotVisible_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Return); // New Game → IsVisible = false
+        Assert.That(screen.HandleMouseMove(new Point(400, 336), Bounds800), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_DuringRebinding_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // KeyboardBindings
+        screen.HandleKey(Keys.Return);  // start rebind
+        Assert.That(screen.HandleMouseMove(new Point(400, 336), Bounds800), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_HitsNewItem_UpdatesSelectionAndReturnsTrue()
+    {
+        using var screen = CreateScreen();
+        // SelectedIndex = 0 (New Game); hover over Settings (item 2, center y ≈ 420)
+        bool result = screen.HandleMouseMove(new Point(400, 420), Bounds800);
+        Assert.That(result,              Is.True);
+        Assert.That(screen.SelectedIndex, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void HandleMouseMove_HitsSameItem_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        // SelectedIndex = 0; hover over item 0 again
+        bool result = screen.HandleMouseMove(new Point(400, 336), Bounds800);
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void HandleMouseMove_NoHit_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.HandleMouseMove(new Point(400, 10), Bounds800), Is.False);
+    }
+
+    // ---- HandleMouseClick ----
+
+    [Test]
+    public void HandleMouseClick_WhenNotVisible_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Return); // New Game → IsVisible = false
+        Assert.That(screen.HandleMouseClick(new Point(400, 336), Bounds800), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseClick_DuringRebinding_ReturnsTrue()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return); // start rebind
+        Assert.That(screen.HandleMouseClick(new Point(400, 336), Bounds800), Is.True);
+    }
+
+    [Test]
+    public void HandleMouseClick_HitsEnabledItem_ActivatesIt()
+    {
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.NewGameChosen += () => fired = true;
+        // Click on item 0 (New Game)
+        bool result = screen.HandleMouseClick(new Point(400, 336), Bounds800);
+        Assert.That(result, Is.True);
+        Assert.That(fired,  Is.True);
+    }
+
+    [Test]
+    public void HandleMouseClick_NoHit_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.HandleMouseClick(new Point(400, 10), Bounds800), Is.False);
+    }
+
+    [Test]
+    public void HandleMouseClick_HitsDisabledItem_ReturnsFalse()
+    {
+        using var screen = CreateScreen();
+        // Resume Game (item 1) is disabled — center at y ≈ 378
+        bool result = screen.HandleMouseClick(new Point(400, 378), Bounds800);
+        Assert.That(result, Is.False);
     }
 }

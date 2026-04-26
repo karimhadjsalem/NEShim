@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
@@ -158,5 +159,115 @@ internal class MenuRendererTests
 
         // y=122 was item 0 on Root (no warning row); on ConfirmMainMenu it falls before any item
         Assert.That(MenuRenderer.HitTestItem(new Point(320, 122), Bounds640x480, menu), Is.EqualTo(-1));
+    }
+
+    // ---- Draw smoke tests (verify no exception on each code path) ----
+
+    private static Bitmap MakeCanvas() =>
+        new(640, 480, PixelFormat.Format32bppArgb);
+
+    [Test]
+    public void Draw_RootScreen_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_RootScreen_WithSlotSave_DoesNotThrow()
+    {
+        // Slot 0 exists → Load Game is enabled and renders differently
+        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        var menu = CreateOpenMenu();
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_ConfirmMainMenu_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // → ConfirmMainMenu (has warning row)
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_ConfirmExit_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // → Exit (index 7)
+        menu.HandleKey(Keys.Return); // → ConfirmExit
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_KeyboardRebindingMode_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings
+        menu.HandleKey(Keys.Return); // → RebindingAction = "P1 Up"
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_SettingsScreen_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // → Settings
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_VideoScreen_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // skip Keyboard Controls
+        menu.HandleKey(Keys.Down);   // select Video (index 2)
+        menu.HandleKey(Keys.Return); // → Video
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_SoundScreen_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // → Sound (index 3)
+        menu.HandleKey(Keys.Return); // → Sound
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_SaveSlotSelectScreen_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // → SaveSlotSelect
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
     }
 }

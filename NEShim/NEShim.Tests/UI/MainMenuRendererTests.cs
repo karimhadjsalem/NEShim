@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
@@ -262,5 +263,106 @@ internal class MainMenuRendererTests
 
         // Resume Game (item 1) is now enabled
         Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 378), Bounds800x600HT, menu), Is.EqualTo(1));
+    }
+
+    // ---- Draw smoke tests ----
+
+    private static Bitmap MakeCanvas() =>
+        new(800, 600, PixelFormat.Format32bppArgb);
+
+    [Test]
+    public void Draw_MainScreen_NoBackground_DoesNotThrow()
+    {
+        using var menu   = CreateMenu();
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_MainScreen_WithResumeEnabled_DoesNotThrow()
+    {
+        // Make Resume Game enabled so the selected item can reach it
+        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        using var menu   = CreateMenu();
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_SettingsSubScreen_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings (skips disabled Resume)
+        menu.HandleKey(Keys.Return);  // → Settings
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_VideoSubScreen_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);    // skip Keyboard Controls
+        menu.HandleKey(Keys.Down);    // Video (index 2)
+        menu.HandleKey(Keys.Return);  // → Video
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_SoundSubScreen_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
+        menu.HandleKey(Keys.Return);  // → Sound
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_KeyboardBindingsSubScreen_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return);  // → KeyboardBindings (index 0)
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_RebindingMode_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Return);  // KeyboardBindings
+        menu.HandleKey(Keys.Return);  // → starts rebinding "P1 Up"
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_ResumeSlots_DoesNotThrow()
+    {
+        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        File.WriteAllBytes(Path.Combine(_tempDir, "autosave.state"), Array.Empty<byte>());
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Resume (now enabled)
+        menu.HandleKey(Keys.Return);  // → ResumeSlots
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
     }
 }
