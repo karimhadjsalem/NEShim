@@ -94,7 +94,7 @@ internal sealed class EmulatorHost : IDisposable
         string hash = SHA1Checksum.ComputeDigestHex(rom);
 
         Logger.Log($"[Emulator] ROM hash (SHA1): {hash}");
-        Logger.Log($"[Emulator] Active region: {nes.Region} — VSync: {nes.VsyncNumerator}/{nes.VsyncDenominator}");
+        Logger.Log($"[Emulator] Active region: {nes.Region} — VSync: {(decimal) nes.VsyncNumerator() / nes.VsyncDenominator()}");
 
         return new EmulatorHost(nes, hash);
     }
