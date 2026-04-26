@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: write
     env:
-      COVERAGE_THRESHOLD: 30
+      COVERAGE_THRESHOLD: 80
 
     steps:
       - name: Checkout

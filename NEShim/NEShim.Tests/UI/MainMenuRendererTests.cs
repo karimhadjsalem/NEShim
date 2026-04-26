@@ -365,4 +365,62 @@ internal class MainMenuRendererTests
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
     }
+
+    [Test]
+    public void Draw_GamepadRebindingMode_DoesNotThrow()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings (skips disabled Resume)
+        menu.HandleKey(Keys.Return);  // → Settings
+        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return);  // → GamepadBindings
+        menu.HandleKey(Keys.Return);  // start rebind for P1 Up (index 0)
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void HitTestItem_DuringGamepadRebinding_ReturnsNegativeOne()
+    {
+        using var menu = CreateMenu();
+        menu.HandleKey(Keys.Down);    // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return);  // → GamepadBindings
+        menu.HandleKey(Keys.Return);  // start rebind
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 300), Bounds800x600HT, menu), Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void Draw_MainScreen_WithWideBackground_DoesNotThrow()
+    {
+        // Wide image (200×100): imgAspect=2.0 > bounds aspect 1.333 → else branch in DrawBackground
+        string imgPath = Path.Combine(_tempDir, "bg_wide.bmp");
+        using (var bmp = new Bitmap(200, 100, PixelFormat.Format32bppArgb))
+            bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
+
+        using var menu   = new MainMenuScreen(_saveStates, _config, imgPath,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_MainScreen_WithTallBackground_DoesNotThrow()
+    {
+        // Tall image (100×200): imgAspect=0.5, bounds aspect 1.333 > imgAspect → if branch in DrawBackground
+        string imgPath = Path.Combine(_tempDir, "bg_tall.bmp");
+        using (var bmp = new Bitmap(100, 200, PixelFormat.Format32bppArgb))
+            bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
+
+        using var menu   = new MainMenuScreen(_saveStates, _config, imgPath,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
+    }
 }

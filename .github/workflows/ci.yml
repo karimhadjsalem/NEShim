@@ -13,7 +13,7 @@ jobs:
       contents: read
       pull-requests: write
     env:
-      COVERAGE_THRESHOLD: 30
+      COVERAGE_THRESHOLD: 0.80
 
     steps:
       - name: Checkout
@@ -67,9 +67,10 @@ jobs:
           $summary = Get-Content CoverageReport/Summary.txt -Raw
           if ($summary -match 'Line coverage:\s+([\d.]+)%') {
             $pct = [double]$Matches[1]
+            $threshold = [double]$env:COVERAGE_THRESHOLD * 100
             Write-Host "Line coverage: $pct%"
-            if ($pct -lt $env:COVERAGE_THRESHOLD) {
-              Write-Error "Line coverage $pct% is below the required $env:COVERAGE_THRESHOLD%"
+            if ($pct -lt $threshold) {
+              Write-Error "Line coverage $pct% is below the required $threshold%"
               exit 1
             }
           } else {
@@ -103,4 +104,4 @@ jobs:
         with:
           coverageFile: ${{ steps.find-coverage.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          thresholdAll: 0.30
+          thresholdAll: ${{ env.COVERAGE_THRESHOLD }}

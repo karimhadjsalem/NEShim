@@ -1068,4 +1068,283 @@ internal class InGameMenuTests
         bool result = menu.HandleMouseClick(new Point(320, 50), Bounds640);
         Assert.That(result, Is.False);
     }
+
+    // ---- HandleKey Z / Space ----
+
+    [Test]
+    public void HandleKey_Z_ActsAsConfirm_ClosesMenu()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Z); // Resume (index 0) → Close()
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void HandleKey_Space_ActsAsConfirm_ClosesMenu()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Space);
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    // ---- HandleKey_Escape during GamepadRebinding ----
+
+    [Test]
+    public void HandleKey_Escape_DuringGamepadRebinding_CancelsRebind()
+    {
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+
+        menu.HandleKey(Keys.Escape);
+        Assert.That(menu.IsGamepadRebinding, Is.False);
+    }
+
+    // ---- Root actions: Reset Game (1) and Save Game (3) ----
+
+    [Test]
+    public void HandleKey_Return_OnResetGame_InvokesCallbackAndClosesMenu()
+    {
+        bool reset = false;
+        var menu = CreateMenu(onResetGame: () => reset = true);
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Down); // index 1 (Reset Game)
+        menu.HandleKey(Keys.Return);
+        Assert.That(reset,       Is.True);
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    [Test]
+    public void HandleKey_Return_OnSaveGame_SavesAndClosesMenu()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down); // index 3 (Save Game)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    // ---- HandleGamepadButtonPress when not rebinding ----
+
+    [Test]
+    public void HandleGamepadButtonPress_WhenNotRebinding_ReturnsNull()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        string? result = menu.HandleGamepadButtonPress("A");
+        Assert.That(result, Is.Null);
+    }
+
+    // ---- Close when already closed ----
+
+    [Test]
+    public void Close_WhenAlreadyClosed_DoesNothing()
+    {
+        var menu = CreateMenu();
+        Assert.That(() => menu.Close(), Throws.Nothing);
+        Assert.That(menu.IsOpen, Is.False);
+    }
+
+    // ---- GetTitle remaining screens ----
+
+    [Test]
+    public void GetTitle_SaveSlotSelect_ContainsSelectSlot()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // SaveSlotSelect
+        Assert.That(menu.GetTitle(), Does.Contain("SELECT SLOT"));
+    }
+
+    [Test]
+    public void GetTitle_Settings_ReturnsSettings()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        Assert.That(menu.GetTitle(), Is.EqualTo("SETTINGS"));
+    }
+
+    [Test]
+    public void GetTitle_KeyboardBindings_ReturnsKeyboardControls()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
+        Assert.That(menu.GetTitle(), Is.EqualTo("KEYBOARD CONTROLS"));
+    }
+
+    [Test]
+    public void GetTitle_KeyboardBindings_DuringRebind_ShowsActionName()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings
+        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        Assert.That(menu.GetTitle(), Is.EqualTo("PRESS KEY FOR  UP"));
+    }
+
+    [Test]
+    public void GetTitle_GamepadBindings_ReturnsGamepadControls()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        Assert.That(menu.GetTitle(), Is.EqualTo("GAMEPAD CONTROLS"));
+    }
+
+    [Test]
+    public void GetTitle_GamepadBindings_DuringRebind_ShowsActionName()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        Assert.That(menu.GetTitle(), Is.EqualTo("PRESS BUTTON FOR  UP"));
+    }
+
+    [Test]
+    public void GetTitle_ConfirmLoad_ReturnsLoadGame()
+    {
+        CreateSlotFile(0);
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
+        menu.HandleKey(Keys.Return); // ConfirmLoad
+        Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
+    }
+
+    [Test]
+    public void GetTitle_ConfirmExit_ReturnsExitToDesktop()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // Exit (index 7)
+        menu.HandleKey(Keys.Return); // ConfirmExit
+        Assert.That(menu.GetTitle(), Is.EqualTo("EXIT TO DESKTOP?"));
+    }
+
+    // ---- GetCurrentItems remaining screens ----
+
+    [Test]
+    public void GetCurrentItems_ConfirmLoad_ReturnsTwoItems()
+    {
+        CreateSlotFile(0);
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // ConfirmLoad
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items.Length, Is.EqualTo(2));
+        Assert.That(items[0], Does.Contain("Yes"));
+        Assert.That(items[1], Does.Contain("No"));
+    }
+
+    [Test]
+    public void GetCurrentItems_ConfirmExit_ReturnsTwoItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // ConfirmExit
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items.Length, Is.EqualTo(2));
+        Assert.That(items[0], Does.Contain("Yes"));
+        Assert.That(items[1], Does.Contain("No"));
+    }
+
+    [Test]
+    public void GetCurrentItems_KeyboardBindings_ReturnsNineItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
+    }
+
+    [Test]
+    public void GetCurrentItems_GamepadBindings_ReturnsNineItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
+    }
+
+    // ---- Navigation: Settings Back, KeyboardBindings Back, GamepadBindings Back ----
+
+    [Test]
+    public void Settings_Back_ReturnsToRoot()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
+    }
+
+    [Test]
+    public void KeyboardBindings_Back_ReturnsToSettings()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
+        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // Back (index 8)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    [Test]
+    public void GamepadBindings_Back_ReturnsToSettings()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // Back (index 8)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    // ---- HandleGamepadNav during gamepad rebinding ----
+
+    [Test]
+    public void HandleGamepadNav_DuringGamepadRebinding_Ignores()
+    {
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+
+        int itemBefore = menu.SelectedItem;
+        menu.HandleGamepadNav(new MenuNavInput { Down = true });
+        Assert.That(menu.SelectedItem, Is.EqualTo(itemBefore));
+    }
 }

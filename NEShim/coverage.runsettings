@@ -6,7 +6,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Exclude>[BizHawk*]*</Exclude>
-          <ExcludeByFile>**/Program.cs</ExcludeByFile>
+          <ExcludeByFile>**/Program.cs,**/MainForm.cs,**/MainForm.Designer.cs,**/GamePanel.cs,**/EmulationThread.cs,**/SteamManager.cs,**/D3DOverlayHook.cs,**/EmulatorHost.cs,**/NeshimFileProvider.cs,**/NullOpenGLProvider.cs,**/MainMenuMusic.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
     </DataCollectors>

@@ -644,4 +644,399 @@ internal class MainMenuScreenTests
         bool result = screen.HandleMouseClick(new Point(400, 378), Bounds800);
         Assert.That(result, Is.False);
     }
+
+    // ---- HandleKey Z / Space (alternate confirm keys) ----
+
+    [Test]
+    public void HandleKey_Z_ActsAsConfirm()
+    {
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.NewGameChosen += () => fired = true;
+        screen.HandleKey(Keys.Z);
+        Assert.That(fired, Is.True);
+    }
+
+    [Test]
+    public void HandleKey_Space_ActsAsConfirm()
+    {
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.NewGameChosen += () => fired = true;
+        screen.HandleKey(Keys.Space);
+        Assert.That(fired, Is.True);
+    }
+
+    // ---- Exit item ----
+
+    [Test]
+    public void HandleKey_Return_OnExit_FiresExitChosenEvent()
+    {
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.ExitChosen += () => fired = true;
+        // Main: New Game(0), Resume(1 disabled), Settings(2), Exit(3)
+        screen.HandleKey(Keys.Down); // 0 → 2 (skips disabled)
+        screen.HandleKey(Keys.Down); // 2 → 3
+        screen.HandleKey(Keys.Return);
+        Assert.That(fired,            Is.True);
+        Assert.That(screen.IsVisible, Is.False);
+    }
+
+    // ---- Escape during rebinding ----
+
+    [Test]
+    public void HandleKey_Escape_DuringKeyRebinding_CancelsRebind()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // KeyboardBindings (index 0)
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        Assert.That(screen.RebindingAction, Is.Not.Null);
+
+        screen.HandleKey(Keys.Escape);
+        Assert.That(screen.RebindingAction, Is.Null);
+    }
+
+    [Test]
+    public void HandleKey_Escape_DuringGamepadRebinding_CancelsRebind()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
+
+        screen.HandleKey(Keys.Escape);
+        Assert.That(screen.GamepadRebindingAction, Is.Null);
+    }
+
+    // ---- HandleGamepadButtonPress ----
+
+    [Test]
+    public void HandleGamepadButtonPress_WhenNotRebinding_ReturnsNull()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.HandleGamepadButtonPress("A"), Is.Null);
+    }
+
+    [Test]
+    public void HandleGamepadButtonPress_StartButton_ReturnsReservedMessage()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
+
+        string? msg = screen.HandleGamepadButtonPress("Start");
+        Assert.That(msg, Is.EqualTo("Start is reserved for the menu"));
+        Assert.That(screen.GamepadRebindingAction, Is.Null);
+    }
+
+    [Test]
+    public void HandleGamepadButtonPress_NormalButton_SetsBindingAndReturnsNull()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+
+        string? msg = screen.HandleGamepadButtonPress("X");
+        Assert.That(msg, Is.Null);
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("X"));
+        Assert.That(screen.GamepadRebindingAction, Is.Null);
+    }
+
+    // ---- GetTitle ----
+
+    [Test]
+    public void GetTitle_MainScreen_ReturnsMainMenu()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.GetTitle(), Is.EqualTo("MAIN MENU"));
+    }
+
+    [Test]
+    public void GetTitle_SettingsScreen_ReturnsSettings()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.GetTitle(), Is.EqualTo("SETTINGS"));
+    }
+
+    [Test]
+    public void GetTitle_KeyboardBindings_ReturnsKeyboardControls()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return); // KeyboardBindings (index 0)
+        Assert.That(screen.GetTitle(), Is.EqualTo("KEYBOARD CONTROLS"));
+    }
+
+    [Test]
+    public void GetTitle_KeyboardBindings_DuringRebind_ContainsActionLabel()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return); // start rebinding P1 Up
+        Assert.That(screen.GetTitle(), Does.Contain("UP"));
+    }
+
+    [Test]
+    public void GetTitle_GamepadBindings_ReturnsGamepadControls()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.GetTitle(), Is.EqualTo("GAMEPAD CONTROLS"));
+    }
+
+    [Test]
+    public void GetTitle_GamepadBindings_DuringRebind_ContainsActionLabel()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        Assert.That(screen.GetTitle(), Does.Contain("UP"));
+    }
+
+    [Test]
+    public void GetTitle_ResumeSlots_ReturnsLoadGame()
+    {
+        CreateSlotFile(0);
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Resume (enabled)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.GetTitle(), Is.EqualTo("LOAD GAME"));
+    }
+
+    // ---- ResumeSlots ----
+
+    [Test]
+    public void ResumeSlots_Back_ReturnsToMain()
+    {
+        CreateSlotFile(0);
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Resume
+        screen.HandleKey(Keys.Return);  // → ResumeSlots
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.ResumeSlots));
+
+        // Last item in the list is "← Back"
+        string[] items = screen.GetCurrentItems();
+        for (int i = 0; i < items.Length - 1; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+    }
+
+    [Test]
+    public void ResumeSlots_LoadSlot_FiresResumeChosenAndHidesScreen()
+    {
+        CreateSlotFile(0);
+        using var screen = CreateScreen();
+        bool fired = false;
+        screen.ResumeChosen += () => fired = true;
+
+        screen.HandleKey(Keys.Down);    // Resume (enabled)
+        screen.HandleKey(Keys.Return);  // → ResumeSlots, first item = slot 0
+        screen.HandleKey(Keys.Return);  // activate slot 0 → load → ResumeChosen
+
+        Assert.That(fired,            Is.True);
+        Assert.That(screen.IsVisible, Is.False);
+    }
+
+    // ---- GamepadBindings ----
+
+    [Test]
+    public void GamepadBindings_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.GamepadBindings));
+    }
+
+    [Test]
+    public void GamepadBindings_GetCurrentItems_HasNineItems()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(9)); // 8 actions + Back
+    }
+
+    [Test]
+    public void GamepadBindings_SelectAction_SetsGamepadRebindingAction()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // index 0 → P1 Up
+        Assert.That(screen.GamepadRebindingAction, Is.EqualTo("P1 Up"));
+    }
+
+    [Test]
+    public void GamepadBindings_Back_ReturnsToSettings()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down); // navigate to Back (index 8)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    [Test]
+    public void GamepadBindings_AssignDuplicateButton_ClearsOldAction()
+    {
+        _config.InputMappings["P1 Up"].GamepadButton   = "A";
+        _config.InputMappings["P1 Down"].GamepadButton = "B";
+
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // P1 Down (index 1)
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Down
+
+        screen.HandleGamepadButtonPress("A"); // "A" was P1 Up → clear P1 Up, assign to P1 Down
+        Assert.That(_config.InputMappings["P1 Down"].GamepadButton, Is.EqualTo("A"));
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton,   Is.Null);
+    }
+
+    // ---- Video: WindowMode and FPS ----
+
+    [Test]
+    public void Video_WindowMode_CallsWindowModeCallback()
+    {
+        bool received = false;
+        _config.WindowMode = "Windowed";
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, null,
+            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenVideoScreen(screen);
+        screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
+        Assert.That(received, Is.True); // Windowed → Fullscreen (toggled to true)
+    }
+
+    [Test]
+    public void Video_FpsToggle_UpdatesConfig()
+    {
+        bool initial = _config.ShowFps;
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // FPS Overlay (index 2)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.ShowFps, Is.EqualTo(!initial));
+    }
+
+    // ---- Settings Back ----
+
+    [Test]
+    public void Settings_Back_ReturnsToMain()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // to Back (index 4)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+    }
+
+    // ---- KeyboardBindings Back ----
+
+    [Test]
+    public void KeyboardBindings_Back_ReturnsToSettings()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // KeyboardBindings (index 0)
+        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down); // to Back (index 8)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    // ---- Volume at boundaries ----
+
+    [Test]
+    public void Sound_VolumeLeft_AtZero_DoesNotGoNegative()
+    {
+        _config.Volume = 0;
+        int received = 999;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, null,
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Left); // already at 0 — no change
+        Assert.That(_config.Volume, Is.EqualTo(0));
+        Assert.That(received,       Is.EqualTo(999)); // callback not invoked
+    }
+
+    [Test]
+    public void Sound_VolumeRight_AtMax_DoesNotExceed100()
+    {
+        _config.Volume = 100;
+        int received = 999;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, null,
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Right); // already at 100 — no change
+        Assert.That(_config.Volume, Is.EqualTo(100));
+        Assert.That(received,       Is.EqualTo(999));
+    }
+
+    // ---- ResolveAssetPath ----
+
+    [Test]
+    public void ResolveAssetPath_RootedPath_Exists_ReturnsPath()
+    {
+        string f = Path.GetTempFileName();
+        try
+        {
+            string? result = MainMenuScreen.ResolveAssetPath(f);
+            Assert.That(result, Is.EqualTo(f));
+        }
+        finally { File.Delete(f); }
+    }
+
+    [Test]
+    public void ResolveAssetPath_RootedPath_NotExist_ReturnsNull()
+    {
+        string nonExistent = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".png");
+        Assert.That(MainMenuScreen.ResolveAssetPath(nonExistent), Is.Null);
+    }
+
+    [Test]
+    public void ResolveAssetPath_RelativePath_NotFound_ReturnsNull()
+    {
+        Assert.That(MainMenuScreen.ResolveAssetPath("this_does_not_exist_xyz.png"), Is.Null);
+    }
 }

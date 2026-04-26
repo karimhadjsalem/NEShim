@@ -270,4 +270,44 @@ internal class MenuRendererTests
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
     }
+
+    [Test]
+    public void Draw_ConfirmLoadScreen_DoesNotThrow()
+    {
+        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
+        menu.HandleKey(Keys.Return); // → ConfirmLoad
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_GamepadRebindingMode_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void HitTestItem_DuringGamepadRebinding_ReturnsNegativeOne()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        menu.HandleKey(Keys.Return); // start rebind
+        Assert.That(menu.IsGamepadRebinding, Is.True);
+        Assert.That(MenuRenderer.HitTestItem(new Point(320, 200), Bounds640x480, menu), Is.EqualTo(-1));
+    }
 }
