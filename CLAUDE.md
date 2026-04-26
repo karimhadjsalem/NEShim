@@ -195,13 +195,5 @@ MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All c
 
 When evaluating a new NuGet package, check its repository license **and** the licenses of its transitive dependencies (`dotnet list package --include-transitive`).
 
-### `ref/` directory warning
-The `ref/` folder contains development-only reference tools that are **never compiled into the project**. Several carry restrictive licenses:
-- `ref/NClass_v2.04_bin/` — GPL v2 (UML diagramming tool)
-- `ref/doxygen/` — GPL (documentation generator)
-- `ref/Nintaco_src/` and `ref/Nintaco_API/` — LGPL 2.1 (NES emulator reference)
-
-Do not copy code from these directories into `NEShim/` or `BizHawk/`.
-
 ### Steamworks SDK
 The underlying Steamworks C++ SDK (wrapped by `Steamworks.NET`) is governed by the [Valve Steamworks SDK license](https://partner.steamgames.com/documentation/sdk_access_agreement). Key constraint: the SDK may only be used to distribute software through the Steam platform. This is separate from, and in addition to, the code license requirements above.
