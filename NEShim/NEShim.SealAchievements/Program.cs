@@ -6,8 +6,9 @@ using NEShim.SealAchievements;
 
 // ── Usage ────────────────────────────────────────────────────────────────────
 //   seal-achievements --gen-keypair
-//   seal-achievements --key <private_key_file> [path/to/achievements.json]
-//   seal-achievements --key-env <ENV_VAR>      [path/to/achievements.json]
+//   seal-achievements --key-file <private_key_file> [path/to/achievements.json]
+//   seal-achievements --key <base64_private_key>    [path/to/achievements.json]
+//   seal-achievements --key-env <ENV_VAR>           [path/to/achievements.json]
 //
 // --gen-keypair  generates a new ECDSA-P256 keypair and exits.
 //                Embed the public key in AchievementSigner.DefaultPublicKeyBase64 (source build)
@@ -36,7 +37,7 @@ if (args.Length == 1 && args[0] == "--gen-keypair")
 string? privateKeyBase64 = null;
 
 int fileArgOffset = 0;
-if (args.Length >= 2 && args[0] == "--key")
+if (args.Length >= 2 && args[0] == "--key-file")
 {
     string keyFile = args[1];
     if (!File.Exists(keyFile))
@@ -58,12 +59,23 @@ else if (args.Length >= 2 && args[0] == "--key-env")
     }
     fileArgOffset = 2;
 }
+else if (args.Length >= 2 && args[0] == "--key")
+{
+    privateKeyBase64 = args[1];
+    if (string.IsNullOrEmpty(privateKeyBase64))
+    {
+        Console.Error.WriteLine($"Key parameter is missing or empty.");
+        return 1;
+    }
+    fileArgOffset = 2;
+}
 else
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  seal-achievements --gen-keypair");
-    Console.Error.WriteLine("  seal-achievements --key <private_key_file> [achievements.json]");
-    Console.Error.WriteLine("  seal-achievements --key-env <ENV_VAR>      [achievements.json]");
+    Console.Error.WriteLine("  seal-achievements --key-file <private_key_file> [achievements.json]");
+    Console.Error.WriteLine("  seal-achievements --key-env <ENV_VAR> [achievements.json]");
+    Console.Error.WriteLine("  seal-achievements --key <private_key> [achievements.json]");
     return 1;
 }
 
@@ -84,7 +96,7 @@ string path = args.Length > fileArgOffset
 if (!File.Exists(path))
 {
     Console.Error.WriteLine($"File not found: {path}");
-    Console.Error.WriteLine("Usage: seal-achievements --key <file> [path/to/achievements.json]");
+    Console.Error.WriteLine("Usage: seal-achievements --key-file <file> [path/to/achievements.json]");
     return 1;
 }
 
