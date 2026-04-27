@@ -104,7 +104,7 @@ Do **not** upgrade Steamworks.NET via NuGet — the NuGet package tops at 2024.8
 - **steam_api64.dll**: **not stored in the repository** (Valve SDK license). At packaging time, copy it from the Steamworks.NET GitHub release zip into the output directory alongside the exe — it is matched to the wrapper version. Do not source it separately from the Steamworks SDK partner dashboard, and do not commit it to source control.
 - Reference in csproj: `<Reference Include="Steamworks.NET"><HintPath>lib\Steamworks.NET.dll</HintPath></Reference>`
 
-SDK 1.61+ loads stats automatically; do not call `SteamUserStats.RequestCurrentStats()` — it no longer exists in Steamworks.NET 2025.x.
+SDK 1.61+ has the Steam client sync stats before the game process launches, so stats are already in the local cache when `SteamAPI_Init` returns. `SteamUserStats.RequestCurrentStats()` still exists in Steamworks.NET 2025.x but is marked obsolete and always returns `true` without doing anything — do not call it.
 
 ### Coding conventions (NEShim layer only)
 
