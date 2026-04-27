@@ -48,8 +48,7 @@ internal sealed class D3DOverlayHook : IDisposable
             using var dxgiDevice = _device.QueryInterface<IDXGIDevice>();
             using var adapter    = dxgiDevice.GetAdapter();
 
-            var adapterDesc = adapter.GetDesc();
-            Logger.Log($"[D3DOverlayHook] Adapter: {adapterDesc.Description} (vendor 0x{adapterDesc.VendorId:X4}, device 0x{adapterDesc.DeviceId:X4}), feature level {_device.FeatureLevel}.");
+            Logger.Log($"[D3DOverlayHook] Adapter: {adapter.Description.Description} (vendor 0x{adapter.Description.VendorId:X4}, device 0x{adapter.Description.DeviceId:X4}), feature level {_device.FeatureLevel}.");
 
             using var factory    = adapter.GetParent<IDXGIFactory>();
 
