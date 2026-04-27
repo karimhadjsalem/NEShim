@@ -14,18 +14,24 @@ internal static class SteamManager
 {
     private static Callback<GameOverlayActivated_t>? _overlayCallback;
     private static Callback<UserStatsReceived_t>?   _statsReceivedCallback;
+    private static Callback<UserStatsStored_t>?     _statsStoredCallback;
     private static Action<bool>? _onOverlayToggle; // bool = isActive
 
     private static volatile bool _statsReady;
-    private static DateTime     _statsInitTime;
-    private const  int          StatsTimeoutSeconds = 5;
+    private static volatile bool _pendingStoreStats;
+
+    // StoreStats is rate-limited by Steam; retrying faster than once per minute
+    // can itself cause failures. _storeRetryCountdown is UI-thread-only (only
+    // read/written from Tick(), which runs on the Steam timer on the UI thread).
+    private static int  _storeRetryCountdown;
+    private const  int  StoreRetryIntervalTicks = 360; // ~6s at 60Hz — well within Steam's rate limit
 
     public static bool IsAvailable     { get; private set; }
     public static bool IsOverlayActive { get; private set; }
 
     /// <summary>
-    /// True once Steam has delivered the initial stats snapshot, or immediately
-    /// when Steam is not available (no gate needed without a live Steam session).
+    /// True once stats are confirmed ready, or immediately when Steam is not
+    /// available (no gate needed without a live Steam session).
     /// Achievement unlocks are suppressed until this is true.
     /// </summary>
     public static bool StatsReady => !IsAvailable || _statsReady;
@@ -47,24 +53,31 @@ internal static class SteamManager
 
             _overlayCallback       = Callback<GameOverlayActivated_t>.Create(OnOverlayActivated);
             _statsReceivedCallback = Callback<UserStatsReceived_t>.Create(OnStatsReceived);
+            _statsStoredCallback   = Callback<UserStatsStored_t>.Create(OnStatsStored);
             IsAvailable = true;
+
+            bool overlayEnabled = SteamUtils.IsOverlayEnabled();
+            Logger.Log($"[Steam] Overlay enabled for this app: {overlayEnabled}");
+            if (!overlayEnabled)
+                Logger.Log("[Steam] Overlay is disabled — check Steam settings for this game (Properties → General → Steam Overlay).");
 
             uint appId = (uint)SteamUtils.GetAppID();
             Logger.Log($"[Steam] App ID: {appId}");
             if (appId == 0)
             {
-                // App ID 0 = development build. Steam won't deliver stats for a
-                // non-existent app, so skip the handshake immediately.
+                // Development build — no live app, no stats handshake needed.
                 _statsReady = true;
                 Logger.Log("[Steam] App ID is 0 — StatsReady set immediately (development mode).");
             }
             else
             {
-                // SDK 1.61+ is supposed to deliver UserStatsReceived_t automatically.
-                // In practice it does not always fire via Steamworks.NET 2025.x/SDK 1.63.
-                // Record when we initialised so Tick() can apply a timeout fallback.
-                _statsInitTime = DateTime.UtcNow;
-                Logger.Log("[Steam] Waiting for UserStatsReceived_t (timeout in 5s).");
+                // SDK 1.61+: the Steam client synchronises stats with the server before
+                // the game process launches, so stats are already in the local cache when
+                // SteamAPI_Init returns. RequestCurrentStats() is deprecated and no longer
+                // needed. Set StatsReady immediately — UserStatsReceived_t is registered
+                // below only for diagnostic logging if Steam sends it anyway.
+                _statsReady = true;
+                Logger.Log("[Steam] StatsReady set immediately — Steam client pre-loads stats before launch (SDK 1.61+).");
             }
 
             SteamInputManager.Initialize();
@@ -84,17 +97,20 @@ internal static class SteamManager
     {
         if (!IsAvailable) return;
         SteamAPI.RunCallbacks();
-        ApplyStatsTimeout();
+        RetryPendingStore();
     }
 
-    private static void ApplyStatsTimeout()
+    private static void RetryPendingStore()
     {
-        if (_statsReady || _statsInitTime == default) return;
-        if ((DateTime.UtcNow - _statsInitTime).TotalSeconds >= StatsTimeoutSeconds)
-        {
-            _statsReady = true;
-            Logger.Log("[Steam] UserStatsReceived_t never arrived — forcing StatsReady after 5s timeout. Achievements will fire; StoreStats may silently no-op if Steam is not ready.");
-        }
+        if (!_pendingStoreStats) return;
+        if (_storeRetryCountdown > 0) { _storeRetryCountdown--; return; }
+
+        bool stored = SteamUserStats.StoreStats();
+        Logger.Log($"[Steam] StoreStats retry — result: {stored}.");
+        if (stored)
+            _pendingStoreStats = false;
+        else
+            _storeRetryCountdown = StoreRetryIntervalTicks;
     }
 
     /// <summary>
@@ -132,9 +148,15 @@ internal static class SteamManager
             Logger.Log($"[Steam] Achievement '{id}' already unlocked.");
             return false;
         }
-        SteamUserStats.SetAchievement(id);
-        SteamUserStats.StoreStats();
-        Logger.Log($"[Steam] Achievement unlocked: {id}");
+        bool set    = SteamUserStats.SetAchievement(id);
+        bool stored = SteamUserStats.StoreStats();
+        Logger.Log($"[Steam] Achievement '{id}' — SetAchievement={set}, StoreStats={stored}.");
+        if (!stored)
+        {
+            _pendingStoreStats    = true;
+            _storeRetryCountdown  = StoreRetryIntervalTicks;
+            Logger.Log("[Steam] StoreStats returned false — will retry from Tick() after backoff.");
+        }
         return true;
     }
 
@@ -161,12 +183,23 @@ internal static class SteamManager
     private static void OnOverlayActivated(GameOverlayActivated_t callback)
     {
         IsOverlayActive = callback.m_bActive != 0;
+        Logger.Log($"[Steam] GameOverlayActivated_t fired — m_bActive={callback.m_bActive}, IsOverlayActive={IsOverlayActive}.");
         _onOverlayToggle?.Invoke(IsOverlayActive);
     }
 
     private static void OnStatsReceived(UserStatsReceived_t callback)
     {
-        _statsReady = true;
-        Logger.Log("[Steam] UserStatsReceived — StatsReady is now true, achievements can fire.");
+        // Stats are already ready (set at init). This callback fires only if something
+        // calls RequestCurrentStats() explicitly; log it for diagnostics but take no action.
+        Logger.Log($"[Steam] UserStatsReceived_t — result={callback.m_eResult} (diagnostic; StatsReady was already true).");
+    }
+
+    private static void OnStatsStored(UserStatsStored_t callback)
+    {
+        Logger.Log($"[Steam] UserStatsStored_t — result={callback.m_eResult}.");
+        // k_EResultOK: clean store. k_EResultInvalidParam: server rejected a stat and sent
+        // back corrected values — not expected for achievements, but stop retrying either way.
+        if (callback.m_eResult == EResult.k_EResultOK || callback.m_eResult == EResult.k_EResultInvalidParam)
+            _pendingStoreStats = false;
     }
 }

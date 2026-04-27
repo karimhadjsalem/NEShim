@@ -48,7 +48,8 @@ Everything else — save paths, audio settings, input mappings, menu artwork —
 **Before shipping a release**, work through the [publishing checklist](CLAUDE.md#publishing-checklist):
 - Set `WindowTitle` in `config.json`
 - Set the exe icon via `<ApplicationIcon>` in the csproj
-- Seal your `achievements.json` with the `SealAchievements` tool
+- Generate a signing keypair with `seal-achievements --gen-keypair` and configure the public key
+- Seal your `achievements.json` with `seal-achievements --key-file private_key.txt achievements.json`
 
 Full configuration reference and a step-by-step publishing guide are on the project site.
 
@@ -77,9 +78,9 @@ Achievements are defined in `achievements.json`, keyed by the SHA1 hash of the R
 }
 ```
 
-Each definition must be signed with the `SealAchievements` tool before shipping. Unsigned or tampered entries are silently ignored at runtime.
+Each definition must be signed with `seal-achievements` before shipping. A private key is required to sign; the matching public key is embedded in the binary or set in `config.json`. Unsigned or tampered entries are silently ignored at runtime.
 
-`SealAchievements` is published alongside each release as a standalone Windows binary.
+`seal-achievements` is published alongside each release as a standalone Windows binary.
 
 ---
 
@@ -109,8 +110,8 @@ Releases are built and published automatically on version tags (`v*.*.*`) via Gi
 | Project | Purpose |
 |---|---|
 | `NEShim` | Main application — Windows Forms shell, Steam wiring, game loop |
-| `NEShim.AchievementSigning` | Shared library — achievement types and HMAC signing logic |
-| `NEShim.SealAchievements` | Developer tool — stamps HMAC signatures onto `achievements.json` |
+| `NEShim.AchievementSigning` | Shared library — achievement types and ECDSA-P256 signing logic |
+| `NEShim.SealAchievements` | Developer tool — stamps ECDSA-P256 signatures onto `achievements.json` |
 | `NEShim.Tests` | NUnit test suite |
 | `BizHawk` | NES emulation core, adapted from the BizHawk multi-system emulator |
 

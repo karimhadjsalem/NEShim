@@ -50,6 +50,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
+| `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
@@ -103,7 +104,7 @@ Do **not** upgrade Steamworks.NET via NuGet — the NuGet package tops at 2024.8
 - **steam_api64.dll**: **not stored in the repository** (Valve SDK license). At packaging time, copy it from the Steamworks.NET GitHub release zip into the output directory alongside the exe — it is matched to the wrapper version. Do not source it separately from the Steamworks SDK partner dashboard, and do not commit it to source control.
 - Reference in csproj: `<Reference Include="Steamworks.NET"><HintPath>lib\Steamworks.NET.dll</HintPath></Reference>`
 
-SDK 1.61+ loads stats automatically; do not call `SteamUserStats.RequestCurrentStats()` — it no longer exists in Steamworks.NET 2025.x.
+SDK 1.61+ has the Steam client sync stats before the game process launches, so stats are already in the local cache when `SteamAPI_Init` returns. `SteamUserStats.RequestCurrentStats()` still exists in Steamworks.NET 2025.x but is marked obsolete and always returns `true` without doing anything — do not call it.
 
 ### Coding conventions (NEShim layer only)
 
@@ -159,8 +160,8 @@ Before building a release for a specific game:
 
 - **Window title**: set `WindowTitle` in `config.json` to the game's name.
 - **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
-- **Achievements**: edit `achievements.json`, then run `seal-achievements --key-file private_key.txt achievements.json` to stamp ECDSA-P256 signatures before shipping.
-- **Signing keypair**: run `seal-achievements --gen-keypair` before shipping. Set the printed public key as `achievementPublicKey` in `config.json` (pre-built release) or wire it into the build pipeline (source build). Store the private key outside source control. Achievements are disabled until a key is configured — there is no shipped default.
+- **Signing keypair**: run `seal-achievements --gen-keypair` once per game. Set the printed public key as `achievementPublicKey` in `config.json` (pre-built release) or in `AchievementSigner.EmbeddedPublicKeyBase64` and rebuild (source build). Store the private key outside source control. Achievements are disabled until a key is configured — there is no shipped default.
+- **Achievements**: edit `achievements.json`, then run `seal-achievements --key-file private_key.txt achievements.json` to stamp ECDSA-P256 signatures. Re-seal any time a definition changes.
 - **steam_appid.txt**: the file in the output directory must contain the real Steam App ID (not `0`). `SteamAPI.RestartAppIfNecessary` and `SteamAPI.Init` both read this file. During development the source-tree copy contains `0` (skips restart, still inits if Steam is running); the publish pipeline must replace it with the real ID.
 - **steam_api64.dll**: not included in the repository. After `dotnet publish`, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper (matched version); do not pull it from the Steamworks SDK partner dashboard separately.
 
@@ -193,14 +194,6 @@ MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All c
 - **CC BY-NC / CC BY-SA** — non-commercial or share-alike restrictions
 
 When evaluating a new NuGet package, check its repository license **and** the licenses of its transitive dependencies (`dotnet list package --include-transitive`).
-
-### `ref/` directory warning
-The `ref/` folder contains development-only reference tools that are **never compiled into the project**. Several carry restrictive licenses:
-- `ref/NClass_v2.04_bin/` — GPL v2 (UML diagramming tool)
-- `ref/doxygen/` — GPL (documentation generator)
-- `ref/Nintaco_src/` and `ref/Nintaco_API/` — LGPL 2.1 (NES emulator reference)
-
-Do not copy code from these directories into `NEShim/` or `BizHawk/`.
 
 ### Steamworks SDK
 The underlying Steamworks C++ SDK (wrapped by `Steamworks.NET`) is governed by the [Valve Steamworks SDK license](https://partner.steamgames.com/documentation/sdk_access_agreement). Key constraint: the SDK may only be used to distribute software through the Steam platform. This is separate from, and in addition to, the code license requirements above.
