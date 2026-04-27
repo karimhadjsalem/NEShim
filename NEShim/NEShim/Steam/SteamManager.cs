@@ -49,6 +49,11 @@ internal static class SteamManager
             _statsReceivedCallback = Callback<UserStatsReceived_t>.Create(OnStatsReceived);
             IsAvailable = true;
 
+            bool overlayEnabled = SteamUtils.IsOverlayEnabled();
+            Logger.Log($"[Steam] Overlay enabled for this app: {overlayEnabled}");
+            if (!overlayEnabled)
+                Logger.Log("[Steam] Overlay is disabled — check Steam settings for this game (Properties → General → Steam Overlay).");
+
             uint appId = (uint)SteamUtils.GetAppID();
             Logger.Log($"[Steam] App ID: {appId}");
             if (appId == 0)
@@ -161,6 +166,7 @@ internal static class SteamManager
     private static void OnOverlayActivated(GameOverlayActivated_t callback)
     {
         IsOverlayActive = callback.m_bActive != 0;
+        Logger.Log($"[Steam] GameOverlayActivated_t fired — m_bActive={callback.m_bActive}, IsOverlayActive={IsOverlayActive}.");
         _onOverlayToggle?.Invoke(IsOverlayActive);
     }
 

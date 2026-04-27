@@ -267,10 +267,17 @@ public partial class MainForm : Form
         // Hiding GamePanel when the overlay opens exposes the D3D surface underneath.
         SteamManager.Initialize(overlayActive =>
         {
-            Logger.Log($"[Steam] Overlay {(overlayActive ? "opened" : "closed")}.");
+            Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}. Setting GamePanel.Visible={!overlayActive}.");
             _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
             if (_gamePanel is not null)
+            {
                 _gamePanel.Visible = !overlayActive;
+                Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel.Visible}.");
+            }
+            else
+            {
+                Logger.Log("[Steam] GamePanel is null — overlay visibility toggle skipped.");
+            }
         });
 
         // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
