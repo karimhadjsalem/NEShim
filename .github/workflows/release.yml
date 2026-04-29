@@ -144,10 +144,10 @@ jobs:
               if not fname.endswith(".md"):
                   continue
               path = os.path.join(dst, fname)
-              with open(path) as f:
+              with open(path, encoding="utf-8") as f:
                   content = f.read()
               content = re.sub(r"^permalink:.*\n", "", content, flags=re.MULTILINE)
-              with open(path, "w") as f:
+              with open(path, "w", encoding="utf-8") as f:
                   f.write(content)
 
       - name: Update version history
@@ -159,18 +159,18 @@ jobs:
           version = "${{ steps.version.outputs.VERSION }}"
 
           new_entry = f"- [v{version}](v{version}/)\n"
-          with open("versions/index.md") as f:
+          with open("versions/index.md", encoding="utf-8") as f:
               idx = f.read()
           if new_entry not in idx:
               idx = idx.replace("<!-- versions-insert-here -->\n",
                                 f"<!-- versions-insert-here -->\n{new_entry}")
-              with open("versions/index.md", "w") as f:
+              with open("versions/index.md", "w", encoding="utf-8") as f:
                   f.write(idx)
 
-          with open("_config.yml") as f:
+          with open("_config.yml", encoding="utf-8") as f:
               cfg = f.read()
           cfg = re.sub(r'^latest_version:.*', f'latest_version: "v{version}"', cfg, flags=re.MULTILINE)
-          with open("_config.yml", "w") as f:
+          with open("_config.yml", "w", encoding="utf-8") as f:
               f.write(cfg)
 
       - name: Commit and tag docs
