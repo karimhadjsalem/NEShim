@@ -12,7 +12,7 @@ aux_links:
     - "https://github.com/karimhadjsalem/NEShim"
 
 prerelease: true
-latest_version: "v1.0.3"
+latest_version: "v1.0.4"
 
 footer_content: 'NEShim is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.'
 
