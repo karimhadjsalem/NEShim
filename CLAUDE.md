@@ -28,10 +28,12 @@ The main application targets `net9.0-windows` and requires Windows (uses Windows
 
 ```
 NEShim.sln
-NEShim/           — Windows Forms GUI (entry point: Program.cs → MainForm.cs)
-NEShim.Tests/     — NUnit test project
-BizHawk/          — NES emulation core (adapted from BizHawk emulator)
-ref/              — Reference binaries (BizHawk, Nintaco, tools) — not compiled
+NEShim/                    — Windows Forms GUI (entry point: Program.cs → MainForm.cs)
+NEShim.Tests/              — NUnit test project
+NEShim.AchievementSigning/ — ECDSA-P256 signing library (AchievementSigner, AchievementDef)
+NEShim.SealAchievements/   — CLI tool for stamping achievement signatures (seal-achievements)
+BizHawk/                   — NES emulation core (adapted from BizHawk emulator)
+ref/                       — Reference binaries (BizHawk, Nintaco, tools) — not compiled
 ```
 
 ## Architecture
@@ -128,18 +130,20 @@ SDK 1.61+ has the Steam client sync stats before the game process launches, so s
 Each class under test gets exactly one test class, in a file that mirrors the source path:
 
 ```
-NEShim/Saves/SaveStateManager.cs          →  NEShim.Tests/Saves/SaveStateManagerTests.cs
-NEShim/UI/InGameMenu.cs                   →  NEShim.Tests/UI/InGameMenuTests.cs
-NEShim/Audio/MainMenuMusic.cs             →  NEShim.Tests/Audio/MainMenuMusicTests.cs
+NEShim/UI/InGameMenu.cs                          →  NEShim.Tests/UI/InGameMenuTests.cs
+NEShim/Achievements/AchievementManager.cs        →  NEShim.Tests/Achievements/AchievementManagerTests.cs
+NEShim/Saves/SaveStateManager.cs                 →  NEShim.Tests/Integration/SaveStateManagerTests.cs
 ```
+
+The last example illustrates that classes with I/O dependencies land in `Integration/` rather than mirroring the source folder directly.
 
 If a source class is not worth testing in isolation (e.g., a pure data record, a stateless renderer), no test class is required.
 
 ### Unit test rules
 - **No boundary crossing.** A unit test must not touch the file system, audio devices, the Windows registry, network, or any external process. Anything that does is an integration test, not a unit test.
-- **Mock dependencies at the boundary.** Use `Mock<T>` for interfaces and abstract classes that would otherwise pull in I/O or heavy subsystems. Pass mocks through the constructor (prefer constructor injection over property injection). Verify only interactions that matter to the behaviour under test — do not assert on every call.
+- **Mock dependencies at the boundary.** Use `Substitute.For<T>()` for interfaces and abstract classes that would otherwise pull in I/O or heavy subsystems. Pass substitutes through the constructor (prefer constructor injection over property injection). Verify only interactions that matter to the behaviour under test — do not assert on every call.
 - **Do not over-mock.** Concrete collaborators with no I/O side-effects (plain data objects, pure value computations) should be used directly, not mocked. A test that mocks everything except the SUT is testing nothing.
-- **Avoid test globals.** Shared `static` state and class-level fields shared across tests make failures hard to diagnose. Initialise the SUT and its mocks in `[SetUp]` so each test gets a fresh instance. The only acceptable class-level fields are `readonly` constants or `Mock<T>` / SUT fields initialised in `[SetUp]`.
+- **Avoid test globals.** Shared `static` state and class-level fields shared across tests make failures hard to diagnose. Initialise the SUT and its substitutes in `[SetUp]` so each test gets a fresh instance. The only acceptable class-level fields are `readonly` constants or substitute / SUT fields initialised in `[SetUp]`.
 - **One behaviour per test.** Each `[Test]` method asserts one logical outcome. Name tests in the form `MethodName_Condition_ExpectedOutcome`.
 
 ### Boundary-crossing (integration) tests
