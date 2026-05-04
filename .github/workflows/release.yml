@@ -133,7 +133,7 @@ jobs:
           import os, re, shutil
 
           version = "${{ steps.version.outputs.VERSION }}"
-          src = "docs"
+          src = "prerelease"
           dst = f"versions/v{version}"
           os.makedirs(dst, exist_ok=True)
           shutil.copytree(src, dst, dirs_exist_ok=True)
