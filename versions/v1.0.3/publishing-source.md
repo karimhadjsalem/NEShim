@@ -5,6 +5,7 @@ parent: Publishing
 nav_order: 2
 description: "Build a custom NEShim binary for your game — custom icon, HMAC key rotation, and full assembly rename."
 grand_parent: v1.0.3
+nav_exclude: true
 ---
 
 # Building from source
