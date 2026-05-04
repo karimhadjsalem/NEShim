@@ -2,6 +2,7 @@
 layout: default
 title: Input
 nav_order: 6
+parent: Pre-release
 description: "Keyboard remapping, XInput, Steam Input, hotkeys, and the VDF action-set file."
 ---
 

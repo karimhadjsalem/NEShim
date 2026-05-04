@@ -2,6 +2,7 @@
 layout: default
 title: Architecture
 nav_order: 5
+parent: Pre-release
 description: "Internals: thread model, subsystem design, patterns, and how to extend NEShim."
 ---
 

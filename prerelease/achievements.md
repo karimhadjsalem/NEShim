@@ -2,6 +2,7 @@
 layout: default
 title: Achievements
 nav_order: 3
+parent: Pre-release
 description: "Memory-watch triggers, achievements.json format, BCD encoding, ECDSA-P256 signature verification, and the seal-achievements tool."
 ---
 

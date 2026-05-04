@@ -1,9 +1,10 @@
 ---
 layout: default
-title: Home
-nav_order: 1
-description: "NEShim — Windows shell for publishing NES games on Steam."
-permalink: /
+title: Pre-release
+nav_order: 2
+has_children: true
+description: "NEShim prerelease documentation — features not yet in a stable release."
+permalink: /prerelease/
 ---
 
 # NEShim Documentation

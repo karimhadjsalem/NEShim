@@ -2,6 +2,7 @@
 layout: default
 title: Configuration
 nav_order: 2
+parent: Pre-release
 description: "Complete config.json reference — every field with type, default, and examples."
 ---
 

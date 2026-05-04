@@ -1,4 +1,4 @@
-{% if site.prerelease %}{% unless page.url contains '/versions/' %}
+{% if site.prerelease and page.url contains '/prerelease/' %}
 <style>
   .prerelease-notice {
     background-color: #3d2200;
@@ -27,4 +27,4 @@
     main.insertBefore(el, main.firstChild);
   });
 </script>
-{% endunless %}{% endif %}
+{% endif %}

@@ -2,6 +2,7 @@
 layout: default
 title: Building from source
 parent: Publishing
+grand_parent: Pre-release
 nav_order: 2
 description: "Build a custom NEShim binary for your game — custom icon, HMAC key rotation, and full assembly rename."
 ---

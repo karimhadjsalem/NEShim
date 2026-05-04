@@ -2,6 +2,7 @@
 layout: default
 title: Pre-built release
 parent: Publishing
+grand_parent: Pre-release
 nav_order: 1
 description: "Configure a pre-built NEShim binary for your game without recompiling."
 ---
