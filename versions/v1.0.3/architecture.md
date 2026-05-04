@@ -3,6 +3,7 @@ layout: default
 title: Architecture
 nav_order: 5
 description: "Internals: thread model, subsystem design, patterns, and how to extend NEShim."
+parent: v1.0.3
 ---
 
 # Architecture

@@ -3,6 +3,7 @@ layout: default
 title: Achievements
 nav_order: 3
 description: "Memory-watch triggers, achievements.json format, BCD encoding, HMAC signing, and the SealAchievements tool."
+parent: v1.0.3
 ---
 
 # Achievement system

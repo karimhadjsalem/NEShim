@@ -20,7 +20,6 @@ defaults:
   - scope:
       path: "versions"
     values:
-      nav_exclude: true
       search_exclude: true
 
 back_to_top: true

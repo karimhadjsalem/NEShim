@@ -1,8 +1,9 @@
 ---
 layout: default
-title: Home
-nav_order: 1
-description: "NEShim — Windows shell for publishing NES games on Steam."
+title: v1.0.4
+nav_order: 50
+has_children: true
+description: "NEShim v1.0.4 documentation."
 ---
 
 # NEShim Documentation

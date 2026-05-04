@@ -3,6 +3,7 @@ layout: default
 title: Architecture
 nav_order: 5
 description: "Internals: thread model, subsystem design, patterns, and how to extend NEShim."
+parent: v1.0.4
 ---
 
 # Architecture
@@ -16,8 +17,8 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | Project | Target | Purpose |
 |---|---|---|
 | `NEShim` | `net9.0-windows` | Main application — Windows Forms shell, Steam wiring, game loop |
-| `NEShim.AchievementSigning` | `net9.0` | Shared library — `AchievementDef` type, HMAC signing/verification logic |
-| `NEShim.SealAchievements` | `net9.0` | Developer CLI tool — stamps HMAC signatures onto `achievements.json` |
+| `NEShim.AchievementSigning` | `net9.0` | Shared library — `AchievementDef` type, ECDSA-P256 signing/verification logic |
+| `NEShim.SealAchievements` | `net9.0` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` |
 | `NEShim.Tests` | `net9.0-windows` | NUnit test suite |
 | `BizHawk` | `net8.0` | NES emulation core, adapted from the BizHawk multi-system emulator |
 

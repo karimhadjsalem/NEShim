@@ -3,12 +3,13 @@ layout: default
 title: Building from source
 parent: Publishing
 nav_order: 2
-description: "Build a custom NEShim binary for your game — custom icon, HMAC key rotation, and full assembly rename."
+description: "Build a custom NEShim binary for your game — custom icon, baked-in signing key, and full assembly rename."
+grand_parent: v1.0.4
 ---
 
 # Building from source
 
-Use this path if you have the NEShim source and want to build your own binary. Required for a custom embedded exe icon, renaming the underlying assembly, or rotating the HMAC key before a public release.
+Use this path if you have the NEShim source and want to build your own binary. Required for a custom embedded exe icon, renaming the underlying assembly, or baking the signing public key into the binary.
 
 ---
 

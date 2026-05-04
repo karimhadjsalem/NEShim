@@ -17,7 +17,7 @@ There are two ways to ship a game with NEShim. Choose the path that fits your si
 
 Download a packaged NEShim binary, drop in your ROM and assets, and configure `config.json`. No compiler or .NET SDK required.
 
-Use this path when you want to get a game out quickly and do not need a custom exe icon or a private HMAC key.
+Use this path when you want to get a game out quickly and do not need a custom exe icon or the signing key baked into the binary.
 
 ---
 
@@ -25,4 +25,4 @@ Use this path when you want to get a game out quickly and do not need a custom e
 
 Clone the repository, customise the project, and build your own binary.
 
-Use this path when you need a custom exe icon embedded in the file, want to rename the underlying assembly (`NEShim.dll` → `MyGame.dll`), or need to rotate the HMAC key before a public release.
+Use this path when you need a custom exe icon embedded in the file, want to rename the underlying assembly (`NEShim.dll` → `MyGame.dll`), or want the signing public key compiled into the binary rather than read from `config.json`.
