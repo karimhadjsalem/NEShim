@@ -138,15 +138,27 @@ jobs:
           os.makedirs(dst, exist_ok=True)
           shutil.copytree(src, dst, dirs_exist_ok=True)
 
-          # Strip explicit permalink: lines from copied front matter so Jekyll
-          # builds each page at its natural path rather than the original /
           for fname in os.listdir(dst):
               if not fname.endswith(".md"):
                   continue
               path = os.path.join(dst, fname)
               with open(path, encoding="utf-8") as f:
                   content = f.read()
+
+              # Strip permalink so Jekyll builds pages at their natural versioned path
               content = re.sub(r"^permalink:.*\n", "", content, flags=re.MULTILINE)
+
+              # Scope parent hierarchy to this version to avoid cross-version nav collisions.
+              # The prerelease index is titled "Pre-release"; rename it to the version string
+              # and set a stable nav_order so all versions sort together in the sidebar.
+              content = re.sub(r"^title: Pre-release$", f"title: v{version}", content, flags=re.MULTILINE)
+              if re.search(rf"^title: v{re.escape(version)}$", content, flags=re.MULTILINE):
+                  content = re.sub(r"^nav_order:.*$", "nav_order: 50", content, flags=re.MULTILINE)
+              # Direct children of the prerelease root → children of this version's root
+              content = re.sub(r"^parent: Pre-release$", f"parent: v{version}", content, flags=re.MULTILINE)
+              # Grandchildren (e.g. publishing sub-pages) → scoped grand_parent
+              content = re.sub(r"^grand_parent: Pre-release$", f"grand_parent: v{version}", content, flags=re.MULTILINE)
+
               with open(path, "w", encoding="utf-8") as f:
                   f.write(content)
 
