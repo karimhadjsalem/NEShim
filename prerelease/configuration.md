@@ -151,6 +151,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | `region` | string | `"Auto"` | NES emulation region. Controls CPU clock rate, PPU scanline timing, APU frame counter, and the VSync rate used by the frame-timing loop. `"Auto"` detects from the ROM's iNES header (correct for most ROMs). `"NTSC"` forces ~60.099 Hz; `"PAL"` forces ~50.007 Hz; `"Dendy"` forces ~49.99 Hz (Russian clone variant). |
 | `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `seal-achievements --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
+| `language` | string | `"Auto"` | Menu language to use when Steam is not running. Accepts any Steam language code: `"english"`, `"french"`, `"german"`, `"spanish"`, `"japanese"`, `"korean"`, `"russian"`, `"schinese"`, `"portuguese"`. `"Auto"` falls back to English. **Ignored when Steam is running** — Steam's game language setting always takes precedence. See [Localization](localization.md). |
 
 ---
 
@@ -208,6 +209,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
   "enableLogging": false,
   "region": "Auto",
   "analogStickMode": "Cardinal",
-  "achievementPublicKey": ""
+  "achievementPublicKey": "",
+  "language": "Auto"
 }
 ```
