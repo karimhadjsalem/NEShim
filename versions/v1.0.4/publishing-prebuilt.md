@@ -5,7 +5,6 @@ parent: Publishing
 nav_order: 1
 description: "Configure a pre-built NEShim binary for your game without recompiling."
 grand_parent: v1.0.4
-nav_exclude: true
 ---
 
 # Pre-built release
