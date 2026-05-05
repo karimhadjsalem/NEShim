@@ -130,12 +130,6 @@ internal sealed class SaveStateManager
         }
     }
 
-    public string SlotLabel(int slot)
-    {
-        var meta = GetSlotMeta(slot);
-        if (meta is null) return $"Slot {slot + 1}  [Empty]";
-        return $"Slot {slot + 1}  {meta.Timestamp.ToLocalTime():MM/dd HH:mm}";
-    }
 }
 
 public sealed class SlotMeta

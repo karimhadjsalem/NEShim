@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using BizHawk.Emulation.Common;
 using NEShim.Config;
 using NEShim.Saves;
+using NEShim.Localization;
 using NEShim.UI;
 using NSubstitute;
 
@@ -52,6 +53,7 @@ internal class MenuRendererTests
     {
         var menu = new InGameMenu(
             _saveStates, _config,
+            new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { });
         menu.Open(new int[256 * 240]);
         return menu;

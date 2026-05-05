@@ -105,6 +105,13 @@ public sealed class AppConfig
     // to seal achievements.json; when empty, no achievements will fire.
     // Generate with: seal-achievements --gen-keypair
     public string AchievementPublicKey { get; set; } = "";
+
+    // Steam language code for the game UI (e.g. "french", "japanese", "schinese").
+    // When set to "Auto" or empty, the language is read from Steam at startup.
+    // When Steam is running, this value is ignored — Steam's language setting takes precedence.
+    // Supported values match Steam's language codes: english, french, german, spanish,
+    // japanese, korean, russian, schinese, portuguese.
+    public string Language { get; set; } = "Auto";
 }
 
 public sealed class InputBinding

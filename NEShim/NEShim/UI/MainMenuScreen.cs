@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using NEShim.Config;
+using NEShim.Localization;
 using NEShim.Saves;
 using NEShim.Steam;
 
@@ -15,19 +16,8 @@ internal sealed class MainMenuScreen : IDisposable
 {
     public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound }
 
-    // ---- Shared binding-action table ----
-    private static readonly (string Label, string ConfigKey)[] BindingActions =
-    {
-        ("Up",     "P1 Up"),
-        ("Down",   "P1 Down"),
-        ("Left",   "P1 Left"),
-        ("Right",  "P1 Right"),
-        ("A",      "P1 A"),
-        ("B",      "P1 B"),
-        ("Start",  "P1 Start"),
-        ("Select", "P1 Select"),
-        ("← Back", ""),
-    };
+    // Binding-action table — labels are localised at construction time.
+    private readonly (string Label, string ConfigKey)[] _bindingActions;
 
     // ---- Settings: 5 items ----
     private const int SettingsItemKeyboardBindings = 0;
@@ -51,6 +41,9 @@ internal sealed class MainMenuScreen : IDisposable
     private const int SoundItemBack      = 3;
     private const int SoundItemCount     = 4;
 
+    private const int MainItemCount  = 4;
+    private const int MainItemResume = 1;
+
     // ---- State ----
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
     public bool    IsVisible       { get; private set; } = true;
@@ -60,15 +53,18 @@ internal sealed class MainMenuScreen : IDisposable
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
 
-
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
 
     public bool CanResume => _saveStates.HasAutoSave
         || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
 
+    /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
+    public LocalizationData Localization => _localization;
+
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
+    private readonly LocalizationData _localization;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
@@ -84,13 +80,10 @@ internal sealed class MainMenuScreen : IDisposable
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
 
-    // ---- Main menu items ----
-    private static readonly string[] MainItemLabels = { "New Game", "Resume Game", "Settings", "Exit" };
-    private const int MainItemResume = 1;
-
     public MainMenuScreen(
         SaveStateManager saveStates,
         AppConfig        config,
+        LocalizationData localization,
         string?          bgImagePath,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
@@ -101,12 +94,26 @@ internal sealed class MainMenuScreen : IDisposable
     {
         _saveStates              = saveStates;
         _config                  = config;
+        _localization            = localization;
         _onWindowModeToggle      = onWindowModeToggle;
         _onConfigSaved           = onConfigSaved;
         _onVolumeChanged         = onVolumeChanged;
         _onScrubberToggled       = onScrubberToggled;
         _onMenuMusicToggled      = onMenuMusicToggled;
         _onGraphicsScalerToggled = onGraphicsScalerToggled;
+
+        _bindingActions = new (string, string)[]
+        {
+            (localization.BindUp,     "P1 Up"),
+            (localization.BindDown,   "P1 Down"),
+            (localization.BindLeft,   "P1 Left"),
+            (localization.BindRight,  "P1 Right"),
+            (localization.BindA,      "P1 A"),
+            (localization.BindB,      "P1 B"),
+            (localization.BindStart,  "P1 Start"),
+            (localization.BindSelect, "P1 Select"),
+            (localization.Back,       ""),
+        };
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -202,7 +209,7 @@ internal sealed class MainMenuScreen : IDisposable
         if (buttonName == "Start")
         {
             GamepadRebindingAction = null;
-            return "Start is reserved for the menu";
+            return _localization.InGameRebindStartReserved;
         }
         SetGamepadBinding(GamepadRebindingAction, buttonName);
         _onConfigSaved();
@@ -364,7 +371,7 @@ internal sealed class MainMenuScreen : IDisposable
 
             case Screen.KeyboardBindings:
             {
-                var (_, configKey) = BindingActions[SelectedIndex];
+                var (_, configKey) = _bindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -374,7 +381,7 @@ internal sealed class MainMenuScreen : IDisposable
 
             case Screen.GamepadBindings:
             {
-                var (_, configKey) = BindingActions[SelectedIndex];
+                var (_, configKey) = _bindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -462,19 +469,22 @@ internal sealed class MainMenuScreen : IDisposable
         var list = new List<ResumeOption>();
 
         if (_saveStates.HasAutoSave)
-            list.Add(new("Auto Save", () => _saveStates.AutoLoad()));
+            list.Add(new(_localization.SlotAutoSave, () => _saveStates.AutoLoad()));
 
         for (int i = 0; i < SaveStateManager.SlotCount; i++)
         {
             if (_saveStates.SlotExists(i))
             {
                 int slot = i;
-                string label = _saveStates.SlotLabel(slot);
+                string label = string.Format(_localization.SlotLabel, slot + 1);
+                var meta = _saveStates.GetSlotMeta(slot);
+                if (meta is not null)
+                    label += $"  {meta.Timestamp.ToLocalTime():MM/dd HH:mm}";
                 list.Add(new(label, () => _saveStates.LoadSlot(slot)));
             }
         }
 
-        list.Add(new("← Back", null));
+        list.Add(new(_localization.Back, null));
         _resumeOptions = list.ToArray();
     }
 
@@ -482,57 +492,63 @@ internal sealed class MainMenuScreen : IDisposable
 
     public string GetTitle() => CurrentScreen switch
     {
-        Screen.Main        => "MAIN MENU",
-        Screen.ResumeSlots => "LOAD GAME",
-        Screen.Settings    => "SETTINGS",
+        Screen.Main        => _localization.MainMenuTitle,
+        Screen.ResumeSlots => _localization.MainMenuLoadTitle,
+        Screen.Settings    => _localization.SettingsTitle,
         Screen.KeyboardBindings => RebindingAction != null
-            ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
-            : "KEYBOARD CONTROLS",
-
+            ? string.Format(_localization.PressKeyTitle,
+                _bindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper())
+            : _localization.SettingsKeyboard.ToUpper(),
         Screen.GamepadBindings => GamepadRebindingAction != null
-            ? $"PRESS BUTTON FOR  {BindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper()}"
-            : "GAMEPAD CONTROLS",
-        Screen.Video       => "VIDEO",
-        Screen.Sound       => "SOUND",
+            ? string.Format(_localization.PressButtonTitle,
+                _bindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
+            : _localization.SettingsGamepad.ToUpper(),
+        Screen.Video       => _localization.VideoTitle,
+        Screen.Sound       => _localization.SoundTitle,
         _ => ""
     };
 
     public string[] GetCurrentItems() => CurrentScreen switch
     {
-        Screen.Main        => MainItemLabels,
-        Screen.ResumeSlots => _resumeOptions.Select(o => o.Label).ToArray(),
-        Screen.Settings    => new[]
+        Screen.Main => new[]
         {
-            "Keyboard Controls",
-            "Gamepad Controls",
-            "Video",
-            "Sound",
-            "← Back",
+            _localization.MainMenuNewGame,
+            _localization.MainMenuResumeGame,
+            _localization.MainMenuSettings,
+            _localization.MainMenuExit,
+        },
+        Screen.ResumeSlots => _resumeOptions.Select(o => o.Label).ToArray(),
+        Screen.Settings => new[]
+        {
+            _localization.SettingsKeyboard,
+            _localization.SettingsGamepad,
+            _localization.SettingsVideo,
+            _localization.SettingsSound,
+            _localization.Back,
         },
         Screen.Video => new[]
         {
-            $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
-            $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
-            $"FPS Overlay: {(_config.ShowFps ? "On" : "Off")}",
-            "← Back",
+            _config.WindowMode == "Fullscreen" ? _localization.VideoWindowFullscreen : _localization.VideoWindowWindowed,
+            _config.GraphicsSmoothingEnabled   ? _localization.VideoGraphicsSmooth   : _localization.VideoGraphicsOriginal,
+            _config.ShowFps                    ? _localization.VideoFpsOn            : _localization.VideoFpsOff,
+            _localization.Back,
         },
-        Screen.KeyboardBindings => BindingActions
+        Screen.KeyboardBindings => _bindingActions
             .Select(b => b.ConfigKey == ""
-                ? "← Back"
+                ? _localization.Back
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
-
-        Screen.GamepadBindings => BindingActions
+        Screen.GamepadBindings => _bindingActions
             .Select(b => b.ConfigKey == ""
-                ? "← Back"
+                ? _localization.Back
                 : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
             .ToArray(),
         Screen.Sound => new[]
         {
-            $"◀  Volume: {_config.Volume}  ▶",
-            $"Sound Scrubber: {(_config.SoundScrubberEnabled ? "On" : "Off")}",
-            $"Menu Music: {(_config.MainMenuMusicEnabled ? "On" : "Off")}",
-            "← Back",
+            string.Format(_localization.SoundVolume, _config.Volume),
+            _config.SoundScrubberEnabled     ? _localization.SoundScrubberOn : _localization.SoundScrubberOff,
+            _config.MainMenuMusicEnabled     ? _localization.SoundMusicOn    : _localization.SoundMusicOff,
+            _localization.Back,
         },
         _ => Array.Empty<string>()
     };
@@ -546,7 +562,7 @@ internal sealed class MainMenuScreen : IDisposable
         // the user remaps via Steam's controller configurator. Show labels read-only.
         if (CurrentScreen == Screen.GamepadBindings
             && SteamInputManager.IsUsingNativeActions()
-            && BindingActions[idx].ConfigKey != "")
+            && _bindingActions[idx].ConfigKey != "")
             return false;
 
         return true;
@@ -554,11 +570,11 @@ internal sealed class MainMenuScreen : IDisposable
 
     private int ItemCount() => CurrentScreen switch
     {
-        Screen.Main               => MainItemLabels.Length,
+        Screen.Main               => MainItemCount,
         Screen.ResumeSlots        => _resumeOptions.Length,
         Screen.Settings           => SettingsItemCount,
-        Screen.KeyboardBindings   => BindingActions.Length,
-        Screen.GamepadBindings    => BindingActions.Length,
+        Screen.KeyboardBindings   => _bindingActions.Length,
+        Screen.GamepadBindings    => _bindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         _ => 0

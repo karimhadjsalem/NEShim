@@ -246,31 +246,4 @@ internal class SaveStateManagerTests
         Assert.That(_manager.GetSlotMeta(0), Is.Null);
     }
 
-    // ---- SlotLabel ----
-
-    [Test]
-    public void SlotLabel_WhenEmpty_ReturnsSlotNEmpty()
-    {
-        Assert.That(_manager.SlotLabel(0), Is.EqualTo("Slot 1  [Empty]"));
-    }
-
-    [Test]
-    public void SlotLabel_AfterSaveSlot_StartsWithSlotNumber()
-    {
-        _manager.SaveSlot(2);
-        Assert.That(_manager.SlotLabel(2), Does.StartWith("Slot 3  "));
-    }
-
-    [Test]
-    public void SlotLabel_AfterSaveSlot_DoesNotContainEmpty()
-    {
-        _manager.SaveSlot(0);
-        Assert.That(_manager.SlotLabel(0), Does.Not.Contain("[Empty]"));
-    }
-
-    [Test]
-    public void SlotLabel_Slot8_ShowsCorrectNumber()
-    {
-        Assert.That(_manager.SlotLabel(7), Is.EqualTo("Slot 8  [Empty]"));
-    }
 }

@@ -6,6 +6,7 @@ using NEShim.Config;
 using NEShim.Input;
 using NSubstitute;
 using NEShim.Saves;
+using NEShim.Localization;
 using NEShim.UI;
 
 namespace NEShim.Tests.UI;
@@ -46,6 +47,7 @@ internal class InGameMenuTests
         return new InGameMenu(
             _saveStates,
             _config,
+            new LocalizationData(),
             onExitToDesktop         ?? (() => { }),
             onResetGame             ?? (() => { }),
             onReturnToMainMenu      ?? (() => { }),
@@ -551,6 +553,7 @@ internal class InGameMenuTests
         bool receivedFullscreen = false;
         var menuWithToggle = new InGameMenu(
             _saveStates, _config,
+            new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
             () => { }, _ => { }, _ => { }, _ => { });

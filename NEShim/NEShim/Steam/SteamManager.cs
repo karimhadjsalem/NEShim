@@ -30,6 +30,12 @@ internal static class SteamManager
     public static bool IsOverlayActive { get; private set; }
 
     /// <summary>
+    /// Returns the current game language from Steam (e.g. "english", "french", "japanese"),
+    /// or null when Steam is not available.
+    /// </summary>
+    public static string? GameLanguage => IsAvailable ? SteamApps.GetCurrentGameLanguage() : null;
+
+    /// <summary>
     /// True once stats are confirmed ready, or immediately when Steam is not
     /// available (no gate needed without a live Steam session).
     /// Achievement unlocks are suppressed until this is true.

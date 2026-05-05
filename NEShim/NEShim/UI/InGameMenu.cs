@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using NEShim.Config;
+using NEShim.Localization;
 using NEShim.Saves;
 using NEShim.Steam;
 
@@ -16,6 +17,7 @@ internal sealed class InGameMenu
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
+    private readonly LocalizationData _localization;
     private readonly Action           _onExitToDesktop;
     private readonly Action           _onResetGame;
     private readonly Action           _onReturnToMainMenu;
@@ -24,6 +26,9 @@ internal sealed class InGameMenu
     private readonly Action<int>      _onVolumeChanged;
     private readonly Action<bool>     _onScrubberToggled;
     private readonly Action<bool>     _onGraphicsScalerToggled;
+
+    // Binding-action table — labels are localised at construction time.
+    private readonly (string Label, string ConfigKey)[] _bindingActions;
 
     public bool IsOpen      { get; private set; }
     public Screen Current   { get; private set; } = Screen.Root;
@@ -34,20 +39,17 @@ internal sealed class InGameMenu
     public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
     public int[]?  FrozenFrame            { get; private set; }
 
+    /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
+    public LocalizationData Localization => _localization;
+
     public event Action? Opened;
     public event Action? Closed;
 
-    // ---- Root menu ----
-    private static readonly string[] RootItems =
-        { "Resume", "Reset Game", "Select Save Slot", "Save Game", "Load Game", "Settings", "Return to Main Menu", "Exit" };
+    private const int RootItemCount   = 8;
+    private const int ConfirmItemCount = 2;
 
     private const int RootItemLoadGame     = 4;
     private const int RootItemReturnToMain = 6;
-
-    // ---- Confirm screens ----
-    private static readonly string[] ConfirmLoadItems     = { "Yes, load game",           "No, stay in game" };
-    private static readonly string[] ConfirmMainMenuItems = { "Yes, return to main menu", "No, stay in game" };
-    private static readonly string[] ConfirmExitItems     = { "Yes, exit to desktop",     "No, stay in game" };
 
     // ---- Settings: 5 items ----
     private const int SettingsItemKeyboardBindings = 0;
@@ -70,24 +72,10 @@ internal sealed class InGameMenu
     private const int SoundItemBack     = 2;
     private const int SoundItemCount    = 3;
 
-
-    // ---- Key-binding action order ----
-    private static readonly (string Label, string ConfigKey)[] BindingActions =
-    {
-        ("Up",     "P1 Up"),
-        ("Down",   "P1 Down"),
-        ("Left",   "P1 Left"),
-        ("Right",  "P1 Right"),
-        ("A",      "P1 A"),
-        ("B",      "P1 B"),
-        ("Start",  "P1 Start"),
-        ("Select", "P1 Select"),
-        ("Back",   ""),
-    };
-
     public InGameMenu(
         SaveStateManager saveStates,
         AppConfig        config,
+        LocalizationData localization,
         Action           onExitToDesktop,
         Action           onResetGame,
         Action           onReturnToMainMenu,
@@ -99,6 +87,7 @@ internal sealed class InGameMenu
     {
         _saveStates              = saveStates;
         _config                  = config;
+        _localization            = localization;
         _onExitToDesktop         = onExitToDesktop;
         _onResetGame             = onResetGame;
         _onReturnToMainMenu      = onReturnToMainMenu;
@@ -107,6 +96,19 @@ internal sealed class InGameMenu
         _onVolumeChanged         = onVolumeChanged;
         _onScrubberToggled       = onScrubberToggled;
         _onGraphicsScalerToggled = onGraphicsScalerToggled;
+
+        _bindingActions = new (string, string)[]
+        {
+            (localization.BindUp,     "P1 Up"),
+            (localization.BindDown,   "P1 Down"),
+            (localization.BindLeft,   "P1 Left"),
+            (localization.BindRight,  "P1 Right"),
+            (localization.BindA,      "P1 A"),
+            (localization.BindB,      "P1 B"),
+            (localization.BindStart,  "P1 Start"),
+            (localization.BindSelect, "P1 Select"),
+            (localization.Back,       ""),
+        };
     }
 
     // ---- Open / Close ----
@@ -203,7 +205,7 @@ internal sealed class InGameMenu
         if (buttonName == "Start")
         {
             GamepadRebindingAction = null;
-            return "Start is reserved for the menu";
+            return _localization.InGameRebindStartReserved;
         }
         SetGamepadBinding(GamepadRebindingAction, buttonName);
         _onConfigSaved();
@@ -294,16 +296,16 @@ internal sealed class InGameMenu
 
     private int ItemCount() => Current switch
     {
-        Screen.Root               => RootItems.Length,
+        Screen.Root               => RootItemCount,
         Screen.SaveSlotSelect     => SaveStateManager.SlotCount + 1,
         Screen.Settings           => SettingsItemCount,
-        Screen.KeyboardBindings   => BindingActions.Length,
-        Screen.GamepadBindings    => BindingActions.Length,
+        Screen.KeyboardBindings   => _bindingActions.Length,
+        Screen.GamepadBindings    => _bindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
-        Screen.ConfirmLoad        => ConfirmLoadItems.Length,
-        Screen.ConfirmMainMenu    => ConfirmMainMenuItems.Length,
-        Screen.ConfirmExit        => ConfirmExitItems.Length,
+        Screen.ConfirmLoad        => ConfirmItemCount,
+        Screen.ConfirmMainMenu    => ConfirmItemCount,
+        Screen.ConfirmExit        => ConfirmItemCount,
         _ => 1
     };
 
@@ -398,7 +400,7 @@ internal sealed class InGameMenu
 
             case Screen.KeyboardBindings:
             {
-                var (_, configKey) = BindingActions[SelectedItem];
+                var (_, configKey) = _bindingActions[SelectedItem];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -408,7 +410,7 @@ internal sealed class InGameMenu
 
             case Screen.GamepadBindings:
             {
-                var (_, configKey) = BindingActions[SelectedItem];
+                var (_, configKey) = _bindingActions[SelectedItem];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -494,7 +496,7 @@ internal sealed class InGameMenu
         // the user remaps via Steam's controller configurator. Show labels read-only.
         if (Current == Screen.GamepadBindings
             && SteamInputManager.IsUsingNativeActions()
-            && BindingActions[index].ConfigKey != "")
+            && _bindingActions[index].ConfigKey != "")
             return false;
 
         return true;
@@ -504,52 +506,63 @@ internal sealed class InGameMenu
 
     public string[] GetCurrentItems() => Current switch
     {
-        Screen.Root => RootItems,
+        Screen.Root => new[]
+        {
+            _localization.InGameResume,
+            _localization.InGameResetGame,
+            _localization.InGameSelectSaveSlot,
+            _localization.InGameSaveGame,
+            _localization.InGameLoadGame,
+            _localization.InGameSettings,
+            _localization.InGameReturnToMain,
+            _localization.InGameExit,
+        },
 
         Screen.SaveSlotSelect => Enumerable.Range(0, SaveStateManager.SlotCount)
-            .Select(i => $"Slot {i + 1}{(i == _saveStates.ActiveSlot ? "  ◀ active" : "")}")
-            .Append("← Back")
+            .Select(i => string.Format(_localization.SlotLabel, i + 1)
+                       + (i == _saveStates.ActiveSlot ? _localization.SlotActive : ""))
+            .Append(_localization.Back)
             .ToArray(),
 
         Screen.Settings => new[]
         {
-            "Keyboard Controls",
-            "Gamepad Controls",
-            "Video",
-            "Sound",
-            "← Back",
+            _localization.SettingsKeyboard,
+            _localization.SettingsGamepad,
+            _localization.SettingsVideo,
+            _localization.SettingsSound,
+            _localization.Back,
         },
 
         Screen.Video => new[]
         {
-            $"Window Mode: {(_config.WindowMode == "Fullscreen" ? "Fullscreen" : "Windowed")}",
-            $"Graphics: {(_config.GraphicsSmoothingEnabled ? "Smooth" : "Original")}",
-            $"FPS Overlay: {(_config.ShowFps ? "On" : "Off")}",
-            "← Back",
+            _config.WindowMode == "Fullscreen" ? _localization.VideoWindowFullscreen : _localization.VideoWindowWindowed,
+            _config.GraphicsSmoothingEnabled   ? _localization.VideoGraphicsSmooth   : _localization.VideoGraphicsOriginal,
+            _config.ShowFps                    ? _localization.VideoFpsOn            : _localization.VideoFpsOff,
+            _localization.Back,
         },
 
-        Screen.KeyboardBindings => BindingActions
+        Screen.KeyboardBindings => _bindingActions
             .Select(b => b.ConfigKey == ""
-                ? "← Back"
+                ? _localization.Back
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
 
-        Screen.GamepadBindings => BindingActions
+        Screen.GamepadBindings => _bindingActions
             .Select(b => b.ConfigKey == ""
-                ? "← Back"
+                ? _localization.Back
                 : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
             .ToArray(),
 
         Screen.Sound => new[]
         {
-            $"◀  Volume: {_config.Volume}  ▶",
-            $"Sound Scrubber: {(_config.SoundScrubberEnabled ? "On" : "Off")}",
-            "← Back",
+            string.Format(_localization.SoundVolume, _config.Volume),
+            _config.SoundScrubberEnabled ? _localization.SoundScrubberOn : _localization.SoundScrubberOff,
+            _localization.Back,
         },
 
-        Screen.ConfirmLoad     => ConfirmLoadItems,
-        Screen.ConfirmMainMenu => ConfirmMainMenuItems,
-        Screen.ConfirmExit     => ConfirmExitItems,
+        Screen.ConfirmLoad     => new[] { _localization.InGameConfirmYesLoad,   _localization.InGameConfirmNoStay },
+        Screen.ConfirmMainMenu => new[] { _localization.InGameConfirmYesReturn, _localization.InGameConfirmNoStay },
+        Screen.ConfirmExit     => new[] { _localization.InGameConfirmYesExit,   _localization.InGameConfirmNoStay },
 
         _ => Array.Empty<string>()
     };
@@ -570,21 +583,22 @@ internal sealed class InGameMenu
 
     public string GetTitle() => Current switch
     {
-        Screen.Root            => "PAUSED",
-        Screen.SaveSlotSelect  => $"SELECT SLOT  (active: {_saveStates.ActiveSlot + 1})",
-        Screen.Settings        => "SETTINGS",
+        Screen.Root            => _localization.InGamePausedTitle,
+        Screen.SaveSlotSelect  => string.Format(_localization.InGameSelectSlotTitle, _saveStates.ActiveSlot + 1),
+        Screen.Settings        => _localization.SettingsTitle,
         Screen.KeyboardBindings => RebindingAction != null
-            ? $"PRESS KEY FOR  {BindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper()}"
-            : "KEYBOARD CONTROLS",
-
+            ? string.Format(_localization.PressKeyTitle,
+                _bindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper())
+            : _localization.SettingsKeyboard.ToUpper(),
         Screen.GamepadBindings => GamepadRebindingAction != null
-            ? $"PRESS BUTTON FOR  {BindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper()}"
-            : "GAMEPAD CONTROLS",
-        Screen.Video           => "VIDEO",
-        Screen.Sound           => "SOUND",
-        Screen.ConfirmLoad     => "LOAD GAME?",
-        Screen.ConfirmMainMenu => "RETURN TO MAIN MENU?",
-        Screen.ConfirmExit     => "EXIT TO DESKTOP?",
+            ? string.Format(_localization.PressButtonTitle,
+                _bindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
+            : _localization.SettingsGamepad.ToUpper(),
+        Screen.Video           => _localization.VideoTitle,
+        Screen.Sound           => _localization.SoundTitle,
+        Screen.ConfirmLoad     => _localization.InGameLoadTitle,
+        Screen.ConfirmMainMenu => _localization.InGameReturnTitle,
+        Screen.ConfirmExit     => _localization.InGameExitTitle,
         _ => ""
     };
 

@@ -6,6 +6,7 @@ using NEShim.Config;
 using NEShim.Input;
 using NSubstitute;
 using NEShim.Saves;
+using NEShim.Localization;
 using NEShim.UI;
 
 namespace NEShim.Tests.UI;
@@ -40,7 +41,7 @@ internal class MainMenuScreenTests
         Action<bool>? onScrubberToggled        = null,
         Action<bool>? onMenuMusicToggled       = null,
         Action<bool>? onGraphicsScalerToggled  = null) =>
-        new(_saveStates, _config, null,
+        new(_saveStates, _config, new LocalizationData(), null,
             _ => { },
             () => { },
             onVolumeChanged         ?? (_ => { }),
@@ -268,7 +269,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { Volume = 60 };
         int received = -1;
         using var screen = new MainMenuScreen(
-            _saveStates, config, null,
+            _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
             v => received = v, _ => { }, _ => { }, _ => { });
 
@@ -284,7 +285,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { Volume = 60 };
         int received = -1;
         using var screen = new MainMenuScreen(
-            _saveStates, config, null,
+            _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
             v => received = v, _ => { }, _ => { }, _ => { });
 
@@ -300,7 +301,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { SoundScrubberEnabled = false };
         bool callbackReceived = false;
         using var screen = new MainMenuScreen(
-            _saveStates, config, null,
+            _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
             _ => { }, on => callbackReceived = on, _ => { }, _ => { });
 
@@ -318,7 +319,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { MainMenuMusicEnabled = true };
         bool received = true;
         using var screen = new MainMenuScreen(
-            _saveStates, config, null,
+            _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
             _ => { }, _ => { }, on => received = on, _ => { });
 
@@ -937,7 +938,7 @@ internal class MainMenuScreenTests
         bool received = false;
         _config.WindowMode = "Windowed";
         using var screen = new MainMenuScreen(
-            _saveStates, _config, null,
+            _saveStates, _config, new LocalizationData(), null,
             fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
@@ -991,7 +992,7 @@ internal class MainMenuScreenTests
         _config.Volume = 0;
         int received = 999;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, null,
+            _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Left); // already at 0 — no change
@@ -1005,7 +1006,7 @@ internal class MainMenuScreenTests
         _config.Volume = 100;
         int received = 999;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, null,
+            _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right); // already at 100 — no change
