@@ -187,7 +187,8 @@ Before achievements can fire in-game, they must be registered in the Steamworks 
 1. Navigate to **Achievements** for your app.
 2. Create each achievement with an **API Name** (e.g. `ACH_FIRST_WIN`). This name is the `steamId` field in `achievements.json`.
 3. Add a name, description, and icon for each achievement.
-4. Publish the achievements from the dashboard.
+4. Add translated names and descriptions for each supported language. Steam returns the achievement display name in the user's current game language — the unlock pop-up shown in-game pulls the name directly from Steam, so translations entered here appear automatically with no extra code. Missing languages fall back to the English name.
+5. Publish the achievements from the dashboard.
 
 ---
 
@@ -291,10 +292,15 @@ Before uploading to Steam:
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
+- [ ] Translated achievement names and descriptions added in Steamworks dashboard for each supported language
 - [ ] `achievements.json` authored and sealed with `seal-achievements --key-file <keyfile>`
+- [ ] `lang/*.json` files present for each supported language (built-in files are compiled in; confirm `lang\*.json` content items copy to output)
+- [ ] Supported languages list set in Steamworks dashboard under **Store Presence → Basic Info**
+- [ ] Localized store descriptions and screenshots uploaded in Steamworks dashboard for each supported language
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
 - [ ] Release build passes local smoke test (saves, Steam overlay, achievements)
+- [ ] Localization tested locally for each supported language (set `"language": "<code>"` in `config.json`, launch outside Steam)
 - [ ] `THIRD-PARTY-NOTICES.md` updated if any new dependencies were added
 
 ---
