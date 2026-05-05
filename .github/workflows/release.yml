@@ -160,20 +160,9 @@ jobs:
                       content = re.sub(r"^(has_children:.*)", r"\1\nnav_exclude: false", content, flags=re.MULTILINE)
               # Direct children of the prerelease root → children of this version's root
               content = re.sub(r"^parent: Pre-release$", f"parent: v{version}", content, flags=re.MULTILINE)
-              # Grandchildren (publishing sub-pages): scope grand_parent and nav-exclude them
-              # so the theme never builds an ambiguous cross-version children list.
-              # The publishing page's manual links still work; the sub-pages remain accessible
-              # via direct URL but are invisible to the nav tree.
+              # Grandchildren (publishing sub-pages): scope grand_parent to this version.
               if re.search(r"^grand_parent: Pre-release$", content, flags=re.MULTILINE):
                   content = re.sub(r"^grand_parent: Pre-release$", f"grand_parent: v{version}", content, flags=re.MULTILINE)
-                  if not re.search(r"^nav_exclude:", content, flags=re.MULTILINE):
-                      content = re.sub(r"^(grand_parent:.*)", r"\1\nnav_exclude: true", content, flags=re.MULTILINE)
-              # Remove has_children from non-root pages (pages with a parent: key).
-              # The version root index keeps has_children so it collapses in the sidebar;
-              # only mid-level parent pages (e.g. publishing.md) lose it to prevent the
-              # theme from auto-generating a cross-version child TOC.
-              if re.search(r"^parent:", content, flags=re.MULTILINE):
-                  content = re.sub(r"^has_children: true\n", "", content, flags=re.MULTILINE)
 
               with open(path, "w", encoding="utf-8") as f:
                   f.write(content)
