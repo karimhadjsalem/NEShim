@@ -2,6 +2,7 @@
 layout: default
 title: Publishing
 nav_order: 4
+has_children: true
 description: "How to package and release a game on Steam using NEShim."
 parent: v1.0.3
 ---
