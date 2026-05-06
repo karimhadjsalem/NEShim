@@ -121,12 +121,14 @@ jobs:
             SealAchievements-${{ github.ref_name }}-win-x64.zip
 
       - name: Checkout gh-pages
+        if: ${{ !contains(github.ref_name, '-') }}
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: ghpages-work
 
       - name: Snapshot docs for this version
+        if: ${{ !contains(github.ref_name, '-') }}
         shell: python
         working-directory: ghpages-work
         run: |
@@ -169,6 +171,7 @@ jobs:
                       f.write(content)
 
       - name: Update version history
+        if: ${{ !contains(github.ref_name, '-') }}
         shell: python
         working-directory: ghpages-work
         run: |
@@ -192,6 +195,7 @@ jobs:
               f.write(cfg)
 
       - name: Commit and tag docs
+        if: ${{ !contains(github.ref_name, '-') }}
         shell: bash
         working-directory: ghpages-work
         run: |
