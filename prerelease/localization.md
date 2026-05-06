@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Localization
-nav_order: 6
+nav_order: 7
 parent: Pre-release
 description: "Language support, custom language files, Steam language detection, and CJK font fallback."
 permalink: /prerelease/localization/
