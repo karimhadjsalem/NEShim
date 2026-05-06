@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using BizHawk.Emulation.Common;
 using NEShim.Config;
 using NEShim.Saves;
+using NEShim.Localization;
 using NEShim.UI;
 using NSubstitute;
 
@@ -39,7 +40,7 @@ internal class MainMenuRendererTests
     }
 
     private MainMenuScreen CreateMenu() =>
-        new(_saveStates, _config, null,
+        new(_saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
     // ---- GetMainPanelRect — position variants ----
@@ -402,7 +403,7 @@ internal class MainMenuRendererTests
         using (var bmp = new Bitmap(200, 100, PixelFormat.Format32bppArgb))
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
-        using var menu   = new MainMenuScreen(_saveStates, _config, imgPath,
+        using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
@@ -417,7 +418,7 @@ internal class MainMenuRendererTests
         using (var bmp = new Bitmap(100, 200, PixelFormat.Format32bppArgb))
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
-        using var menu   = new MainMenuScreen(_saveStates, _config, imgPath,
+        using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);

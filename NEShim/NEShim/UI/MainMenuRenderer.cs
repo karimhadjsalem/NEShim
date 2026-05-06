@@ -185,15 +185,15 @@ internal static class MainMenuRenderer
         using var bp = new Pen(BorderColor, 2f);
         g.DrawRectangle(bp, panelRect);
 
-        using var tf = new Font("Segoe UI", 13f, FontStyle.Bold,   GraphicsUnit.Point);
-        using var hf = new Font("Segoe UI", 12f, FontStyle.Italic, GraphicsUnit.Point);
+        using var tf = new Font(menu.Localization.FontFamily, 13f, FontStyle.Bold,   GraphicsUnit.Point);
+        using var hf = new Font(menu.Localization.FontFamily, 12f, FontStyle.Italic, GraphicsUnit.Point);
         using var tb = new SolidBrush(RebindColor);
         using var hb = new SolidBrush(Color.FromArgb(200, 220, 220, 180));
         var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
         string hint = menu.IsGamepadRebinding
-            ? "Press any controller button  •  Start to cancel"
-            : "Press any key  •  Esc to cancel";
+            ? menu.Localization.MainMenuRebindPressButton
+            : menu.Localization.MainMenuRebindPressKey;
 
         g.DrawString(menu.GetTitle(), tf, tb,
             new RectangleF(panelX, panelY + 10, panelW, 44), centred);
@@ -209,7 +209,7 @@ internal static class MainMenuRenderer
         using var bp = new Pen(BorderColor, 2f);
         g.DrawRectangle(bp, panel);
 
-        using var tf  = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        using var tf  = new Font(menu.Localization.FontFamily, 14f, FontStyle.Bold, GraphicsUnit.Point);
         using var tb  = new SolidBrush(titleColor);
         var titleRect = new RectangleF(panel.X + Pad, panel.Y + 8, panel.Width - Pad * 2, 36);
         var centred   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -219,8 +219,8 @@ internal static class MainMenuRenderer
         g.DrawLine(div, panel.X + Pad, panel.Y + 46, panel.X + panel.Width - Pad, panel.Y + 46);
 
         using var selBrush = new SolidBrush(SelectedBg);
-        using var selFont  = new Font("Segoe UI", 12f, FontStyle.Bold,    GraphicsUnit.Point);
-        using var itemFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        using var selFont  = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemFont = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
         using var onBrush  = new SolidBrush(ItemOn);
         using var dimBrush = new SolidBrush(ItemDim);
         var leftFmt = new StringFormat
@@ -252,7 +252,7 @@ internal static class MainMenuRenderer
             }
             else
             {
-                g.DrawString("    " + items[i] + "  (no save)", itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i] + menu.Localization.SlotNoSave, itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
     }

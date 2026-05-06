@@ -7,6 +7,7 @@ using NEShim.Input;
 using NEShim.Rendering;
 using NEShim.Saves;
 using NEShim.Steam;
+using NEShim.Localization;
 using NEShim.UI;
 
 namespace NEShim;
@@ -90,6 +91,8 @@ public partial class MainForm : Form
         if (_config.EnableLogging)
             Logger.Enable();
 
+        Logger.Log($"[Init] Config loaded — ROM: {_config.RomPath}, window: {_config.WindowTitle}, language: {_config.Language}.");
+
         // 2. Load ROM
         string romPath = Path.IsPathRooted(_config.RomPath)
             ? _config.RomPath
@@ -98,8 +101,11 @@ public partial class MainForm : Form
         if (!File.Exists(romPath))
             throw new FileNotFoundException($"ROM not found: {romPath}");
 
+        Logger.Log($"[Init] ROM found: {romPath}.");
+
         // 3. Emulator core
         _host = EmulatorHost.Load(romPath, _config);
+        Logger.Log($"[Init] Emulator core loaded — ROM hash: {_host.RomHash}.");
 
         // 3a. Per-game achievement config (keyed by ROM SHA1 hash)
         AchievementManager? achievements = null;
@@ -171,10 +177,28 @@ public partial class MainForm : Form
         _audio = new AudioPlayer(_config.AudioBufferFrames, startingProcessor);
         _audio.SetVolume(_config.Volume / 100f);
 
-        // 9. Pre-game main menu
+        // 9. Steam + localization (Steam must initialise before menus so the language can be read)
+        SteamManager.Initialize(overlayActive =>
+        {
+            Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}. Setting GamePanel.Visible={!overlayActive}.");
+            _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
+            if (_gamePanel is not null)
+            {
+                _gamePanel.Visible = !overlayActive;
+                Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel.Visible}.");
+            }
+            else
+            {
+                Logger.Log("[Steam] GamePanel is null — overlay visibility toggle skipped.");
+            }
+        });
+        var localization = LoadLocalization();
+
+        // 10. Pre-game main menu
         _mainMenuScreen = new MainMenuScreen(
             saveStates:          _saveStates,
             config:              _config,
+            localization:        localization,
             bgImagePath:         _config.MainMenuBackgroundPath,
             onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
             onConfigSaved:       () => { /* config flushed to disk on exit */ },
@@ -227,17 +251,18 @@ public partial class MainForm : Form
 
         _gamePanel.SetMainMenu(_mainMenuScreen);
 
-        // 9a. Main menu music — only created if the path is set and music is enabled
+        // 10a. Main menu music — only created if the path is set and music is enabled
         if (_config.MainMenuMusicEnabled)
         {
             _mainMenuMusic = CreateMainMenuMusic(_config);
             _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
         }
 
-        // 10. In-game pause menu
+        // 11. In-game pause menu
         _menu = new InGameMenu(
             saveStates:          _saveStates,
             config:              _config,
+            localization:        localization,
             onExitToDesktop:     () => BeginInvoke(Application.Exit),
             onResetGame:         () => _emulationThread?.ResetGame(),
             onReturnToMainMenu:  () => BeginInvoke(ReturnToMainMenu),
@@ -256,29 +281,10 @@ public partial class MainForm : Form
             });
         _gamePanel.SetMenu(_menu);
 
-        // 11. Emulation thread
+        // 12. Emulation thread
         _emulationThread = new EmulationThread(
             _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu,
             achievements);
-
-        // Wire Steam overlay → pause + show/hide GamePanel.
-        // Steam renders its overlay into the D3D swap chain on MainForm. GamePanel is a
-        // GDI+ child that DWM composites above the swap chain, hiding the overlay.
-        // Hiding GamePanel when the overlay opens exposes the D3D surface underneath.
-        SteamManager.Initialize(overlayActive =>
-        {
-            Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}. Setting GamePanel.Visible={!overlayActive}.");
-            _emulationThread.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
-            if (_gamePanel is not null)
-            {
-                _gamePanel.Visible = !overlayActive;
-                Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel.Visible}.");
-            }
-            else
-            {
-                Logger.Log("[Steam] GamePanel is null — overlay visibility toggle skipped.");
-            }
-        });
 
         // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
         // to be called on the same thread as SteamAPI.Init() — we initialise on the UI
@@ -287,7 +293,7 @@ public partial class MainForm : Form
         _steamTimer.Tick += (_, _) => { SteamManager.Tick(); _d3dHook?.Present(); };
         _steamTimer.Start();
 
-        // 12. Apply window mode, then initialise the D3D overlay hook at the final
+        // 13. Apply window mode, then initialise the D3D overlay hook at the final
         // window size so Steam renders its overlay at the correct resolution.
         SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
         _d3dHook = new Rendering.D3DOverlayHook();
@@ -295,7 +301,7 @@ public partial class MainForm : Form
         Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
         Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
-        // 13. Start audio and emulation — thread starts paused at main menu
+        // 14. Start audio and emulation — thread starts paused at main menu
         _audio.Start(_config.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel.Focus();
@@ -336,6 +342,42 @@ public partial class MainForm : Form
 
         try   { return new MainMenuMusic(resolved); }
         catch { return null; /* bad file or audio device issue — degrade gracefully */ }
+    }
+
+    private string ResolveLanguage()
+    {
+        string? steamLang = SteamManager.GameLanguage;
+        if (!string.IsNullOrEmpty(steamLang))
+        {
+            Logger.Log($"[Localization] Language resolved from Steam: '{steamLang}'.");
+            return steamLang;
+        }
+
+        if (SteamManager.IsAvailable)
+            Logger.Log("[Localization] Steam is available but returned an empty language — falling through to config.");
+        else
+            Logger.Log("[Localization] Steam not available — checking config.Language.");
+
+        if (_config is not null
+            && !string.IsNullOrEmpty(_config.Language)
+            && !_config.Language.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.Log($"[Localization] Language resolved from config: '{_config.Language}'.");
+            return _config.Language;
+        }
+
+        Logger.Log($"[Localization] config.Language is '{_config?.Language ?? "(null)"}' — defaulting to 'english'.");
+        return "english";
+    }
+
+    private LocalizationData LoadLocalization()
+    {
+        string language = ResolveLanguage();
+        string langDir  = Path.Combine(AppContext.BaseDirectory, "lang");
+        Logger.Log($"[Localization] Loading language file from: {langDir}.");
+        var data = LocalizationLoader.Load(langDir, language);
+        Logger.Log($"[Localization] Loaded — fontFamily='{data.FontFamily}'.");
+        return data;
     }
 
     private void SetWindowMode(bool fullscreen)

@@ -77,7 +77,7 @@ internal static class MenuRenderer
         g.DrawRectangle(borderPen, panelRect);
 
         // Title
-        using var titleFont  = new Font("Segoe UI", 15f, FontStyle.Bold, GraphicsUnit.Point);
+        using var titleFont  = new Font(menu.Localization.FontFamily, 15f, FontStyle.Bold, GraphicsUnit.Point);
         var titleColor = isConfirm                                          ? WarningColor
                        : (menu.RebindingAction != null || menu.IsGamepadRebinding) ? SubtitleColor
                        : TitleColor;
@@ -93,19 +93,19 @@ internal static class MenuRenderer
         // Warning label on confirm screens
         if (isConfirm)
         {
-            using var warnFont  = new Font("Segoe UI", 11f, FontStyle.Italic, GraphicsUnit.Point);
+            using var warnFont  = new Font(menu.Localization.FontFamily, 11f, FontStyle.Italic, GraphicsUnit.Point);
             using var warnBrush = new SolidBrush(Color.FromArgb(200, 255, 180, 100));
             var warnRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, 28);
-            g.DrawString("Unsaved progress will be lost.", warnFont, warnBrush, warnRect, centred);
+            g.DrawString(menu.Localization.InGameConfirmWarning, warnFont, warnBrush, warnRect, centred);
         }
 
         // Rebind prompt replaces the item list
         if (menu.RebindingAction != null || menu.IsGamepadRebinding)
         {
             string hint = menu.IsGamepadRebinding
-                ? "Press any controller button\n(Start to cancel)"
-                : "Press any key to bind\n(Esc to cancel)";
-            using var hintFont  = new Font("Segoe UI", 13f, FontStyle.Italic, GraphicsUnit.Point);
+                ? menu.Localization.InGameRebindPressButton
+                : menu.Localization.InGameRebindPressKey;
+            using var hintFont  = new Font(menu.Localization.FontFamily, 13f, FontStyle.Italic, GraphicsUnit.Point);
             using var hintBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 180));
             var hintRect = new RectangleF(panelX + PanelPad, panelY + 56, panelW - PanelPad * 2,
                                            panelH - 56 - PanelPad);
@@ -114,8 +114,8 @@ internal static class MenuRenderer
         }
 
         // Item list
-        using var itemFont  = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point);
-        using var selFont   = new Font("Segoe UI", 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemFont  = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
+        using var selFont   = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
         using var itemBrush = new SolidBrush(ItemColor);
         using var dimBrush  = new SolidBrush(DimColor);
         using var selBrush  = new SolidBrush(SelectedBg);
@@ -148,7 +148,7 @@ internal static class MenuRenderer
             }
             else
             {
-                g.DrawString("    " + items[i] + "  (no save)", itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i] + menu.Localization.SlotNoSave, itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
     }
