@@ -53,6 +53,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
+| `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
@@ -163,6 +164,7 @@ Never place a boundary-crossing test alongside unit tests. CI should be able to 
 Before building a release for a specific game:
 
 - **Window title**: set `WindowTitle` in `config.json` to the game's name.
+- **Language**: `lang/*.json` files ship alongside the exe. The active language is read from Steam at startup; set `language` in `config.json` as a fallback for non-Steam launches. Nine languages are built in (english, french, german, spanish, japanese, korean, russian, schinese, portuguese). Add translated achievement names in the Steamworks dashboard — the unlock notification pulls the display name from Steam automatically.
 - **Exe icon**: set `<ApplicationIcon>path/to/icon.ico</ApplicationIcon>` in `NEShim/NEShim.csproj` and place a valid `.ico` file at that path. This controls the icon shown in Windows Explorer, the taskbar, alt-tab, and Steam. Do not attempt to configure the icon at runtime — only the compile-time embedded icon affects the exe's file icon and Steam library entry.
 - **Signing keypair**: run `seal-achievements --gen-keypair` once per game. Set the printed public key as `achievementPublicKey` in `config.json` (pre-built release) or in `AchievementSigner.EmbeddedPublicKeyBase64` and rebuild (source build). Store the private key outside source control. Achievements are disabled until a key is configured — there is no shipped default.
 - **Achievements**: edit `achievements.json`, then run `seal-achievements --key-file private_key.txt achievements.json` to stamp ECDSA-P256 signatures. Re-seal any time a definition changes.

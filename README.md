@@ -18,6 +18,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Audio** — volume control and optional sound scrubber for warmer playback on modern hardware
 - **Graphics** — nearest-neighbour (pixel-perfect) and bilinear (smoothed) scaling modes
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone
+- **Localization** — UI language loaded from Steam at startup; nine built-in languages (English, French, German, Spanish, Japanese, Korean, Russian, Simplified Chinese, Brazilian Portuguese); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Window title** — set per-game via `config.json`; no rebuild needed
 
 ---
