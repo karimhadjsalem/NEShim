@@ -140,6 +140,14 @@ jobs:
           os.makedirs(dst, exist_ok=True)
           shutil.copytree(src, dst, dirs_exist_ok=True)
 
+          # Newer versions get a lower nav_order so they sort first in the sidebar.
+          # Formula: 99999 - (major*10000 + minor*100 + patch) guarantees strict
+          # descending order for any semver within reasonable component ranges.
+          parts = version.split(".")
+          major, minor = int(parts[0]), int(parts[1])
+          patch_num = int(parts[2]) if len(parts) > 2 else 0
+          nav_order_val = 99999 - (major * 10000 + minor * 100 + patch_num)
+
           for dirpath, dirnames, filenames in os.walk(dst):
               for fname in filenames:
                   if not fname.endswith(".md"):
@@ -157,7 +165,7 @@ jobs:
                   # not suppress it from sidebar navigation.
                   content = re.sub(r"^title: Pre-release$", f"title: v{version}", content, flags=re.MULTILINE)
                   if re.search(rf"^title: v{re.escape(version)}$", content, flags=re.MULTILINE):
-                      content = re.sub(r"^nav_order:.*$", "nav_order: 50", content, flags=re.MULTILINE)
+                      content = re.sub(r"^nav_order:.*$", f"nav_order: {nav_order_val}", content, flags=re.MULTILINE)
                       # Explicit override so the versions/ path scope never suppresses this page
                       if not re.search(r"^nav_exclude:", content, flags=re.MULTILINE):
                           content = re.sub(r"^(has_children:.*)", r"\1\nnav_exclude: false", content, flags=re.MULTILINE)
