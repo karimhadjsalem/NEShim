@@ -37,6 +37,7 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection via `ntdll.dll::wine_get_version` and `SteamDeck` env var (used for startup logging); `PlatformDefaults` — config-override resolution for spin window and audio latency |
 | `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |

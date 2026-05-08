@@ -279,6 +279,14 @@ Before uploading to Steam:
 
 ---
 
+## Steam Deck
+
+NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility.
+
+If players report persistent frame jitter or audio stutters on Deck, they can add `"emulationSpinMs"` or `"audioDesiredLatencyMs"` to `config.json` to tune the frame timing spin window or audio buffer size. See the [configuration reference](configuration.md#steam-deck--proton) for details.
+
+---
+
 ## Release checklist
 
 - [ ] `windowTitle` set in `config.json`
