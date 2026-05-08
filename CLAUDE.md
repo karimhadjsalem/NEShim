@@ -54,6 +54,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
 | `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection via `ntdll.dll::wine_get_version` and `SteamDeck` env var (used for startup logging); `PlatformDefaults` — config-override resolution for spin window and audio latency |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 

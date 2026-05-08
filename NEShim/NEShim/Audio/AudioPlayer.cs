@@ -47,14 +47,16 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     }
 
     /// <summary>
-    /// Starts audio output. <paramref name="deviceName"/> is reserved for future use —
-    /// the current implementation always opens the default WASAPI device.
+    /// Starts audio output. <paramref name="deviceName"/> is reserved for future use.
+    /// <paramref name="latencyMs"/> sets the desired output latency; the WaveOut fallback
+    /// uses twice this value to give the driver extra headroom.
     /// </summary>
-    public void Start(string deviceName = "")
+    public void Start(string deviceName = "", int latencyMs = 50)
     {
+        Logger.Log($"[Audio] Starting — desired latency={latencyMs} ms.");
         try
         {
-            var device = new WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, 50);
+            var device = new WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, latencyMs);
             device.Init(this);
             device.Play();
             _device = device;
@@ -65,7 +67,7 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
             Logger.Log($"[Audio] WASAPI failed ({wasapiEx.Message}) — falling back to WaveOut.");
             try
             {
-                var device = new WaveOutEvent { DesiredLatency = 100 };
+                var device = new WaveOutEvent { DesiredLatency = latencyMs * 2 };
                 device.Init(this);
                 device.Play();
                 _device = device;

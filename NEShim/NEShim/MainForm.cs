@@ -4,6 +4,7 @@ using NEShim.Config;
 using NEShim.Emulation;
 using NEShim.GameLoop;
 using NEShim.Input;
+using NEShim.Platform;
 using NEShim.Rendering;
 using NEShim.Saves;
 using NEShim.Steam;
@@ -192,6 +193,10 @@ public partial class MainForm : Form
                 Logger.Log("[Steam] GamePanel is null — overlay visibility toggle skipped.");
             }
         });
+        if (PlatformDetector.IsWine)
+            Logger.Log("[Platform] Wine/Proton detected.");
+        if (PlatformDetector.IsSteamDeck)
+            Logger.Log("[Platform] Steam Deck hardware detected.");
         var localization = LoadLocalization();
 
         // 10. Pre-game main menu
@@ -302,7 +307,8 @@ public partial class MainForm : Form
         Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
         // 14. Start audio and emulation — thread starts paused at main menu
-        _audio.Start(_config.AudioDevice);
+        int audioLatencyMs = PlatformDefaults.ResolveAudioLatencyMs(_config.AudioDesiredLatencyMs);
+        _audio.Start(_config.AudioDevice, audioLatencyMs);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel.Focus();
         _emulationThread.Start();

@@ -112,6 +112,16 @@ public sealed class AppConfig
     // Supported values match Steam's language codes: english, french, german, spanish,
     // japanese, korean, russian, schinese, portuguese.
     public string Language { get; set; } = "Auto";
+
+    // Developer option — not exposed in any menu.
+    // Overrides the emulation spin window (ms). When null, defaults to 1 ms.
+    // Increase if frame timing is unstable; decrease to reduce CPU use.
+    public int? EmulationSpinMs { get; set; } = null;
+
+    // Developer option — not exposed in any menu.
+    // Overrides the audio output latency (ms). When null, defaults to 50 ms.
+    // Increase if audio stutters; decrease to reduce audio lag.
+    public int? AudioDesiredLatencyMs { get; set; } = null;
 }
 
 public sealed class InputBinding

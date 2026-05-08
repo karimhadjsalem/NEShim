@@ -125,4 +125,18 @@ internal class AppConfigTests
         var config = new AppConfig();
         Assert.That(config.AchievementPublicKey, Is.Empty);
     }
+
+    [Test]
+    public void EmulationSpinMs_DefaultsToNull()
+    {
+        var config = new AppConfig();
+        Assert.That(config.EmulationSpinMs, Is.Null);
+    }
+
+    [Test]
+    public void AudioDesiredLatencyMs_DefaultsToNull()
+    {
+        var config = new AppConfig();
+        Assert.That(config.AudioDesiredLatencyMs, Is.Null);
+    }
 }
