@@ -152,14 +152,10 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `seal-achievements --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
 | `language` | string | `"Auto"` | Menu language to use when Steam is not running. Accepts any Steam language code: `"english"`, `"french"`, `"german"`, `"spanish"`, `"japanese"`, `"korean"`, `"russian"`, `"schinese"`, `"portuguese"`. `"Auto"` falls back to English. **Ignored when Steam is running** — Steam's game language setting always takes precedence. See [Localization](localization.md). |
-| `emulationSpinMs` | integer | `null` | Overrides the emulation spin window in milliseconds. When absent or `null`, defaults to 1 ms. Increase if frame timing feels unstable (e.g. under Proton on systems with imprecise sleep); lower values reduce CPU use. |
-| `audioDesiredLatencyMs` | integer | `null` | Overrides the desired audio output latency in milliseconds. When absent or `null`, defaults to 50 ms. Increase if audio stutters (e.g. under Proton); decrease to reduce audio lag. |
 
 ### Steam Deck / Proton
 
 NEShim runs on Steam Deck via Proton with no configuration changes required. The game detects Wine/Proton at startup for diagnostic logging purposes.
-
-If players report frame jitter or audio stutters on Deck, they can add `"emulationSpinMs"` or `"audioDesiredLatencyMs"` to `config.json` to tune the frame timing spin window or audio buffer size. See the field descriptions above.
 
 ---
 
@@ -218,9 +214,6 @@ If players report frame jitter or audio stutters on Deck, they can add `"emulati
   "region": "Auto",
   "analogStickMode": "Cardinal",
   "achievementPublicKey": "",
-  "language": "Auto",
-
-  "emulationSpinMs": null,
-  "audioDesiredLatencyMs": null
+  "language": "Auto"
 }
 ```

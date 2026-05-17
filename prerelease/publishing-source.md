@@ -257,8 +257,11 @@ dotnet publish NEShim/NEShim/NEShim.csproj \
   -c Release \
   -r win-x64 \
   --self-contained true \
+  -p:PublishReadyToRun=true \
   -o publish/MyGame
 ```
+
+`PublishReadyToRun` pre-compiles managed IL to native x64 code at build time. Without it, the .NET JIT compiles methods on first call at runtime — on Proton/Wine this is significantly more expensive because every JIT step calls `VirtualAlloc`/`VirtualProtect`, which Wine intercepts and translates. The result is noticeable frame spikes on first entry to each code path (ROM load, menu transitions, achievement unlocks). Always include this flag; **do not use plain `dotnet build` output for performance testing on Proton or Steam Deck**.
 
 After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into the output directory, then copy `steam_api64.dll` from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) alongside the exe (see [step 5](#5-steam_api64dll)).
 
@@ -283,7 +286,8 @@ Before uploading to Steam:
 
 NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility.
 
-If players report persistent frame jitter or audio stutters on Deck, they can add `"emulationSpinMs"` or `"audioDesiredLatencyMs"` to `config.json` to tune the frame timing spin window or audio buffer size. See the [configuration reference](configuration.md#steam-deck--proton) for details.
+**Use the published build for Deck testing, not a plain `dotnet build` output.** The `-p:PublishReadyToRun=true` flag in [step 14](#14-build-and-publish) makes a significant difference on Proton — without it, JIT overhead causes frame spikes that are not present in the shipped binary. Testing with `dotnet build` output and concluding there is a performance problem is a common mistake.
+
 
 ---
 
