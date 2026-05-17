@@ -151,8 +151,7 @@ internal sealed class EmulationThread
     {
         long ticksPerFrame = (long)((double)Stopwatch.Frequency
             * _host.VsyncDenominator / _host.VsyncNumerator);
-        int spinMs = Platform.PlatformDefaults.ResolveEmulationSpinMs(_config.EmulationSpinMs);
-        long spinThreshold = Stopwatch.Frequency / 1000L * spinMs;
+        long spinThreshold = Stopwatch.Frequency / 1000;
 
         _fpsTimestamp = Stopwatch.GetTimestamp();
 

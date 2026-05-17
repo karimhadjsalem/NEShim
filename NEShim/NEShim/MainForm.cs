@@ -307,8 +307,7 @@ public partial class MainForm : Form
         Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
         // 14. Start audio and emulation — thread starts paused at main menu
-        int audioLatencyMs = PlatformDefaults.ResolveAudioLatencyMs(_config.AudioDesiredLatencyMs);
-        _audio.Start(_config.AudioDevice, audioLatencyMs);
+        _audio.Start(_config.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel.Focus();
         _emulationThread.Start();

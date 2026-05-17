@@ -95,7 +95,7 @@ dotnet build   NEShim/NEShim.sln
 dotnet test    NEShim/NEShim.Tests/NEShim.Tests.csproj
 
 # Publish the game (self-contained, win-x64)
-dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -o publish/NEShim
+dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o publish/NEShim
 
 # Publish the achievement sealer tool
 dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements

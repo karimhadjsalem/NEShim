@@ -24,6 +24,17 @@ dotnet test NEShim.Tests/NEShim.Tests.csproj --filter "TestName"
 
 The main application targets `net9.0-windows` and requires Windows (uses Windows Forms). The BizHawk library targets `net8.0`.
 
+### Testing on Proton / Steam Deck — use the publish script, not `dotnet build`
+
+**Do not use `dotnet build` output for performance testing on Proton or Steam Deck.** The difference in emulation performance between a local build and a published build is significant and has caused real confusion (local builds appeared to have framerate problems that the release did not).
+
+Two build flags in `local-publish.ps1` are responsible:
+
+- **`--self-contained true`** — bundles the exact .NET 9 runtime the app was built against. A framework-dependent `dotnet build` output relies on whatever wine-mono or dotnet-wine provides, which may be a different version with different GC and thread scheduler behavior.
+- **`-p:PublishReadyToRun=true`** — pre-compiles managed IL to native x64 code at build time, eliminating JIT work at runtime. On Proton/Wine, JIT is expensive because every JIT code-generation step calls `VirtualAlloc`/`VirtualProtect`, which Wine must intercept and translate. Without ReadyToRun, these calls happen on first entry to each method, causing frame spikes whenever a new code path is hit (ROM load, menu open, achievement unlock, etc.).
+
+When testing on Proton or Steam Deck, always run `local-publish.ps1` and copy that output to the device. A raw `dotnet build` output is only valid for iterating on logic and running tests on Windows.
+
 ## Project Structure
 
 ```
@@ -54,7 +65,6 @@ Key subsystems and their responsibilities:
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
 | `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback |
-| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection via `ntdll.dll::wine_get_version` and `SteamDeck` env var (used for startup logging); `PlatformDefaults` — config-override resolution for spin window and audio latency |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
