@@ -152,6 +152,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `seal-achievements --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
 | `language` | string | `"Auto"` | Menu language to use when Steam is not running. Accepts any Steam language code: `"english"`, `"french"`, `"german"`, `"spanish"`, `"japanese"`, `"korean"`, `"russian"`, `"schinese"`, `"portuguese"`. `"Auto"` falls back to English. **Ignored when Steam is running** — Steam's game language setting always takes precedence. See [Localization](localization.md). |
+| `overrideStartBindingProtection` | boolean | `false` | When `true`, the Start button is no longer reserved as the system menu trigger and can be rebound to a NES button via the gamepad rebind screen. The menu remains accessible via Escape and the `gamepadHotkeyMappings["OpenMenu"]` button (Left Bumper by default). An additional **Open Menu** rebind entry appears in the gamepad bindings screen, visually separated from NES button bindings under a "SYSTEM" section label, so the player can reassign that hotkey as well. |
 
 ### Steam Deck / Proton
 
@@ -214,6 +215,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "region": "Auto",
   "analogStickMode": "Cardinal",
   "achievementPublicKey": "",
-  "language": "Auto"
+  "language": "Auto",
+  "overrideStartBindingProtection": false
 }
 ```
