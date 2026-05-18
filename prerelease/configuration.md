@@ -95,7 +95,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 
 **Key names** are values from the `System.Windows.Forms.Keys` enum (e.g. `"W"`, `"Return"`, `"OemPeriod"`, `"Space"`, `"NumPad1"`). The in-game menu's keyboard rebind screen writes these for you.
 
-**Gamepad button names** for XInput are: `A`, `B`, `X`, `Y`, `Start`, `Back`, `LeftShoulder`, `RightShoulder`, `LeftThumb`, `RightThumb`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`. **`Start` is reserved** — it always opens/closes the pause menu and cannot be bound to a NES button.
+**Gamepad button names** for XInput are: `A`, `B`, `X`, `Y`, `Start`, `Back`, `LeftShoulder`, `RightShoulder`, `LeftThumb`, `RightThumb`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`. **`Start` is reserved by default** — it always opens/closes the pause menu and cannot be bound to a NES button. Set `overrideStartBindingProtection: true` to allow rebinding it.
 
 When a **Steam Input controller** is connected, the `gamepadButton` fields in this map are ignored for that controller. Input comes from the Steam Input action set instead. See [Input system — Steam Input](input.md#steam-input).
 
@@ -125,7 +125,7 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 }
 ```
 
-**`OpenMenu` is not configurable.** The menu is always opened/closed by **Escape** (keyboard), **Start** (gamepad), or the configured `gamepadHotkeyMappings` entry. Escape and Start are system-reserved and cannot be remapped.
+**`OpenMenu` is not in `hotkeyMappings`** — it is always triggered by **Escape** (keyboard), **Start** (gamepad, by default), or the configured `gamepadHotkeyMappings` entry. Escape is always reserved. Start is reserved by default; set `overrideStartBindingProtection: true` to allow rebinding it, which also exposes an **Open Menu** rebind entry in the gamepad bindings screen.
 
 ### Gamepad hotkey mappings
 
