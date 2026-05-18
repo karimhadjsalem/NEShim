@@ -97,7 +97,7 @@ Each NES button in `inputMappings` has an optional `gamepadButton` field. Valid 
 | `"B"` | B button |
 | `"X"` | X button |
 | `"Y"` | Y button |
-| `"Start"` | Start button (reserved — see below) |
+| `"Start"` | Start button (reserved by default — see below) |
 | `"Back"` | Back/Select button |
 | `"LeftShoulder"` | Left bumper (LB) |
 | `"RightShoulder"` | Right bumper (RB) |
@@ -108,7 +108,7 @@ Each NES button in `inputMappings` has an optional `gamepadButton` field. Valid 
 | `"DPadLeft"` | D-pad left |
 | `"DPadRight"` | D-pad right |
 
-**Start is reserved.** Regardless of the input mapping, pressing the gamepad Start button always opens or closes the in-game pause menu. It cannot be bound to a NES button. This prevents the player from softlocking a game that doesn't implement its own pause.
+**Start is reserved by default.** Regardless of the input mapping, pressing the gamepad Start button always opens or closes the in-game pause menu, and it cannot be bound to a NES button. This prevents the player from softlocking a game that doesn't implement its own pause. Developers who need Start as a NES button can set `overrideStartBindingProtection: true` in `config.json`; see [Developer / diagnostic settings](configuration.md#developer--diagnostic-settings).
 
 ### Analog stick → D-pad conversion
 
@@ -226,7 +226,7 @@ The **Gamepad Controls** settings screen behaves differently depending on the ac
 - Each binding row shows the XInput button name from `config.json` (e.g. `DPadUp`, `Y`, `Back`).
 - All rows are selectable and editable.
 - To rebind: select a row, press the desired physical button. The binding is saved immediately.
-- Start is reserved — pressing it during rebind shows a toast and cancels the operation.
+- Start is reserved by default — pressing it during rebind shows a toast and cancels the operation. When `overrideStartBindingProtection` is enabled, Start binds normally and only Escape cancels.
 
 **Native Steam controllers (PS4, PS5, Switch Pro, Steam Controller with full action bindings)**
 
@@ -265,7 +265,7 @@ Configured via `gamepadHotkeyMappings` in `config.json`:
 |---|---|---|
 | `OpenMenu` | `LeftShoulder` | Open or close the in-game pause menu |
 
-The gamepad Start button always opens/closes the pause menu regardless of this mapping.
+The gamepad Start button also opens/closes the pause menu by default, regardless of this mapping. Set `overrideStartBindingProtection: true` to remove that; the menu will then be accessible only via Escape and this `OpenMenu` hotkey.
 
 ---
 
