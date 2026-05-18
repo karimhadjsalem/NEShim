@@ -61,5 +61,9 @@
   "inGameConfirmWarning": "Nicht gespeicherter Fortschritt geht verloren.",
   "inGameRebindPressKey": "Taste drücken\n(Esc zum Abbrechen)",
   "inGameRebindPressButton": "Knopf drücken\n(Start zum Abbrechen)",
-  "inGameRebindStartReserved": "Start ist für das Menü reserviert"
+  "inGameRebindStartReserved": "Start ist für das Menü reserviert",
+  "systemSectionLabel": "SYSTEM",
+  "bindOpenMenu": "Menü öffnen",
+  "inGameRebindPressButtonNoCancel": "Taste drücken\n(Esc zum Abbrechen)",
+  "mainMenuRebindPressButtonNoCancel": "Taste drücken  •  Esc zum Abbrechen"
 }

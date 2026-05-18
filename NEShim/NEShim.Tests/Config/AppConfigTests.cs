@@ -126,4 +126,11 @@ internal class AppConfigTests
         Assert.That(config.AchievementPublicKey, Is.Empty);
     }
 
+    [Test]
+    public void OverrideStartBindingProtection_DefaultIsFalse()
+    {
+        var config = new AppConfig();
+        Assert.That(config.OverrideStartBindingProtection, Is.False);
+    }
+
 }

@@ -20,10 +20,12 @@ internal static class MainMenuRenderer
     private static readonly Color ItemOn      = Color.White;
     private static readonly Color ItemDim     = Color.FromArgb(110, 160, 160, 160);
     private static readonly Color SelectedBg  = Color.FromArgb(210, 50, 105, 190);
+    private static readonly Color AmberColor  = Color.FromArgb(255, 220, 140);
 
-    private const int ItemH  = 42;
-    private const int Pad    = 14;
-    private const int Margin = 40; // distance from screen edge for non-centred positions
+    private const int ItemH      = 42;
+    private const int Pad        = 14;
+    private const int Margin     = 40; // distance from screen edge for non-centred positions
+    private const int SeparatorH = 18;
 
     // ---- Hit testing ----
 
@@ -46,15 +48,19 @@ internal static class MainMenuRenderer
         }
         else
         {
+            int openMenuIdx  = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
+                               ? menu.OpenMenuBindingIndex : -1;
+            bool hasSeparator = openMenuIdx >= 0;
             int panelW = Math.Min(440, bounds.Width - 60);
-            int panelH = 52 + items.Length * ItemH + Pad;
+            int panelH = 52 + items.Length * ItemH + Pad + (hasSeparator ? SeparatorH : 0);
             int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
             int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
             panel = new Rectangle(panelX, panelY, panelW, panelH);
 
             for (int i = 0; i < items.Length; i++)
             {
-                var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH, panel.Width - 12, ItemH - 2);
+                int extraY = hasSeparator && i >= openMenuIdx ? SeparatorH : 0;
+                var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH + extraY, panel.Width - 12, ItemH - 2);
                 if (itemRect.Contains(p) && menu.IsItemEnabled(i)) return i;
             }
             return -1;
@@ -151,7 +157,7 @@ internal static class MainMenuRenderer
         int panelH = 52 + items.Length * ItemH + Pad;
         var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
 
-        DrawPanel(g, panel, menu.GetTitle(), TitleColor, items, menu);
+        DrawPanel(g, panel, menu.GetTitle(), TitleColor, items, menu, openMenuIdx: -1);
     }
 
     private static void DrawSubPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
@@ -162,14 +168,17 @@ internal static class MainMenuRenderer
             return;
         }
 
-        var items  = menu.GetCurrentItems();
-        int panelW = Math.Min(440, bounds.Width - 60);
-        int panelH = 52 + items.Length * ItemH + Pad;
-        int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
-        int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
+        var  items        = menu.GetCurrentItems();
+        int  openMenuIdx  = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
+                            ? menu.OpenMenuBindingIndex : -1;
+        bool hasSeparator = openMenuIdx >= 0;
+        int  panelW = Math.Min(440, bounds.Width - 60);
+        int  panelH = 52 + items.Length * ItemH + Pad + (hasSeparator ? SeparatorH : 0);
+        int  panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
+        int  panelY = Math.Max(8, (bounds.Height - panelH) / 2);
 
         DrawPanel(g, new Rectangle(panelX, panelY, panelW, panelH),
-                  menu.GetTitle(), TitleColor, items, menu);
+                  menu.GetTitle(), TitleColor, items, menu, openMenuIdx);
     }
 
     private static void DrawRebindPrompt(Graphics g, Rectangle bounds, MainMenuScreen menu)
@@ -192,7 +201,9 @@ internal static class MainMenuRenderer
         var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
         string hint = menu.IsGamepadRebinding
-            ? menu.Localization.MainMenuRebindPressButton
+            ? (menu.OverrideStartBindingProtection
+                ? menu.Localization.MainMenuRebindPressButtonNoCancel
+                : menu.Localization.MainMenuRebindPressButton)
             : menu.Localization.MainMenuRebindPressKey;
 
         g.DrawString(menu.GetTitle(), tf, tb,
@@ -202,8 +213,10 @@ internal static class MainMenuRenderer
     }
 
     private static void DrawPanel(Graphics g, Rectangle panel, string title, Color titleColor,
-                                  string[] items, MainMenuScreen menu)
+                                  string[] items, MainMenuScreen menu, int openMenuIdx)
     {
+        bool hasSeparator = openMenuIdx >= 0;
+
         using var pb = new SolidBrush(PanelColor);
         g.FillRectangle(pb, panel);
         using var bp = new Pen(BorderColor, 2f);
@@ -218,11 +231,12 @@ internal static class MainMenuRenderer
         using var div = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
         g.DrawLine(div, panel.X + Pad, panel.Y + 46, panel.X + panel.Width - Pad, panel.Y + 46);
 
-        using var selBrush = new SolidBrush(SelectedBg);
-        using var selFont  = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
-        using var itemFont = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
-        using var onBrush  = new SolidBrush(ItemOn);
-        using var dimBrush = new SolidBrush(ItemDim);
+        using var selBrush  = new SolidBrush(SelectedBg);
+        using var selFont   = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemFont  = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
+        using var onBrush   = new SolidBrush(ItemOn);
+        using var amberBrush = new SolidBrush(AmberColor);
+        using var dimBrush  = new SolidBrush(ItemDim);
         var leftFmt = new StringFormat
         {
             Alignment     = StringAlignment.Near,
@@ -232,23 +246,40 @@ internal static class MainMenuRenderer
 
         for (int i = 0; i < items.Length; i++)
         {
-            bool enabled  = menu.IsItemEnabled(i);
-            bool selected = i == menu.SelectedIndex;
+            // Draw separator before the OpenMenu system entry
+            if (hasSeparator && i == openMenuIdx)
+            {
+                int sepLineY = panel.Y + 50 + i * ItemH + 2;
+                using var sepPen   = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
+                using var sepFont  = new Font(menu.Localization.FontFamily, 8f, FontStyle.Regular, GraphicsUnit.Point);
+                using var sepBrush = new SolidBrush(Color.FromArgb(130, 160, 160, 160));
+                g.DrawLine(sepPen, panel.X + Pad, sepLineY, panel.X + panel.Width - Pad, sepLineY);
+                var nearFmt = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+                var sepRect = new RectangleF(panel.X + Pad, sepLineY + 3, panel.Width - Pad * 2, 12);
+                g.DrawString(menu.Localization.SystemSectionLabel, sepFont, sepBrush, sepRect, nearFmt);
+            }
+
+            int extraY = hasSeparator && i >= openMenuIdx ? SeparatorH : 0;
+            bool enabled   = menu.IsItemEnabled(i);
+            bool selected  = i == menu.SelectedIndex;
+            bool isOpenMenu = openMenuIdx >= 0 && i == openMenuIdx;
 
             var itemRect = new Rectangle(
                 panel.X + 6,
-                panel.Y + 50 + i * ItemH,
+                panel.Y + 50 + i * ItemH + extraY,
                 panel.Width - 12,
                 ItemH - 2);
+
+            Brush activeBrush = isOpenMenu ? amberBrush : onBrush;
 
             if (selected && enabled)
             {
                 g.FillRectangle(selBrush, itemRect);
-                g.DrawString("▶  " + items[i], selFont, onBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("▶  " + items[i], selFont, activeBrush, (RectangleF)itemRect, leftFmt);
             }
             else if (enabled)
             {
-                g.DrawString("    " + items[i], itemFont, onBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i], itemFont, activeBrush, (RectangleF)itemRect, leftFmt);
             }
             else
             {

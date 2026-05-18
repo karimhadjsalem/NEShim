@@ -61,5 +61,9 @@
   "inGameConfirmWarning": "Несохранённый прогресс будет потерян.",
   "inGameRebindPressKey": "Нажмите клавишу\n(Esc для отмены)",
   "inGameRebindPressButton": "Нажмите кнопку\n(Старт для отмены)",
-  "inGameRebindStartReserved": "Старт зарезервирован для меню"
+  "inGameRebindStartReserved": "Старт зарезервирован для меню",
+  "systemSectionLabel": "СИСТЕМА",
+  "bindOpenMenu": "Открыть меню",
+  "inGameRebindPressButtonNoCancel": "Нажмите любую кнопку\n(Esc — отмена)",
+  "mainMenuRebindPressButtonNoCancel": "Нажмите любую кнопку  •  Esc — отмена"
 }

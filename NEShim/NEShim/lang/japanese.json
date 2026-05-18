@@ -61,5 +61,9 @@
   "inGameConfirmWarning": "保存されていない進行状況は失われます。",
   "inGameRebindPressKey": "キーを押してください\n(Escでキャンセル)",
   "inGameRebindPressButton": "ボタンを押してください\n(スタートでキャンセル)",
-  "inGameRebindStartReserved": "スタートはメニュー専用です"
+  "inGameRebindStartReserved": "スタートはメニュー専用です",
+  "systemSectionLabel": "システム",
+  "bindOpenMenu": "メニューを開く",
+  "inGameRebindPressButtonNoCancel": "ボタンを押してください\n（Esc でキャンセル）",
+  "mainMenuRebindPressButtonNoCancel": "ボタンを押してください  •  Esc でキャンセル"
 }

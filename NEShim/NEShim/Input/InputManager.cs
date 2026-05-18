@@ -65,7 +65,7 @@ internal sealed class InputManager
             }
 
             if (gamepad.Connected &&
-                binding.GamepadButton != "Start" &&
+                (binding.GamepadButton != "Start" || config.OverrideStartBindingProtection) &&
                 XInputHelper.GetButton(in gamepad, binding.GamepadButton))
             {
                 builder.Add(nesButton);

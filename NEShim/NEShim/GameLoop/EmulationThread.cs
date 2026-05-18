@@ -287,11 +287,11 @@ internal sealed class EmulationThread
         // Don't process in-game hotkeys while the pre-game main menu is visible
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
 
-        // Open/close menu — Escape (system-reserved), gamepad Start (always reserved),
-        // or the configured gamepad hotkey (left bumper by default)
+        // Open/close menu — Escape (system-reserved), the configured gamepad hotkey
+        // (left bumper by default), or Start (unless overrideStartBindingProtection is on)
         bool openMenuPressed = _input.IsEscJustPressed()
             || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config)
-            || _input.IsGamepadStartJustPressed();
+            || (!_config.OverrideStartBindingProtection && _input.IsGamepadStartJustPressed());
         if (openMenuPressed)
         {
             if (_menu.IsOpen)

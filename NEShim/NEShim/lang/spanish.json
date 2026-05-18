@@ -61,5 +61,9 @@
   "inGameConfirmWarning": "El progreso no guardado se perderá.",
   "inGameRebindPressKey": "Pulsa una tecla\n(Esc para cancelar)",
   "inGameRebindPressButton": "Pulsa un botón\n(Start para cancelar)",
-  "inGameRebindStartReserved": "Start está reservado para el menú"
+  "inGameRebindStartReserved": "Start está reservado para el menú",
+  "systemSectionLabel": "SISTEMA",
+  "bindOpenMenu": "Abrir menú",
+  "inGameRebindPressButtonNoCancel": "Pulsa cualquier botón\n(Esc para cancelar)",
+  "mainMenuRebindPressButtonNoCancel": "Pulsa cualquier botón  •  Esc para cancelar"
 }

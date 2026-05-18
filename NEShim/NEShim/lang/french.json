@@ -61,5 +61,9 @@
   "inGameConfirmWarning": "La progression non sauvegardée sera perdue.",
   "inGameRebindPressKey": "Appuyez sur une touche\n(Échap pour annuler)",
   "inGameRebindPressButton": "Appuyez sur un bouton\n(Start pour annuler)",
-  "inGameRebindStartReserved": "Start est réservé au menu"
+  "inGameRebindStartReserved": "Start est réservé au menu",
+  "systemSectionLabel": "SYSTÈME",
+  "bindOpenMenu": "Ouvrir le menu",
+  "inGameRebindPressButtonNoCancel": "Appuyez sur un bouton\n(Échap pour annuler)",
+  "mainMenuRebindPressButtonNoCancel": "Appuyez sur un bouton  •  Échap pour annuler"
 }

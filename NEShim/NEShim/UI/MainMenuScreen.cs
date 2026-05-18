@@ -18,6 +18,8 @@ internal sealed class MainMenuScreen : IDisposable
 
     // Binding-action table — labels are localised at construction time.
     private readonly (string Label, string ConfigKey)[] _bindingActions;
+    // Gamepad binding table — extends _bindingActions with OpenMenu when OverrideStartBindingProtection is on.
+    private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
 
     // ---- Settings: 5 items ----
     private const int SettingsItemKeyboardBindings = 0;
@@ -51,7 +53,10 @@ internal sealed class MainMenuScreen : IDisposable
     public Bitmap? Background      { get; }
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
-    public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
+    public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
+    public bool    OverrideStartBindingProtection => _config.OverrideStartBindingProtection;
+    public int     OpenMenuBindingIndex           => Array.FindIndex(_gamepadBindingActions, b => b.ConfigKey == "OpenMenu");
+    public string  CurrentOpenMenuBinding         => _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
 
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
@@ -114,6 +119,13 @@ internal sealed class MainMenuScreen : IDisposable
             (localization.BindSelect, "P1 Select"),
             (localization.Back,       ""),
         };
+
+        _gamepadBindingActions = config.OverrideStartBindingProtection
+            ? _bindingActions[..^1]
+                .Append((localization.BindOpenMenu, "OpenMenu"))
+                .Append((localization.Back, ""))
+                .ToArray()
+            : _bindingActions;
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -201,12 +213,22 @@ internal sealed class MainMenuScreen : IDisposable
     /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
     /// Returns a toast message to display, or null if no message is needed.
-    /// Start cancels and returns an explanatory message; anything else binds.
+    /// When override is off, Start cancels with an explanatory message.
+    /// When override is on, Start binds normally; only Esc cancels.
     /// </summary>
     public string? HandleGamepadButtonPress(string buttonName)
     {
         if (GamepadRebindingAction == null) return null;
-        if (buttonName == "Start")
+
+        if (GamepadRebindingAction == "OpenMenu")
+        {
+            _config.GamepadHotkeyMappings["OpenMenu"] = buttonName;
+            _onConfigSaved();
+            GamepadRebindingAction = null;
+            return null;
+        }
+
+        if (buttonName == "Start" && !_config.OverrideStartBindingProtection)
         {
             GamepadRebindingAction = null;
             return _localization.InGameRebindStartReserved;
@@ -381,7 +403,7 @@ internal sealed class MainMenuScreen : IDisposable
 
             case Screen.GamepadBindings:
             {
-                var (_, configKey) = _bindingActions[SelectedIndex];
+                var (_, configKey) = _gamepadBindingActions[SelectedIndex];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -501,7 +523,7 @@ internal sealed class MainMenuScreen : IDisposable
             : _localization.SettingsKeyboard.ToUpper(),
         Screen.GamepadBindings => GamepadRebindingAction != null
             ? string.Format(_localization.PressButtonTitle,
-                _bindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
+                _gamepadBindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
             : _localization.SettingsGamepad.ToUpper(),
         Screen.Video       => _localization.VideoTitle,
         Screen.Sound       => _localization.SoundTitle,
@@ -538,7 +560,7 @@ internal sealed class MainMenuScreen : IDisposable
                 ? _localization.Back
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
-        Screen.GamepadBindings => _bindingActions
+        Screen.GamepadBindings => _gamepadBindingActions
             .Select(b => b.ConfigKey == ""
                 ? _localization.Back
                 : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
@@ -558,12 +580,16 @@ internal sealed class MainMenuScreen : IDisposable
         if (CurrentScreen == Screen.Main && idx == MainItemResume && !CanResume)
             return false;
 
-        // When a native Steam controller is active, in-game rebinding is not possible —
-        // the user remaps via Steam's controller configurator. Show labels read-only.
+        // When a native Steam controller is active, NES button rebinding is not possible —
+        // the user remaps via Steam's controller configurator. OpenMenu is XInput-level and
+        // remains rebindable. Show NES button labels read-only.
         if (CurrentScreen == Screen.GamepadBindings
-            && SteamInputManager.IsUsingNativeActions()
-            && _bindingActions[idx].ConfigKey != "")
-            return false;
+            && SteamInputManager.IsUsingNativeActions())
+        {
+            var configKey = _gamepadBindingActions[idx].ConfigKey;
+            if (configKey != "" && configKey != "OpenMenu")
+                return false;
+        }
 
         return true;
     }
@@ -574,7 +600,7 @@ internal sealed class MainMenuScreen : IDisposable
         Screen.ResumeSlots        => _resumeOptions.Length,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => _bindingActions.Length,
-        Screen.GamepadBindings    => _bindingActions.Length,
+        Screen.GamepadBindings    => _gamepadBindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         _ => 0
@@ -583,13 +609,16 @@ internal sealed class MainMenuScreen : IDisposable
     private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
 
-    private string GetGamepadLabel(string nesButton)
+    private string GetGamepadLabel(string configKey)
     {
+        if (configKey == "OpenMenu")
+            return _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
+
         if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.TryGetValue(nesButton, out var actionName))
+            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
             return SteamInputManager.GetNativeLabel(actionName);
 
-        return _config.InputMappings.TryGetValue(nesButton, out var b)
+        return _config.InputMappings.TryGetValue(configKey, out var b)
             ? b.GamepadButton ?? "(none)"
             : "(none)";
     }

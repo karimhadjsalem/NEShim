@@ -1350,4 +1350,58 @@ internal class InGameMenuTests
         menu.HandleGamepadNav(new MenuNavInput { Down = true });
         Assert.That(menu.SelectedItem, Is.EqualTo(itemBefore));
     }
+
+    // ---- OverrideStartBindingProtection ----
+
+    [Test]
+    public void HandleGamepadButtonPress_StartPressed_OverrideEnabled_BindsStart()
+    {
+        _config.OverrideStartBindingProtection = true;
+        var menu = CreateMenu();
+        OpenGamepadBindings(menu);
+
+        string? toast = menu.HandleGamepadButtonPress("Start");
+
+        Assert.That(toast, Is.Null);
+        Assert.That(menu.IsGamepadRebinding, Is.False);
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("Start"));
+    }
+
+    [Test]
+    public void HandleGamepadButtonPress_OpenMenuAction_OverrideEnabled_UpdatesHotkeyMappings()
+    {
+        _config.OverrideStartBindingProtection = true;
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+
+        // Navigate to GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings (index 5)
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+
+        // The OpenMenu entry is at index 8 (after the 8 NES buttons)
+        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // index 8 = OpenMenu
+        menu.HandleKey(Keys.Return); // start rebinding OpenMenu
+        Assert.That(menu.GamepadRebindingAction, Is.EqualTo("OpenMenu"));
+
+        string? toast = menu.HandleGamepadButtonPress("RightShoulder");
+
+        Assert.That(toast, Is.Null);
+        Assert.That(menu.IsGamepadRebinding, Is.False);
+        Assert.That(_config.GamepadHotkeyMappings["OpenMenu"], Is.EqualTo("RightShoulder"));
+    }
+
+    [Test]
+    public void GetCurrentItems_GamepadBindings_OverrideEnabled_ReturnsTenItems()
+    {
+        _config.OverrideStartBindingProtection = true;
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(10)); // 8 NES + OpenMenu + Back
+    }
 }

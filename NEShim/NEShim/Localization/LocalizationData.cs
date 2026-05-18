@@ -99,7 +99,13 @@ internal sealed class LocalizationData
     public string InGameConfirmWarning   { get; init; } = "Unsaved progress will be lost.";
 
     // ---- In-game menu: rebind prompts ----
-    public string InGameRebindPressKey      { get; init; } = "Press any key to bind\n(Esc to cancel)";
-    public string InGameRebindPressButton   { get; init; } = "Press any controller button\n(Start to cancel)";
-    public string InGameRebindStartReserved { get; init; } = "Start is reserved for the menu";
+    public string InGameRebindPressKey               { get; init; } = "Press any key to bind\n(Esc to cancel)";
+    public string InGameRebindPressButton            { get; init; } = "Press any controller button\n(Start to cancel)";
+    public string InGameRebindPressButtonNoCancel    { get; init; } = "Press any controller button\n(Esc to cancel)";
+    public string InGameRebindStartReserved          { get; init; } = "Start is reserved for the menu";
+
+    // ---- System section (shown when overrideStartBindingProtection is on) ----
+    public string SystemSectionLabel                 { get; init; } = "SYSTEM";
+    public string BindOpenMenu                       { get; init; } = "Open Menu";
+    public string MainMenuRebindPressButtonNoCancel  { get; init; } = "Press any controller button  •  Esc to cancel";
 }

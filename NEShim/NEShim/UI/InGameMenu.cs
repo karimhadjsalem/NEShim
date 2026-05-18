@@ -29,6 +29,8 @@ internal sealed class InGameMenu
 
     // Binding-action table — labels are localised at construction time.
     private readonly (string Label, string ConfigKey)[] _bindingActions;
+    // Gamepad binding table — extends _bindingActions with OpenMenu when OverrideStartBindingProtection is on.
+    private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
 
     public bool IsOpen      { get; private set; }
     public Screen Current   { get; private set; } = Screen.Root;
@@ -36,7 +38,10 @@ internal sealed class InGameMenu
 
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
-    public bool    IsGamepadRebinding        => GamepadRebindingAction != null;
+    public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
+    public bool    OverrideStartBindingProtection => _config.OverrideStartBindingProtection;
+    public int     OpenMenuBindingIndex           => Array.FindIndex(_gamepadBindingActions, b => b.ConfigKey == "OpenMenu");
+    public string  CurrentOpenMenuBinding         => _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
     public int[]?  FrozenFrame            { get; private set; }
 
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
@@ -109,6 +114,13 @@ internal sealed class InGameMenu
             (localization.BindSelect, "P1 Select"),
             (localization.Back,       ""),
         };
+
+        _gamepadBindingActions = config.OverrideStartBindingProtection
+            ? _bindingActions[..^1]
+                .Append((localization.BindOpenMenu, "OpenMenu"))
+                .Append((localization.Back, ""))
+                .ToArray()
+            : _bindingActions;
     }
 
     // ---- Open / Close ----
@@ -197,12 +209,22 @@ internal sealed class InGameMenu
     /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
     /// Returns a toast message to display, or null if no message is needed.
-    /// Start cancels and returns an explanatory message; anything else binds.
+    /// When override is off, Start cancels with an explanatory message.
+    /// When override is on, Start binds normally; only Esc cancels.
     /// </summary>
     public string? HandleGamepadButtonPress(string buttonName)
     {
         if (GamepadRebindingAction == null) return null;
-        if (buttonName == "Start")
+
+        if (GamepadRebindingAction == "OpenMenu")
+        {
+            _config.GamepadHotkeyMappings["OpenMenu"] = buttonName;
+            _onConfigSaved();
+            GamepadRebindingAction = null;
+            return null;
+        }
+
+        if (buttonName == "Start" && !_config.OverrideStartBindingProtection)
         {
             GamepadRebindingAction = null;
             return _localization.InGameRebindStartReserved;
@@ -300,7 +322,7 @@ internal sealed class InGameMenu
         Screen.SaveSlotSelect     => SaveStateManager.SlotCount + 1,
         Screen.Settings           => SettingsItemCount,
         Screen.KeyboardBindings   => _bindingActions.Length,
-        Screen.GamepadBindings    => _bindingActions.Length,
+        Screen.GamepadBindings    => _gamepadBindingActions.Length,
         Screen.Video              => VideoItemCount,
         Screen.Sound              => SoundItemCount,
         Screen.ConfirmLoad        => ConfirmItemCount,
@@ -410,7 +432,7 @@ internal sealed class InGameMenu
 
             case Screen.GamepadBindings:
             {
-                var (_, configKey) = _bindingActions[SelectedItem];
+                var (_, configKey) = _gamepadBindingActions[SelectedItem];
                 if (configKey == "")
                     NavigateTo(Screen.Settings);
                 else
@@ -492,12 +514,16 @@ internal sealed class InGameMenu
         if (Current == Screen.Root && index == RootItemLoadGame)
             return _saveStates.SlotExists(_saveStates.ActiveSlot);
 
-        // When a native Steam controller is active, in-game rebinding is not possible —
-        // the user remaps via Steam's controller configurator. Show labels read-only.
+        // When a native Steam controller is active, NES button rebinding is not possible —
+        // the user remaps via Steam's controller configurator. OpenMenu is XInput-level and
+        // remains rebindable. Show NES button labels read-only.
         if (Current == Screen.GamepadBindings
-            && SteamInputManager.IsUsingNativeActions()
-            && _bindingActions[index].ConfigKey != "")
-            return false;
+            && SteamInputManager.IsUsingNativeActions())
+        {
+            var configKey = _gamepadBindingActions[index].ConfigKey;
+            if (configKey != "" && configKey != "OpenMenu")
+                return false;
+        }
 
         return true;
     }
@@ -547,7 +573,7 @@ internal sealed class InGameMenu
                 : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
             .ToArray(),
 
-        Screen.GamepadBindings => _bindingActions
+        Screen.GamepadBindings => _gamepadBindingActions
             .Select(b => b.ConfigKey == ""
                 ? _localization.Back
                 : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
@@ -570,13 +596,16 @@ internal sealed class InGameMenu
     private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
 
-    private string GetGamepadLabel(string nesButton)
+    private string GetGamepadLabel(string configKey)
     {
+        if (configKey == "OpenMenu")
+            return _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
+
         if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.TryGetValue(nesButton, out var actionName))
+            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
             return SteamInputManager.GetNativeLabel(actionName);
 
-        return _config.InputMappings.TryGetValue(nesButton, out var b)
+        return _config.InputMappings.TryGetValue(configKey, out var b)
             ? b.GamepadButton ?? "(none)"
             : "(none)";
     }
@@ -592,7 +621,7 @@ internal sealed class InGameMenu
             : _localization.SettingsKeyboard.ToUpper(),
         Screen.GamepadBindings => GamepadRebindingAction != null
             ? string.Format(_localization.PressButtonTitle,
-                _bindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
+                _gamepadBindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
             : _localization.SettingsGamepad.ToUpper(),
         Screen.Video           => _localization.VideoTitle,
         Screen.Sound           => _localization.SoundTitle,
