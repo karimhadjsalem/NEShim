@@ -42,6 +42,38 @@ internal sealed class InGameMenu
     public bool    OverrideStartBindingProtection => _config.OverrideStartBindingProtection;
     public int     OpenMenuBindingIndex           => Array.FindIndex(_gamepadBindingActions, b => b.ConfigKey == "OpenMenu");
     public string  CurrentOpenMenuBinding         => _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
+
+    /// <summary>
+    /// Returns the NES button config key (e.g. "P1 A") for the currently active selection or rebind
+    /// so the controller diagram can highlight the relevant button. Returns null when no NES button
+    /// is active (Back, OpenMenu, non-binding screens).
+    /// </summary>
+    public string? ActiveNesButton
+    {
+        get
+        {
+            // During rebind, highlight the button being rebound
+            string? rebinding = RebindingAction ?? GamepadRebindingAction;
+            if (rebinding != null)
+                return IsNesButtonKey(rebinding) ? rebinding : null;
+
+            if (Current == Screen.KeyboardBindings)
+            {
+                var key = _bindingActions[SelectedItem].ConfigKey;
+                return IsNesButtonKey(key) ? key : null;
+            }
+            if (Current == Screen.GamepadBindings)
+            {
+                var key = _gamepadBindingActions[SelectedItem].ConfigKey;
+                return IsNesButtonKey(key) ? key : null;
+            }
+            return null;
+        }
+    }
+
+    private static bool IsNesButtonKey(string key) =>
+        key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
+             or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
     public int[]?  FrozenFrame            { get; private set; }
 
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>

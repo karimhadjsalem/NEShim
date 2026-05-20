@@ -65,5 +65,6 @@
   "systemSectionLabel": "システム",
   "bindOpenMenu": "メニューを開く",
   "inGameRebindPressButtonNoCancel": "ボタンを押してください\n（Esc でキャンセル）",
-  "mainMenuRebindPressButtonNoCancel": "ボタンを押してください  •  Esc でキャンセル"
+  "mainMenuRebindPressButtonNoCancel": "ボタンを押してください  •  Esc でキャンセル",
+  "nesControllerLabel": "NESコントローラー"
 }

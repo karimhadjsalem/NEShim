@@ -108,4 +108,7 @@ internal sealed class LocalizationData
     public string SystemSectionLabel                 { get; init; } = "SYSTEM";
     public string BindOpenMenu                       { get; init; } = "Open Menu";
     public string MainMenuRebindPressButtonNoCancel  { get; init; } = "Press any controller button  •  Esc to cancel";
+
+    // ---- Controller diagram label (shown above the NES controller illustration on binding screens) ----
+    public string NesControllerLabel { get; init; } = "NES Controller";
 }

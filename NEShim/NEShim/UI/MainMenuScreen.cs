@@ -58,6 +58,37 @@ internal sealed class MainMenuScreen : IDisposable
     public int     OpenMenuBindingIndex           => Array.FindIndex(_gamepadBindingActions, b => b.ConfigKey == "OpenMenu");
     public string  CurrentOpenMenuBinding         => _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
 
+    /// <summary>
+    /// Returns the NES button config key for the currently selected binding row or active rebind,
+    /// so the controller diagram can highlight the relevant button. Returns null when no NES button
+    /// is active (Back, OpenMenu, non-binding screens).
+    /// </summary>
+    public string? ActiveNesButton
+    {
+        get
+        {
+            string? rebinding = RebindingAction ?? GamepadRebindingAction;
+            if (rebinding != null)
+                return IsNesButtonKey(rebinding) ? rebinding : null;
+
+            if (CurrentScreen == Screen.KeyboardBindings)
+            {
+                var key = _bindingActions[SelectedIndex].ConfigKey;
+                return IsNesButtonKey(key) ? key : null;
+            }
+            if (CurrentScreen == Screen.GamepadBindings)
+            {
+                var key = _gamepadBindingActions[SelectedIndex].ConfigKey;
+                return IsNesButtonKey(key) ? key : null;
+            }
+            return null;
+        }
+    }
+
+    private static bool IsNesButtonKey(string key) =>
+        key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
+             or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
+
     /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
 

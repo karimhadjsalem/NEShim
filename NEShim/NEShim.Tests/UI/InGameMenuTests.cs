@@ -1404,4 +1404,39 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // GamepadBindings
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(10)); // 8 NES + OpenMenu + Back
     }
+
+    // ---- ActiveNesButton ----
+
+    [Test]
+    public void ActiveNesButton_KeyboardBindings_FirstItem_ReturnsP1Up()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
+        // SelectedItem is 0 = P1 Up
+        Assert.That(menu.ActiveNesButton, Is.EqualTo("P1 Up"));
+    }
+
+    [Test]
+    public void ActiveNesButton_KeyboardBindings_BackEntry_ReturnsNull()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
+        // Navigate to the last item (Back, configKey = "")
+        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down);
+        Assert.That(menu.ActiveNesButton, Is.Null);
+    }
+
+    [Test]
+    public void ActiveNesButton_NonBindingScreen_ReturnsNull()
+    {
+        var menu = CreateMenu();
+        menu.Open(EmptyFrame());
+        Assert.That(menu.ActiveNesButton, Is.Null); // Root screen
+    }
 }

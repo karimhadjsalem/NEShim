@@ -65,5 +65,6 @@
   "systemSectionLabel": "SYSTEM",
   "bindOpenMenu": "Menü öffnen",
   "inGameRebindPressButtonNoCancel": "Taste drücken\n(Esc zum Abbrechen)",
-  "mainMenuRebindPressButtonNoCancel": "Taste drücken  •  Esc zum Abbrechen"
+  "mainMenuRebindPressButtonNoCancel": "Taste drücken  •  Esc zum Abbrechen",
+  "nesControllerLabel": "NES-Controller"
 }
