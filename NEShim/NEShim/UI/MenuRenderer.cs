@@ -29,6 +29,13 @@ internal static class MenuRenderer
     private  const int SlimPanelW      = 440;  // panel width when controller is hidden
     private  const int MinWidthForCtrl = 580;  // minimum bounds.Width to show controller
 
+    private const int DisconnectPanelW = 400;
+    private const int DisconnectPanelH = 110;
+    private const int DisconnectTitleY = 12;
+    private const int DisconnectTitleH = 40;
+    private const int DisconnectHintY  = 62;
+    private const int DisconnectHintH  = 36;
+
     // ---- Hit testing ----
 
     /// <summary>
@@ -71,6 +78,12 @@ internal static class MenuRenderer
 
         using var overlayBrush = new SolidBrush(OverlayColor);
         g.FillRectangle(overlayBrush, bounds);
+
+        if (menu.Current == InGameMenu.Screen.ControllerDisconnected)
+        {
+            DrawDisconnectScreen(g, bounds, menu);
+            return;
+        }
 
         var    items         = menu.GetCurrentItems();
         string title         = menu.GetTitle();
@@ -198,6 +211,31 @@ internal static class MenuRenderer
     }
 
     // ---- Shared layout calculation ----
+
+    private static void DrawDisconnectScreen(Graphics g, Rectangle bounds, InGameMenu menu)
+    {
+        int panelX = Math.Max(8, (bounds.Width  - DisconnectPanelW) / 2);
+        int panelY = Math.Max(8, (bounds.Height - DisconnectPanelH) / 2);
+        var panelRect = new Rectangle(panelX, panelY, DisconnectPanelW, DisconnectPanelH);
+
+        using var panelBrush = new SolidBrush(PanelColor);
+        using var borderPen  = new Pen(WarningBorder, 2f);
+        g.FillRectangle(panelBrush, panelRect);
+        g.DrawRectangle(borderPen,  panelRect);
+
+        var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        using var titleFont  = new Font(menu.Localization.FontFamily, 15f, FontStyle.Bold,   GraphicsUnit.Point);
+        using var hintFont   = new Font(menu.Localization.FontFamily, 11f, FontStyle.Italic, GraphicsUnit.Point);
+        using var titleBrush = new SolidBrush(WarningColor);
+        using var hintBrush  = new SolidBrush(DimColor);
+
+        g.DrawString("Controller Disconnected",
+            titleFont, titleBrush,
+            new RectangleF(panelX, panelY + DisconnectTitleY, DisconnectPanelW, DisconnectTitleH), centred);
+        g.DrawString("Press any button to continue…",
+            hintFont, hintBrush,
+            new RectangleF(panelX, panelY + DisconnectHintY, DisconnectPanelW, DisconnectHintH), centred);
+    }
 
     private static bool ShouldShowController(Rectangle bounds, InGameMenu.Screen screen) =>
         bounds.Width >= MinWidthForCtrl

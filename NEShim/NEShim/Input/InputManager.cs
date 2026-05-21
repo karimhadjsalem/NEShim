@@ -24,6 +24,10 @@ internal sealed class InputManager
     // Edge detection for gamepad menu navigation — updated each PollMenuNav call
     private XInputHelper.GamepadState _prevMenuPad;
 
+    // Controller disconnect detection — tracks previous-frame connected state
+    private bool _wasControllerConnected;
+    private bool _controllerJustDisconnected;
+
     public void OnKeyDown(Keys key)
     {
         lock (_keyLock) _pressedKeys.Add(key);
@@ -54,6 +58,11 @@ internal sealed class InputManager
 
         // Keyboard + XInput: from config.InputMappings.
         var gamepad = XInputHelper.GetState(0);
+
+        bool controllerConnected = gamepad.Connected || NEShim.Steam.SteamInputManager.HasConnectedController;
+        if (_wasControllerConnected && !controllerConnected)
+            _controllerJustDisconnected = true;
+        _wasControllerConnected = controllerConnected;
         foreach (var (nesButton, binding) in config.InputMappings)
         {
             if (binding.Key is not null &&
@@ -239,6 +248,31 @@ internal sealed class InputManager
     private static bool StickDown(int lx, int ly, int dz)  => ly < -dz && Math.Abs(ly) >= Math.Abs(lx);
     private static bool StickLeft(int lx, int ly, int dz)  => lx < -dz && Math.Abs(lx) >  Math.Abs(ly);
     private static bool StickRight(int lx, int ly, int dz) => lx >  dz && Math.Abs(lx) >  Math.Abs(ly);
+
+    public bool ConsumeGamepadDisconnect()
+    {
+        if (!_controllerJustDisconnected) return false;
+        _controllerJustDisconnected = false;
+        return true;
+    }
+
+    public bool IsAnyInputJustPressed()
+    {
+        lock (_keyLock)
+        {
+            foreach (var k in _pressedKeys)
+                if (!_prevHotkeyKeys.Contains(k)) return true;
+        }
+        var curr = XInputHelper.GetState(0);
+        if (!curr.Connected) return false;
+        var prev = _prevHotkeyPad;
+        return (curr.A && !prev.A) || (curr.B && !prev.B) || (curr.X && !prev.X) ||
+               (curr.Y && !prev.Y) || (curr.Start && !prev.Start) || (curr.Back && !prev.Back) ||
+               (curr.LeftShoulder && !prev.LeftShoulder) || (curr.RightShoulder && !prev.RightShoulder) ||
+               (curr.LeftThumb && !prev.LeftThumb) || (curr.RightThumb && !prev.RightThumb) ||
+               (curr.DPadUp && !prev.DPadUp) || (curr.DPadDown && !prev.DPadDown) ||
+               (curr.DPadLeft && !prev.DPadLeft) || (curr.DPadRight && !prev.DPadRight);
+    }
 
     /// <summary>Called at the end of each frame to advance edge-detection state.</summary>
     public void AdvanceHotkeyState()

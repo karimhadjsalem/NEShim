@@ -17,7 +17,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control and optional sound scrubber for warmer playback on modern hardware
 - **Graphics** — nearest-neighbour (pixel-perfect) and bilinear (smoothed) scaling modes
-- **Input** — keyboard remapping and XInput gamepad support with configurable dead zone
+- **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — UI language loaded from Steam at startup; nine built-in languages (English, French, German, Spanish, Japanese, Korean, Russian, Simplified Chinese, Brazilian Portuguese); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
 - **Window title** — set per-game via `config.json`; no rebuild needed

@@ -13,7 +13,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed class InGameMenu
 {
-    public enum Screen { Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings, Video, Sound, ConfirmLoad, ConfirmMainMenu, ConfirmExit }
+    public enum Screen { Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings, Video, Sound, ConfirmLoad, ConfirmMainMenu, ConfirmExit, ControllerDisconnected }
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
@@ -157,12 +157,12 @@ internal sealed class InGameMenu
 
     // ---- Open / Close ----
 
-    public void Open(int[] frozenFrame)
+    public void Open(int[] frozenFrame, Screen startScreen = Screen.Root)
     {
         if (IsOpen) return;
         FrozenFrame     = frozenFrame;
         IsOpen          = true;
-        Current         = Screen.Root;
+        Current         = startScreen;
         SelectedItem    = 0;
         RebindingAction = null;
         Opened?.Invoke();
@@ -182,6 +182,7 @@ internal sealed class InGameMenu
     public bool HandleKey(Keys key)
     {
         if (!IsOpen) return false;
+        if (Current == Screen.ControllerDisconnected) return false;
 
         if (RebindingAction != null)
         {
@@ -270,6 +271,7 @@ internal sealed class InGameMenu
     public void HandleGamepadNav(Input.MenuNavInput nav)
     {
         if (!IsOpen || !nav.Any) return;
+        if (Current == Screen.ControllerDisconnected) return;
         if (RebindingAction != null || GamepadRebindingAction != null) return;
 
         if (Current == Screen.Sound && SelectedItem == SoundItemVolume)
