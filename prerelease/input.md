@@ -110,6 +110,10 @@ Each NES button in `inputMappings` has an optional `gamepadButton` field. Valid 
 
 **Start is reserved by default.** Regardless of the input mapping, pressing the gamepad Start button always opens or closes the in-game pause menu, and it cannot be bound to a NES button. This prevents the player from softlocking a game that doesn't implement its own pause. Developers who need Start as a NES button can set `overrideStartBindingProtection: true` in `config.json`; see [Developer / diagnostic settings](configuration.md#developer--diagnostic-settings).
 
+### Auto-pause on disconnect
+
+If the XInput or Steam Input controller disconnects while a game is running, NEShim automatically pauses and displays a **Controller Disconnected** overlay. Press any button or key to dismiss the overlay and resume. The pause uses the standard `PauseReasons.Menu` mechanism, so audio is muted and the frozen frame is shown in the background exactly as it is for a normal pause menu.
+
 ### Analog stick → D-pad conversion
 
 The left analog stick is automatically converted to directional input using the configured deadzone (`gamepadDeadzone`). The conversion runs even if D-pad buttons are already mapped. The deadzone is a raw axis value in the range ±32767; the default of 8000 is about 24% deflection.
