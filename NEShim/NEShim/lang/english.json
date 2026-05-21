@@ -61,5 +61,10 @@
   "inGameConfirmWarning": "Unsaved progress will be lost.",
   "inGameRebindPressKey": "Press any key to bind\n(Esc to cancel)",
   "inGameRebindPressButton": "Press any controller button\n(Start to cancel)",
-  "inGameRebindStartReserved": "Start is reserved for the menu"
+  "inGameRebindStartReserved": "Start is reserved for the menu",
+  "systemSectionLabel": "SYSTEM",
+  "bindOpenMenu": "Open Menu",
+  "inGameRebindPressButtonNoCancel": "Press any controller button\n(Esc to cancel)",
+  "mainMenuRebindPressButtonNoCancel": "Press any controller button  •  Esc to cancel",
+  "nesControllerLabel": "NES Controller"
 }

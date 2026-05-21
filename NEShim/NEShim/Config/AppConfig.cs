@@ -112,6 +112,12 @@ public sealed class AppConfig
     // Supported values match Steam's language codes: english, french, german, spanish,
     // japanese, korean, russian, schinese, portuguese.
     public string Language { get; set; } = "Auto";
+
+    // Developer option — not exposed in any menu.
+    // When true, Start is no longer reserved as the system menu button and can be
+    // rebound to a NES button. The menu remains accessible via Escape and the
+    // configured OpenMenu gamepad hotkey (gamepadHotkeyMappings["OpenMenu"]).
+    public bool OverrideStartBindingProtection { get; set; } = false;
 }
 
 public sealed class InputBinding

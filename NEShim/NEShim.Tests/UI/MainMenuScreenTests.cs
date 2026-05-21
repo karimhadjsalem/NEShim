@@ -1040,4 +1040,89 @@ internal class MainMenuScreenTests
     {
         Assert.That(MainMenuScreen.ResolveAssetPath("this_does_not_exist_xyz.png"), Is.Null);
     }
+
+    // ---- OverrideStartBindingProtection ----
+
+    [Test]
+    public void HandleGamepadButtonPress_StartPressed_OverrideEnabled_BindsStart()
+    {
+        _config.OverrideStartBindingProtection = true;
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // start rebinding P1 Up (index 0)
+        Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
+
+        string? msg = screen.HandleGamepadButtonPress("Start");
+        Assert.That(msg, Is.Null);
+        Assert.That(screen.GamepadRebindingAction, Is.Null);
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("Start"));
+    }
+
+    [Test]
+    public void HandleGamepadButtonPress_OpenMenuAction_OverrideEnabled_UpdatesHotkeyMappings()
+    {
+        _config.OverrideStartBindingProtection = true;
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);  // GamepadBindings
+
+        // OpenMenu entry is at index 8 (after the 8 NES button entries)
+        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);  // start rebinding OpenMenu
+        Assert.That(screen.GamepadRebindingAction, Is.EqualTo("OpenMenu"));
+
+        string? msg = screen.HandleGamepadButtonPress("Y");
+        Assert.That(msg, Is.Null);
+        Assert.That(screen.GamepadRebindingAction, Is.Null);
+        Assert.That(_config.GamepadHotkeyMappings["OpenMenu"], Is.EqualTo("Y"));
+    }
+
+    [Test]
+    public void GetCurrentItems_GamepadBindings_OverrideEnabled_ReturnsTenItems()
+    {
+        _config.OverrideStartBindingProtection = true;
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);    // Gamepad Controls
+        screen.HandleKey(Keys.Return);  // GamepadBindings
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(10)); // 8 NES + OpenMenu + Back
+    }
+
+    // ---- ActiveNesButton ----
+
+    [Test]
+    public void ActiveNesButton_KeyboardBindings_FirstItem_ReturnsP1Up()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Settings
+        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Return);  // Keyboard Controls (index 0)
+        // SelectedIndex is 0 = P1 Up
+        Assert.That(screen.ActiveNesButton, Is.EqualTo("P1 Up"));
+    }
+
+    [Test]
+    public void ActiveNesButton_KeyboardBindings_BackEntry_ReturnsNull()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);  // Settings
+        screen.HandleKey(Keys.Return);  // Keyboard Controls
+        // Navigate to the last item (Back, configKey = "")
+        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down);
+        Assert.That(screen.ActiveNesButton, Is.Null);
+    }
+
+    [Test]
+    public void ActiveNesButton_NonBindingScreen_ReturnsNull()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.ActiveNesButton, Is.Null); // Main screen
+    }
 }

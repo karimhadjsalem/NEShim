@@ -24,6 +24,17 @@ dotnet test NEShim.Tests/NEShim.Tests.csproj --filter "TestName"
 
 The main application targets `net9.0-windows` and requires Windows (uses Windows Forms). The BizHawk library targets `net8.0`.
 
+### Testing on Proton / Steam Deck — use the publish script, not `dotnet build`
+
+**Do not use `dotnet build` output for performance testing on Proton or Steam Deck.** The difference in emulation performance between a local build and a published build is significant and has caused real confusion (local builds appeared to have framerate problems that the release did not).
+
+Two build flags in `local-publish.ps1` are responsible:
+
+- **`--self-contained true`** — bundles the exact .NET 9 runtime the app was built against. A framework-dependent `dotnet build` output relies on whatever wine-mono or dotnet-wine provides, which may be a different version with different GC and thread scheduler behavior.
+- **`-p:PublishReadyToRun=true`** — pre-compiles managed IL to native x64 code at build time, eliminating JIT work at runtime. On Proton/Wine, JIT is expensive because every JIT code-generation step calls `VirtualAlloc`/`VirtualProtect`, which Wine must intercept and translate. Without ReadyToRun, these calls happen on first entry to each method, causing frame spikes whenever a new code path is hit (ROM load, menu open, achievement unlock, etc.).
+
+When testing on Proton or Steam Deck, always run `local-publish.ps1` and copy that output to the device. A raw `dotnet build` output is only valid for iterating on logic and running tests on Windows.
+
 ## Project Structure
 
 ```
@@ -79,7 +90,7 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 ### Design patterns in use
 
-**State machine** — `InGameMenu` and `MainMenuScreen` each own a `CurrentScreen` enum and an `Activate()` method that drives transitions. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
+**State machine** — `InGameMenu` and `MainMenuScreen` each own a `Screen` enum and dispatch to a per-screen `ScreenHandler` (nested private class). Each handler encapsulates one screen's title, items, enabled-state logic, and activation logic. Adding a new screen requires: add an enum value, add a handler class, add one entry to `BuildHandlers()`. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
 
 **Observer (events)** — Components communicate upward via C# events (`NewGameChosen`, `ResumeChosen`, `Opened`, `Closed`). Wiring is done in `MainForm.InitializeEmulator()`, keeping components decoupled.
 

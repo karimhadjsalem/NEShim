@@ -151,7 +151,6 @@ internal sealed class EmulationThread
     {
         long ticksPerFrame = (long)((double)Stopwatch.Frequency
             * _host.VsyncDenominator / _host.VsyncNumerator);
-        // Spin for the last ~1ms to achieve precise timing
         long spinThreshold = Stopwatch.Frequency / 1000;
 
         _fpsTimestamp = Stopwatch.GetTimestamp();
@@ -288,11 +287,32 @@ internal sealed class EmulationThread
         // Don't process in-game hotkeys while the pre-game main menu is visible
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
 
-        // Open/close menu — Escape (system-reserved), gamepad Start (always reserved),
-        // or the configured gamepad hotkey (left bumper by default)
+        // Open disconnect screen when controller is lost
+        if (_input.ConsumeGamepadDisconnect() && !_menu.IsOpen)
+        {
+            Logger.Log("[Emulation] Controller disconnected — opening disconnect screen.");
+            _menu.Open(_frameBuffer.CaptureFront(), InGameMenu.Screen.ControllerDisconnected);
+            _gamePanel.BeginInvoke(_gamePanel.Invalidate);
+            return;
+        }
+
+        // Dismiss disconnect screen on any button or key press
+        if (_menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected)
+        {
+            if (_input.IsAnyInputJustPressed())
+            {
+                Logger.Log("[Emulation] Input received — dismissing disconnect screen.");
+                _menu.Close();
+                _gamePanel.BeginInvoke(_gamePanel.Invalidate);
+            }
+            return;
+        }
+
+        // Open/close menu — Escape (system-reserved), the configured gamepad hotkey
+        // (left bumper by default), or Start (unless overrideStartBindingProtection is on)
         bool openMenuPressed = _input.IsEscJustPressed()
             || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config)
-            || _input.IsGamepadStartJustPressed();
+            || (!_config.OverrideStartBindingProtection && _input.IsGamepadStartJustPressed());
         if (openMenuPressed)
         {
             if (_menu.IsOpen)

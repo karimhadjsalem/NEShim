@@ -61,5 +61,10 @@
   "inGameConfirmWarning": "未保存的进度将会丢失。",
   "inGameRebindPressKey": "请按下按键\n(Esc 取消)",
   "inGameRebindPressButton": "请按下按钮\n(开始键取消)",
-  "inGameRebindStartReserved": "开始键已保留给菜单使用"
+  "inGameRebindStartReserved": "开始键已保留给菜单使用",
+  "systemSectionLabel": "系统",
+  "bindOpenMenu": "打开菜单",
+  "inGameRebindPressButtonNoCancel": "按任意按键\n（Esc 取消）",
+  "mainMenuRebindPressButtonNoCancel": "按任意按键  •  Esc 取消",
+  "nesControllerLabel": "NES手柄"
 }

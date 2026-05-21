@@ -17,8 +17,9 @@ https://karimhadjsalem.github.io/NEShim/
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control and optional sound scrubber for warmer playback on modern hardware
 - **Graphics** — nearest-neighbour (pixel-perfect) and bilinear (smoothed) scaling modes
-- **Input** — keyboard remapping and XInput gamepad support with configurable dead zone
+- **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — UI language loaded from Steam at startup; nine built-in languages (English, French, German, Spanish, Japanese, Korean, Russian, Simplified Chinese, Brazilian Portuguese); add custom languages by dropping a `lang/<code>.json` file alongside the exe
+- **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
 - **Window title** — set per-game via `config.json`; no rebuild needed
 
 ---
@@ -94,7 +95,7 @@ dotnet build   NEShim/NEShim.sln
 dotnet test    NEShim/NEShim.Tests/NEShim.Tests.csproj
 
 # Publish the game (self-contained, win-x64)
-dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -o publish/NEShim
+dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o publish/NEShim
 
 # Publish the achievement sealer tool
 dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements

@@ -20,10 +20,30 @@ internal static class MainMenuRenderer
     private static readonly Color ItemOn      = Color.White;
     private static readonly Color ItemDim     = Color.FromArgb(110, 160, 160, 160);
     private static readonly Color SelectedBg  = Color.FromArgb(210, 50, 105, 190);
+    private static readonly Color AmberColor  = Color.FromArgb(255, 220, 140);
 
-    private const int ItemH  = 42;
-    private const int Pad    = 14;
-    private const int Margin = 40; // distance from screen edge for non-centred positions
+    // Main-menu items are 4px taller than in-game menu items (42 vs 38) — the main menu
+    // is a full-screen overlay with more visual breathing room.
+    private const int ItemH        = 42;
+    private const int Pad          = 14;
+    private const int Margin       = 40; // distance from screen edge for non-centred positions
+    private const int SeparatorH   = 18;
+
+    private const int MainPanelMaxW   = 360; // max width for the main-screen panel
+    private const int PanelHeaderH    = 52;  // height reserved for title + divider above item list
+    private const int ItemListStartY  = 50;  // Y offset from panel top to first item row
+    private const int TitleYOffset    = 8;   // Y offset from panel top to title rect
+    private const int TitleRectH      = 36;  // height of the title text rect
+    private const int DividerY        = 46;  // Y offset from panel top to the horizontal divider
+    private const int SeparatorLabelH = 12;  // height of the "System" section label above separator
+    private const int RebindPanelMaxW = 400; // max width for the rebind prompt panel
+    private const int RebindPanelH    = 120; // fixed height of the rebind prompt panel
+
+    // Controller-column constants shared with MenuRenderer via MenuRenderConstants.
+    private const int ControllerAreaW = MenuRenderConstants.ControllerAreaW;
+    private const int FullPanelW      = MenuRenderConstants.FullPanelW;
+    private const int SlimPanelW      = MenuRenderConstants.SlimPanelW;
+    private const int MinWidthForCtrl = MenuRenderConstants.MinWidthForCtrl;
 
     // ---- Hit testing ----
 
@@ -35,34 +55,35 @@ internal static class MainMenuRenderer
     {
         if (menu.RebindingAction != null || menu.IsGamepadRebinding) return -1;
 
-        var       items  = menu.GetCurrentItems();
-        Rectangle panel;
+        var items = menu.GetCurrentItems();
 
         if (menu.CurrentScreen == MainMenuScreen.Screen.Main)
         {
-            int panelW = Math.Min(360, bounds.Width - 60);
-            int panelH = 52 + items.Length * ItemH + Pad;
-            panel = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
-        }
-        else
-        {
-            int panelW = Math.Min(440, bounds.Width - 60);
-            int panelH = 52 + items.Length * ItemH + Pad;
-            int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
-            int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
-            panel = new Rectangle(panelX, panelY, panelW, panelH);
-
+            int panelW = Math.Min(MainPanelMaxW, bounds.Width - 60);
+            int panelH = PanelHeaderH + items.Length * ItemH + Pad;
+            var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
             for (int i = 0; i < items.Length; i++)
             {
-                var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH, panel.Width - 12, ItemH - 2);
+                var itemRect = new Rectangle(panel.X + 6, panel.Y + ItemListStartY + i * ItemH, panel.Width - 12, ItemH - 2);
                 if (itemRect.Contains(p) && menu.IsItemEnabled(i)) return i;
             }
             return -1;
         }
 
+        bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
+        int  openMenuIdx = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
+                           ? menu.OpenMenuBindingIndex : -1;
+        bool hasSep      = openMenuIdx >= 0;
+        int  pw          = showCtrl ? Math.Min(FullPanelW, bounds.Width - 60) : Math.Min(SlimPanelW, bounds.Width - 60);
+        int  listW       = showCtrl ? pw - ControllerAreaW : pw;
+        int  ph          = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
+        int  px          = Math.Max(8, (bounds.Width  - pw) / 2);
+        int  py          = Math.Max(8, (bounds.Height - ph) / 2);
+
         for (int i = 0; i < items.Length; i++)
         {
-            var itemRect = new Rectangle(panel.X + 6, panel.Y + 50 + i * ItemH, panel.Width - 12, ItemH - 2);
+            int extraY = hasSep && i >= openMenuIdx ? SeparatorH : 0;
+            var itemRect = new Rectangle(px + 6, py + ItemListStartY + i * ItemH + extraY, listW - 12, ItemH - 2);
             if (itemRect.Contains(p) && menu.IsItemEnabled(i)) return i;
         }
         return -1;
@@ -147,11 +168,12 @@ internal static class MainMenuRenderer
     private static void DrawMainPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
         var items  = menu.GetCurrentItems();
-        int panelW = Math.Min(360, bounds.Width - 60);
-        int panelH = 52 + items.Length * ItemH + Pad;
+        int panelW = Math.Min(MainPanelMaxW, bounds.Width - 60);
+        int panelH = PanelHeaderH + items.Length * ItemH + Pad;
         var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
 
-        DrawPanel(g, panel, menu.GetTitle(), TitleColor, items, menu);
+        DrawPanel(g, panel, menu.GetTitle(), TitleColor, items, menu, openMenuIdx: -1,
+                  showCtrl: false, listW: panelW);
     }
 
     private static void DrawSubPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
@@ -162,20 +184,25 @@ internal static class MainMenuRenderer
             return;
         }
 
-        var items  = menu.GetCurrentItems();
-        int panelW = Math.Min(440, bounds.Width - 60);
-        int panelH = 52 + items.Length * ItemH + Pad;
-        int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
-        int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
+        var  items       = menu.GetCurrentItems();
+        int  openMenuIdx = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
+                           ? menu.OpenMenuBindingIndex : -1;
+        bool hasSep      = openMenuIdx >= 0;
+        bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
+        int  panelW      = showCtrl ? Math.Min(FullPanelW, bounds.Width - 60) : Math.Min(SlimPanelW, bounds.Width - 60);
+        int  listW       = showCtrl ? panelW - ControllerAreaW : panelW;
+        int  panelH      = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
+        int  panelX      = Math.Max(8, (bounds.Width  - panelW) / 2);
+        int  panelY      = Math.Max(8, (bounds.Height - panelH) / 2);
 
         DrawPanel(g, new Rectangle(panelX, panelY, panelW, panelH),
-                  menu.GetTitle(), TitleColor, items, menu);
+                  menu.GetTitle(), TitleColor, items, menu, openMenuIdx, showCtrl, listW);
     }
 
     private static void DrawRebindPrompt(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
-        int panelW = Math.Min(400, bounds.Width - 60);
-        int panelH = 120;
+        int panelW = Math.Min(RebindPanelMaxW, bounds.Width - 60);
+        int panelH = RebindPanelH;
         int panelX = (bounds.Width  - panelW) / 2;
         int panelY = (bounds.Height - panelH) / 2;
 
@@ -192,7 +219,9 @@ internal static class MainMenuRenderer
         var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
         string hint = menu.IsGamepadRebinding
-            ? menu.Localization.MainMenuRebindPressButton
+            ? (menu.OverrideStartBindingProtection
+                ? menu.Localization.MainMenuRebindPressButtonNoCancel
+                : menu.Localization.MainMenuRebindPressButton)
             : menu.Localization.MainMenuRebindPressKey;
 
         g.DrawString(menu.GetTitle(), tf, tb,
@@ -202,8 +231,11 @@ internal static class MainMenuRenderer
     }
 
     private static void DrawPanel(Graphics g, Rectangle panel, string title, Color titleColor,
-                                  string[] items, MainMenuScreen menu)
+                                  string[] items, MainMenuScreen menu, int openMenuIdx,
+                                  bool showCtrl, int listW)
     {
+        bool hasSep = openMenuIdx >= 0;
+
         using var pb = new SolidBrush(PanelColor);
         g.FillRectangle(pb, panel);
         using var bp = new Pen(BorderColor, 2f);
@@ -211,18 +243,29 @@ internal static class MainMenuRenderer
 
         using var tf  = new Font(menu.Localization.FontFamily, 14f, FontStyle.Bold, GraphicsUnit.Point);
         using var tb  = new SolidBrush(titleColor);
-        var titleRect = new RectangleF(panel.X + Pad, panel.Y + 8, panel.Width - Pad * 2, 36);
+        var titleRect = new RectangleF(panel.X + Pad, panel.Y + TitleYOffset, panel.Width - Pad * 2, TitleRectH);
         var centred   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(title, tf, tb, titleRect, centred);
 
         using var div = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
-        g.DrawLine(div, panel.X + Pad, panel.Y + 46, panel.X + panel.Width - Pad, panel.Y + 46);
+        g.DrawLine(div, panel.X + Pad, panel.Y + DividerY, panel.X + panel.Width - Pad, panel.Y + DividerY);
 
-        using var selBrush = new SolidBrush(SelectedBg);
-        using var selFont  = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
-        using var itemFont = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
-        using var onBrush  = new SolidBrush(ItemOn);
-        using var dimBrush = new SolidBrush(ItemDim);
+        // Controller diagram on the right side of binding screens
+        if (showCtrl)
+        {
+            using var vDivPen = new Pen(Color.FromArgb(50, 255, 255, 255), 1);
+            g.DrawLine(vDivPen, panel.X + listW, panel.Y + 8, panel.X + listW, panel.Y + panel.Height - 8);
+
+            var ctrlArea = new RectangleF(panel.X + listW + 6, panel.Y + 14, ControllerAreaW - 10, panel.Height - 28);
+            NesControllerDiagram.Draw(g, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel);
+        }
+
+        using var selBrush   = new SolidBrush(SelectedBg);
+        using var selFont    = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemFont   = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
+        using var onBrush    = new SolidBrush(ItemOn);
+        using var amberBrush = new SolidBrush(AmberColor);
+        using var dimBrush   = new SolidBrush(ItemDim);
         var leftFmt = new StringFormat
         {
             Alignment     = StringAlignment.Near,
@@ -232,23 +275,40 @@ internal static class MainMenuRenderer
 
         for (int i = 0; i < items.Length; i++)
         {
+            // Draw separator before the OpenMenu system entry
+            if (hasSep && i == openMenuIdx)
+            {
+                int sepLineY = panel.Y + ItemListStartY + i * ItemH + 2;
+                using var sepPen   = new Pen(Color.FromArgb(60, 255, 255, 255), 1);
+                using var sepFont  = new Font(menu.Localization.FontFamily, 8f, FontStyle.Regular, GraphicsUnit.Point);
+                using var sepBrush = new SolidBrush(Color.FromArgb(130, 160, 160, 160));
+                g.DrawLine(sepPen, panel.X + Pad, sepLineY, panel.X + listW - Pad, sepLineY);
+                var nearFmt = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+                var sepRect = new RectangleF(panel.X + Pad, sepLineY + 3, listW - Pad * 2, SeparatorLabelH);
+                g.DrawString(menu.Localization.SystemSectionLabel, sepFont, sepBrush, sepRect, nearFmt);
+            }
+
+            int extraY    = hasSep && i >= openMenuIdx ? SeparatorH : 0;
             bool enabled  = menu.IsItemEnabled(i);
             bool selected = i == menu.SelectedIndex;
+            bool isOpenMenu = openMenuIdx >= 0 && i == openMenuIdx;
 
             var itemRect = new Rectangle(
                 panel.X + 6,
-                panel.Y + 50 + i * ItemH,
-                panel.Width - 12,
+                panel.Y + ItemListStartY + i * ItemH + extraY,
+                listW - 12,
                 ItemH - 2);
+
+            Brush activeBrush = isOpenMenu ? amberBrush : onBrush;
 
             if (selected && enabled)
             {
                 g.FillRectangle(selBrush, itemRect);
-                g.DrawString("▶  " + items[i], selFont, onBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("▶  " + items[i], selFont, activeBrush, (RectangleF)itemRect, leftFmt);
             }
             else if (enabled)
             {
-                g.DrawString("    " + items[i], itemFont, onBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i], itemFont, activeBrush, (RectangleF)itemRect, leftFmt);
             }
             else
             {
@@ -256,4 +316,11 @@ internal static class MainMenuRenderer
             }
         }
     }
+
+    // ---- Helpers ----
+
+    private static bool ShouldShowController(Rectangle bounds, MainMenuScreen.Screen screen) =>
+        bounds.Width >= MinWidthForCtrl
+        && (screen == MainMenuScreen.Screen.KeyboardBindings
+            || screen == MainMenuScreen.Screen.GamepadBindings);
 }
