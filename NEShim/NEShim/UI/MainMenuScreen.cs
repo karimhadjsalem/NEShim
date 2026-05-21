@@ -11,45 +11,23 @@ namespace NEShim.UI;
 /// State machine for the pre-game main menu.
 /// Handles Main, ResumeSlots, Settings, KeyBindings, Video, and Sound screens.
 /// The emulation thread stays paused until the user picks New Game or loads a save.
+/// Per-screen title, items, enabled state, and activation logic live in nested
+/// ScreenHandler classes — one per Screen enum value.
 /// </summary>
 internal sealed class MainMenuScreen : IDisposable
 {
     public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound }
 
-    // Binding-action table — labels are localised at construction time.
     private readonly (string Label, string ConfigKey)[] _bindingActions;
-    // Gamepad binding table — extends _bindingActions with OpenMenu when OverrideStartBindingProtection is on.
     private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
+    private readonly IReadOnlyDictionary<Screen, ScreenHandler> _handlers;
+    private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
-    // ---- Settings: 5 items ----
-    private const int SettingsItemKeyboardBindings = 0;
-    private const int SettingsItemGamepadBindings  = 1;
-    private const int SettingsItemVideo            = 2;
-    private const int SettingsItemSound            = 3;
-    private const int SettingsItemBack             = 4;
-    private const int SettingsItemCount            = 5;
+    // ---- Public state ----
 
-    // ---- Video screen: 4 items ----
-    private const int VideoItemWindowMode = 0;
-    private const int VideoItemGraphics   = 1;
-    private const int VideoItemFps        = 2;
-    private const int VideoItemBack       = 3;
-    private const int VideoItemCount      = 4;
-
-    // ---- Sound screen: 4 items ----
-    private const int SoundItemVolume    = 0;
-    private const int SoundItemScrubber  = 1;
-    private const int SoundItemMenuMusic = 2;
-    private const int SoundItemBack      = 3;
-    private const int SoundItemCount     = 4;
-
-    private const int MainItemCount  = 4;
-    private const int MainItemResume = 1;
-
-    // ---- State ----
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
     public bool    IsVisible       { get; private set; } = true;
-    public int     SelectedIndex   { get; private set; } = 0;
+    public int     SelectedIndex   { get; private set; }
     public Bitmap? Background      { get; }
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
@@ -59,9 +37,8 @@ internal sealed class MainMenuScreen : IDisposable
     public string  CurrentOpenMenuBinding         => _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
 
     /// <summary>
-    /// Returns the NES button config key for the currently selected binding row or active rebind,
-    /// so the controller diagram can highlight the relevant button. Returns null when no NES button
-    /// is active (Back, OpenMenu, non-binding screens).
+    /// Returns the NES button config key for the currently selected binding row or active
+    /// rebind so the controller diagram can highlight the relevant button.
     /// </summary>
     public string? ActiveNesButton
     {
@@ -89,7 +66,6 @@ internal sealed class MainMenuScreen : IDisposable
         key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
              or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
 
-    /// <summary>Current main menu panel position, read from config.</summary>
     public string MenuPosition => _config.MainMenuPosition;
 
     public bool CanResume => _saveStates.HasAutoSave
@@ -108,13 +84,13 @@ internal sealed class MainMenuScreen : IDisposable
     private readonly Action<bool>     _onMenuMusicToggled;
     private readonly Action<bool>     _onGraphicsScalerToggled;
 
-    private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
-
     // ---- Events ----
     public event Action? NewGameChosen;
     /// <summary>Fires after the chosen save state has already been loaded.</summary>
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
+
+    // ---- Constructor ----
 
     public MainMenuScreen(
         SaveStateManager saveStates,
@@ -138,25 +114,9 @@ internal sealed class MainMenuScreen : IDisposable
         _onMenuMusicToggled      = onMenuMusicToggled;
         _onGraphicsScalerToggled = onGraphicsScalerToggled;
 
-        _bindingActions = new (string, string)[]
-        {
-            (localization.BindUp,     "P1 Up"),
-            (localization.BindDown,   "P1 Down"),
-            (localization.BindLeft,   "P1 Left"),
-            (localization.BindRight,  "P1 Right"),
-            (localization.BindA,      "P1 A"),
-            (localization.BindB,      "P1 B"),
-            (localization.BindStart,  "P1 Start"),
-            (localization.BindSelect, "P1 Select"),
-            (localization.Back,       ""),
-        };
-
-        _gamepadBindingActions = config.OverrideStartBindingProtection
-            ? _bindingActions[..^1]
-                .Append((localization.BindOpenMenu, "OpenMenu"))
-                .Append((localization.Back, ""))
-                .ToArray()
-            : _bindingActions;
+        _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
+        _handlers              = BuildHandlers();
 
         if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
@@ -168,6 +128,18 @@ internal sealed class MainMenuScreen : IDisposable
             }
         }
     }
+
+    private IReadOnlyDictionary<Screen, ScreenHandler> BuildHandlers() =>
+        new Dictionary<Screen, ScreenHandler>
+        {
+            [Screen.Main]             = new MainHandler(this),
+            [Screen.ResumeSlots]      = new ResumeSlotsHandler(this),
+            [Screen.Settings]         = new SettingsHandler(this),
+            [Screen.KeyboardBindings] = new KeyboardBindingsHandler(this),
+            [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
+            [Screen.Video]            = new VideoHandler(this),
+            [Screen.Sound]            = new SoundHandler(this),
+        };
 
     // ---- Show (re-entry from in-game) ----
 
@@ -195,7 +167,7 @@ internal sealed class MainMenuScreen : IDisposable
                 RebindingAction = null;
             else
             {
-                SetBinding(RebindingAction, key.ToString());
+                MenuBindingHelpers.SetBinding(_config, RebindingAction, key.ToString());
                 _onConfigSaved();
                 RebindingAction = null;
             }
@@ -208,8 +180,7 @@ internal sealed class MainMenuScreen : IDisposable
             return true;
         }
 
-        // Left/Right: volume on Sound screen
-        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundItemVolume)
+        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundHandler.VolumeIndex)
         {
             if (key == Keys.Left)  { AdjustVolume(-5); return true; }
             if (key == Keys.Right) { AdjustVolume( 5); return true; }
@@ -233,7 +204,7 @@ internal sealed class MainMenuScreen : IDisposable
             case Keys.Return:
             case Keys.Z:
             case Keys.Space:
-                Activate();
+                ActivateCurrent();
                 return true;
         }
         return false;
@@ -243,9 +214,8 @@ internal sealed class MainMenuScreen : IDisposable
 
     /// <summary>
     /// Called when a gamepad button is pressed during rebind mode.
-    /// Returns a toast message to display, or null if no message is needed.
-    /// When override is off, Start cancels with an explanatory message.
-    /// When override is on, Start binds normally; only Esc cancels.
+    /// Returns a toast message to display, or null.
+    /// Start cancels with a message when override is off; binds normally when override is on.
     /// </summary>
     public string? HandleGamepadButtonPress(string buttonName)
     {
@@ -264,7 +234,7 @@ internal sealed class MainMenuScreen : IDisposable
             GamepadRebindingAction = null;
             return _localization.InGameRebindStartReserved;
         }
-        SetGamepadBinding(GamepadRebindingAction, buttonName);
+        MenuBindingHelpers.SetGamepadBinding(_config, GamepadRebindingAction, buttonName);
         _onConfigSaved();
         GamepadRebindingAction = null;
         return null;
@@ -275,7 +245,7 @@ internal sealed class MainMenuScreen : IDisposable
         if (!IsVisible || !nav.Any) return;
         if (RebindingAction != null || GamepadRebindingAction != null) return;
 
-        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundItemVolume)
+        if (CurrentScreen == Screen.Sound && SelectedIndex == SoundHandler.VolumeIndex)
         {
             if (nav.Left)  { AdjustVolume(-5); return; }
             if (nav.Right) { AdjustVolume( 5); return; }
@@ -285,7 +255,7 @@ internal sealed class MainMenuScreen : IDisposable
         if (nav.Down) NavigateCursor(1);
 
         if (nav.Confirm)
-            Activate();
+            ActivateCurrent();
 
         if (nav.Back)
         {
@@ -318,7 +288,7 @@ internal sealed class MainMenuScreen : IDisposable
         if (hit >= 0 && IsItemEnabled(hit))
         {
             SelectedIndex = hit;
-            Activate();
+            ActivateCurrent();
             return true;
         }
         return false;
@@ -334,13 +304,13 @@ internal sealed class MainMenuScreen : IDisposable
         _onVolumeChanged(next);
     }
 
-    private void NavigateCursor(int dir)
+    private void NavigateCursor(int direction)
     {
         int count = ItemCount();
         int next  = SelectedIndex;
         for (int attempt = 0; attempt < count; attempt++)
         {
-            next = ((next + dir) % count + count) % count;
+            next = ((next + direction) % count + count) % count;
             if (IsItemEnabled(next))
             {
                 SelectedIndex = next;
@@ -348,131 +318,6 @@ internal sealed class MainMenuScreen : IDisposable
             }
         }
     }
-
-    private void Activate()
-    {
-        if (!IsItemEnabled(SelectedIndex)) return;
-
-        switch (CurrentScreen)
-        {
-            case Screen.Main:
-                switch (SelectedIndex)
-                {
-                    case 0:
-                        IsVisible = false;
-                        NewGameChosen?.Invoke();
-                        break;
-                    case 1:
-                        BuildResumeOptions();
-                        NavigateTo(Screen.ResumeSlots);
-                        break;
-                    case 2:
-                        NavigateTo(Screen.Settings);
-                        break;
-                    case 3:
-                        IsVisible = false;
-                        ExitChosen?.Invoke();
-                        break;
-                }
-                break;
-
-            case Screen.ResumeSlots:
-            {
-                var opt = _resumeOptions[SelectedIndex];
-                if (opt.Load == null)
-                    NavigateTo(Screen.Main);
-                else
-                {
-                    opt.Load();
-                    IsVisible = false;
-                    ResumeChosen?.Invoke();
-                }
-                break;
-            }
-
-            case Screen.Settings:
-                switch (SelectedIndex)
-                {
-                    case SettingsItemKeyboardBindings: NavigateTo(Screen.KeyboardBindings); break;
-                    case SettingsItemGamepadBindings:  NavigateTo(Screen.GamepadBindings);  break;
-                    case SettingsItemVideo:            NavigateTo(Screen.Video);            break;
-                    case SettingsItemSound:            NavigateTo(Screen.Sound);            break;
-                    case SettingsItemBack:             NavigateTo(Screen.Main);             break;
-                }
-                break;
-
-            case Screen.Video:
-                switch (SelectedIndex)
-                {
-                    case VideoItemWindowMode:
-                        _onWindowModeToggle(_config.WindowMode != "Fullscreen");
-                        break;
-                    case VideoItemFps:
-                        _config.ShowFps = !_config.ShowFps;
-                        _onConfigSaved();
-                        break;
-                    case VideoItemGraphics:
-                        bool smoothOn = !_config.GraphicsSmoothingEnabled;
-                        _config.GraphicsSmoothingEnabled = smoothOn;
-                        _onGraphicsScalerToggled(smoothOn);
-                        break;
-                    case VideoItemBack:
-                        NavigateTo(Screen.Settings);
-                        break;
-                }
-                break;
-
-            case Screen.KeyboardBindings:
-            {
-                var (_, configKey) = _bindingActions[SelectedIndex];
-                if (configKey == "")
-                    NavigateTo(Screen.Settings);
-                else
-                    RebindingAction = configKey;
-                break;
-            }
-
-            case Screen.GamepadBindings:
-            {
-                var (_, configKey) = _gamepadBindingActions[SelectedIndex];
-                if (configKey == "")
-                    NavigateTo(Screen.Settings);
-                else
-                    GamepadRebindingAction = configKey;
-                break;
-            }
-
-            case Screen.Sound:
-                switch (SelectedIndex)
-                {
-                    case SoundItemScrubber:
-                        bool scrubOn = !_config.SoundScrubberEnabled;
-                        _config.SoundScrubberEnabled = scrubOn;
-                        _onScrubberToggled(scrubOn);
-                        break;
-                    case SoundItemMenuMusic:
-                        bool musicOn = !_config.MainMenuMusicEnabled;
-                        _config.MainMenuMusicEnabled = musicOn;
-                        _onMenuMusicToggled(musicOn);
-                        break;
-                    case SoundItemBack:
-                        NavigateTo(Screen.Settings);
-                        break;
-                }
-                break;
-        }
-    }
-
-    private static Screen ParentScreen(Screen screen) => screen switch
-    {
-        Screen.ResumeSlots      => Screen.Main,
-        Screen.Settings         => Screen.Main,
-        Screen.KeyboardBindings => Screen.Settings,
-        Screen.GamepadBindings  => Screen.Settings,
-        Screen.Video            => Screen.Settings,
-        Screen.Sound            => Screen.Settings,
-        _                       => Screen.Main,
-    };
 
     private void NavigateTo(Screen screen)
     {
@@ -485,35 +330,24 @@ internal sealed class MainMenuScreen : IDisposable
             NavigateCursor(1);
     }
 
-    // ---- Key binding helpers ----
-
-    private void SetBinding(string action, string keyName)
+    private void ActivateCurrent()
     {
-        foreach (var kvp in _config.InputMappings)
-        {
-            if (kvp.Key != action && kvp.Value.Key == keyName)
-                kvp.Value.Key = null;
-        }
-
-        if (_config.InputMappings.TryGetValue(action, out var binding))
-            binding.Key = keyName;
-        else
-            _config.InputMappings[action] = new InputBinding(keyName, null);
+        if (!IsItemEnabled(SelectedIndex)) return;
+        _handlers[CurrentScreen].Activate(SelectedIndex);
     }
 
-    private void SetGamepadBinding(string action, string buttonName)
-    {
-        foreach (var kvp in _config.InputMappings)
-        {
-            if (kvp.Key != action && kvp.Value.GamepadButton == buttonName)
-                kvp.Value.GamepadButton = null;
-        }
+    private int ItemCount() => _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.ItemCount : 0;
 
-        if (_config.InputMappings.TryGetValue(action, out var binding))
-            binding.GamepadButton = buttonName;
-        else
-            _config.InputMappings[action] = new InputBinding(null, buttonName);
-    }
+    private static Screen ParentScreen(Screen screen) => screen switch
+    {
+        Screen.ResumeSlots      => Screen.Main,
+        Screen.Settings         => Screen.Main,
+        Screen.KeyboardBindings => Screen.Settings,
+        Screen.GamepadBindings  => Screen.Settings,
+        Screen.Video            => Screen.Settings,
+        Screen.Sound            => Screen.Settings,
+        _                       => Screen.Main,
+    };
 
     // ---- Resume-slot list ----
 
@@ -541,101 +375,18 @@ internal sealed class MainMenuScreen : IDisposable
         _resumeOptions = list.ToArray();
     }
 
-    // ---- Rendering helpers ----
+    // ---- Handler dispatch (public — called by renderer and tests) ----
 
-    public string GetTitle() => CurrentScreen switch
-    {
-        Screen.Main        => _localization.MainMenuTitle,
-        Screen.ResumeSlots => _localization.MainMenuLoadTitle,
-        Screen.Settings    => _localization.SettingsTitle,
-        Screen.KeyboardBindings => RebindingAction != null
-            ? string.Format(_localization.PressKeyTitle,
-                _bindingActions.First(b => b.ConfigKey == RebindingAction).Label.ToUpper())
-            : _localization.SettingsKeyboard.ToUpper(),
-        Screen.GamepadBindings => GamepadRebindingAction != null
-            ? string.Format(_localization.PressButtonTitle,
-                _gamepadBindingActions.First(b => b.ConfigKey == GamepadRebindingAction).Label.ToUpper())
-            : _localization.SettingsGamepad.ToUpper(),
-        Screen.Video       => _localization.VideoTitle,
-        Screen.Sound       => _localization.SoundTitle,
-        _ => ""
-    };
+    public bool IsItemEnabled(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.IsItemEnabled(index) : true;
 
-    public string[] GetCurrentItems() => CurrentScreen switch
-    {
-        Screen.Main => new[]
-        {
-            _localization.MainMenuNewGame,
-            _localization.MainMenuResumeGame,
-            _localization.MainMenuSettings,
-            _localization.MainMenuExit,
-        },
-        Screen.ResumeSlots => _resumeOptions.Select(o => o.Label).ToArray(),
-        Screen.Settings => new[]
-        {
-            _localization.SettingsKeyboard,
-            _localization.SettingsGamepad,
-            _localization.SettingsVideo,
-            _localization.SettingsSound,
-            _localization.Back,
-        },
-        Screen.Video => new[]
-        {
-            _config.WindowMode == "Fullscreen" ? _localization.VideoWindowFullscreen : _localization.VideoWindowWindowed,
-            _config.GraphicsSmoothingEnabled   ? _localization.VideoGraphicsSmooth   : _localization.VideoGraphicsOriginal,
-            _config.ShowFps                    ? _localization.VideoFpsOn            : _localization.VideoFpsOff,
-            _localization.Back,
-        },
-        Screen.KeyboardBindings => _bindingActions
-            .Select(b => b.ConfigKey == ""
-                ? _localization.Back
-                : $"{b.Label,-8}  {KeyboardLabel(b.ConfigKey)}")
-            .ToArray(),
-        Screen.GamepadBindings => _gamepadBindingActions
-            .Select(b => b.ConfigKey == ""
-                ? _localization.Back
-                : $"{b.Label,-8}  {GetGamepadLabel(b.ConfigKey)}")
-            .ToArray(),
-        Screen.Sound => new[]
-        {
-            string.Format(_localization.SoundVolume, _config.Volume),
-            _config.SoundScrubberEnabled     ? _localization.SoundScrubberOn : _localization.SoundScrubberOff,
-            _config.MainMenuMusicEnabled     ? _localization.SoundMusicOn    : _localization.SoundMusicOff,
-            _localization.Back,
-        },
-        _ => Array.Empty<string>()
-    };
+    public string GetTitle() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.Title : "";
 
-    public bool IsItemEnabled(int idx)
-    {
-        if (CurrentScreen == Screen.Main && idx == MainItemResume && !CanResume)
-            return false;
+    public string[] GetCurrentItems() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItems() : Array.Empty<string>();
 
-        // When a native Steam controller is active, NES button rebinding is not possible —
-        // the user remaps via Steam's controller configurator. OpenMenu is XInput-level and
-        // remains rebindable. Show NES button labels read-only.
-        if (CurrentScreen == Screen.GamepadBindings
-            && SteamInputManager.IsUsingNativeActions())
-        {
-            var configKey = _gamepadBindingActions[idx].ConfigKey;
-            if (configKey != "" && configKey != "OpenMenu")
-                return false;
-        }
-
-        return true;
-    }
-
-    private int ItemCount() => CurrentScreen switch
-    {
-        Screen.Main               => MainItemCount,
-        Screen.ResumeSlots        => _resumeOptions.Length,
-        Screen.Settings           => SettingsItemCount,
-        Screen.KeyboardBindings   => _bindingActions.Length,
-        Screen.GamepadBindings    => _gamepadBindingActions.Length,
-        Screen.Video              => VideoItemCount,
-        Screen.Sound              => SoundItemCount,
-        _ => 0
-    };
+    // ---- Rendering label helpers (used by binding handlers) ----
 
     private string KeyboardLabel(string configKey)
         => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
@@ -671,4 +422,232 @@ internal sealed class MainMenuScreen : IDisposable
     }
 
     private record ResumeOption(string Label, Action? Load);
+
+    // =========================================================================
+    // Screen handlers
+    // Each handler encapsulates one screen's title, items, enabled state, and
+    // activation logic. To add a new screen: add an enum value, a handler class,
+    // and an entry in BuildHandlers().
+    // =========================================================================
+
+    private abstract class ScreenHandler
+    {
+        protected MainMenuScreen Menu { get; }
+        protected ScreenHandler(MainMenuScreen menu) => Menu = menu;
+        public abstract string   Title     { get; }
+        public abstract int      ItemCount { get; }
+        public abstract string[] GetItems();
+        public abstract void     Activate(int index);
+        public virtual  bool     IsItemEnabled(int index) => true;
+    }
+
+    private sealed class MainHandler : ScreenHandler
+    {
+        private const int ResumeIndex = 1;
+        public MainHandler(MainMenuScreen menu) : base(menu) { }
+        public override string   Title     => Menu._localization.MainMenuTitle;
+        public override int      ItemCount => 4;
+        public override string[] GetItems() => new[]
+        {
+            Menu._localization.MainMenuNewGame,
+            Menu._localization.MainMenuResumeGame,
+            Menu._localization.MainMenuSettings,
+            Menu._localization.MainMenuExit,
+        };
+        public override bool IsItemEnabled(int index) =>
+            index != ResumeIndex || Menu.CanResume;
+        public override void Activate(int index)
+        {
+            switch (index)
+            {
+                case 0:
+                    Menu.IsVisible = false;
+                    Menu.NewGameChosen?.Invoke();
+                    break;
+                case ResumeIndex:
+                    Menu.BuildResumeOptions();
+                    Menu.NavigateTo(Screen.ResumeSlots);
+                    break;
+                case 2:
+                    Menu.NavigateTo(Screen.Settings);
+                    break;
+                case 3:
+                    Menu.IsVisible = false;
+                    Menu.ExitChosen?.Invoke();
+                    break;
+            }
+        }
+    }
+
+    private sealed class ResumeSlotsHandler : ScreenHandler
+    {
+        public ResumeSlotsHandler(MainMenuScreen menu) : base(menu) { }
+        public override string   Title     => Menu._localization.MainMenuLoadTitle;
+        public override int      ItemCount => Menu._resumeOptions.Length;
+        public override string[] GetItems() => Menu._resumeOptions.Select(o => o.Label).ToArray();
+        public override void Activate(int index)
+        {
+            var opt = Menu._resumeOptions[index];
+            if (opt.Load == null)
+                Menu.NavigateTo(Screen.Main);
+            else
+            {
+                opt.Load();
+                Menu.IsVisible = false;
+                Menu.ResumeChosen?.Invoke();
+            }
+        }
+    }
+
+    private sealed class SettingsHandler : ScreenHandler
+    {
+        public SettingsHandler(MainMenuScreen menu) : base(menu) { }
+        public override string   Title     => Menu._localization.SettingsTitle;
+        public override int      ItemCount => 5;
+        public override string[] GetItems() => new[]
+        {
+            Menu._localization.SettingsKeyboard,
+            Menu._localization.SettingsGamepad,
+            Menu._localization.SettingsVideo,
+            Menu._localization.SettingsSound,
+            Menu._localization.Back,
+        };
+        public override void Activate(int index)
+        {
+            switch (index)
+            {
+                case 0: Menu.NavigateTo(Screen.KeyboardBindings); break;
+                case 1: Menu.NavigateTo(Screen.GamepadBindings);  break;
+                case 2: Menu.NavigateTo(Screen.Video);            break;
+                case 3: Menu.NavigateTo(Screen.Sound);            break;
+                case 4: Menu.NavigateTo(Screen.Main);             break;
+            }
+        }
+    }
+
+    private sealed class KeyboardBindingsHandler : ScreenHandler
+    {
+        public KeyboardBindingsHandler(MainMenuScreen menu) : base(menu) { }
+        public override string Title => Menu.RebindingAction != null
+            ? string.Format(Menu._localization.PressKeyTitle,
+                Menu._bindingActions.First(b => b.ConfigKey == Menu.RebindingAction).Label.ToUpper())
+            : Menu._localization.SettingsKeyboard.ToUpper();
+        public override int      ItemCount => Menu._bindingActions.Length;
+        public override string[] GetItems()
+            => Menu._bindingActions
+                .Select(b => b.ConfigKey == ""
+                    ? Menu._localization.Back
+                    : $"{b.Label,-8}  {Menu.KeyboardLabel(b.ConfigKey)}")
+                .ToArray();
+        public override void Activate(int index)
+        {
+            var (_, configKey) = Menu._bindingActions[index];
+            if (configKey == "")
+                Menu.NavigateTo(Screen.Settings);
+            else
+                Menu.RebindingAction = configKey;
+        }
+    }
+
+    private sealed class GamepadBindingsHandler : ScreenHandler
+    {
+        public GamepadBindingsHandler(MainMenuScreen menu) : base(menu) { }
+        public override string Title => Menu.GamepadRebindingAction != null
+            ? string.Format(Menu._localization.PressButtonTitle,
+                Menu._gamepadBindingActions.First(b => b.ConfigKey == Menu.GamepadRebindingAction).Label.ToUpper())
+            : Menu._localization.SettingsGamepad.ToUpper();
+        public override int      ItemCount => Menu._gamepadBindingActions.Length;
+        public override string[] GetItems()
+            => Menu._gamepadBindingActions
+                .Select(b => b.ConfigKey == ""
+                    ? Menu._localization.Back
+                    : $"{b.Label,-8}  {Menu.GetGamepadLabel(b.ConfigKey)}")
+                .ToArray();
+        public override bool IsItemEnabled(int index)
+        {
+            if (!SteamInputManager.IsUsingNativeActions()) return true;
+            var configKey = Menu._gamepadBindingActions[index].ConfigKey;
+            return configKey == "" || configKey == "OpenMenu";
+        }
+        public override void Activate(int index)
+        {
+            var (_, configKey) = Menu._gamepadBindingActions[index];
+            if (configKey == "")
+                Menu.NavigateTo(Screen.Settings);
+            else
+                Menu.GamepadRebindingAction = configKey;
+        }
+    }
+
+    private sealed class VideoHandler : ScreenHandler
+    {
+        public VideoHandler(MainMenuScreen menu) : base(menu) { }
+        public override string   Title     => Menu._localization.VideoTitle;
+        public override int      ItemCount => 4;
+        public override string[] GetItems() => new[]
+        {
+            Menu._config.WindowMode == "Fullscreen" ? Menu._localization.VideoWindowFullscreen : Menu._localization.VideoWindowWindowed,
+            Menu._config.GraphicsSmoothingEnabled   ? Menu._localization.VideoGraphicsSmooth   : Menu._localization.VideoGraphicsOriginal,
+            Menu._config.ShowFps                    ? Menu._localization.VideoFpsOn            : Menu._localization.VideoFpsOff,
+            Menu._localization.Back,
+        };
+        public override void Activate(int index)
+        {
+            switch (index)
+            {
+                case 0:
+                    Menu._onWindowModeToggle(Menu._config.WindowMode != "Fullscreen");
+                    break;
+                case 1:
+                    bool smoothOn = !Menu._config.GraphicsSmoothingEnabled;
+                    Menu._config.GraphicsSmoothingEnabled = smoothOn;
+                    Menu._onGraphicsScalerToggled(smoothOn);
+                    break;
+                case 2:
+                    Menu._config.ShowFps = !Menu._config.ShowFps;
+                    Menu._onConfigSaved();
+                    break;
+                case 3:
+                    Menu.NavigateTo(Screen.Settings);
+                    break;
+            }
+        }
+    }
+
+    private sealed class SoundHandler : ScreenHandler
+    {
+        public  const int VolumeIndex    = 0;
+        private const int ScrubberIndex  = 1;
+        private const int MusicIndex     = 2;
+        private const int BackIndex      = 3;
+        public SoundHandler(MainMenuScreen menu) : base(menu) { }
+        public override string   Title     => Menu._localization.SoundTitle;
+        public override int      ItemCount => 4;
+        public override string[] GetItems() => new[]
+        {
+            string.Format(Menu._localization.SoundVolume, Menu._config.Volume),
+            Menu._config.SoundScrubberEnabled  ? Menu._localization.SoundScrubberOn : Menu._localization.SoundScrubberOff,
+            Menu._config.MainMenuMusicEnabled  ? Menu._localization.SoundMusicOn    : Menu._localization.SoundMusicOff,
+            Menu._localization.Back,
+        };
+        public override void Activate(int index)
+        {
+            switch (index)
+            {
+                case ScrubberIndex:
+                    bool scrubOn = !Menu._config.SoundScrubberEnabled;
+                    Menu._config.SoundScrubberEnabled = scrubOn;
+                    Menu._onScrubberToggled(scrubOn);
+                    break;
+                case MusicIndex:
+                    bool musicOn = !Menu._config.MainMenuMusicEnabled;
+                    Menu._config.MainMenuMusicEnabled = musicOn;
+                    Menu._onMenuMusicToggled(musicOn);
+                    break;
+                case BackIndex:
+                    Menu.NavigateTo(Screen.Settings);
+                    break;
+            }
+        }
+    }
 }

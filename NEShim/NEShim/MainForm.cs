@@ -85,7 +85,20 @@ public partial class MainForm : Form
 
     private void InitializeEmulator()
     {
-        // 1. Config
+        InitializeConfig();
+        var achievements = InitializeEmulatorCore();
+        InitializeSaveSystems();
+        InitializeRendering();
+        InitializeInput();
+        InitializeAudio();
+        var localization = InitializeSteamAndLocalization();
+        InitializeMainMenu(localization);
+        InitializeInGameMenu(localization);
+        InitializeEmulationStartup(achievements);
+    }
+
+    private void InitializeConfig()
+    {
         _config = ConfigLoader.Load();
         this.Text = _config.WindowTitle;
 
@@ -93,9 +106,11 @@ public partial class MainForm : Form
             Logger.Enable();
 
         Logger.Log($"[Init] Config loaded — ROM: {_config.RomPath}, window: {_config.WindowTitle}, language: {_config.Language}.");
+    }
 
-        // 2. Load ROM
-        string romPath = Path.IsPathRooted(_config.RomPath)
+    private AchievementManager? InitializeEmulatorCore()
+    {
+        string romPath = Path.IsPathRooted(_config!.RomPath)
             ? _config.RomPath
             : Path.Combine(AppContext.BaseDirectory, _config.RomPath);
 
@@ -104,81 +119,86 @@ public partial class MainForm : Form
 
         Logger.Log($"[Init] ROM found: {romPath}.");
 
-        // 3. Emulator core
         _host = EmulatorHost.Load(romPath, _config);
         Logger.Log($"[Init] Emulator core loaded — ROM hash: {_host.RomHash}.");
 
-        // 3a. Per-game achievement config (keyed by ROM SHA1 hash)
-        AchievementManager? achievements = null;
-        if (_host.MemoryDomains is not null)
-        {
-            var achConfig = AchievementConfigLoader.Load(_host.RomHash, _config.AchievementPublicKey);
-            if (achConfig is not null)
-            {
-                achievements = new AchievementManager(
-                    _host.MemoryDomains, achConfig,
-                    () => SteamManager.StatsReady,
-                    // Marshal to the UI thread — all Steam API calls must be on the
-                    // same thread that called SteamAPI.Init().
-                    id => BeginInvoke(() =>
-                    {
-                        if (SteamManager.UnlockAchievement(id))
-                        {
-                            string name = SteamManager.GetAchievementDisplayName(id) ?? id;
-                            _gamePanel?.ShowAchievementNotification(name);
-                        }
-                    }));
-                Logger.Log("[Achievements] Manager created — triggers active.");
-            }
-            else
-            {
-                Logger.Log("[Achievements] No valid config loaded — achievement manager not created.");
-            }
-        }
-        else
+        if (_host.MemoryDomains is null)
         {
             Logger.Log("[Achievements] MemoryDomains unavailable — achievement manager not created.");
+            return null;
         }
 
-        // 4. Save RAM (load before first frame)
-        _saveRam = new SaveRamManager((BizHawk.Emulation.Common.ISaveRam)_host.SaveRam,
-            Path.IsPathRooted(_config.SaveRamPath)
+        var achConfig = AchievementConfigLoader.Load(_host.RomHash, _config.AchievementPublicKey);
+        if (achConfig is null)
+        {
+            Logger.Log("[Achievements] No valid config loaded — achievement manager not created.");
+            return null;
+        }
+
+        // Marshal achievement unlocks to the UI thread — all Steam API calls must be on
+        // the same thread that called SteamAPI.Init().
+        var achievements = new AchievementManager(
+            _host.MemoryDomains, achConfig,
+            () => SteamManager.StatsReady,
+            id => BeginInvoke(() =>
+            {
+                if (SteamManager.UnlockAchievement(id))
+                {
+                    string name = SteamManager.GetAchievementDisplayName(id) ?? id;
+                    _gamePanel?.ShowAchievementNotification(name);
+                }
+            }));
+        Logger.Log("[Achievements] Manager created — triggers active.");
+        return achievements;
+    }
+
+    private void InitializeSaveSystems()
+    {
+        _saveRam = new SaveRamManager((BizHawk.Emulation.Common.ISaveRam)_host!.SaveRam,
+            Path.IsPathRooted(_config!.SaveRamPath)
                 ? _config.SaveRamPath
                 : Path.Combine(AppContext.BaseDirectory, _config.SaveRamPath));
         _saveRam.LoadFromDisk();
 
-        // 5. Save states
         string stateDir = Path.IsPathRooted(_config.SaveStateDirectory)
             ? _config.SaveStateDirectory
             : Path.Combine(AppContext.BaseDirectory, _config.SaveStateDirectory);
         _saveStates = new SaveStateManager(_host.States, stateDir);
         _saveStates.ActiveSlot = _config.ActiveSlot;
         Logger.Log($"[Init] Save state directory: {stateDir} (active slot: {_config.ActiveSlot + 1})");
+    }
 
-        // 6. Rendering
+    private void InitializeRendering()
+    {
         _frameBuffer = new FrameBuffer();
         _gamePanel   = new GamePanel(_frameBuffer) { Dock = DockStyle.Fill };
-        _gamePanel.SetScaler(_config.GraphicsSmoothingEnabled ? _bilinearScaler : _nearestScaler);
+        _gamePanel.SetScaler(_config!.GraphicsSmoothingEnabled ? _bilinearScaler : _nearestScaler);
         _gamePanel.SetSidebars(
             LoadSidebarBitmap(_config.SidebarLeftPath),
             LoadSidebarBitmap(_config.SidebarRightPath));
         Controls.Add(_gamePanel);
+    }
 
-        // 7. Input
+    private void InitializeInput()
+    {
         _input = new InputManager();
-        _gamePanel.KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
-        _gamePanel.KeyUp   += (_, e) => _input.OnKeyUp(e.KeyCode);
+        _gamePanel!.KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
+        _gamePanel.KeyUp    += (_, e) => _input.OnKeyUp(e.KeyCode);
         KeyDown += OnFormKeyDown;
+    }
 
-        // 8. Audio
-        IAudioProcessor startingProcessor = _config.SoundScrubberEnabled
+    private void InitializeAudio()
+    {
+        IAudioProcessor startingProcessor = _config!.SoundScrubberEnabled
             ? _soundScrubberProcessor
             : _nesFilterProcessor;
         Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, processor={startingProcessor.GetType().Name}, volume={_config.Volume}%");
         _audio = new AudioPlayer(_config.AudioBufferFrames, startingProcessor);
         _audio.SetVolume(_config.Volume / 100f);
+    }
 
-        // 9. Steam + localization (Steam must initialise before menus so the language can be read)
+    private LocalizationData InitializeSteamAndLocalization()
+    {
         SteamManager.Initialize(overlayActive =>
         {
             Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}. Setting GamePanel.Visible={!overlayActive}.");
@@ -197,14 +217,16 @@ public partial class MainForm : Form
             Logger.Log("[Platform] Wine/Proton detected.");
         if (PlatformDetector.IsSteamDeck)
             Logger.Log("[Platform] Steam Deck hardware detected.");
-        var localization = LoadLocalization();
+        return LoadLocalization();
+    }
 
-        // 10. Pre-game main menu
+    private void InitializeMainMenu(LocalizationData localization)
+    {
         _mainMenuScreen = new MainMenuScreen(
-            saveStates:          _saveStates,
-            config:              _config,
+            saveStates:          _saveStates!,
+            config:              _config!,
             localization:        localization,
-            bgImagePath:         _config.MainMenuBackgroundPath,
+            bgImagePath:         _config!.MainMenuBackgroundPath,
             onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
             onConfigSaved:       () => { /* config flushed to disk on exit */ },
             onVolumeChanged:     vol =>
@@ -212,8 +234,8 @@ public partial class MainForm : Form
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled:          on  => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
-            onMenuMusicToggled:         on  =>
+            onScrubberToggled: on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onMenuMusicToggled: on =>
             {
                 if (on)
                 {
@@ -243,7 +265,7 @@ public partial class MainForm : Form
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
-            // Save was already loaded by MainMenuScreen.Activate() while thread was blocked
+            // Save was already loaded by MainMenuScreen while thread was blocked
             _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
             _gamePanel?.Invalidate();
@@ -254,19 +276,20 @@ public partial class MainForm : Form
             Application.Exit();
         });
 
-        _gamePanel.SetMainMenu(_mainMenuScreen);
+        _gamePanel!.SetMainMenu(_mainMenuScreen);
 
-        // 10a. Main menu music — only created if the path is set and music is enabled
-        if (_config.MainMenuMusicEnabled)
+        if (_config!.MainMenuMusicEnabled)
         {
             _mainMenuMusic = CreateMainMenuMusic(_config);
             _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
         }
+    }
 
-        // 11. In-game pause menu
+    private void InitializeInGameMenu(LocalizationData localization)
+    {
         _menu = new InGameMenu(
-            saveStates:          _saveStates,
-            config:              _config,
+            saveStates:          _saveStates!,
+            config:              _config!,
             localization:        localization,
             onExitToDesktop:     () => BeginInvoke(Application.Exit),
             onResetGame:         () => _emulationThread?.ResetGame(),
@@ -278,42 +301,41 @@ public partial class MainForm : Form
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled:          on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
-            onGraphicsScalerToggled:    on =>
+            onScrubberToggled:       on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onGraphicsScalerToggled: on =>
             {
                 _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
                 ConfigLoader.Save(_config!);
             });
-        _gamePanel.SetMenu(_menu);
+        _gamePanel!.SetMenu(_menu);
+    }
 
-        // 12. Emulation thread
+    private void InitializeEmulationStartup(AchievementManager? achievements)
+    {
         _emulationThread = new EmulationThread(
-            _host, _config, _input, _audio, _frameBuffer, _gamePanel, _saveStates, _menu,
+            _host!, _config!, _input!, _audio!, _frameBuffer!, _gamePanel!, _saveStates!, _menu!,
             achievements);
 
         // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
-        // to be called on the same thread as SteamAPI.Init() — we initialise on the UI
-        // thread, so this timer keeps all Steam API calls on that thread.
+        // to be called on the same thread as SteamAPI.Init().
         _steamTimer = new System.Windows.Forms.Timer { Interval = SteamCallbackIntervalMs };
         _steamTimer.Tick += (_, _) => { SteamManager.Tick(); _d3dHook?.Present(); };
         _steamTimer.Start();
 
-        // 13. Apply window mode, then initialise the D3D overlay hook at the final
-        // window size so Steam renders its overlay at the correct resolution.
-        SetWindowMode(_config.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
+        // Apply window mode, then initialise the D3D overlay hook at the final window size
+        // so Steam renders its overlay at the correct resolution.
+        SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
         _d3dHook = new Rendering.D3DOverlayHook();
         _d3dHook.Initialize(Handle, Width, Height);
         Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
         Resize += (_, _) => _d3dHook?.Resize(Width, Height);
 
-        // 14. Start audio and emulation — thread starts paused at main menu
-        _audio.Start(_config.AudioDevice);
+        _audio!.Start(_config.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
-        _gamePanel.Focus();
+        _gamePanel!.Focus();
         _emulationThread.Start();
         Logger.Log("[Init] Startup complete — showing main menu.");
 
-        // Show main menu immediately
         _gamePanel.Invalidate();
     }
 

@@ -27,8 +27,6 @@ internal static class XInputHelper
         public byte bRightTrigger;
         public short sThumbLX;
         public short sThumbLY;
-        public short sThumbRX;
-        public short sThumbRY;
     }
 
     // wButtons bitmask values
@@ -54,7 +52,7 @@ internal static class XInputHelper
         public bool LeftShoulder, RightShoulder;
         public bool LeftThumb, RightThumb;
         public bool A, B, X, Y;
-        public short ThumbLX, ThumbLY, ThumbRX, ThumbRY;
+        public short ThumbLX, ThumbLY;
         public bool Connected;
     }
 
@@ -84,8 +82,6 @@ internal static class XInputHelper
             Y              = (buttons & XINPUT_GAMEPAD_Y)              != 0,
             ThumbLX        = state.Gamepad.sThumbLX,
             ThumbLY        = state.Gamepad.sThumbLY,
-            ThumbRX        = state.Gamepad.sThumbRX,
-            ThumbRY        = state.Gamepad.sThumbRY,
         };
     }
 

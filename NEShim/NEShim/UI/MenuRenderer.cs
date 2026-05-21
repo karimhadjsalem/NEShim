@@ -21,13 +21,17 @@ internal static class MenuRenderer
     private static readonly Color WarningBorder = Color.FromArgb(200, 200, 90, 40);
     private static readonly Color AmberColor    = Color.FromArgb(255, 220, 140);
 
-    internal const int ItemH           = 38;
-    private  const int PanelPad        = 16;
-    private  const int SeparatorH      = 18;
-    private  const int ControllerAreaW = 260;  // width of the right-side controller column
-    private  const int FullPanelW      = 520;  // panel width when controller is shown
-    private  const int SlimPanelW      = 440;  // panel width when controller is hidden
-    private  const int MinWidthForCtrl = 580;  // minimum bounds.Width to show controller
+    // In-game menu items are 4px shorter than main-menu items (38 vs 42) — the in-game
+    // overlay is intentionally more compact so the frozen game frame stays visible.
+    internal const int ItemH      = 38;
+    private  const int PanelPad   = 16;
+    private  const int SeparatorH = 18;
+
+    // Controller-column constants shared with MainMenuRenderer via MenuRenderConstants.
+    private const int ControllerAreaW = MenuRenderConstants.ControllerAreaW;
+    private const int FullPanelW      = MenuRenderConstants.FullPanelW;
+    private const int SlimPanelW      = MenuRenderConstants.SlimPanelW;
+    private const int MinWidthForCtrl = MenuRenderConstants.MinWidthForCtrl;
 
     private const int DisconnectPanelW = 400;
     private const int DisconnectPanelH = 110;

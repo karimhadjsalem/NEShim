@@ -56,7 +56,7 @@ internal sealed class SaveRamManager
 
         try
         {
-            string dir = Path.GetDirectoryName(_path)!;
+            string? dir = Path.GetDirectoryName(_path);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             File.WriteAllBytes(_path, data);
             Logger.Log($"[SaveRAM] Saved {data.Length:N0} bytes → {_path}");

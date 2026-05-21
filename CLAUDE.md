@@ -90,7 +90,7 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 ### Design patterns in use
 
-**State machine** — `InGameMenu` and `MainMenuScreen` each own a `CurrentScreen` enum and an `Activate()` method that drives transitions. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
+**State machine** — `InGameMenu` and `MainMenuScreen` each own a `Screen` enum and dispatch to a per-screen `ScreenHandler` (nested private class). Each handler encapsulates one screen's title, items, enabled-state logic, and activation logic. Adding a new screen requires: add an enum value, add a handler class, add one entry to `BuildHandlers()`. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
 
 **Observer (events)** — Components communicate upward via C# events (`NewGameChosen`, `ResumeChosen`, `Opened`, `Closed`). Wiring is done in `MainForm.InitializeEmulator()`, keeping components decoupled.
 
