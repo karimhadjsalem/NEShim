@@ -118,7 +118,7 @@ Per-frame sequence:
 
 | Bit | Name | Set when | Cleared when |
 |---|---|---|---|
-| 1 | `Menu` | In-game pause menu opened | Menu closed |
+| 1 | `Menu` | In-game pause menu opened, or controller disconnected mid-game | Menu closed / disconnect overlay dismissed |
 | 2 | `Overlay` | Steam overlay opened | Overlay closed |
 | 4 | `FocusLost` | Window loses focus (`WM_ACTIVATEAPP`) | Window gains focus |
 | 8 | `MainMenu` | App starts / user returns to main menu | User picks New Game or Resume |
