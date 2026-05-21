@@ -150,12 +150,20 @@ Both menus follow the same two-class pattern:
 
 | Class | Responsibility |
 |---|---|
-| `InGameMenu` | Owns state (`CurrentScreen`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad, mouse). Drives transitions. Fires events. |
+| `InGameMenu` | Owns state (`Current`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad, mouse). Drives transitions. Fires events. |
 | `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(Graphics, Rectangle, InGameMenu)`. Creates and disposes all GDI+ resources within the call. |
 | `MainMenuScreen` | Same as `InGameMenu` but for the pre-game menu. |
 | `MainMenuRenderer` | Same as `MenuRenderer` for the pre-game menu. |
 
 **Rule:** Never put rendering logic inside a state machine. Never put state mutation inside a renderer. This separation makes both independently testable — the state machines are tested without a graphics context; the renderers are not tested (they are pure GDI+ drawing).
+
+### Per-screen handler pattern
+
+Each menu uses a **per-screen handler** internally (nested private classes implementing an abstract `ScreenHandler` base). Each handler owns exactly one screen's title, item list, enabled-state logic, and activation logic. The state machine dispatches to the current screen's handler via a `Dictionary<Screen, ScreenHandler>` built at construction time.
+
+This means adding a new screen requires only: add an enum value, add a handler class, add one entry to `BuildHandlers()`. There are no parallel switch statements to keep in sync.
+
+Handlers are nested private classes and therefore have full access to all private fields and methods of their enclosing menu class.
 
 ---
 
