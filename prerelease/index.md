@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Pre-release
-nav_order: 2
+nav_order: 98
 has_children: true
 description: "NEShim prerelease documentation — features not yet in a stable release."
 permalink: /prerelease/
