@@ -185,8 +185,11 @@ jobs:
         run: |
           import os, re
 
-          # Pin the two section-level pages to the bottom of the root nav.
-          for path, order in [("versions/index.md", 97), ("prerelease/index.md", 98)]:
+          # Pin the two section-level pages below all version entries.
+          # Version entries use the formula 99999-(major*10000+minor*100+patch), so the
+          # highest realistic value is ~89999. Using 99997/99998 guarantees these two
+          # pages always sort last regardless of how many versions are released.
+          for path, order in [("versions/index.md", 99997), ("prerelease/index.md", 99998)]:
               if not os.path.exists(path):
                   continue
               with open(path, encoding="utf-8") as f:
