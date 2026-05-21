@@ -178,6 +178,42 @@ jobs:
                   with open(path, "w", encoding="utf-8") as f:
                       f.write(content)
 
+      - name: Normalize nav ordering
+        if: ${{ !contains(github.ref_name, '-') }}
+        shell: python
+        working-directory: ghpages-work
+        run: |
+          import os, re
+
+          # Pin the two section-level pages to the bottom of the root nav.
+          for path, order in [("versions/index.md", 97), ("prerelease/index.md", 98)]:
+              if not os.path.exists(path):
+                  continue
+              with open(path, encoding="utf-8") as f:
+                  content = f.read()
+              updated = re.sub(r"^nav_order:.*$", f"nav_order: {order}", content, flags=re.MULTILINE)
+              if updated != content:
+                  with open(path, "w", encoding="utf-8") as f:
+                      f.write(updated)
+
+          # Recompute nav_order for every version snapshot using the same formula
+          # as the snapshot step.  Corrects historical snapshots taken before the
+          # formula was in place (e.g. v1.0.5 which shipped with nav_order: 50).
+          for entry in os.listdir("versions"):
+              m = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", entry)
+              if not m:
+                  continue
+              expected = 99999 - (int(m[1]) * 10000 + int(m[2]) * 100 + int(m[3]))
+              idx = os.path.join("versions", entry, "index.md")
+              if not os.path.exists(idx):
+                  continue
+              with open(idx, encoding="utf-8") as f:
+                  content = f.read()
+              updated = re.sub(r"^nav_order:.*$", f"nav_order: {expected}", content, flags=re.MULTILINE)
+              if updated != content:
+                  with open(idx, "w", encoding="utf-8") as f:
+                      f.write(updated)
+
       - name: Update version history
         if: ${{ !contains(github.ref_name, '-') }}
         shell: python
@@ -209,7 +245,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add _config.yml versions/
+          git add _config.yml versions/ prerelease/index.md
           git diff --staged --quiet || git commit -m "docs: stamp version ${{ steps.version.outputs.VERSION }}"
           git tag -f "docs-${{ github.ref_name }}"
           git push origin gh-pages
