@@ -1,7 +1,7 @@
 ---
 layout: default
 title: v1.0.5
-nav_order: 50
+nav_order: 89994
 has_children: true
 nav_exclude: false
 description: "NEShim prerelease documentation — features not yet in a stable release."

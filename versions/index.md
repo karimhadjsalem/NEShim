@@ -1,6 +1,6 @@
 ---
 title: Version history
-nav_order: 99
+nav_order: 97
 nav_exclude: false
 ---
 
