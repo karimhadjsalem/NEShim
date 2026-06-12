@@ -100,7 +100,8 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<int>      onVolumeChanged,
         Action<bool>     onScrubberToggled,
         Action<bool>     onMenuMusicToggled,
-        Action<bool>     onGraphicsScalerToggled)
+        Action<bool>     onGraphicsScalerToggled,
+        Bitmap?          bgImage = null)
     {
         _saveStates              = saveStates;
         _config                  = config;
@@ -116,7 +117,11 @@ internal sealed partial class MainMenuScreen : IDisposable
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
         _handlers              = BuildHandlers();
 
-        if (!string.IsNullOrWhiteSpace(bgImagePath))
+        if (bgImage is not null)
+        {
+            Background = bgImage;
+        }
+        else if (!string.IsNullOrWhiteSpace(bgImagePath))
         {
             string? resolved = ResolveAssetPath(bgImagePath);
             if (resolved != null)

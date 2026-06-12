@@ -20,6 +20,7 @@ internal sealed class GamePanel : Panel
     private readonly Bitmap _bitmap;
     private InGameMenu?      _menu;
     private MainMenuScreen?  _mainMenu;
+    private LogoScreen?      _logoScreen;
     private IGraphicsScaler  _scaler = new NearestNeighborScaler();
     private Bitmap?          _sidebarLeft;
     private Bitmap?          _sidebarRight;
@@ -107,6 +108,8 @@ internal sealed class GamePanel : Panel
         _mainMenu = mainMenu;
         SetCursorVisible(true); // main menu is visible on startup
     }
+
+    public void SetLogoScreen(LogoScreen? logo) => _logoScreen = logo;
 
     private void SetCursorVisible(bool visible)
     {
@@ -242,6 +245,12 @@ internal sealed class GamePanel : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
+
+        if (_logoScreen is not null)
+        {
+            LogoRenderer.Draw(g, ClientRectangle, _logoScreen.Image, _logoScreen.CurrentAlpha);
+            return;
+        }
 
         // Pre-game main menu takes over the whole panel
         if (_mainMenu?.IsVisible == true)

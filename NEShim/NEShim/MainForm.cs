@@ -51,6 +51,16 @@ public partial class MainForm : Form
     private readonly NesFilterProcessor     _nesFilterProcessor     = new();
     private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
 
+    // ---- Logo splash screen ----
+    private AchievementManager?         _pendingAchievements;
+    private LogoScreen?                  _logoScreen;
+    private System.Windows.Forms.Timer? _logoTimer;
+
+    // ---- Assets preloaded during logo display ----
+    private Task?          _preloadTask;
+    private Bitmap?        _preloadedMenuBackground;
+    private MainMenuMusic? _preloadedMusic;
+
     // Scaler instances kept alive for zero-allocation runtime swaps.
     private readonly IGraphicsScaler _nearestScaler  = new NearestNeighborScaler();
     private readonly IGraphicsScaler _bilinearScaler = new BilinearScaler();
@@ -86,15 +96,98 @@ public partial class MainForm : Form
     private void InitializeEmulator()
     {
         InitializeConfig();
-        var achievements = InitializeEmulatorCore();
+        _pendingAchievements = InitializeEmulatorCore();
         InitializeSaveSystems();
         InitializeRendering();
         InitializeInput();
         InitializeAudio();
+        InitializeWindowAndD3DHook();
+        if (_config!.NoLogo)
+            FinishInitialization();
+        else
+            ShowLogo();
+    }
+
+    private void InitializeWindowAndD3DHook()
+    {
+        SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
+        _d3dHook = new Rendering.D3DOverlayHook();
+        _d3dHook.Initialize(Handle, Width, Height);
+        Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
+        Resize += (_, _) => _d3dHook?.Resize(Width, Height);
+    }
+
+    private void ShowLogo()
+    {
+        using var stream = typeof(UI.LogoScreen).Assembly
+            .GetManifestResourceStream("NEShim.logos.neshim-logo-splash.png");
+        if (stream is null)
+        {
+            Logger.Log("[Logo] Embedded resource not found — skipping splash screen.");
+            FinishInitialization();
+            return;
+        }
+        _logoScreen = new UI.LogoScreen(new System.Drawing.Bitmap(stream));
+        _gamePanel!.SetLogoScreen(_logoScreen);
+        _logoTimer = new System.Windows.Forms.Timer { Interval = 33 };
+        _logoTimer.Tick += OnLogoTick;
+        _logoTimer.Start();
+        _preloadTask = Task.Run(PreloadAssets);
+    }
+
+    private void PreloadAssets()
+    {
+        if (!string.IsNullOrWhiteSpace(_config!.MainMenuBackgroundPath))
+        {
+            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuBackgroundPath);
+            if (resolved != null)
+            {
+                try { _preloadedMenuBackground = new Bitmap(resolved); }
+                catch { }
+            }
+        }
+
+        if (_config.MainMenuMusicEnabled && !string.IsNullOrWhiteSpace(_config.MainMenuMusicPath))
+        {
+            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuMusicPath);
+            if (resolved != null)
+            {
+                try { _preloadedMusic = new MainMenuMusic(resolved, autoStart: false); }
+                catch { }
+            }
+        }
+    }
+
+    private void OnLogoTick(object? sender, EventArgs e)
+    {
+        _gamePanel?.Invalidate();
+        if (_logoScreen?.IsComplete != true) return;
+        _logoTimer!.Stop();
+        _logoTimer.Dispose();
+        _logoTimer = null;
+        _gamePanel?.Refresh(); // synchronous repaint — ensures the alpha=0 frame is visible before clearing
+        FinishInitialization();
+    }
+
+    private void SkipLogo()
+    {
+        _logoTimer?.Stop();
+        _logoTimer?.Dispose();
+        _logoTimer = null;
+        FinishInitialization();
+    }
+
+    private void FinishInitialization()
+    {
+        _gamePanel!.SetLogoScreen(null);
+        _logoScreen?.Dispose();
+        _logoScreen = null;
+        _preloadTask?.Wait();
+        _preloadTask = null;
         var localization = InitializeSteamAndLocalization();
         InitializeMainMenu(localization);
         InitializeInGameMenu(localization);
-        InitializeEmulationStartup(achievements);
+        InitializeEmulationStartup(_pendingAchievements);
     }
 
     private void InitializeConfig()
@@ -226,7 +319,8 @@ public partial class MainForm : Form
             saveStates:          _saveStates!,
             config:              _config!,
             localization:        localization,
-            bgImagePath:         _config!.MainMenuBackgroundPath,
+            bgImagePath:         _preloadedMenuBackground is null ? _config!.MainMenuBackgroundPath : null,
+            bgImage:             _preloadedMenuBackground,
             onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
             onConfigSaved:       () => { /* config flushed to disk on exit */ },
             onVolumeChanged:     vol =>
@@ -241,8 +335,8 @@ public partial class MainForm : Form
                 {
                     if (_mainMenuMusic == null)
                     {
-                        _mainMenuMusic = CreateMainMenuMusic(_config);
-                        _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
+                        _mainMenuMusic = CreateMainMenuMusic(_config!);
+                        _mainMenuMusic?.SetMasterVolume(_config!.Volume / 100f);
                     }
                     _mainMenuMusic?.FadeIn();
                 }
@@ -256,6 +350,8 @@ public partial class MainForm : Form
                 _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
                 ConfigLoader.Save(_config!);
             });
+
+        _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
@@ -280,8 +376,18 @@ public partial class MainForm : Form
 
         if (_config!.MainMenuMusicEnabled)
         {
-            _mainMenuMusic = CreateMainMenuMusic(_config);
-            _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
+            if (_preloadedMusic is not null)
+            {
+                _mainMenuMusic = _preloadedMusic;
+                _preloadedMusic = null;
+                _mainMenuMusic.SetMasterVolume(_config.Volume / 100f);
+                _mainMenuMusic.FadeIn();
+            }
+            else
+            {
+                _mainMenuMusic = CreateMainMenuMusic(_config);
+                _mainMenuMusic?.SetMasterVolume(_config.Volume / 100f);
+            }
         }
     }
 
@@ -322,15 +428,7 @@ public partial class MainForm : Form
         _steamTimer.Tick += (_, _) => { SteamManager.Tick(); _d3dHook?.Present(); };
         _steamTimer.Start();
 
-        // Apply window mode, then initialise the D3D overlay hook at the final window size
-        // so Steam renders its overlay at the correct resolution.
-        SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
-        _d3dHook = new Rendering.D3DOverlayHook();
-        _d3dHook.Initialize(Handle, Width, Height);
-        Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
-        Resize += (_, _) => _d3dHook?.Resize(Width, Height);
-
-        _audio!.Start(_config.AudioDevice);
+        _audio!.Start(_config!.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         _gamePanel!.Focus();
         _emulationThread.Start();
@@ -428,6 +526,13 @@ public partial class MainForm : Form
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_logoScreen is not null)
+        {
+            SkipLogo();
+            e.Handled = true;
+            return;
+        }
+
         // Pre-game main menu has priority
         if (_mainMenuScreen?.IsVisible == true)
         {
@@ -486,6 +591,10 @@ public partial class MainForm : Form
 
         // Dispose resources
         Logger.Log("[Shutdown] Disposing resources.");
+        _logoTimer?.Dispose();
+        _logoScreen?.Dispose();
+        _preloadedMenuBackground?.Dispose();
+        _preloadedMusic?.Dispose();
         _steamTimer?.Dispose();
         _d3dHook?.Dispose();
         _mainMenuMusic?.Dispose();
