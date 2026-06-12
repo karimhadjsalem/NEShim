@@ -71,6 +71,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. |
 | `mainMenuPosition` | string | `"BottomCenter"` | Position of the menu panel on the main menu screen. Accepted values: `"BottomCenter"`, `"Center"`, `"BottomLeft"`, `"BottomRight"`, `"TopLeft"`, `"TopCenter"`, `"TopRight"`. |
 | `showFps` | boolean | `false` | Displays a live FPS counter in the top-right corner during gameplay. Toggleable in the Video menu. |
+| `noLogo` | boolean | `false` | When `true`, skips the logo splash screen shown at startup. |
 
 ---
 
