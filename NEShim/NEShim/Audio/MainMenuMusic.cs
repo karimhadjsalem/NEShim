@@ -46,7 +46,7 @@ internal sealed class MainMenuMusic : IDisposable
     private static readonly float FadeInStep  = 1.0f / (FadeInSeconds  * 1000f / FadeTickMs);
     private static readonly float FadeOutStep = 1.0f / (FadeOutSeconds * 1000f / FadeTickMs);
 
-    public MainMenuMusic(string filePath)
+    public MainMenuMusic(string filePath, bool autoStart = true)
     {
         try
         {
@@ -54,11 +54,15 @@ internal sealed class MainMenuMusic : IDisposable
             _looper  = new LoopingSampleProvider(_reader);
             _output  = new WasapiOut(AudioClientShareMode.Shared, 200);
             _output.Init(_looper);
-            _output.Play();
 
             _fadeTimer = new System.Timers.Timer(FadeTickMs) { AutoReset = true };
             _fadeTimer.Elapsed += OnFadeTick;
-            StartFadeIn();
+
+            if (autoStart)
+            {
+                _output.Play();
+                StartFadeIn();
+            }
         }
         catch
         {

@@ -26,6 +26,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="icon.ico" />
+        <EmbeddedResource Include="logos\neshim-logo-splash.png" />
     </ItemGroup>
 
     <ItemGroup>

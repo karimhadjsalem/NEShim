@@ -118,18 +118,10 @@ public sealed class AppConfig
     // rebound to a NES button. The menu remains accessible via Escape and the
     // configured OpenMenu gamepad hotkey (gamepadHotkeyMappings["OpenMenu"]).
     public bool OverrideStartBindingProtection { get; set; } = false;
+
+    // Developer option — not exposed in any menu.
+    // When true, skips the logo splash screen shown at startup.
+    public bool NoLogo { get; set; } = false;
 }
 
-public sealed class InputBinding
-{
-    public string? Key           { get; set; }
-    public string? GamepadButton { get; set; }
-
-    public InputBinding() { }
-    public InputBinding(string? key, string? gamepadButton)
-    {
-        Key           = key;
-        GamepadButton = gamepadButton;
-    }
-}
 

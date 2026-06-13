@@ -129,6 +129,7 @@ SDK 1.61+ has the Steam client sync stats before the game process launches, so s
 - **No magic numbers**: Give all frame dimensions, timing constants, and UI sizes a named `const` or `static readonly` in the class that owns them.
 - **Dispose discipline**: Every `IDisposable` created inside a method must be in a `using` declaration or `using` block. Classes that own `Bitmap`, audio, or host resources must implement `IDisposable` and be disposed in `MainForm.OnFormClosing`.
 - **Thread safety**: Emulation thread and UI thread share `_pauseReasonBits` (volatile `int` + CAS) and `FrameBuffer` (SpinLock). All other mutable state is owned by one thread. Use `BeginInvoke` to marshal work to the UI thread; never call WinForms methods directly from the emulation thread.
+- **One class per file**: each top-level class, interface, enum, or record gets its own `.cs` file named after the type. Acceptable exceptions are small private helper types that are tightly coupled to a single containing class (e.g., a `ScreenHandler` subclass nested inside a state machine) — these may stay in the same file as their owner. Do not add a second public or internal top-level type to an existing file.
 - **Don't modify BizHawk source** unless fixing a direct compatibility issue (emulation accuracy bug or confirmed security fix). Prefer adapter/wrapper classes in `NEShim/Emulation/` to bridge BizHawk interfaces. See the upstream sync policy in "What This Project Is" above.
 
 ## Testing
