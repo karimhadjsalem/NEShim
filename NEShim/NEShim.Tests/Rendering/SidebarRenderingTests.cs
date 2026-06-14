@@ -16,7 +16,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_IdenticalSizes_FullImageSrcAndUnchangedDst()
     {
         var dest = new Rectangle(0, 0, 100, 200);
-        var (src, dst) = GamePanel.ComputeSidebarCover(new Size(100, 200), dest);
+        var (src, dst) = OverlayRenderer.ComputeSidebarCover(new Size(100, 200), dest);
 
         Assert.That(src.X,      Is.EqualTo(0f).Within(0.01f));
         Assert.That(src.Y,      Is.EqualTo(0f).Within(0.01f));
@@ -29,7 +29,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_WideImageNarrowDest_CropsSidesNotTopBottom()
     {
         // 200×100 image → 100×100 dest: scale by height (scale=1), crop sides
-        var (src, _) = GamePanel.ComputeSidebarCover(new Size(200, 100), new Rectangle(0, 0, 100, 100));
+        var (src, _) = OverlayRenderer.ComputeSidebarCover(new Size(200, 100), new Rectangle(0, 0, 100, 100));
 
         Assert.That(src.Y,      Is.EqualTo(0f).Within(0.01f));   // no vertical crop
         Assert.That(src.Height, Is.EqualTo(100f).Within(0.01f)); // full image height used
@@ -41,7 +41,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_TallImageWideDest_CropsTopBottomNotSides()
     {
         // 100×200 image → 100×100 dest: scale by width (scale=1), crop top/bottom
-        var (src, _) = GamePanel.ComputeSidebarCover(new Size(100, 200), new Rectangle(0, 0, 100, 100));
+        var (src, _) = OverlayRenderer.ComputeSidebarCover(new Size(100, 200), new Rectangle(0, 0, 100, 100));
 
         Assert.That(src.X,      Is.EqualTo(0f).Within(0.01f));   // no horizontal crop
         Assert.That(src.Width,  Is.EqualTo(100f).Within(0.01f)); // full image width used
@@ -53,7 +53,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_SmallImageLargeDest_ScalesUpWithNoRemainder()
     {
         // 50×100 image → 100×200 dest: same aspect ratio, scale=2, no cropping
-        var (src, _) = GamePanel.ComputeSidebarCover(new Size(50, 100), new Rectangle(0, 0, 100, 200));
+        var (src, _) = OverlayRenderer.ComputeSidebarCover(new Size(50, 100), new Rectangle(0, 0, 100, 200));
 
         Assert.That(src.X,      Is.EqualTo(0f).Within(0.01f));
         Assert.That(src.Y,      Is.EqualTo(0f).Within(0.01f));
@@ -65,7 +65,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_SmallWideImageTallDest_ScalesUpAndCropsSides()
     {
         // 50×20 image → 100×200 dest: scale by height (200/20=10), srcW = 100/10 = 10, crop 20px each side
-        var (src, _) = GamePanel.ComputeSidebarCover(new Size(50, 20), new Rectangle(0, 0, 100, 200));
+        var (src, _) = OverlayRenderer.ComputeSidebarCover(new Size(50, 20), new Rectangle(0, 0, 100, 200));
 
         Assert.That(src.Width,  Is.EqualTo(10f).Within(0.01f));
         Assert.That(src.Height, Is.EqualTo(20f).Within(0.01f));
@@ -77,7 +77,7 @@ internal class SidebarRenderingTests
     public void ComputeSidebarCover_DstAlwaysEqualsPassedDest()
     {
         var dest = new Rectangle(40, 0, 60, 480);
-        var (_, dst) = GamePanel.ComputeSidebarCover(new Size(100, 200), dest);
+        var (_, dst) = OverlayRenderer.ComputeSidebarCover(new Size(100, 200), dest);
 
         Assert.That(dst, Is.EqualTo(dest));
     }
@@ -87,7 +87,7 @@ internal class SidebarRenderingTests
     {
         var imageSize = new Size(300, 100);
         var dest      = new Rectangle(0, 0, 100, 100);
-        var (src, _)  = GamePanel.ComputeSidebarCover(imageSize, dest);
+        var (src, _)  = OverlayRenderer.ComputeSidebarCover(imageSize, dest);
 
         float centerX = src.X + src.Width / 2f;
         Assert.That(centerX, Is.EqualTo(imageSize.Width / 2f).Within(0.01f));
@@ -98,7 +98,7 @@ internal class SidebarRenderingTests
     {
         var imageSize = new Size(100, 300);
         var dest      = new Rectangle(0, 0, 100, 100);
-        var (src, _)  = GamePanel.ComputeSidebarCover(imageSize, dest);
+        var (src, _)  = OverlayRenderer.ComputeSidebarCover(imageSize, dest);
 
         float centerY = src.Y + src.Height / 2f;
         Assert.That(centerY, Is.EqualTo(imageSize.Height / 2f).Within(0.01f));
@@ -110,7 +110,7 @@ internal class SidebarRenderingTests
         // srcW * scale == destW for any input
         var imageSize = new Size(73, 150);
         var dest      = new Rectangle(0, 0, 48, 480);
-        var (src, _)  = GamePanel.ComputeSidebarCover(imageSize, dest);
+        var (src, _)  = OverlayRenderer.ComputeSidebarCover(imageSize, dest);
 
         float scale = Math.Max((float)dest.Width / imageSize.Width, (float)dest.Height / imageSize.Height);
         Assert.That(src.Width * scale, Is.EqualTo(dest.Width).Within(0.01f));
@@ -121,7 +121,7 @@ internal class SidebarRenderingTests
     {
         var imageSize = new Size(73, 150);
         var dest      = new Rectangle(0, 0, 48, 480);
-        var (src, _)  = GamePanel.ComputeSidebarCover(imageSize, dest);
+        var (src, _)  = OverlayRenderer.ComputeSidebarCover(imageSize, dest);
 
         float scale = Math.Max((float)dest.Width / imageSize.Width, (float)dest.Height / imageSize.Height);
         Assert.That(src.Height * scale, Is.EqualTo(dest.Height).Within(0.01f));
@@ -132,7 +132,7 @@ internal class SidebarRenderingTests
     {
         var imageSize = new Size(80, 200);
         var dest      = new Rectangle(0, 0, 48, 480);
-        var (src, _)  = GamePanel.ComputeSidebarCover(imageSize, dest);
+        var (src, _)  = OverlayRenderer.ComputeSidebarCover(imageSize, dest);
 
         Assert.That(src.X,              Is.GreaterThanOrEqualTo(0f));
         Assert.That(src.Y,              Is.GreaterThanOrEqualTo(0f));
@@ -163,7 +163,7 @@ internal class SidebarRenderingTests
         g.Clear(Color.Black);
 
         using var sidebar = SolidBitmap(80, 300, Color.Red);
-        GamePanel.DrawSidebar(g, sidebar, dest);
+        OverlayRenderer.DrawSidebar(g, sidebar, dest);
 
         // Check all four corners and center of the dest area
         foreach (var (x, y) in new[] {
@@ -197,7 +197,7 @@ internal class SidebarRenderingTests
         using var canvas = new Bitmap(100, 100, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var cg     = Graphics.FromImage(canvas);
         cg.Clear(Color.Black);
-        GamePanel.DrawSidebar(cg, image, dest);
+        OverlayRenderer.DrawSidebar(cg, image, dest);
 
         // Center pixel of dest should be green (from center strip of image)
         var center = GetPixel(canvas, 50, 50);
@@ -223,7 +223,7 @@ internal class SidebarRenderingTests
         using var canvas = new Bitmap(100, 100, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var cg     = Graphics.FromImage(canvas);
         cg.Clear(Color.Black);
-        GamePanel.DrawSidebar(cg, image, dest);
+        OverlayRenderer.DrawSidebar(cg, image, dest);
 
         var center = GetPixel(canvas, 50, 50);
         Assert.That(center.G, Is.GreaterThan(100), $"Expected green at center, got {center}");
@@ -242,7 +242,7 @@ internal class SidebarRenderingTests
         g.Clear(Color.Black);
 
         using var sidebar = SolidBitmap(10, 10, Color.Red);
-        GamePanel.DrawSidebar(g, sidebar, dest);
+        OverlayRenderer.DrawSidebar(g, sidebar, dest);
 
         foreach (var (x, y) in new[] { (0, 0), (99, 0), (0, 99), (99, 99), (50, 50) })
         {

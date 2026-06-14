@@ -38,9 +38,9 @@ internal sealed class EmulationThread
     private readonly SaveStateManager  _saveStates;
     private readonly InGameMenu        _menu;
     private readonly AchievementManager? _achievements;
-    // When D3D11 is active: uploads pixel data to GPU texture (UI thread, via BeginInvoke).
-    // Null when D3D11 is unavailable; falls back to GamePanel.UpdateFrame (GDI+ path).
-    private readonly Action?           _uploadFrame;
+    // Written on the UI thread only while the emulation thread is blocked on DeviceLost pause;
+    // ManualResetEventSlim.Set() provides the memory barrier that makes the write visible on resume.
+    private IFrameRenderer             _renderer;
 
     private readonly ManualResetEventSlim _resumeEvent = new(initialState: true);
     private volatile int _pauseReasonBits = 0;
@@ -70,8 +70,8 @@ internal sealed class EmulationThread
         GamePanel           gamePanel,
         SaveStateManager    saveStates,
         InGameMenu          menu,
-        AchievementManager? achievements  = null,
-        Action?             uploadFrame   = null)
+        IFrameRenderer      renderer,
+        AchievementManager? achievements = null)
     {
         _host         = host;
         _config       = config;
@@ -81,8 +81,8 @@ internal sealed class EmulationThread
         _gamePanel    = gamePanel;
         _saveStates   = saveStates;
         _menu         = menu;
+        _renderer     = renderer;
         _achievements = achievements;
-        _uploadFrame  = uploadFrame;
 
         // Wire menu events to pause/resume and Steam Input action set switches.
         // Action set switches are marshaled to the UI thread — all Steam API calls
@@ -99,6 +99,13 @@ internal sealed class EmulationThread
             _gamePanel.BeginInvoke(Steam.SteamInputManager.ActivateGameplaySet);
         };
     }
+
+    /// <summary>
+    /// Replaces the renderer after device loss recovery.
+    /// Must only be called on the UI thread while the emulation thread is blocked on
+    /// <see cref="PauseReasons.DeviceLost"/> — the ManualResetEventSlim barrier guarantees visibility.
+    /// </summary>
+    internal void UpdateRenderer(IFrameRenderer renderer) => _renderer = renderer;
 
     public void SetPauseReason(PauseReasons reason, bool active)
     {
@@ -228,13 +235,13 @@ internal sealed class EmulationThread
             _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
             _frameBuffer.Swap();
 
-            // 6. Push FPS state into panel then trigger frame upload / repaint (non-blocking)
-            _gamePanel.ShowFps    = _config.ShowFps;
-            _gamePanel.CurrentFps = CurrentFps;
-            if (_uploadFrame is not null)
-                _gamePanel.BeginInvoke(_uploadFrame);   // D3D11: upload pixels; DrawAndPresent called by steamTimer
-            else
-                _gamePanel.BeginInvoke(_gamePanel.UpdateFrame); // GDI+ fallback
+            // 6. Push FPS state then queue frame upload on the UI thread (non-blocking).
+            // UpdateFpsOverlay writes volatile fields readable by DrawAndPresent on the UI thread.
+            // UploadFrame is always called on the UI thread (GPU texture map or GDI+ bitmap copy).
+            _renderer.UpdateFpsOverlay(_config.ShowFps, CurrentFps);
+            int fw = _frameBuffer.Width;
+            int fh = _frameBuffer.Height;
+            _gamePanel.BeginInvoke(() => _renderer.UploadFrame(_frameBuffer.FrontBuffer, fw, fh));
 
             // 7. Submit audio
             _host.Sound.GetSamplesSync(out short[] samples, out int nsamp);
@@ -353,7 +360,7 @@ internal sealed class EmulationThread
             Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
             _saveStates.SaveToActiveSlot();
             _gamePanel.BeginInvoke(() =>
-                _gamePanel.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
+                _renderer.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
         }
 
         if (_input.IsHotkeyJustPressed("LoadActiveSlot", _config))
@@ -361,7 +368,7 @@ internal sealed class EmulationThread
             Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
             bool loaded = _saveStates.LoadFromActiveSlot();
             _gamePanel.BeginInvoke(() =>
-                _gamePanel.ShowToast(loaded
+                _renderer.ShowToast(loaded
                     ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
                     : $"Slot {_saveStates.ActiveSlot + 1} — Empty"));
         }
@@ -376,7 +383,7 @@ internal sealed class EmulationThread
                 _saveStates.ActiveSlot = _config.ActiveSlot = i;
                 int slot = i; // capture
                 _gamePanel.BeginInvoke(() =>
-                    _gamePanel.ShowToast($"Slot {slot + 1} Selected"));
+                    _renderer.ShowToast($"Slot {slot + 1} Selected"));
                 break;
             }
         }

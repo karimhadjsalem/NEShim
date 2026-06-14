@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -11,9 +10,10 @@ using NEShim.UI;
 namespace NEShim.Rendering;
 
 /// <summary>
-/// Renders NES frames to the screen using GDI+.
-/// Scales the 256×240 (effective) NES buffer to fill the panel while maintaining
-/// the NES's 8:7 pixel aspect ratio with letterboxing.
+/// Renders NES frames and overlays using GDI+.
+/// In D3D11 mode this panel is hidden during gameplay; it becomes visible only when
+/// a menu opens, showing a frozen NES frame (synced via <see cref="SyncBitmap"/>)
+/// as the menu background.
 /// </summary>
 internal sealed class GamePanel : Panel
 {
@@ -29,16 +29,6 @@ internal sealed class GamePanel : Panel
     // Cursor visibility — tracked so Hide/Show calls stay balanced (they're reference-counted).
     private bool _cursorHidden;
 
-    // When true, D3D11Renderer owns NES frame display; skip g.DrawImage(_bitmap) in OnPaint.
-    // Menus and overlay UI still paint via GDI+. Set by MainForm after D3D11Renderer is created.
-    private bool _d3dRendererActive;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    internal bool D3DRendererActive
-    {
-        get => _d3dRendererActive;
-        set => _d3dRendererActive = value;
-    }
-
     // Toast notification
     private string? _toastText;
     private DateTime _toastExpiry;
@@ -46,7 +36,6 @@ internal sealed class GamePanel : Panel
     // Achievement notification
     private string?  _achievementText;
     private DateTime _achievementExpiry;
-    private const int AchievementDurationSeconds = 5;
 
     // FPS overlay — volatile fields shared between the emulation thread (writer)
     // and the UI paint thread (reader) to prevent stale reads without a lock.
@@ -63,30 +52,6 @@ internal sealed class GamePanel : Panel
 
     // NES pixels are not square — display width = bufferWidth * (8/7)
     private const float NesPixelAspect = 8f / 7f;
-
-    // ---- Overlay draw constants ----
-    private const string OverlayFontFamily    = "Segoe UI";
-    private const double ToastDurationSeconds = 1.5;
-    private const float  ToastFontSize        = 14f;
-    private const float  ToastBottomPad       = 30f;
-    private const int    ToastBgPadX          = 8;
-    private const int    ToastBgPadY          = 4;
-    private const int    ToastBgAlpha         = 160;
-
-    private const float AchievementMargin     = 15f;
-    private const float AchievementPadding    = 10f;
-    private const float AchievementInnerGap   = 4f;
-    private const float AchievementHeaderSize = 10f;
-    private const float AchievementNameSize   = 13f;
-    private static readonly Color AchievementBgColor     = Color.FromArgb(210, 20, 20, 20);
-    private static readonly Color AchievementBorderColor = Color.FromArgb(200, 200, 160, 40);
-    private static readonly Color AchievementHeaderColor = Color.FromArgb(255, 220, 180, 50);
-
-    private const float FpsFontSize  = 11f;
-    private const float FpsRightPad  = 10f;
-    private const float FpsTopPad    = 8f;
-    private const int   FpsBgAlpha   = 140;
-    private static readonly Color FpsTextColor = Color.FromArgb(255, 180, 255, 120);
 
     public GamePanel(FrameBuffer frameBuffer)
     {
@@ -127,16 +92,15 @@ internal sealed class GamePanel : Panel
         if (visible && _cursorHidden)  { Cursor.Show(); _cursorHidden = false; }
         if (!visible && !_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
     }
-    public void SetScaler(IGraphicsScaler scaler)    => _scaler   = scaler;
+    public void SetScaler(IGraphicsScaler scaler) => _scaler = scaler;
 
     /// <summary>
-    /// Sets the images drawn in the left and right letterbox bars during gameplay.
-    /// Disposes any previously set bitmaps. Pass null to revert to plain black bars.
+    /// Sets the images drawn in the left and right letterbox bars during GDI+ gameplay.
+    /// Does not take ownership — bitmaps are owned and disposed by MainForm.
+    /// Pass null to revert to plain black bars.
     /// </summary>
     public void SetSidebars(Bitmap? left, Bitmap? right)
     {
-        _sidebarLeft?.Dispose();
-        _sidebarRight?.Dispose();
         _sidebarLeft  = left;
         _sidebarRight = right;
     }
@@ -153,18 +117,18 @@ internal sealed class GamePanel : Panel
     /// <summary>Queues a toast message (shown for 1.5 seconds).</summary>
     public void ShowToast(string text)
     {
-        _toastText  = text;
-        _toastExpiry = DateTime.UtcNow.AddSeconds(ToastDurationSeconds);
+        _toastText   = text;
+        _toastExpiry = DateTime.UtcNow.AddSeconds(OverlayRenderer.ToastDurationSeconds);
     }
 
     /// <summary>
     /// Shows an achievement-unlocked notification in the bottom-right corner for
-    /// <see cref="AchievementDurationSeconds"/> seconds.
+    /// <see cref="OverlayRenderer.AchievementDurationSeconds"/> seconds.
     /// </summary>
     public void ShowAchievementNotification(string displayName)
     {
         _achievementText   = displayName;
-        _achievementExpiry = DateTime.UtcNow.AddSeconds(AchievementDurationSeconds);
+        _achievementExpiry = DateTime.UtcNow.AddSeconds(OverlayRenderer.AchievementDurationSeconds);
     }
 
     /// <summary>
@@ -189,19 +153,22 @@ internal sealed class GamePanel : Panel
         }
     }
 
-    /// <summary>Called from EmulationThread (via BeginInvoke) when a new frame is ready.</summary>
-    public void UpdateFrame()
+    /// <summary>
+    /// Called from GdiRenderer (via BeginInvoke) when a new frame is ready.
+    /// Copies the emulation pixel data into the GDI+ bitmap and triggers a repaint.
+    /// </summary>
+    internal unsafe void UpdateFrame(ReadOnlySpan<int> pixels)
     {
         SetCursorVisible(false); // game is running — no menu is open
-        // Copy front buffer into the GDI+ bitmap
-        var front = _frameBuffer.FrontBuffer;
         var data = _bitmap.LockBits(
             new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
             ImageLockMode.WriteOnly,
             PixelFormat.Format32bppArgb);
         try
         {
-            Marshal.Copy(front, 0, data.Scan0, Math.Min(front.Length, _bitmap.Width * _bitmap.Height));
+            int byteCount = Math.Min(pixels.Length, _bitmap.Width * _bitmap.Height) * sizeof(int);
+            fixed (int* src = pixels)
+                Buffer.MemoryCopy(src, (void*)data.Scan0, byteCount, byteCount);
         }
         finally
         {
@@ -327,8 +294,8 @@ internal sealed class GamePanel : Panel
         // Draw sidebar images over the left and right bars if configured
         if (destX > 0)
         {
-            if (_sidebarLeft  != null) DrawSidebar(g, _sidebarLeft,  new Rectangle(0,             0, destX, Height));
-            if (_sidebarRight != null) DrawSidebar(g, _sidebarRight, new Rectangle(Width - destX, 0, destX, Height));
+            if (_sidebarLeft  != null) OverlayRenderer.DrawSidebar(g, _sidebarLeft,  new Rectangle(0,             0, destX, Height));
+            if (_sidebarRight != null) OverlayRenderer.DrawSidebar(g, _sidebarRight, new Rectangle(Width - destX, 0, destX, Height));
             if (_sidebarLeft != null || _sidebarRight != null)
                 _scaler.Configure(g); // restore scaler settings changed by DrawSidebar
         }
@@ -342,22 +309,21 @@ internal sealed class GamePanel : Panel
             // In D3D11 mode, _bitmap is synced by MainForm before GamePanel is made visible.
             g.CompositingMode   = CompositingMode.SourceCopy;
             g.InterpolationMode = InterpolationMode.NearestNeighbor;
-            if (!_d3dRendererActive)
-                g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
+            g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
             g.CompositingMode = CompositingMode.SourceOver;
             _menu.Render(g, ClientRectangle);
         }
-        else if (!_d3dRendererActive)
+        else
         {
-            // GDI+ path: blit the NES frame. In D3D11 mode this branch is unreachable
-            // because GamePanel is hidden during gameplay (no menu, no overlay).
+            // GDI+ gameplay: blit the NES frame.
+            // In D3D11 mode GamePanel is hidden during gameplay, so this branch is unreachable.
             g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
         }
 
         // Draw toast if active
         if (_toastText is not null && DateTime.UtcNow < _toastExpiry)
         {
-            DrawToast(g, _toastText);
+            OverlayRenderer.DrawToast(g, ClientRectangle, _toastText);
         }
         else
         {
@@ -368,94 +334,14 @@ internal sealed class GamePanel : Panel
         if (_achievementText is not null)
         {
             if (DateTime.UtcNow < _achievementExpiry)
-                DrawAchievementNotification(g, _achievementText);
+                OverlayRenderer.DrawAchievementNotification(g, ClientRectangle, _achievementText);
             else
                 _achievementText = null;
         }
 
         // FPS overlay
         if (ShowFps)
-            DrawFps(g, CurrentFps);
-    }
-
-    /// <summary>
-    /// Computes the source and destination rectangles for cover-scale sidebar rendering.
-    /// The image is scaled uniformly so it fills the entire dest area, then center-cropped.
-    /// </summary>
-    internal static (RectangleF src, Rectangle dst) ComputeSidebarCover(Size imageSize, Rectangle dest)
-    {
-        float scale = Math.Max((float)dest.Width / imageSize.Width, (float)dest.Height / imageSize.Height);
-        float srcW  = dest.Width  / scale;
-        float srcH  = dest.Height / scale;
-        float srcX  = (imageSize.Width  - srcW) / 2f;
-        float srcY  = (imageSize.Height - srcH) / 2f;
-        return (new RectangleF(srcX, srcY, srcW, srcH), dest);
-    }
-
-    internal static void DrawSidebar(Graphics g, Bitmap bmp, Rectangle dest)
-    {
-        var (src, dst) = ComputeSidebarCover(bmp.Size, dest);
-        g.CompositingMode = CompositingMode.SourceCopy;
-        g.DrawImage(bmp, dst, src, GraphicsUnit.Pixel);
-    }
-
-    private void DrawToast(Graphics g, string text)
-    {
-        using var font = new Font(OverlayFontFamily, ToastFontSize, FontStyle.Bold, GraphicsUnit.Point);
-        var size = g.MeasureString(text, font);
-        float x = (Width  - size.Width)  / 2f;
-        float y = Height  - size.Height  - ToastBottomPad;
-
-        using var bg = new SolidBrush(Color.FromArgb(ToastBgAlpha, 0, 0, 0));
-        g.CompositingMode = CompositingMode.SourceOver;
-        g.FillRectangle(bg, x - ToastBgPadX, y - ToastBgPadY, size.Width + ToastBgPadX * 2, size.Height + ToastBgPadY * 2);
-
-        using var fg = new SolidBrush(Color.White);
-        g.DrawString(text, font, fg, x, y);
-    }
-
-    private void DrawAchievementNotification(Graphics g, string displayName)
-    {
-        const string header = "Achievement Unlocked!";
-
-        using var headerFont = new Font(OverlayFontFamily, AchievementHeaderSize, FontStyle.Bold, GraphicsUnit.Point);
-        using var nameFont   = new Font(OverlayFontFamily, AchievementNameSize,   FontStyle.Bold, GraphicsUnit.Point);
-
-        var headerSize = g.MeasureString(header,      headerFont);
-        var nameSize   = g.MeasureString(displayName, nameFont);
-
-        float boxW = Math.Max(headerSize.Width, nameSize.Width) + AchievementPadding * 2;
-        float boxH = headerSize.Height + nameSize.Height + AchievementPadding * 2 + AchievementInnerGap;
-        float boxX = Width  - boxW - AchievementMargin;
-        float boxY = Height - boxH - AchievementMargin;
-
-        g.CompositingMode = CompositingMode.SourceOver;
-
-        using var bg     = new SolidBrush(AchievementBgColor);
-        using var border = new Pen(AchievementBorderColor, 1.5f);
-        g.FillRectangle(bg, boxX, boxY, boxW, boxH);
-        g.DrawRectangle(border, boxX, boxY, boxW, boxH);
-
-        using var headerBrush = new SolidBrush(AchievementHeaderColor);
-        using var nameBrush   = new SolidBrush(Color.White);
-        g.DrawString(header,      headerFont, headerBrush, boxX + AchievementPadding, boxY + AchievementPadding);
-        g.DrawString(displayName, nameFont,   nameBrush,   boxX + AchievementPadding, boxY + AchievementPadding + headerSize.Height + AchievementInnerGap);
-    }
-
-    private void DrawFps(Graphics g, float fps)
-    {
-        string text = $"{fps:F1} fps";
-        using var font = new Font(OverlayFontFamily, FpsFontSize, FontStyle.Bold, GraphicsUnit.Point);
-        var size = g.MeasureString(text, font);
-        float x = Width  - size.Width  - FpsRightPad;
-        float y = FpsTopPad;
-
-        using var bg = new SolidBrush(Color.FromArgb(FpsBgAlpha, 0, 0, 0));
-        g.CompositingMode = CompositingMode.SourceOver;
-        g.FillRectangle(bg, x - 4, y - 2, size.Width + 8, size.Height + 4);
-
-        using var fg = new SolidBrush(FpsTextColor);
-        g.DrawString(text, font, fg, x, y);
+            OverlayRenderer.DrawFps(g, ClientRectangle, CurrentFps);
     }
 
     protected override void Dispose(bool disposing)
@@ -463,8 +349,7 @@ internal sealed class GamePanel : Panel
         if (disposing)
         {
             _bitmap.Dispose();
-            _sidebarLeft?.Dispose();
-            _sidebarRight?.Dispose();
+            // _sidebarLeft and _sidebarRight are owned by MainForm — do not dispose here.
         }
         base.Dispose(disposing);
     }
