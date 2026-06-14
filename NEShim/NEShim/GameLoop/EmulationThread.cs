@@ -21,11 +21,12 @@ internal sealed class EmulationThread
     [Flags]
     public enum PauseReasons
     {
-        None      = 0,
-        Menu      = 1,
-        Overlay   = 2,
-        FocusLost = 4,
-        MainMenu  = 8,   // Paused at the pre-game main menu; cleared when the user picks New/Resume
+        None       = 0,
+        Menu       = 1,
+        Overlay    = 2,
+        FocusLost  = 4,
+        MainMenu   = 8,   // Paused at the pre-game main menu; cleared when the user picks New/Resume
+        DeviceLost = 16,  // D3D11 device was lost; cleared after successful reinitialisation
     }
 
     private readonly EmulatorHost      _host;
@@ -37,6 +38,9 @@ internal sealed class EmulationThread
     private readonly SaveStateManager  _saveStates;
     private readonly InGameMenu        _menu;
     private readonly AchievementManager? _achievements;
+    // When D3D11 is active: uploads pixel data to GPU texture (UI thread, via BeginInvoke).
+    // Null when D3D11 is unavailable; falls back to GamePanel.UpdateFrame (GDI+ path).
+    private readonly Action?           _uploadFrame;
 
     private readonly ManualResetEventSlim _resumeEvent = new(initialState: true);
     private volatile int _pauseReasonBits = 0;
@@ -58,15 +62,16 @@ internal sealed class EmulationThread
     public bool IsPaused => _pauseReasonBits != 0;
 
     public EmulationThread(
-        EmulatorHost       host,
-        AppConfig          config,
-        InputManager       input,
-        AudioPlayer        audio,
-        FrameBuffer        frameBuffer,
-        GamePanel          gamePanel,
-        SaveStateManager   saveStates,
-        InGameMenu         menu,
-        AchievementManager? achievements = null)
+        EmulatorHost        host,
+        AppConfig           config,
+        InputManager        input,
+        AudioPlayer         audio,
+        FrameBuffer         frameBuffer,
+        GamePanel           gamePanel,
+        SaveStateManager    saveStates,
+        InGameMenu          menu,
+        AchievementManager? achievements  = null,
+        Action?             uploadFrame   = null)
     {
         _host         = host;
         _config       = config;
@@ -77,6 +82,7 @@ internal sealed class EmulationThread
         _saveStates   = saveStates;
         _menu         = menu;
         _achievements = achievements;
+        _uploadFrame  = uploadFrame;
 
         // Wire menu events to pause/resume and Steam Input action set switches.
         // Action set switches are marshaled to the UI thread — all Steam API calls
@@ -222,10 +228,13 @@ internal sealed class EmulationThread
             _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
             _frameBuffer.Swap();
 
-            // 6. Push FPS state into panel then notify UI to repaint (non-blocking)
+            // 6. Push FPS state into panel then trigger frame upload / repaint (non-blocking)
             _gamePanel.ShowFps    = _config.ShowFps;
             _gamePanel.CurrentFps = CurrentFps;
-            _gamePanel.BeginInvoke(_gamePanel.UpdateFrame);
+            if (_uploadFrame is not null)
+                _gamePanel.BeginInvoke(_uploadFrame);   // D3D11: upload pixels; DrawAndPresent called by steamTimer
+            else
+                _gamePanel.BeginInvoke(_gamePanel.UpdateFrame); // GDI+ fallback
 
             // 7. Submit audio
             _host.Sound.GetSamplesSync(out short[] samples, out int nsamp);

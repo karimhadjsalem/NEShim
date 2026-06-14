@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -27,6 +28,16 @@ internal sealed class GamePanel : Panel
 
     // Cursor visibility — tracked so Hide/Show calls stay balanced (they're reference-counted).
     private bool _cursorHidden;
+
+    // When true, D3D11Renderer owns NES frame display; skip g.DrawImage(_bitmap) in OnPaint.
+    // Menus and overlay UI still paint via GDI+. Set by MainForm after D3D11Renderer is created.
+    private bool _d3dRendererActive;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool D3DRendererActive
+    {
+        get => _d3dRendererActive;
+        set => _d3dRendererActive = value;
+    }
 
     // Toast notification
     private string? _toastText;
@@ -154,6 +165,28 @@ internal sealed class GamePanel : Panel
     {
         _achievementText   = displayName;
         _achievementExpiry = DateTime.UtcNow.AddSeconds(AchievementDurationSeconds);
+    }
+
+    /// <summary>
+    /// Copies the current front buffer into the GDI+ bitmap without invalidating.
+    /// Called by MainForm before making GamePanel visible for a menu (D3D11 mode) so the
+    /// frozen-frame background under the menu shows the most recent NES frame.
+    /// </summary>
+    internal void SyncBitmap()
+    {
+        var front = _frameBuffer.FrontBuffer;
+        var data = _bitmap.LockBits(
+            new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
+            ImageLockMode.WriteOnly,
+            PixelFormat.Format32bppArgb);
+        try
+        {
+            Marshal.Copy(front, 0, data.Scan0, Math.Min(front.Length, _bitmap.Width * _bitmap.Height));
+        }
+        finally
+        {
+            _bitmap.UnlockBits(data);
+        }
     }
 
     /// <summary>Called from EmulationThread (via BeginInvoke) when a new frame is ready.</summary>
@@ -305,15 +338,19 @@ internal sealed class GamePanel : Panel
 
         if (_menu?.IsOpen == true)
         {
-            // Menu is open: draw frozen frame + overlay
+            // Menu is open: draw frozen frame + overlay.
+            // In D3D11 mode, _bitmap is synced by MainForm before GamePanel is made visible.
             g.CompositingMode   = CompositingMode.SourceCopy;
             g.InterpolationMode = InterpolationMode.NearestNeighbor;
-            g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
+            if (!_d3dRendererActive)
+                g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
             g.CompositingMode = CompositingMode.SourceOver;
             _menu.Render(g, ClientRectangle);
         }
-        else
+        else if (!_d3dRendererActive)
         {
+            // GDI+ path: blit the NES frame. In D3D11 mode this branch is unreachable
+            // because GamePanel is hidden during gameplay (no menu, no overlay).
             g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
         }
 

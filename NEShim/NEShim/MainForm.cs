@@ -41,9 +41,14 @@ public partial class MainForm : Form
     // ---- D3D11 overlay hook ----
     // A minimal swap chain on the main window HWND. Steam's GameOverlayRenderer64.dll
     // hooks IDXGISwapChain::Present to enable the overlay and render its UI into the
-    // swap chain buffer. GamePanel is hidden while the overlay is active so DWM
-    // exposes the swap chain surface rather than compositing GDI+ content above it.
-    private Rendering.D3DOverlayHook? _d3dHook;
+    // swap chain buffer. In D3D11 mode, GamePanel is hidden during gameplay so the swap
+    // chain surface is visible. GamePanel is shown only for menus and overlays.
+    private Rendering.D3DOverlayHook?  _d3dHook;
+
+    // ---- D3D11 renderer ----
+    // Uploads NES frames to a GPU texture and presents them via the swap chain.
+    // Non-null when D3D11 initialisation succeeded; null means GDI+ fallback is active.
+    private Rendering.D3D11Renderer?   _renderer;
 
     private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
 
@@ -114,7 +119,72 @@ public partial class MainForm : Form
         _d3dHook = new Rendering.D3DOverlayHook();
         _d3dHook.Initialize(Handle, Width, Height);
         Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
-        Resize += (_, _) => _d3dHook?.Resize(Width, Height);
+
+        if (_d3dHook.Device is not null && _d3dHook.SwapChain is not null)
+        {
+            try
+            {
+                _renderer = new Rendering.D3D11Renderer(_d3dHook.Device, _d3dHook.SwapChain, 256, 240);
+                _renderer.DeviceLost += OnD3DDeviceLost;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Renderer] D3D11Renderer init failed: {ex.Message} — falling back to GDI+.");
+            }
+        }
+
+        PlatformDetector.SetD3D11Active(_renderer is not null);
+        if (_gamePanel is not null)
+            _gamePanel.D3DRendererActive = _renderer is not null;
+
+        if (PlatformDetector.IsD3D11Active)
+            Logger.Log("[Renderer] D3D11 active — video filters supported.");
+        else
+            Logger.Log("[Renderer] D3D11 unavailable — falling back to GDI+. Video filters will not be available.");
+
+        // When D3D11 is active, D3D11Renderer.Resize owns the swap chain resize.
+        // When D3D11 is inactive, D3DOverlayHook.Resize handles it.
+        Resize += (_, _) =>
+        {
+            if (_renderer is not null)
+                _renderer.Resize(Width, Height);
+            else
+                _d3dHook?.Resize(Width, Height);
+        };
+    }
+
+    private void OnD3DDeviceLost(object? sender, EventArgs e)
+    {
+        // Device loss can fire from DrawAndPresent on the UI thread — we're already on UI thread.
+        Logger.Log("[Renderer] Recovering from device loss — pausing emulation and reinitialising D3D11.");
+        _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.DeviceLost, true);
+
+        _renderer?.Dispose();
+        _renderer = null;
+        _d3dHook?.Dispose();
+        _d3dHook = null;
+
+        _d3dHook = new Rendering.D3DOverlayHook();
+        _d3dHook.Initialize(Handle, Width, Height);
+
+        if (_d3dHook.Device is not null && _d3dHook.SwapChain is not null)
+        {
+            try
+            {
+                _renderer = new Rendering.D3D11Renderer(_d3dHook.Device, _d3dHook.SwapChain, 256, 240);
+                _renderer.DeviceLost += OnD3DDeviceLost;
+                Logger.Log("[Renderer] D3D11 reinitialised successfully. Resuming emulation.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Renderer] D3D11 reinitialisation failed: {ex.Message} — staying paused. Check GPU driver.");
+                PlatformDetector.SetD3D11Active(false);
+                if (_gamePanel is not null) _gamePanel.D3DRendererActive = false;
+                return;
+            }
+        }
+
+        _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.DeviceLost, false);
     }
 
     private void ShowLogo()
@@ -275,8 +345,11 @@ public partial class MainForm : Form
     private void InitializeInput()
     {
         _input = new InputManager();
-        _gamePanel!.KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
-        _gamePanel.KeyUp    += (_, e) => _input.OnKeyUp(e.KeyCode);
+        // KeyPreview = true (set in InitializeComponent) ensures these MainForm handlers
+        // fire for all keys regardless of which child control has focus. This also handles
+        // emulation input when GamePanel is hidden (D3D11 gameplay mode).
+        KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
+        KeyUp   += (_, e) => _input.OnKeyUp(e.KeyCode);
         KeyDown += OnFormKeyDown;
     }
 
@@ -294,16 +367,15 @@ public partial class MainForm : Form
     {
         SteamManager.Initialize(overlayActive =>
         {
-            Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}. Setting GamePanel.Visible={!overlayActive}.");
+            Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}.");
             _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
             if (_gamePanel is not null)
             {
-                _gamePanel.Visible = !overlayActive;
+                if (PlatformDetector.IsD3D11Active)
+                    UpdateGamePanelVisibility();
+                else
+                    _gamePanel.Visible = !overlayActive;
                 Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel.Visible}.");
-            }
-            else
-            {
-                Logger.Log("[Steam] GamePanel is null — overlay visibility toggle skipped.");
             }
         });
         if (PlatformDetector.IsWine)
@@ -357,14 +429,20 @@ public partial class MainForm : Form
         {
             _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
-            _gamePanel?.Invalidate();
+            if (PlatformDetector.IsD3D11Active)
+                UpdateGamePanelVisibility(); // hides GamePanel — gameplay starts
+            else
+                _gamePanel?.Invalidate();
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
             // Save was already loaded by MainMenuScreen while thread was blocked
             _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
-            _gamePanel?.Invalidate();
+            if (PlatformDetector.IsD3D11Active)
+                UpdateGamePanelVisibility(); // hides GamePanel — gameplay starts
+            else
+                _gamePanel?.Invalidate();
         });
         _mainMenuScreen.ExitChosen += () => BeginInvoke(() =>
         {
@@ -413,19 +491,50 @@ public partial class MainForm : Form
                 _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
                 ConfigLoader.Save(_config!);
             });
+        // In D3D11 mode: show GamePanel (for GDI+ menu overlay) when the in-game menu opens;
+        // hide it again when the menu closes so the D3D11 NES frame is visible during gameplay.
+        _menu.Opened += () => BeginInvoke(() =>
+        {
+            if (PlatformDetector.IsD3D11Active)
+            {
+                _gamePanel?.SyncBitmap(); // capture current frame as frozen background
+                UpdateGamePanelVisibility();
+            }
+        });
+        _menu.Closed += () => BeginInvoke(() =>
+        {
+            if (PlatformDetector.IsD3D11Active)
+                UpdateGamePanelVisibility();
+        });
+
         _gamePanel!.SetMenu(_menu);
     }
 
     private void InitializeEmulationStartup(AchievementManager? achievements)
     {
+        // In D3D11 mode, DrawAndPresent replaces _d3dHook.Present() — it renders the last
+        // uploaded NES frame and presents the swap chain, which also keeps the Steam overlay
+        // hook fed. This works even when emulation is paused (no new UploadFrame calls).
+        var uploadAction = _renderer is not null
+            ? () => _renderer.UploadFrame(_frameBuffer!.FrontBuffer)
+            : (Action?)null;
+
         _emulationThread = new EmulationThread(
             _host!, _config!, _input!, _audio!, _frameBuffer!, _gamePanel!, _saveStates!, _menu!,
-            achievements);
+            achievements,
+            uploadFrame: uploadAction);
 
         // Tick Steam callbacks on the UI thread (~60fps). Steam requires RunCallbacks()
         // to be called on the same thread as SteamAPI.Init().
         _steamTimer = new System.Windows.Forms.Timer { Interval = SteamCallbackIntervalMs };
-        _steamTimer.Tick += (_, _) => { SteamManager.Tick(); _d3dHook?.Present(); };
+        _steamTimer.Tick += (_, _) =>
+        {
+            SteamManager.Tick();
+            if (_renderer is not null)
+                _renderer.DrawAndPresent(vsync: true);
+            else
+                _d3dHook?.Present();
+        };
         _steamTimer.Start();
 
         _audio!.Start(_config!.AudioDevice);
@@ -445,7 +554,10 @@ public partial class MainForm : Form
         SteamManager.ActivateMenuSet();
         _mainMenuScreen?.Show();
         _mainMenuMusic?.FadeIn();
-        _gamePanel?.Invalidate();
+        if (PlatformDetector.IsD3D11Active)
+            UpdateGamePanelVisibility();
+        else
+            _gamePanel?.Invalidate();
     }
 
     private static Bitmap? LoadSidebarBitmap(string path)
@@ -524,6 +636,23 @@ public partial class MainForm : Form
         Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
     }
 
+    /// <summary>
+    /// In D3D11 mode, keeps GamePanel visible only when a UI overlay is active
+    /// (logo, main menu, in-game menu, or Steam overlay). During pure gameplay GamePanel
+    /// is hidden so the D3D11 swap chain surface is exposed and the NES frame is visible.
+    /// No-op in GDI+ fallback mode (GamePanel always visible).
+    /// </summary>
+    private void UpdateGamePanelVisibility()
+    {
+        if (_gamePanel is null || !PlatformDetector.IsD3D11Active) return;
+        bool anyOverlay = _logoScreen is not null
+            || _mainMenuScreen?.IsVisible == true
+            || _menu?.IsOpen == true
+            || (_emulationThread?.ActivePauseReasons & EmulationThread.PauseReasons.Overlay) != 0;
+        _gamePanel.Visible = anyOverlay;
+        Logger.Log($"[Renderer] GamePanel.Visible={_gamePanel.Visible} (D3D11 mode).");
+    }
+
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
     {
         if (_logoScreen is not null)
@@ -596,6 +725,7 @@ public partial class MainForm : Form
         _preloadedMenuBackground?.Dispose();
         _preloadedMusic?.Dispose();
         _steamTimer?.Dispose();
+        _renderer?.Dispose(); // must be before _d3dHook — renderer does not own device/swap chain
         _d3dHook?.Dispose();
         _mainMenuMusic?.Dispose();
         _mainMenuScreen?.Dispose();

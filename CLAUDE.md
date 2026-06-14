@@ -59,7 +59,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Config` | POCO config model + JSON load/save |
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display), `D3DOverlayHook` (Steam overlay surface) |
+| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (GDI+ menu overlay surface), `D3D11Renderer` (primary NES frame renderer), scalers (GDI+ fallback), `D3DOverlayHook` (Steam overlay swap chain) |
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
@@ -100,13 +100,27 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 **Stateless renderer** — `MainMenuRenderer` and `MenuRenderer` are `internal static` classes with a single `Draw(Graphics, Rectangle, <StateType>)` entry point. They create and dispose all GDI+ resources within the call. Do not cache brushes, pens, or fonts across calls in these classes.
 
-### Steam overlay architecture
+### D3D11 rendering and Steam overlay architecture
 
-The Steam overlay requires a D3D/OpenGL `Present()` call to hook — pure GDI+ apps have none, so `D3DOverlayHook` creates a minimal D3D11 swap chain bound to `MainForm.Handle`. `SteamManager.Tick()` calls `SteamAPI.RunCallbacks()` followed by `D3DOverlayHook.Present()` from a `System.Windows.Forms.Timer` (~60 Hz) on the UI thread. Steam must be initialised and ticked on the same thread.
+`D3DOverlayHook` creates a D3D11 device and swap chain (using `SwapEffect.FlipDiscard` — required for DXVK on Proton) bound to `MainForm.Handle`. `D3D11Renderer` reuses this device and swap chain to render NES frames directly to the swap chain via a fullscreen passthrough quad — bypassing GDI+ for the game frame entirely.
 
-When the overlay activates (`GameOverlayActivated_t`), `GamePanel` is hidden so DWM exposes the swap chain surface. Steam's `GameOverlayRenderer64.dll` renders the overlay UI directly into the swap chain's back buffer via a vtable hook on `IDXGISwapChain::Present`. Without hiding `GamePanel`, the GDI+ child is composited above the swap chain by DWM and the overlay is invisible.
+**Two-phase frame delivery:** The emulation thread's `BeginInvoke` calls `D3D11Renderer.UploadFrame(FrontBuffer)` (pixels → GPU texture, Map/Unmap). The steamTimer (~60 Hz, UI thread) then calls `D3D11Renderer.DrawAndPresent()` which draws the last uploaded texture and presents. This decoupling means Present always fires even when the emulation loop is paused, keeping the Steam overlay hook alive.
 
-`D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. A `Form.Resize` handler calls `D3DOverlayHook.Resize` to keep the swap chain size correct when the user toggles windowed/fullscreen.
+**Pixel format:** BizHawk's `IVideoProvider` returns `int[]` where each int is `0xAARRGGBB`. In little-endian memory the bytes are `[B, G, R, A]` — BGRA — which maps directly to `B8G8R8A8_UNorm` with no byte-swapping. Row copy in `UploadFrame` always uses `MappedSubresource.RowPitch` (DXVK may align rows wider than `width × 4`).
+
+**GamePanel** in D3D11 mode: `GamePanel` does not render the NES frame. It's shown only when a GDI+ overlay is needed (menus, Steam overlay). When `GameOverlayActivated_t` fires, or the in-game menu opens, `GamePanel.Visible = false` is set to expose the swap chain surface — the same reason it was hidden before, now for GDI+ menus rather than the NES frame. When both the overlay and the menu are closed, `GamePanel.Visible = false` keeps the swap chain unobstructed.
+
+**Device loss recovery:** `D3D11Renderer.DrawAndPresent()` fires `DeviceLost` on `DXGI_ERROR_DEVICE_REMOVED/RESET`. `MainForm` handles it by setting `PauseReasons.DeviceLost`, disposing both renderer and hook, recreating them, then clearing the pause reason.
+
+`D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. `D3D11Renderer` is constructed immediately after. A `Form.Resize` handler calls `D3D11Renderer.Resize()` which calls `ResizeBuffers` and recreates the RTV.
+
+**`PlatformDetector.IsD3D11Active`** is set once at startup after `D3D11Renderer` is (or isn't) constructed. All 2.0+ video filters (CRT, palette shaders) are D3D11-only and must gate on this flag before offering themselves in any menu. The GDI+ fallback path has no filter support.
+
+**Proton/DXVK notes:**
+- `SwapEffect.FlipDiscard` is required — legacy `Discard` is emulated via a slower blit path in DXVK.
+- `UploadFrame` copies row-by-row using `RowPitch` — DXVK aligns texture rows for Vulkan compatibility.
+- DXBC passthrough shaders compile to SPIR-V on first Proton launch (cached in Steam shader cache); near-instant due to trivial shader complexity.
+- Use `local-publish.ps1`, not raw `dotnet build`, for Proton performance testing.
 
 `SteamAPI.RestartAppIfNecessary(appId)` is called in `Program.Main` before `Application.Run`. It reads the App ID from `steam_appid.txt`. If the game was not launched via Steam, the call returns `true` and the process exits so Steam can relaunch it with the overlay DLL already injected.
 
