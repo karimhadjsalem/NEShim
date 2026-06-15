@@ -79,8 +79,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private volatile float _currentFps;
     private string?  _toastText;
     private DateTime _toastExpiry;
-    private string?  _achievementText;
-    private DateTime _achievementExpiry;
 
     private const int VertexStride = sizeof(float) * 4; // pos(xy) + texcoord(uv)
 
@@ -264,12 +262,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _overlayDirty = true;
     }
 
-    public void ShowAchievementNotification(string name)
-    {
-        _achievementText   = name;
-        _achievementExpiry = DateTime.UtcNow.AddSeconds(OverlayRenderer.AchievementDurationSeconds);
-        _overlayDirty = true;
-    }
+    // No-op in D3D11 mode — Steam's overlay shows its own achievement notification
+    // when SetAchievement + StoreStats are called. GdiRenderer keeps its custom banner
+    // as a fallback for when the overlay isn't available.
+    public void ShowAchievementNotification(string name) { }
 
     /// <summary>
     /// Recreates size-dependent D3D11 resources after a window resize or mode change.
@@ -436,10 +432,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         // Expire elapsed notifications.
         var now = DateTime.UtcNow;
-        if (_toastText is not null && now >= _toastExpiry)            { _toastText = null;        _overlayDirty = true; }
-        if (_achievementText is not null && now >= _achievementExpiry) { _achievementText = null; _overlayDirty = true; }
+        if (_toastText is not null && now >= _toastExpiry) { _toastText = null; _overlayDirty = true; }
 
-        bool hasTransient = _showFps || _toastText is not null || _achievementText is not null;
+        bool hasTransient = _showFps || _toastText is not null;
         bool hasScene     = _menuSceneProvider?.GetActiveScenePainter() is not null;
 
         if (!hasTransient && !hasScene) return;
@@ -477,9 +472,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         if (_toastText is not null)
             OverlayRenderer.DrawToast(g, clientRect, _toastText);
-
-        if (_achievementText is not null)
-            OverlayRenderer.DrawAchievementNotification(g, clientRect, _achievementText);
     }
 
     private unsafe void UploadOverlayBitmap()
