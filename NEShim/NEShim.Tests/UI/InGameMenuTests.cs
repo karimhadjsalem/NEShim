@@ -975,8 +975,6 @@ internal class InGameMenuTests
         Assert.That(_config.Volume, Is.EqualTo(65));
     }
 
-    // ---- HandleMouseMove ----
-    // Root screen, bounds (0,0,640,480):
     // ---- HandleKey Z / Space ----
 
     [Test]

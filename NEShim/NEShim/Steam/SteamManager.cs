@@ -98,12 +98,26 @@ internal static class SteamManager
 
     /// <summary>
     /// Dispatches Steamworks callbacks. Must be called on the same thread as Initialize().
+    /// Includes the store-retry check; call from the UI-thread timer (~60 Hz).
     /// </summary>
     public static void Tick()
     {
         if (!IsAvailable) return;
         SteamAPI.RunCallbacks();
         RetryPendingStore();
+    }
+
+    /// <summary>
+    /// Dispatches Steamworks callbacks without running the store-retry logic.
+    /// Call this immediately after IDXGISwapChain::Present returns so overlay callbacks
+    /// fire promptly even when the Windows message pump is blocked inside Present
+    /// (e.g. Gamescope throttling on Steam Deck blocks vkQueuePresentKHR, starving WM_TIMER).
+    /// Must be on the same thread as Initialize().
+    /// </summary>
+    internal static void RunCallbacksAfterPresent()
+    {
+        if (!IsAvailable) return;
+        SteamAPI.RunCallbacks();
     }
 
     private static void RetryPendingStore()

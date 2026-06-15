@@ -54,25 +54,41 @@
     </ItemGroup>
 
     <!-- Compile HLSL shaders to DXBC bytecode before building.
-         Requires fxc.exe from the Windows SDK. The .cso files are written to the
-         source tree alongside the .hlsl files and embedded as resources above. -->
+         Requires fxc.exe from the Windows SDK. The .cso files are committed to source
+         control and embedded as resources above; recompilation only happens when a
+         developer with a local Windows SDK modifies the .hlsl sources.
+         On CI runners (no Windows SDK installed), the checked-in CSOs are used as-is. -->
     <Target Name="CompileShaders" BeforeTargets="CoreCompile"
             Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.hlsl"
             Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.cso">
         <PropertyGroup>
-            <!-- Try common Windows SDK paths. Falls back to PATH if not found.
-                 $(WindowsSDKVersion) does not include a trailing backslash, so
-                 we add one explicitly between the version segment and "x64". -->
+            <!-- Try common Windows SDK paths. $(WindowsSDKVersion) has no trailing backslash,
+                 so we add one explicitly between the version segment and "x64". -->
             <_FxcPath Condition="Exists('$(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe')">$(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe</_FxcPath>
             <_FxcPath Condition="'$(_FxcPath)' == '' And Exists('$(WindowsSdkDir)bin\$(WindowsSDKVersion)x64\fxc.exe')">$(WindowsSdkDir)bin\$(WindowsSDKVersion)x64\fxc.exe</_FxcPath>
             <_FxcPath Condition="'$(_FxcPath)' == '' And Exists('$(WindowsSdkDir)bin\x64\fxc.exe')">$(WindowsSdkDir)bin\x64\fxc.exe</_FxcPath>
+            <!-- _FxcFoundAtKnownPath is true only when fxc was located at an explicit SDK path.
+                 Bare 'fxc.exe' (PATH fallback) is treated as "not found at a known path" so CI
+                 runners that happen to have fxc.exe somewhere on PATH don't accidentally skip
+                 the skip-logic below — they'll compile, which is fine. -->
+            <_FxcFoundAtKnownPath Condition="'$(_FxcPath)' != ''">true</_FxcFoundAtKnownPath>
             <_FxcPath Condition="'$(_FxcPath)' == ''">fxc.exe</_FxcPath>
             <_ShaderDir>$(MSBuildProjectDirectory)\Rendering\Shaders</_ShaderDir>
+            <!-- Skip recompilation when fxc was not found at a known SDK path AND the
+                 pre-compiled CSOs already exist from source control. This keeps CI builds
+                 working without a Windows SDK install. If CSOs are missing AND fxc is
+                 unavailable, the Exec commands below will fail with a clear shell error. -->
+            <_SkipShaderCompile Condition="'$(_FxcFoundAtKnownPath)' != 'true' And Exists('$(_ShaderDir)\Passthrough.vs.cso') And Exists('$(_ShaderDir)\Passthrough.ps.cso')">true</_SkipShaderCompile>
         </PropertyGroup>
+        <Message Text="[CompileShaders] fxc.exe not found at a Windows SDK path — using pre-compiled CSOs from source control."
+                 Condition="'$(_SkipShaderCompile)' == 'true'"
+                 Importance="High" />
         <Exec Command="&quot;$(_FxcPath)&quot; /nologo /T vs_5_0 /E main /Fo &quot;$(_ShaderDir)\Passthrough.vs.cso&quot; &quot;$(_ShaderDir)\Passthrough.vs.hlsl&quot;"
-              CustomErrorRegularExpression="error X" />
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipShaderCompile)' != 'true'" />
         <Exec Command="&quot;$(_FxcPath)&quot; /nologo /T ps_5_0 /E main /Fo &quot;$(_ShaderDir)\Passthrough.ps.cso&quot; &quot;$(_ShaderDir)\Passthrough.ps.hlsl&quot;"
-              CustomErrorRegularExpression="error X" />
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipShaderCompile)' != 'true'" />
     </Target>
 
     <ItemGroup>

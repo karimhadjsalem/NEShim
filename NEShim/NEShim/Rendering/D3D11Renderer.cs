@@ -440,8 +440,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         if (!hasTransient && !hasScene) return;
         if (_overlayBitmap is null || _overlayTexture is null) return;
 
-        // Scenes always repaint: menu cursor movement changes state without setting _overlayDirty.
-        if (_overlayDirty || hasScene)
+        // Upload only when dirty. All state changes that affect the overlay
+        // (input, navigation, timer ticks for animations) call MarkOverlayDirty().
+        // Static menu frames between inputs produce no GDI+ render or GPU upload.
+        if (_overlayDirty)
         {
             RenderOverlayBitmap();
             UploadOverlayBitmap();

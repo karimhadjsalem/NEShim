@@ -7,7 +7,6 @@ using NEShim.Emulation;
 using NEShim.Input;
 using NEShim.Rendering;
 using NEShim.Saves;
-using NEShim.Steam;
 using NEShim.UI;
 
 namespace NEShim.GameLoop;
@@ -39,6 +38,9 @@ internal sealed class EmulationThread
     private readonly SaveStateManager  _saveStates;
     private readonly InGameMenu        _menu;
     private readonly AchievementManager? _achievements;
+    private readonly Action?            _afterFramePresented;
+    private readonly Action?            _onInGameMenuOpened;
+    private readonly Action?            _onInGameMenuClosed;
     // Written on the UI thread only while the emulation thread is blocked on DeviceLost pause;
     // ManualResetEventSlim.Set() provides the memory barrier that makes the write visible on resume.
     private IFrameRenderer             _renderer;
@@ -73,33 +75,38 @@ internal sealed class EmulationThread
         SaveStateManager    saveStates,
         InGameMenu          menu,
         IFrameRenderer      renderer,
-        AchievementManager? achievements = null)
+        AchievementManager? achievements        = null,
+        Action?             afterFramePresented = null,
+        Action?             onInGameMenuOpened  = null,
+        Action?             onInGameMenuClosed  = null)
     {
-        _host         = host;
-        _config       = config;
-        _input        = input;
-        _audio        = audio;
-        _frameBuffer  = frameBuffer;
-        _uiMarshal    = uiMarshal;
-        _menuInput    = menuInput;
-        _saveStates   = saveStates;
-        _menu         = menu;
-        _renderer     = renderer;
-        _achievements = achievements;
+        _host                = host;
+        _config              = config;
+        _input               = input;
+        _audio               = audio;
+        _frameBuffer         = frameBuffer;
+        _uiMarshal           = uiMarshal;
+        _menuInput           = menuInput;
+        _saveStates          = saveStates;
+        _menu                = menu;
+        _renderer            = renderer;
+        _achievements        = achievements;
+        _afterFramePresented = afterFramePresented;
+        _onInGameMenuOpened  = onInGameMenuOpened;
+        _onInGameMenuClosed  = onInGameMenuClosed;
 
-        // Wire menu events to pause/resume and Steam Input action set switches.
-        // Action set switches are marshaled to the UI thread — all Steam API calls
-        // must be on the same thread as SteamAPI.Init().
         _menu.Opened += () =>
         {
             _saveStates.AutoSave();
             SetPauseReason(PauseReasons.Menu, true);
-            _uiMarshal.BeginInvoke(Steam.SteamInputManager.ActivateMenuSet);
+            if (_onInGameMenuOpened != null)
+                _uiMarshal.BeginInvoke(_onInGameMenuOpened);
         };
         _menu.Closed += () =>
         {
             SetPauseReason(PauseReasons.Menu, false);
-            _uiMarshal.BeginInvoke(Steam.SteamInputManager.ActivateGameplaySet);
+            if (_onInGameMenuClosed != null)
+                _uiMarshal.BeginInvoke(_onInGameMenuClosed);
         };
     }
 
@@ -259,6 +266,7 @@ internal sealed class EmulationThread
             {
                 _renderer.UploadFrame(_frameBuffer.FrontBuffer, fw, fh);
                 _renderer.Tick(vsync: true);
+                _afterFramePresented?.Invoke();
             });
 
             // 7. Submit audio
@@ -327,7 +335,6 @@ internal sealed class EmulationThread
     public void DismissMainMenu()
     {
         Logger.Log("[Emulation] Main menu dismissed — starting gameplay.");
-        Steam.SteamInputManager.ActivateGameplaySet();
         SetPauseReason(PauseReasons.MainMenu, false);
     }
 

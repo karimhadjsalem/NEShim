@@ -348,6 +348,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}.");
             _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
+            if (overlayActive)
+                _mainMenuMusic?.Pause();
+            else
+                _mainMenuMusic?.Resume();
             UpdateGamePanelVisibility();
             Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel?.Visible}.");
         });
@@ -401,6 +405,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
             _mainMenuMusic?.FadeOut();
+            SteamManager.ActivateGameplaySet();
             _emulationThread?.DismissMainMenu();
             _renderer?.MarkOverlayDirty();
             _gamePanel?.Invalidate();
@@ -410,6 +415,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             // Save was already loaded by MainMenuScreen while thread was blocked.
             _mainMenuMusic?.FadeOut();
+            SteamManager.ActivateGameplaySet();
             _emulationThread?.DismissMainMenu();
             _renderer?.MarkOverlayDirty();
             _gamePanel?.Invalidate();
@@ -491,7 +497,15 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             this,   // IMenuInputTarget (MainForm implements it)
             _saveStates!, _menu!,
             _renderer!,
-            achievements);
+            achievements,
+            // Dispatch Steam callbacks immediately after each Present. On Steam Deck,
+            // Gamescope can block vkQueuePresentKHR while its overlay is showing, which
+            // starves WM_TIMER and prevents _steamTimer from calling RunCallbacks().
+            // Calling it here ensures GameOverlayActivated_t fires as soon as
+            // Present unblocks, so SetPauseReason(Overlay) runs before the next frame.
+            afterFramePresented: SteamManager.RunCallbacksAfterPresent,
+            onInGameMenuOpened:  SteamManager.ActivateMenuSet,
+            onInGameMenuClosed:  SteamManager.ActivateGameplaySet);
 
         // Steam callbacks must be ticked on the same thread as SteamAPI.Init() (UI thread).
         // During gameplay, Present is driven by the UploadFrame BeginInvoke in EmulationThread
