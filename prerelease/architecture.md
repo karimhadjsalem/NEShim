@@ -33,11 +33,11 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain), scalers |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `IGraphicsScaler` (GDI+ interpolation strategy — GDI+ path only), `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain) |
 | `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
-| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`ntdll.dll::wine_get_version`), SteamDeck env var, and `IsD3D11Active` (set at startup — gates D3D11-only video filter availability); `PlatformDefaults` — config-override resolution for spin window and audio latency |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`ntdll.dll::wine_get_version`), SteamDeck env var (`$SteamDeck == "1"`), `IsD3D11Active` (set once at startup — gates D3D11-only video filter availability) |
 | `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer`; `IMenuInputTarget` (gamepad dispatch interface implemented by `MainForm`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
@@ -57,7 +57,7 @@ Program.cs
                  4. AchievementConfigLoader.Load(romHash) → verify sigs → AchievementManager?
                  5. SaveRamManager.LoadFromDisk()
                  6. SaveStateManager
-                 7. FrameBuffer + GamePanel (display surface)
+                 7. FrameBuffer + GamePanel (GDI+ fallback surface; permanently hidden in D3D11 mode)
                  8. InputManager + keyboard event wiring
                  9. AudioPlayer + audio processors
                  9a. MainMenuScreen + MainMenuMusic
@@ -100,7 +100,7 @@ Per-frame sequence:
 7. `AchievementManager.Tick()` — evaluate memory triggers
 8. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
 9. **Frame dispatch (non-blocking, via `BeginInvoke` to UI thread):**
-   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` then `D3D11Renderer.Tick(vsync: true)` — upload and present are batched in the same `BeginInvoke` call so Present fires immediately after the texture is ready, with no clock drift.
+   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` then `D3D11Renderer.DrawAndPresent(vsync: true)` — upload and present are batched in the same `BeginInvoke` call so Present fires immediately after the texture is ready, with no clock drift. After `Present()` returns, `SteamManager.RunCallbacksAfterPresent()` is invoked immediately within the same lambda (see [Steam overlay: Gamescope callback timing](#gamescope-callback-timing) below).
    - GDI+ fallback: `GamePanel.UpdateFrame()` — copies pixels into Bitmap and calls Invalidate; `GdiRenderer.Tick()` — `D3DOverlayHook.Present()` for Steam overlay heartbeat.
 10. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
 11. FPS tracking
@@ -224,6 +224,18 @@ In D3D11 mode, `GamePanel` is **permanently hidden** (`Visible = false`). All re
 
 In GDI+ fallback mode, GamePanel stays visible at all times and handles all rendering through `OnPaint`.
 
+### Gamescope callback timing
+
+On Steam Deck, Gamescope (the Wayland compositor Proton uses) can block `vkQueuePresentKHR` for the duration of its own overlay presentation. While it is blocked, the Windows message pump is starved — `WM_TIMER` messages do not fire, so `_steamTimer` cannot call `SteamAPI.RunCallbacks()`. As a result, `GameOverlayActivated_t` is never dispatched, `SetPauseReason(Overlay, true)` is never called, and the emulation loop runs unpaused underneath the overlay.
+
+The fix: `SteamManager.RunCallbacksAfterPresent()` is called immediately after `Present()` unblocks, within the same `BeginInvoke` lambda that dispatches `DrawAndPresent`. This guarantees callbacks fire on the first frame after Gamescope releases the call, before the next emulation frame begins.
+
+`RunCallbacksAfterPresent()` does not run the store-retry logic (only `Tick()` on the timer does), so there is no double-counting of the retry countdown when both fire in the same tick.
+
+### Audio during overlay
+
+`SetPauseReason(Overlay, true)` mutes `AudioPlayer` (the NES APU ring-buffer bridge) and blocks the emulation loop. However, `MainMenuMusic` has its own independent `WasapiOut` device that `AudioPlayer` does not control. When the overlay opens on the main menu screen, `MainMenuMusic.Pause()` must be called separately; `MainMenuMusic.Resume()` is called when the overlay closes. This is wired in `MainForm`'s overlay callback alongside the `SetPauseReason` call.
+
 ### Initialisation order
 
 `D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions. `D3D11Renderer` is constructed immediately after `D3DOverlayHook.Initialize()`. A `Form.Resize` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
@@ -282,8 +294,7 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
        └─ BeginInvoke (UI thread) — upload and present batched together:
             ├─ D3D11Renderer.UploadFrame
             │    └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
-            └─ D3D11Renderer.Tick(vsync: true)
-                 └─ DrawAndPresent
+            └─ D3D11Renderer.DrawAndPresent(vsync: true)
                       ├─ Draw fullscreen NES quad — passthrough VS + PS (point-clamp sampler)
                       ├─ DrawOverlay — GDI+ Bitmap (menus / logo / HUD) alpha-blended over NES frame
                       └─ SwapChain.Present(syncInterval=1) — vsync on
@@ -292,6 +303,38 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
 `D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, and sampler. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
 
 **D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `MainForm` implements `IMenuSceneProvider`, returning a paint delegate for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path). `GamePanel` is permanently hidden in D3D11 mode and plays no role in rendering.
+
+### Overlay texture pipeline (D3D11)
+
+```
+IMenuSceneProvider.GetActiveScenePainter() — null during gameplay, delegate during menus/logo
+  │
+  ▼
+RenderOverlayBitmap()                       — only runs when _overlayDirty == true
+  ├─ g.Clear(Transparent)
+  ├─ scenePainter?.Invoke(g, clientRect)    — paints menu/logo onto CPU Bitmap
+  ├─ OverlayRenderer.DrawFps(...)           — transient HUD elements on top
+  └─ OverlayRenderer.DrawToast(...)
+  │
+  ▼
+UploadOverlayBitmap()
+  └─ LockBits(Format32bppArgb) → Map(WriteDiscard) → row-by-row copy (respects RowPitch)
+  │
+  ▼
+DrawAndPresent                              — overlay quad drawn after NES quad
+  └─ OMSetBlendState(SrcAlpha / InvSrcAlpha, straight alpha)
+       └─ Draw fullscreen overlay quad alpha-blended over the NES frame
+```
+
+**Texture format:** The overlay texture is `B8G8R8A8_UNorm` and viewport-sized (matches the swap chain, e.g. 1920×1080 at 1080p). GDI+'s `Format32bppArgb` stores bytes `[B,G,R,A]` — same layout, no byte-swapping.
+
+**Alpha blending:** Straight alpha (`SourceBlend = SrcAlpha`, `DestBlend = InvSrcAlpha`). GDI+ `Graphics.Clear(Color.Transparent)` initialises alpha=0 across the bitmap; only pixels actively painted by the scene delegate or HUD renderers carry non-zero alpha. The blend equation is `out = src.rgb × src.a + dst.rgb × (1 − src.a)`.
+
+**Conditional upload:** The overlay bitmap is re-rendered and re-uploaded only when `_overlayDirty == true`. All state changes that visually affect the overlay call `MarkOverlayDirty()`:
+- Scene transitions: menu open/close, logo start/tick, navigation key/gamepad input
+- Transient changes: `UpdateFpsOverlay`, `ShowToast`
+
+Static menu frames between inputs produce no GDI+ render and no GPU upload — the previously uploaded texture is simply re-composited by the quad draw. At 1080p (1920×1080×4 = ~8 MB), this matters: a static main menu screen costs one 8 MB upload on first display and nothing thereafter until the user presses a key.
 
 ### GDI+ path (fallback)
 
