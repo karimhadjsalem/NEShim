@@ -129,7 +129,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _d3dHook.Initialize(Handle, Width, Height);
         Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
 
-        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240);
+        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -152,7 +152,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _d3dHook = new Rendering.D3DOverlayHook();
         _d3dHook.Initialize(Handle, Width, Height);
 
-        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240);
+        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);

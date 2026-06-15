@@ -11,9 +11,16 @@ internal static class RendererFactory
         D3DOverlayHook hook,
         GamePanel      gamePanel,
         int            nesWidth,
-        int            nesHeight)
+        int            nesHeight,
+        string         forceRenderer = "auto")
     {
-        if (hook.Device is not null && hook.SwapChain is not null)
+        bool skipD3D11 = forceRenderer.Equals("gdi", StringComparison.OrdinalIgnoreCase);
+
+        if (skipD3D11)
+        {
+            Logger.Log("[Renderer] GDI+ forced via forceRenderer config.");
+        }
+        else if (hook.Device is not null && hook.SwapChain is not null)
         {
             try
             {
