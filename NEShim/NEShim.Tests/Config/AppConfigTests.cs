@@ -99,6 +99,13 @@ internal class AppConfigTests
     // ---- Hidden / developer-only defaults ----
 
     [Test]
+    public void ForceRenderer_DefaultIsAuto()
+    {
+        var config = new AppConfig();
+        Assert.That(config.ForceRenderer, Is.EqualTo("auto"));
+    }
+
+    [Test]
     public void EnableLogging_DefaultIsFalse()
     {
         var config = new AppConfig();
