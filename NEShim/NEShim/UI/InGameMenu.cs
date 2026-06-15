@@ -277,36 +277,6 @@ internal sealed partial class InGameMenu
         }
     }
 
-    // ---- Mouse input ----
-
-    /// <summary>Highlights the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseMove(Point p, Rectangle bounds)
-    {
-        if (!IsOpen || RebindingAction != null) return false;
-        int hit = MenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit) && hit != SelectedItem)
-        {
-            SelectedItem = hit;
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>Activates the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseClick(Point p, Rectangle bounds)
-    {
-        if (!IsOpen) return false;
-        if (RebindingAction != null) return true;
-        int hit = MenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit))
-        {
-            SelectedItem = hit;
-            ActivateCurrent();
-            return true;
-        }
-        return false;
-    }
-
     // ---- Internal helpers ----
 
     private void AdjustVolume(int delta)
@@ -387,7 +357,5 @@ internal sealed partial class InGameMenu
             ? b.GamepadButton ?? "(none)"
             : "(none)";
     }
-
-    public void Render(Graphics g, Rectangle bounds) => MenuRenderer.Draw(g, bounds, this);
 
 }

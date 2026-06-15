@@ -13,7 +13,7 @@ using NEShim.UI;
 
 namespace NEShim;
 
-public partial class MainForm : Form
+public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget
 {
     // ---- Win32 for WM_ACTIVATEAPP ----
     private const int WM_ACTIVATEAPP = 0x001C;
@@ -54,6 +54,10 @@ public partial class MainForm : Form
     private Bitmap? _sidebarLeft;
     private Bitmap? _sidebarRight;
 
+    // Cached bitmap for the in-game menu frozen-frame background in D3D11 mode.
+    // Created when the in-game menu opens, disposed when it closes.
+    private Bitmap? _frozenFrameBitmap;
+
     private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
 
     // Processor instances kept alive so they can be swapped without re-allocation.
@@ -90,6 +94,7 @@ public partial class MainForm : Form
 
     private void OnFormLoad(object? sender, EventArgs e)
     {
+        Cursor.Hide();
         try
         {
             InitializeEmulator();
@@ -127,6 +132,7 @@ public partial class MainForm : Form
         _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
+        _renderer.SetMenuSceneProvider(this);
 
         // IFrameRenderer.Resize handles swap chain resize (D3D11) or hook resize (GDI+).
         Resize += (_, _) => _renderer?.Resize(Width, Height);
@@ -149,6 +155,7 @@ public partial class MainForm : Form
         _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
+        _renderer.SetMenuSceneProvider(this);
 
         // Update EmulationThread's renderer reference while emulation is still paused.
         // EmulationThread.UpdateRenderer is safe here — ManualResetEventSlim provides the barrier.
@@ -201,12 +208,14 @@ public partial class MainForm : Form
 
     private void OnLogoTick(object? sender, EventArgs e)
     {
+        _renderer?.MarkOverlayDirty();
         _gamePanel?.Invalidate();
         if (_logoScreen?.IsComplete != true) return;
         _logoTimer!.Stop();
         _logoTimer.Dispose();
         _logoTimer = null;
-        _gamePanel?.Refresh(); // synchronous repaint — ensures the alpha=0 frame is visible before clearing
+        if (_renderer?.OwnsFrameSurface != true)
+            _gamePanel?.Refresh(); // GDI+ only — synchronous repaint for the alpha=0 final frame
         FinishInitialization();
     }
 
@@ -339,14 +348,8 @@ public partial class MainForm : Form
         {
             Logger.Log($"[Steam] Overlay toggle received — active={overlayActive}.");
             _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
-            if (_gamePanel is not null)
-            {
-                if (_renderer?.OwnsFrameSurface == true)
-                    UpdateGamePanelVisibility();
-                else
-                    _gamePanel.Visible = !overlayActive;
-                Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel.Visible}.");
-            }
+            UpdateGamePanelVisibility();
+            Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel?.Visible}.");
         });
         if (PlatformDetector.IsWine)
             Logger.Log("[Platform] Wine/Proton detected.");
@@ -399,20 +402,18 @@ public partial class MainForm : Form
         {
             _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
-            if (PlatformDetector.IsD3D11Active)
-                UpdateGamePanelVisibility(); // hides GamePanel — gameplay starts
-            else
-                _gamePanel?.Invalidate();
+            _renderer?.MarkOverlayDirty();
+            _gamePanel?.Invalidate();
+            UpdateGamePanelVisibility();
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
-            // Save was already loaded by MainMenuScreen while thread was blocked
+            // Save was already loaded by MainMenuScreen while thread was blocked.
             _mainMenuMusic?.FadeOut();
             _emulationThread?.DismissMainMenu();
-            if (PlatformDetector.IsD3D11Active)
-                UpdateGamePanelVisibility(); // hides GamePanel — gameplay starts
-            else
-                _gamePanel?.Invalidate();
+            _renderer?.MarkOverlayDirty();
+            _gamePanel?.Invalidate();
+            UpdateGamePanelVisibility();
         });
         _mainMenuScreen.ExitChosen += () => BeginInvoke(() =>
         {
@@ -461,20 +462,22 @@ public partial class MainForm : Form
                 _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
                 ConfigLoader.Save(_config!);
             });
-        // In D3D11 mode: show GamePanel (for GDI+ menu overlay) when the in-game menu opens;
-        // hide it again when the menu closes so the D3D11 NES frame is visible during gameplay.
         _menu.Opened += () => BeginInvoke(() =>
         {
-            if (PlatformDetector.IsD3D11Active)
-            {
-                _gamePanel?.SyncBitmap(); // capture current frame as frozen background
-                UpdateGamePanelVisibility();
-            }
+            // Build frozen-frame bitmap for the D3D11 menu background.
+            _frozenFrameBitmap?.Dispose();
+            _frozenFrameBitmap = BuildFrozenFrameBitmap();
+            _renderer?.MarkOverlayDirty();
+            _gamePanel?.Invalidate();
+            UpdateGamePanelVisibility();
         });
         _menu.Closed += () => BeginInvoke(() =>
         {
-            if (PlatformDetector.IsD3D11Active)
-                UpdateGamePanelVisibility();
+            _frozenFrameBitmap?.Dispose();
+            _frozenFrameBitmap = null;
+            _renderer?.MarkOverlayDirty();
+            _gamePanel?.Invalidate();
+            UpdateGamePanelVisibility();
         });
 
         _gamePanel!.SetMenu(_menu);
@@ -483,7 +486,10 @@ public partial class MainForm : Form
     private void InitializeEmulationStartup(AchievementManager? achievements)
     {
         _emulationThread = new EmulationThread(
-            _host!, _config!, _input!, _audio!, _frameBuffer!, _gamePanel!, _saveStates!, _menu!,
+            _host!, _config!, _input!, _audio!, _frameBuffer!,
+            this,   // Control for BeginInvoke (MainForm is a Control)
+            this,   // IMenuInputTarget (MainForm implements it)
+            _saveStates!, _menu!,
             _renderer!,
             achievements);
 
@@ -500,11 +506,12 @@ public partial class MainForm : Form
 
         _audio!.Start(_config!.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
-        _gamePanel!.Focus();
+        Focus(); // MainForm handles all keys via KeyPreview; focus the form directly
         _emulationThread.Start();
         Logger.Log("[Init] Startup complete — showing main menu.");
 
-        _gamePanel.Invalidate();
+        _renderer?.MarkOverlayDirty();
+        _gamePanel?.Invalidate();
     }
 
     private void ReturnToMainMenu()
@@ -515,10 +522,9 @@ public partial class MainForm : Form
         SteamManager.ActivateMenuSet();
         _mainMenuScreen?.Show();
         _mainMenuMusic?.FadeIn();
-        if (PlatformDetector.IsD3D11Active)
-            UpdateGamePanelVisibility();
-        else
-            _gamePanel?.Invalidate();
+        _renderer?.MarkOverlayDirty();
+        _gamePanel?.Invalidate();
+        UpdateGamePanelVisibility();
     }
 
     private static Bitmap? LoadSidebarBitmap(string path)
@@ -598,20 +604,18 @@ public partial class MainForm : Form
     }
 
     /// <summary>
-    /// In D3D11 mode, keeps GamePanel visible only when a UI overlay is active
-    /// (logo, main menu, in-game menu, or Steam overlay). During pure gameplay GamePanel
-    /// is hidden so the D3D11 swap chain surface is exposed and the NES frame is visible.
+    /// In D3D11 mode, keeps GamePanel permanently hidden — all rendering including menus
+    /// goes through the swap chain overlay. The sole exception is when the Steam overlay
+    /// is active, which requires the GDI+ surface visible so the hook can paint into it.
     /// No-op in GDI+ fallback mode (GamePanel always visible).
     /// </summary>
     private void UpdateGamePanelVisibility()
     {
         if (_gamePanel is null || _renderer?.OwnsFrameSurface != true) return;
-        bool anyOverlay = _logoScreen is not null
-            || _mainMenuScreen?.IsVisible == true
-            || _menu?.IsOpen == true
-            || (_emulationThread?.ActivePauseReasons & EmulationThread.PauseReasons.Overlay) != 0;
-        _gamePanel.Visible = anyOverlay;
-        Logger.Log($"[Renderer] GamePanel.Visible={_gamePanel.Visible} (OwnsFrameSurface mode).");
+        bool steamOverlayActive =
+            (_emulationThread?.ActivePauseReasons & EmulationThread.PauseReasons.Overlay) != 0;
+        _gamePanel.Visible = steamOverlayActive;
+        Logger.Log($"[Renderer] GamePanel.Visible={_gamePanel.Visible} (D3D11 mode).");
     }
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
@@ -629,6 +633,7 @@ public partial class MainForm : Form
             if (_mainMenuScreen.HandleKey(e.KeyCode))
             {
                 e.Handled = true;
+                _renderer?.MarkOverlayDirty();
                 _gamePanel?.Invalidate();
                 return;
             }
@@ -642,6 +647,7 @@ public partial class MainForm : Form
             if (_menu.HandleKey(e.KeyCode))
             {
                 e.Handled = true;
+                _renderer?.MarkOverlayDirty();
                 _gamePanel?.Invalidate();
                 return;
             }
@@ -654,6 +660,89 @@ public partial class MainForm : Form
             e.Handled = true;
         }
     }
+
+    // ---- IMenuSceneProvider / IMenuInputTarget ------------------------------------
+
+    Action<Graphics, Rectangle>? Rendering.IMenuSceneProvider.GetActiveScenePainter()
+    {
+        if (_logoScreen is not null)
+            return (g, b) => LogoRenderer.Draw(g, b, _logoScreen.Image, _logoScreen.CurrentAlpha);
+
+        if (_mainMenuScreen?.IsVisible == true)
+            return (g, b) => MainMenuRenderer.Draw(g, b, _mainMenuScreen);
+
+        if (_menu?.IsOpen == true)
+        {
+            var frozen = _frozenFrameBitmap;
+            return (g, b) =>
+            {
+                DrawFrozenFrameBackground(g, b, frozen);
+                MenuRenderer.Draw(g, b, _menu);
+            };
+        }
+
+        return null;
+    }
+
+    private static void DrawFrozenFrameBackground(Graphics g, Rectangle bounds, Bitmap? frozen)
+    {
+        if (frozen is null) return;
+        const float PixelAspect = 8f / 7f;
+        float displayAspect = frozen.Width * PixelAspect / frozen.Height;
+        float panelAspect   = (float)bounds.Width / bounds.Height;
+        int destW, destH;
+        if (panelAspect > displayAspect)
+        { destH = bounds.Height; destW = (int)(destH * displayAspect); }
+        else
+        { destW = bounds.Width;  destH = (int)(destW / displayAspect); }
+        int destX = (bounds.Width  - destW) / 2;
+        int destY = (bounds.Height - destH) / 2;
+        g.CompositingMode   = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.DrawImage(frozen, new Rectangle(destX, destY, destW, destH),
+            new Rectangle(0, 0, frozen.Width, frozen.Height), GraphicsUnit.Pixel);
+        g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
+    }
+
+    private Bitmap? BuildFrozenFrameBitmap()
+    {
+        if (_frameBuffer is null) return null;
+        var front = _frameBuffer.FrontBuffer;
+        var bmp = new Bitmap(256, 240, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var bd = bmp.LockBits(new Rectangle(0, 0, 256, 240),
+            System.Drawing.Imaging.ImageLockMode.WriteOnly,
+            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            System.Runtime.InteropServices.Marshal.Copy(
+                front, 0, bd.Scan0, Math.Min(front.Length, 256 * 240));
+        }
+        finally { bmp.UnlockBits(bd); }
+        return bmp;
+    }
+
+    bool UI.IMenuInputTarget.IsWaitingForGamepadButton
+        => _mainMenuScreen?.IsGamepadRebinding == true || _menu?.IsGamepadRebinding == true;
+
+    void UI.IMenuInputTarget.HandleGamepadNav(Input.MenuNavInput nav)
+    {
+        if (_mainMenuScreen?.IsVisible == true) _mainMenuScreen.HandleGamepadNav(nav);
+        else if (_menu?.IsOpen == true)         _menu.HandleGamepadNav(nav);
+        _renderer?.MarkOverlayDirty();
+        _gamePanel?.Invalidate();
+    }
+
+    void UI.IMenuInputTarget.HandleGamepadButtonPress(string buttonName)
+    {
+        string? toast = _mainMenuScreen?.IsVisible == true
+            ? _mainMenuScreen.HandleGamepadButtonPress(buttonName)
+            : _menu?.HandleGamepadButtonPress(buttonName);
+        if (toast is not null) _renderer?.ShowToast(toast);
+        _renderer?.MarkOverlayDirty();
+        _gamePanel?.Invalidate();
+    }
+
+    // ---- Form lifecycle -----------------------------------------------------------
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
@@ -683,6 +772,7 @@ public partial class MainForm : Form
         Logger.Log("[Shutdown] Disposing resources.");
         _logoTimer?.Dispose();
         _logoScreen?.Dispose();
+        _frozenFrameBitmap?.Dispose();
         _preloadedMenuBackground?.Dispose();
         _preloadedMusic?.Dispose();
         _steamTimer?.Dispose();

@@ -267,36 +267,6 @@ internal sealed partial class MainMenuScreen : IDisposable
         }
     }
 
-    // ---- Mouse input ----
-
-    /// <summary>Highlights the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseMove(System.Drawing.Point p, System.Drawing.Rectangle bounds)
-    {
-        if (!IsVisible || RebindingAction != null) return false;
-        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit) && hit != SelectedIndex)
-        {
-            SelectedIndex = hit;
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>Activates the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseClick(System.Drawing.Point p, System.Drawing.Rectangle bounds)
-    {
-        if (!IsVisible) return false;
-        if (RebindingAction != null) return true;
-        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit))
-        {
-            SelectedIndex = hit;
-            ActivateCurrent();
-            return true;
-        }
-        return false;
-    }
-
     // ---- Internal helpers ----
 
     private void AdjustVolume(int delta)

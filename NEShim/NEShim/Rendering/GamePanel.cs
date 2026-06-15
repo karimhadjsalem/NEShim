@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using NEShim.Input;
 using NEShim.UI;
@@ -10,10 +9,9 @@ using NEShim.UI;
 namespace NEShim.Rendering;
 
 /// <summary>
-/// Renders NES frames and overlays using GDI+.
-/// In D3D11 mode this panel is hidden during gameplay; it becomes visible only when
-/// a menu opens, showing a frozen NES frame (synced via <see cref="SyncBitmap"/>)
-/// as the menu background.
+/// Renders NES frames and overlays using GDI+. Used as the primary rendering surface in
+/// GDI+ fallback mode. In D3D11 mode this panel is permanently hidden; all rendering
+/// including menus goes through the D3D11 swap chain overlay.
 /// </summary>
 internal sealed class GamePanel : Panel
 {
@@ -25,9 +23,6 @@ internal sealed class GamePanel : Panel
     private IGraphicsScaler  _scaler = new NearestNeighborScaler();
     private Bitmap?          _sidebarLeft;
     private Bitmap?          _sidebarRight;
-
-    // Cursor visibility — tracked so Hide/Show calls stay balanced (they're reference-counted).
-    private bool _cursorHidden;
 
     // Toast notification
     private string? _toastText;
@@ -71,27 +66,12 @@ internal sealed class GamePanel : Panel
     // Allow all keys (including arrows, escape, enter) to reach KeyDown
     protected override bool IsInputKey(Keys keyData) => true;
 
-    public void SetMenu(InGameMenu menu)
-    {
-        _menu = menu;
-        // Events fire on the emulation thread — marshal to UI thread.
-        menu.Opened += () => BeginInvoke(() => SetCursorVisible(true));
-        menu.Closed += () => BeginInvoke(() => SetCursorVisible(false));
-    }
+    public void SetMenu(InGameMenu menu) => _menu = menu;
 
-    public void SetMainMenu(MainMenuScreen mainMenu)
-    {
-        _mainMenu = mainMenu;
-        SetCursorVisible(true); // main menu is visible on startup
-    }
+    public void SetMainMenu(MainMenuScreen mainMenu) => _mainMenu = mainMenu;
 
     public void SetLogoScreen(LogoScreen? logo) => _logoScreen = logo;
 
-    private void SetCursorVisible(bool visible)
-    {
-        if (visible && _cursorHidden)  { Cursor.Show(); _cursorHidden = false; }
-        if (!visible && !_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
-    }
     public void SetScaler(IGraphicsScaler scaler) => _scaler = scaler;
 
     /// <summary>
@@ -105,11 +85,8 @@ internal sealed class GamePanel : Panel
         _sidebarRight = right;
     }
 
-    private bool IsMenuActive => _mainMenu?.IsVisible == true || _menu?.IsOpen == true;
-
     /// <summary>
     /// True when the active menu is waiting for a gamepad button press (rebind mode).
-    /// Checked by the emulation thread each pause-loop tick.
     /// </summary>
     public bool IsWaitingForGamepadButton
         => _mainMenu?.IsGamepadRebinding == true || _menu?.IsGamepadRebinding == true;
@@ -132,34 +109,11 @@ internal sealed class GamePanel : Panel
     }
 
     /// <summary>
-    /// Copies the current front buffer into the GDI+ bitmap without invalidating.
-    /// Called by MainForm before making GamePanel visible for a menu (D3D11 mode) so the
-    /// frozen-frame background under the menu shows the most recent NES frame.
-    /// </summary>
-    internal void SyncBitmap()
-    {
-        var front = _frameBuffer.FrontBuffer;
-        var data = _bitmap.LockBits(
-            new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
-            ImageLockMode.WriteOnly,
-            PixelFormat.Format32bppArgb);
-        try
-        {
-            Marshal.Copy(front, 0, data.Scan0, Math.Min(front.Length, _bitmap.Width * _bitmap.Height));
-        }
-        finally
-        {
-            _bitmap.UnlockBits(data);
-        }
-    }
-
-    /// <summary>
     /// Called from GdiRenderer (via BeginInvoke) when a new frame is ready.
     /// Copies the emulation pixel data into the GDI+ bitmap and triggers a repaint.
     /// </summary>
     internal unsafe void UpdateFrame(ReadOnlySpan<int> pixels)
     {
-        SetCursorVisible(false); // game is running — no menu is open
         var data = _bitmap.LockBits(
             new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
             ImageLockMode.WriteOnly,
@@ -210,36 +164,6 @@ internal sealed class GamePanel : Panel
             return true;
         }
         return false;
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        base.OnMouseMove(e);
-        SetCursorVisible(IsMenuActive);
-
-        if (!IsMenuActive) return;
-
-        bool repaint = false;
-        if (_mainMenu?.IsVisible == true)
-            repaint = _mainMenu.HandleMouseMove(e.Location, ClientRectangle);
-        else if (_menu?.IsOpen == true)
-            repaint = _menu.HandleMouseMove(e.Location, ClientRectangle);
-
-        if (repaint) Invalidate();
-    }
-
-    protected override void OnMouseClick(MouseEventArgs e)
-    {
-        base.OnMouseClick(e);
-        if (e.Button != MouseButtons.Left) return;
-
-        bool repaint = false;
-        if (_mainMenu?.IsVisible == true)
-            repaint = _mainMenu.HandleMouseClick(e.Location, ClientRectangle);
-        else if (_menu?.IsOpen == true)
-            repaint = _menu.HandleMouseClick(e.Location, ClientRectangle);
-
-        if (repaint) Invalidate();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -311,7 +235,7 @@ internal sealed class GamePanel : Panel
             g.InterpolationMode = InterpolationMode.NearestNeighbor;
             g.DrawImage(_bitmap, destRect, srcRect, GraphicsUnit.Pixel);
             g.CompositingMode = CompositingMode.SourceOver;
-            _menu.Render(g, ClientRectangle);
+            MenuRenderer.Draw(g, ClientRectangle, _menu!);
         }
         else
         {

@@ -71,6 +71,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // _nesY0 is the TOP edge (higher clip-space y), _nesY1 is the BOTTOM (lower clip-space y).
     private float _nesX0, _nesX1, _nesY0, _nesY1;
 
+    // Menu/logo scene provider — set by MainForm after renderer creation.
+    private IMenuSceneProvider? _menuSceneProvider;
+
     // Overlay state — FPS fields written from emulation thread (volatile), rest from UI thread.
     private volatile bool  _showFps;
     private volatile float _currentFps;
@@ -82,6 +85,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private const int VertexStride = sizeof(float) * 4; // pos(xy) + texcoord(uv)
 
     public bool OwnsFrameSurface => true;
+
+    public void SetMenuSceneProvider(IMenuSceneProvider? provider) => _menuSceneProvider = provider;
+    public void MarkOverlayDirty() => _overlayDirty = true;
 
     public event EventHandler? DeviceLost;
 
@@ -424,21 +430,23 @@ internal sealed class D3D11Renderer : IFrameRenderer
         }
     }
 
-    // ---- Overlay rendering (FPS, toast, achievement) -----------------------------------
+    // ---- Overlay rendering (scene + FPS, toast, achievement) ---------------------------
 
     private void DrawOverlay()
     {
         // Expire elapsed notifications.
         var now = DateTime.UtcNow;
-        if (_toastText is not null && now >= _toastExpiry)       { _toastText = null;        _overlayDirty = true; }
+        if (_toastText is not null && now >= _toastExpiry)            { _toastText = null;        _overlayDirty = true; }
         if (_achievementText is not null && now >= _achievementExpiry) { _achievementText = null; _overlayDirty = true; }
 
-        bool hasOverlay = _showFps || _toastText is not null || _achievementText is not null;
-        if (!hasOverlay) return;
+        bool hasTransient = _showFps || _toastText is not null || _achievementText is not null;
+        bool hasScene     = _menuSceneProvider?.GetActiveScenePainter() is not null;
 
+        if (!hasTransient && !hasScene) return;
         if (_overlayBitmap is null || _overlayTexture is null) return;
 
-        if (_overlayDirty)
+        // Scenes always repaint: menu cursor movement changes state without setting _overlayDirty.
+        if (_overlayDirty || hasScene)
         {
             RenderOverlayBitmap();
             UploadOverlayBitmap();
@@ -460,6 +468,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
         using var g = Graphics.FromImage(_overlayBitmap!);
         g.Clear(System.Drawing.Color.Transparent);
         g.CompositingMode = CompositingMode.SourceOver;
+
+        // Draw active menu/logo scene first; transient overlays composite on top.
+        _menuSceneProvider?.GetActiveScenePainter()?.Invoke(g, clientRect);
 
         if (_showFps)
             OverlayRenderer.DrawFps(g, clientRect, _currentFps);

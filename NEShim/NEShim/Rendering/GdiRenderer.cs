@@ -42,5 +42,9 @@ internal sealed class GdiRenderer : IFrameRenderer
     public void ShowToast(string text)                   => _gamePanel.ShowToast(text);
     public void ShowAchievementNotification(string name) => _gamePanel.ShowAchievementNotification(name);
 
+    // GDI+ path: scene rendering goes through GamePanel.OnPaint; these are no-ops.
+    public void SetMenuSceneProvider(IMenuSceneProvider? provider) { }
+    public void MarkOverlayDirty() { }
+
     public void Dispose() { } // does not own gamePanel or hook
 }

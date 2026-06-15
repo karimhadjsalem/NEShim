@@ -30,6 +30,8 @@ internal static class Logger
     /// Activates logging and writes a session-start header to the log file.
     /// Call once, immediately after the config is loaded, when <c>EnableLogging</c> is true.
     /// </summary>
+    public static bool IsEnabled => _enabled;
+
     public static void Enable()
     {
         _enabled = true;

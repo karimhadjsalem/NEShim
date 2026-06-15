@@ -43,4 +43,16 @@ internal interface IFrameRenderer : IDisposable
     /// MainForm hides GamePanel during gameplay when true so the swap chain is visible.
     /// </summary>
     bool OwnsFrameSurface { get; }
+
+    /// <summary>
+    /// Registers the provider supplying per-frame menu/logo paint callbacks.
+    /// Only consumed by D3D11Renderer; GdiRenderer delegates scene rendering to GamePanel.OnPaint.
+    /// </summary>
+    void SetMenuSceneProvider(IMenuSceneProvider? provider);
+
+    /// <summary>
+    /// Marks the overlay texture as needing a repaint on the next <see cref="Tick"/>.
+    /// Called when menu state changes (navigation, screen transition). No-op in GdiRenderer.
+    /// </summary>
+    void MarkOverlayDirty();
 }
