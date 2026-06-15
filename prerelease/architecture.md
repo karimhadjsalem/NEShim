@@ -33,11 +33,11 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display surface), scalers, `D3DOverlayHook` (Steam overlay surface) |
+| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (GDI+ menu overlay surface), `D3D11Renderer` (primary NES frame renderer), scalers (GDI+ fallback), `D3DOverlayHook` (Steam overlay swap chain) |
 | `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
-| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection via `ntdll.dll::wine_get_version` and `SteamDeck` env var (used for startup logging); `PlatformDefaults` — config-override resolution for spin window and audio latency |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`ntdll.dll::wine_get_version`), SteamDeck env var, and `IsD3D11Active` (set at startup — gates D3D11-only video filter availability); `PlatformDefaults` — config-override resolution for spin window and audio latency |
 | `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
@@ -65,7 +65,9 @@ Program.cs
                  11. EmulationThread (starts paused at MainMenu)
                  12. SteamManager.Initialize() → overlay callback wired; UI-thread timer started (~60 Hz)
                  13. SetWindowMode() → then D3DOverlayHook.Initialize(Handle, Width, Height)
-                 14. audio.Start(), emulationThread.Start()
+                 14. D3D11Renderer constructed (reuses device + swap chain from D3DOverlayHook, if available)
+                     PlatformDetector.IsD3D11Active set accordingly
+                 15. audio.Start(), emulationThread.Start()
 ```
 
 All components are wired together in `MainForm.InitializeEmulator()` which owns construction, event subscription, and lifetime management. There is no dependency injection container — wiring is explicit and centralised.
@@ -97,12 +99,16 @@ Per-frame sequence:
 6. `EmulatorHost.RunFrame()` — advance NES by one frame
 7. `AchievementManager.Tick()` — evaluate memory triggers
 8. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
-9. `GamePanel.BeginInvoke(UpdateFrame)` — notify UI thread to repaint (non-blocking)
+9. **Frame dispatch (non-blocking, via `BeginInvoke` to UI thread):**
+   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` — uploads pixels to GPU texture; Present is called separately by the steamTimer
+   - GDI+ fallback: `GamePanel.UpdateFrame()` — copies pixels into Bitmap and calls Invalidate
 10. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
 11. FPS tracking
 12. Frame timing — sleep + spin to hit the target timestamp
 
-`SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) and `D3DOverlayHook.Present()` run on the **UI thread** via a `System.Windows.Forms.Timer` at ~60 Hz, not on the emulation thread. Steam requires callbacks to be dispatched on the same thread that called `SteamAPI.Init()`.
+The **steamTimer** (~60 Hz, UI thread) calls `SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) followed by **`D3D11Renderer.DrawAndPresent()`** (or `D3DOverlayHook.Present()` in GDI+ fallback mode). Separating upload (emulation thread BeginInvoke) from present (steamTimer) means the swap chain keeps receiving Present calls even when the emulation loop is paused — which keeps the Steam overlay hook alive during menus and focus-loss pauses.
+
+Steam requires callbacks to be dispatched on the same thread that called `SteamAPI.Init()`.
 
 **Cross-thread rules:**
 - The emulation thread never calls WinForms methods directly — always via `BeginInvoke`.
@@ -122,6 +128,7 @@ Per-frame sequence:
 | 2 | `Overlay` | Steam overlay opened | Overlay closed |
 | 4 | `FocusLost` | Window loses focus (`WM_ACTIVATEAPP`) | Window gains focus |
 | 8 | `MainMenu` | App starts / user returns to main menu | User picks New Game or Resume |
+| 16 | `DeviceLost` | D3D11 device removed (GPU driver reset, suspend/resume) | D3D11 reinitialised successfully |
 
 `SetPauseReason(reason, active)` uses a CAS loop to atomically set or clear the bit. When the result is non-zero the audio is muted and the `ManualResetEventSlim` is reset; when it reaches zero the audio is unmuted and the event is set to unblock the loop.
 
@@ -203,17 +210,34 @@ Looping is handled inside `LoopingSampleProvider` (an inner class) which seeks t
 
 ## Steam overlay
 
-NEShim renders with GDI+ and has no D3D or OpenGL `Present()` call by default. Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present` at the vtable level to enable itself — without that hook, `SteamUtils.IsOverlayEnabled()` stays `false` and Shift+Tab does nothing.
+Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present` at the vtable level — without that hook, `SteamUtils.IsOverlayEnabled()` stays `false` and Shift+Tab does nothing.
 
-**`D3DOverlayHook`** solves this by creating a minimal D3D11 device and swap chain bound to `MainForm.Handle` (the top-level window). Its `Present()` method is called from the UI-thread timer every ~16 ms alongside `SteamAPI.RunCallbacks()`. This gives Steam's DLL a `Present()` call to intercept, which enables the overlay.
+**`D3DOverlayHook`** creates a D3D11 device and swap chain bound to `MainForm.Handle`. In D3D11 mode, `D3D11Renderer.DrawAndPresent()` calls `SwapChain.Present()` every ~16 ms, which Steam intercepts. In GDI+ fallback mode, `D3DOverlayHook.Present()` serves as a minimal heartbeat.
 
-### Why GamePanel must be hidden during the overlay
+The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — see [Proton / Steam Deck notes](#proton--steam-deck-notes) below).
 
-Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* `MainForm`'s swap chain surface — so Steam's overlay content is always painted over by GDI+. When `GameOverlayActivated_t` fires, NEShim sets `GamePanel.Visible = false`, exposing the swap chain surface so the overlay becomes visible. `GamePanel` is restored when the overlay closes.
+### Why GamePanel must be hidden during the overlay (and menus)
+
+Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* the swap chain surface — so Steam's overlay content is always painted over by GDI+.
+
+When `GameOverlayActivated_t` fires, or when the in-game menu opens, NEShim sets `GamePanel.Visible = false`, exposing the swap chain surface so the overlay or the D3D11 menu background becomes visible. `GamePanel` is restored when the overlay or menu closes.
+
+In D3D11 mode, the NES frame is always rendered through the swap chain — `GamePanel` does not display the NES frame at all. GamePanel is only shown when a GDI+ menu or overlay needs to appear on top.
+
+> A future 2.1 update will migrate menus and overlay UI to D3D11, removing the GamePanel hide/show requirement entirely.
 
 ### Initialisation order
 
-`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions. A `Form.Resize` handler calls `D3DOverlayHook.Resize()` to keep the swap chain size correct when the player toggles windowed/fullscreen with F11.
+`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions. `D3D11Renderer` is constructed immediately after `D3DOverlayHook.Initialize()`. A `Form.Resize` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
+
+### Proton / Steam Deck notes
+
+DXVK is the Vulkan translation layer Proton uses for D3D11. Key behaviors:
+
+- **`SwapEffect.FlipDiscard` is required.** The legacy `Discard` effect is emulated in DXVK via a slower blit path. `FlipDiscard` maps cleanly to Vulkan's `VK_PRESENT_MODE_FIFO_KHR`.
+- **`RowPitch` alignment.** DXVK aligns texture row pitches for Vulkan buffer compatibility. `D3D11Renderer.UploadFrame` always copies row-by-row using `MappedSubresource.RowPitch`, never assuming `width × 4`.
+- **Shader cache.** DXVK compiles the passthrough DXBC shaders to SPIR-V on first launch and caches them in `~/.local/share/Steam/steamapps/shadercache/<appid>/`. The passthrough shaders are trivially simple; compilation is near-instant. Subsequent launches use the cached SPIR-V with no stutter.
+- **Testing on Proton requires the publish script.** Run `local-publish.ps1` before copying to a Steam Deck. `dotnet build` output omits `--self-contained` and `PublishReadyToRun`, both of which matter significantly for frame-rate on Proton. See `CLAUDE.md` for details.
 
 ### `SteamAPI.RestartAppIfNecessary`
 
@@ -221,12 +245,64 @@ Steam renders its overlay UI directly into the swap chain's back buffer via the 
 
 ---
 
+## D3D11 renderer and device loss
+
+### Ownership model
+
+`D3DOverlayHook` owns the D3D11 device and DXGI swap chain — it creates them and disposes them. `D3D11Renderer` is constructed with a reference to both and owns all other rendering objects:
+
+| Resource | Owner |
+|---|---|
+| `ID3D11Device`, `IDXGISwapChain` | `D3DOverlayHook` |
+| `ID3D11DeviceContext` (immediate) | retrieved from device; not disposed |
+| `ID3D11Texture2D` (NES texture), SRV | `D3D11Renderer` |
+| `ID3D11RenderTargetView` | `D3D11Renderer` (recreated on resize) |
+| Vertex buffer, VS, PS, input layout, sampler | `D3D11Renderer` |
+
+`D3D11Renderer.Dispose()` releases only the objects it owns. `D3DOverlayHook.Dispose()` is called after `D3D11Renderer.Dispose()` in `MainForm.OnFormClosing`.
+
+### Device loss recovery
+
+`D3D11Renderer.DrawAndPresent()` checks the `Present()` HRESULT for `DXGI_ERROR_DEVICE_REMOVED` (0x887A0005) and `DXGI_ERROR_DEVICE_RESET` (0x887A0007). If either occurs:
+
+1. `DeviceLost` event fires.
+2. `MainForm.OnD3DDeviceLost` handles it: sets `PauseReasons.DeviceLost`, disposes `D3D11Renderer` then `D3DOverlayHook`.
+3. Recreates `D3DOverlayHook` (new device + swap chain) and `D3D11Renderer`.
+4. If recreation succeeds, clears `PauseReasons.DeviceLost` to resume emulation.
+
+Device loss is rare on desktop (typically caused by a GPU driver reset or suspend/resume cycle). On Steam Deck it is more likely during system sleep.
+
+---
+
 ## Rendering pipeline
+
+### D3D11 path (primary)
+
+```
+NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
+  └─ FrameBuffer.WriteBack + Swap (emulation thread)
+       └─ BeginInvoke → D3D11Renderer.UploadFrame (UI thread)
+            └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
+                 [separate path — steamTimer.Tick, ~60 Hz, UI thread]
+                 └─ D3D11Renderer.DrawAndPresent
+                      ├─ OMSetRenderTargets (swap chain back buffer)
+                      ├─ ClearRenderTargetView (black)
+                      ├─ Draw fullscreen quad — passthrough VS + PS (point-clamp sampler)
+                      └─ SwapChain.Present(syncInterval=1) — vsync on
+```
+
+`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, SRV, RTV, vertex buffer, shaders, input layout, and sampler. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
+
+When `D3D11Renderer` is active, `GamePanel.OnPaint` skips the `g.DrawImage` NES-frame blit. GDI+ rendering in GamePanel is still used for menus, toasts, achievement banners, and FPS overlay — those continue to draw when GamePanel is visible.
+
+### GDI+ path (fallback)
+
+Used when D3D11 initialisation fails (no GPU, driver error).
 
 ```
 NES pixel buffer (int[256×240], ARGB)
   └─ FrameBuffer.WriteBack + Swap
-       └─ GamePanel.UpdateFrame (UI thread, via BeginInvoke)
+       └─ BeginInvoke → GamePanel.UpdateFrame (UI thread)
             └─ bitmap.LockBits → Marshal.Copy pixels into Bitmap
                  └─ GamePanel.OnPaint
                       ├─ If main menu visible → MainMenuRenderer.Draw()
@@ -242,9 +318,19 @@ NES pixel buffer (int[256×240], ARGB)
 
 **Aspect ratio:** The NES outputs 256×240 pixels, but NES pixels are not square — the display aspect ratio is `256 × (8/7) : 240 ≈ 8:7 → 1.212`. `GamePanel` computes a letterboxed destination rectangle that fills the window while preserving this ratio, producing black (or artwork) bars on the sides for widescreen displays.
 
-**Scalers** (`IGraphicsScaler`) configure GDI+ interpolation mode before `DrawImage`:
+**Scalers** (`IGraphicsScaler`) configure GDI+ interpolation mode before `DrawImage` (GDI+ fallback only):
 - `NearestNeighborScaler` — pixel-perfect, no blur.
 - `BilinearScaler` — smooth scaling for a softer look.
+
+In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `Filter.MinMagMipPoint` + `TextureAddressMode.Clamp` sampler in `D3D11Renderer`.
+
+### Renderer mode flag
+
+`PlatformDetector.IsD3D11Active` is set once at startup after `D3D11Renderer` is constructed:
+- `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
+- `false` — D3D11 unavailable; GDI+ path is active.
+
+All 2.0+ video filters (CRT scanlines, palette shaders, etc.) are D3D11-only. Before any menu offers a filter option, gate on `PlatformDetector.IsD3D11Active`. The GDI+ fallback intentionally has no filter support.
 
 ---
 
