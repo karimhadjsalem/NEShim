@@ -149,6 +149,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enableLogging` | boolean | `false` | When `true`, diagnostic output is appended to `neshim.log` in the executable directory. Useful for debugging startup, audio, or Steam handshake issues. **Do not ship with this enabled** — it creates a log file on the player's machine. |
+| `forceRenderer` | string | `"auto"` | Forces a specific rendering backend. `"auto"` — try D3D11 first, fall back to GDI+ if init fails (default). `"gdi"` — always use GDI+ (useful when isolating D3D11-specific issues). `"d3d11"` — prefer D3D11, still falls back to GDI+ if D3D11 init throws. Not exposed in any menu. |
 | `region` | string | `"Auto"` | NES emulation region. Controls CPU clock rate, PPU scanline timing, APU frame counter, and the VSync rate used by the frame-timing loop. `"Auto"` detects from the ROM's iNES header (correct for most ROMs). `"NTSC"` forces ~60.099 Hz; `"PAL"` forces ~50.007 Hz; `"Dendy"` forces ~49.99 Hz (Russian clone variant). |
 | `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `seal-achievements --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
@@ -213,6 +214,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
 
   "_comment_developer_settings": "The fields below are developer-only and not exposed in any menu.",
   "enableLogging": false,
+  "forceRenderer": "auto",
   "region": "Auto",
   "analogStickMode": "Cardinal",
   "achievementPublicKey": "",

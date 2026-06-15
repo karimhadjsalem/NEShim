@@ -33,12 +33,12 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (GDI+ menu overlay surface), `D3D11Renderer` (primary NES frame renderer), scalers (GDI+ fallback), `D3DOverlayHook` (Steam overlay swap chain) |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain), scalers |
 | `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`ntdll.dll::wine_get_version`), SteamDeck env var, and `IsD3D11Active` (set at startup — gates D3D11-only video filter availability); `PlatformDefaults` — config-override resolution for spin window and audio latency |
-| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` |
+| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer`; `IMenuInputTarget` (gamepad dispatch interface implemented by `MainForm`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
 
@@ -100,13 +100,13 @@ Per-frame sequence:
 7. `AchievementManager.Tick()` — evaluate memory triggers
 8. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
 9. **Frame dispatch (non-blocking, via `BeginInvoke` to UI thread):**
-   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` — uploads pixels to GPU texture; Present is called separately by the steamTimer
-   - GDI+ fallback: `GamePanel.UpdateFrame()` — copies pixels into Bitmap and calls Invalidate
+   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` then `D3D11Renderer.Tick(vsync: true)` — upload and present are batched in the same `BeginInvoke` call so Present fires immediately after the texture is ready, with no clock drift.
+   - GDI+ fallback: `GamePanel.UpdateFrame()` — copies pixels into Bitmap and calls Invalidate; `GdiRenderer.Tick()` — `D3DOverlayHook.Present()` for Steam overlay heartbeat.
 10. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
 11. FPS tracking
 12. Frame timing — sleep + spin to hit the target timestamp
 
-The **steamTimer** (~60 Hz, UI thread) calls `SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) followed by **`D3D11Renderer.DrawAndPresent()`** (or `D3DOverlayHook.Present()` in GDI+ fallback mode). Separating upload (emulation thread BeginInvoke) from present (steamTimer) means the swap chain keeps receiving Present calls even when the emulation loop is paused — which keeps the Steam overlay hook alive during menus and focus-loss pauses.
+The **steamTimer** (~60 Hz, UI thread) calls `SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) every tick, but only calls `Renderer.Tick()` when the emulation loop is **paused**. During gameplay, Present is driven by the `BeginInvoke` batch above, keeping it tightly coupled to frame production. When paused (menus, overlay, focus lost), no `BeginInvoke` calls are arriving, so the steamTimer drives Present to keep the Steam overlay hook alive.
 
 Steam requires callbacks to be dispatched on the same thread that called `SteamAPI.Init()`.
 
@@ -157,7 +157,7 @@ Both menus follow the same two-class pattern:
 
 | Class | Responsibility |
 |---|---|
-| `InGameMenu` | Owns state (`Current`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad, mouse). Drives transitions. Fires events. |
+| `InGameMenu` | Owns state (`Current`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad). Drives transitions. Fires events. |
 | `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(Graphics, Rectangle, InGameMenu)`. Creates and disposes all GDI+ resources within the call. |
 | `MainMenuScreen` | Same as `InGameMenu` but for the pre-game menu. |
 | `MainMenuRenderer` | Same as `MenuRenderer` for the pre-game menu. |
@@ -216,15 +216,13 @@ Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present
 
 The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — see [Proton / Steam Deck notes](#proton--steam-deck-notes) below).
 
-### Why GamePanel must be hidden during the overlay (and menus)
+### GamePanel visibility in D3D11 mode
 
-Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* the swap chain surface — so Steam's overlay content is always painted over by GDI+.
+Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* the swap chain surface — so Steam's overlay content would be painted over by GDI+ if GamePanel were visible.
 
-When `GameOverlayActivated_t` fires, or when the in-game menu opens, NEShim sets `GamePanel.Visible = false`, exposing the swap chain surface so the overlay or the D3D11 menu background becomes visible. `GamePanel` is restored when the overlay or menu closes.
+In D3D11 mode, `GamePanel` is **permanently hidden** (`Visible = false`). All rendering — NES frames, logo splash, main menu, in-game menu, and HUD overlays — goes through `D3D11Renderer` via the swap chain. The sole exception is when the Steam overlay is active (`PauseReasons.Overlay` set): GamePanel is made briefly visible so the overlay can composite over a GDI surface, then hidden again when the overlay closes.
 
-In D3D11 mode, the NES frame is always rendered through the swap chain — `GamePanel` does not display the NES frame at all. GamePanel is only shown when a GDI+ menu or overlay needs to appear on top.
-
-> A future 2.1 update will migrate menus and overlay UI to D3D11, removing the GamePanel hide/show requirement entirely.
+In GDI+ fallback mode, GamePanel stays visible at all times and handles all rendering through `OnPaint`.
 
 ### Initialisation order
 
@@ -281,19 +279,19 @@ Device loss is rare on desktop (typically caused by a GPU driver reset or suspen
 ```
 NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
   └─ FrameBuffer.WriteBack + Swap (emulation thread)
-       └─ BeginInvoke → D3D11Renderer.UploadFrame (UI thread)
-            └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
-                 [separate path — steamTimer.Tick, ~60 Hz, UI thread]
-                 └─ D3D11Renderer.DrawAndPresent
-                      ├─ OMSetRenderTargets (swap chain back buffer)
-                      ├─ ClearRenderTargetView (black)
-                      ├─ Draw fullscreen quad — passthrough VS + PS (point-clamp sampler)
+       └─ BeginInvoke (UI thread) — upload and present batched together:
+            ├─ D3D11Renderer.UploadFrame
+            │    └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
+            └─ D3D11Renderer.Tick(vsync: true)
+                 └─ DrawAndPresent
+                      ├─ Draw fullscreen NES quad — passthrough VS + PS (point-clamp sampler)
+                      ├─ DrawOverlay — GDI+ Bitmap (menus / logo / HUD) alpha-blended over NES frame
                       └─ SwapChain.Present(syncInterval=1) — vsync on
 ```
 
-`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, SRV, RTV, vertex buffer, shaders, input layout, and sampler. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
+`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, and sampler. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
 
-When `D3D11Renderer` is active, `GamePanel.OnPaint` skips the `g.DrawImage` NES-frame blit. GDI+ rendering in GamePanel is still used for menus, toasts, achievement banners, and FPS overlay — those continue to draw when GamePanel is visible.
+**D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `MainForm` implements `IMenuSceneProvider`, returning a paint delegate for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path). `GamePanel` is permanently hidden in D3D11 mode and plays no role in rendering.
 
 ### GDI+ path (fallback)
 
