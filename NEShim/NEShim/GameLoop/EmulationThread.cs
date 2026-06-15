@@ -248,13 +248,18 @@ internal sealed class EmulationThread
             _frameBuffer.Swap();
             long tAfterVideo = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
-            // 6. Push FPS state then queue frame upload on the UI thread (non-blocking).
-            // UpdateFpsOverlay writes volatile fields readable by DrawAndPresent on the UI thread.
-            // UploadFrame is always called on the UI thread (GPU texture map or GDI+ bitmap copy).
+            // 6. Push FPS state then queue frame upload + present on the UI thread (non-blocking).
+            // Upload and present are batched in one BeginInvoke so Present fires immediately after
+            // the texture is ready, keeping frame delivery tightly coupled to emulation timing.
+            // The steamTimer drives Present only when the emulation loop is paused.
             _renderer.UpdateFpsOverlay(_config.ShowFps, CurrentFps);
             int fw = _frameBuffer.Width;
             int fh = _frameBuffer.Height;
-            _uiMarshal.BeginInvoke(() => _renderer.UploadFrame(_frameBuffer.FrontBuffer, fw, fh));
+            _uiMarshal.BeginInvoke(() =>
+            {
+                _renderer.UploadFrame(_frameBuffer.FrontBuffer, fw, fh);
+                _renderer.Tick(vsync: true);
+            });
 
             // 7. Submit audio
             _host.Sound.GetSamplesSync(out short[] samples, out int nsamp);

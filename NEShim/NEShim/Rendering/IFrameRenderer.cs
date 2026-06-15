@@ -17,7 +17,12 @@ internal interface IFrameRenderer : IDisposable
     /// </summary>
     void UploadFrame(ReadOnlySpan<int> pixels, int contentWidth, int contentHeight);
 
-    /// <summary>Presents the last frame and keeps the Steam overlay heartbeat alive. Called from steamTimer (~60 Hz).</summary>
+    /// <summary>
+    /// Presents the last uploaded frame and keeps the Steam overlay heartbeat alive.
+    /// During gameplay, called immediately after <see cref="UploadFrame"/> in the same
+    /// BeginInvoke batch. When the emulation loop is paused, called from steamTimer (~60 Hz)
+    /// with <paramref name="vsync"/> false to keep the overlay hook fed without blocking.
+    /// </summary>
     void Tick(bool vsync);
 
     /// <summary>Recreates size-dependent resources after a window resize.</summary>

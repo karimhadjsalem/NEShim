@@ -494,13 +494,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             achievements);
 
         // Steam callbacks must be ticked on the same thread as SteamAPI.Init() (UI thread).
-        // Renderer.Tick also presents the swap chain, keeping the Steam overlay hook fed
-        // even when the emulation loop is paused (no new UploadFrame calls during pause).
+        // During gameplay, Present is driven by the UploadFrame BeginInvoke in EmulationThread
+        // so it fires immediately after each frame is ready (tight coupling, no clock drift).
+        // The timer drives Present only when the emulation loop is paused, keeping the Steam
+        // overlay hook alive without a running emulation loop to supply BeginInvoke calls.
         _steamTimer = new System.Windows.Forms.Timer { Interval = SteamCallbackIntervalMs };
         _steamTimer.Tick += (_, _) =>
         {
             SteamManager.Tick();
-            _renderer?.Tick(vsync: true);
+            if (_emulationThread?.IsPaused == true)
+                _renderer?.Tick(vsync: false);
         };
         _steamTimer.Start();
 
