@@ -252,6 +252,28 @@ All artwork paths in `config.json` are relative to the executable directory.
 
 ## 14. Build and publish
 
+### Shader compilation (pre-build requirement)
+
+NEShim's D3D11 renderer uses two HLSL shaders (`Passthrough.vs.hlsl` and `Passthrough.ps.hlsl`). These are compiled to DXBC bytecode (`.cso` files) by MSBuild using `fxc.exe` from the Windows SDK **before** the C# build begins. The compiled bytecode is embedded in the assembly as a resource — no `.cso` files ship with the game.
+
+`fxc.exe` is automatically located by MSBuild at:
+
+```
+$(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe
+```
+
+If the Windows SDK is not installed, the build fails with:
+
+```
+error MSB3073: The command "fxc.exe ..." exited with code 9009.
+```
+
+Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/).
+
+> Shader recompilation is incremental — MSBuild only runs `fxc.exe` when the `.hlsl` source files are newer than the `.cso` outputs. The `.cso` files are checked in to source control alongside the `.hlsl` files, so contributors without the Windows SDK can still build as long as they haven't modified the shaders.
+
+On Proton/Steam Deck, DXVK compiles the DXBC bytecode to SPIR-V on first launch and caches it in `~/.local/share/Steam/steamapps/shadercache/<appid>/`. The passthrough shaders are trivially simple; first-launch compile is near-instant.
+
 ```bash
 dotnet publish NEShim/NEShim/NEShim.csproj \
   -c Release \
