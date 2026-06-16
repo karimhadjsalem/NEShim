@@ -60,10 +60,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
 
-    // Processor instances kept alive so they can be swapped without re-allocation.
-    private readonly NesFilterProcessor     _nesFilterProcessor     = new();
-    private readonly SoundScrubberProcessor _soundScrubberProcessor = new();
-
     // ---- Logo splash screen ----
     private AchievementManager?         _pendingAchievements;
     private LogoScreen?                  _logoScreen;
@@ -334,13 +330,22 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void InitializeAudio()
     {
-        IAudioProcessor startingProcessor = _config!.SoundScrubberEnabled
-            ? _soundScrubberProcessor
-            : _nesFilterProcessor;
-        Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, processor={startingProcessor.GetType().Name}, volume={_config.Volume}%");
-        _audio = new AudioPlayer(_config.AudioBufferFrames, startingProcessor);
+        var filterMode = AudioFilterModeParser.Parse(_config!.AudioFilter);
+        _audio = new AudioPlayer(_config.AudioBufferFrames, CreateProcessor(filterMode));
         _audio.SetVolume(_config.Volume / 100f);
+        Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, filter={filterMode}, volume={_config.Volume}%");
     }
+
+    private static IAudioProcessor CreateProcessor(AudioFilterMode mode) => mode switch
+    {
+        AudioFilterMode.Warm         => new SoundScrubberProcessor(),
+        AudioFilterMode.PseudoStereo => new PseudoStereoProcessor(),
+        AudioFilterMode.WarmStereo   => new WarmStereoProcessor(),
+        AudioFilterMode.Compression  => new CompressionProcessor(),
+        AudioFilterMode.BassBoost    => new BassBoostProcessor(),
+        AudioFilterMode.Saturation   => new TapeSaturationProcessor(),
+        _                            => new NesFilterProcessor(),
+    };
 
     private LocalizationData InitializeSteamAndLocalization()
     {
@@ -377,7 +382,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled: on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onFilterChanged: mode => _audio?.SetProcessor(CreateProcessor(mode)),
             onMenuMusicToggled: on =>
             {
                 if (on)
@@ -462,7 +467,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onScrubberToggled:       on => _audio?.SetProcessor(on ? _soundScrubberProcessor : _nesFilterProcessor),
+            onFilterChanged:         mode => _audio?.SetProcessor(CreateProcessor(mode)),
             onGraphicsScalerToggled: on =>
             {
                 _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);

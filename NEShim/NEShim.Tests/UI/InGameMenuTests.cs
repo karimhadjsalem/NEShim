@@ -2,6 +2,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
 using NSubstitute;
@@ -36,13 +37,13 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action?       onExitToDesktop         = null,
-        Action?       onResetGame             = null,
-        Action?       onReturnToMainMenu      = null,
-        Action?       onConfigSaved           = null,
-        Action<int>?  onVolumeChanged         = null,
-        Action<bool>? onScrubberToggled       = null,
-        Action<bool>? onGraphicsScalerToggled = null)
+        Action?                   onExitToDesktop         = null,
+        Action?                   onResetGame             = null,
+        Action?                   onReturnToMainMenu      = null,
+        Action?                   onConfigSaved           = null,
+        Action<int>?              onVolumeChanged         = null,
+        Action<AudioFilterMode>?  onFilterChanged         = null,
+        Action<bool>?             onGraphicsScalerToggled = null)
     {
         return new InGameMenu(
             _saveStates,
@@ -54,7 +55,7 @@ internal class InGameMenuTests
             _ => { },
             onConfigSaved           ?? (() => { }),
             onVolumeChanged         ?? (_ => { }),
-            onScrubberToggled       ?? (_ => { }),
+            onFilterChanged         ?? (_ => { }),
             onGraphicsScalerToggled ?? (_ => { }));
     }
 
@@ -596,6 +597,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
+        // Volume + Audio Filter + Back
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -665,25 +667,29 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Sound_ScrubberToggle_UpdatesConfig()
+    public void Sound_FilterSelect_UpdatesConfig()
     {
-        _config.SoundScrubberEnabled = false;
+        _config.AudioFilter = "Default";
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down); // select Scrubber (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(_config.SoundScrubberEnabled, Is.True);
+        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm → returns to Sound
+        Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
     }
 
     [Test]
-    public void Sound_ScrubberToggle_InvokesCallback()
+    public void Sound_FilterSelect_InvokesCallback()
     {
-        bool received = false;
-        var menu = CreateMenu(onScrubberToggled: on => received = on);
+        AudioFilterMode? received = null;
+        var menu = CreateMenu(onFilterChanged: mode => received = mode);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down); // select Scrubber
-        menu.HandleKey(Keys.Return);
-        Assert.That(received, Is.True);
+        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm → callback fired
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
     [Test]
@@ -691,10 +697,100 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down); // select Back (index 2)
+        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // Back is at index 2
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    // ---- Audio Filter sub-screen ----
+
+    private static void OpenAudioFilterScreen(InGameMenu menu)
+    {
+        menu.Open(new int[256 * 240]);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
+        menu.HandleKey(Keys.Return);                             // enter Sound
+        menu.HandleKey(Keys.Down);                              // Audio Filter item (index 1)
+        menu.HandleKey(Keys.Return);                            // enter AudioFilter screen
+    }
+
+    [Test]
+    public void AudioFilter_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.AudioFilter));
+    }
+
+    [Test]
+    public void AudioFilter_GetTitle_ReturnsAudioFilter()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("AUDIO FILTER"));
+    }
+
+    [Test]
+    public void AudioFilter_GetCurrentItems_ReturnsEightItems()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        // 7 filter modes + Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
+    }
+
+    [Test]
+    public void AudioFilter_ActiveFilter_ShowsCheckmark()
+    {
+        _config.AudioFilter = "Warm";
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  ")); // Default — not active
+        Assert.That(items[1], Does.StartWith("✓"));  // Warm — active
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_UpdatesConfigAndReturnsToSound()
+    {
+        _config.AudioFilter = "Default";
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm
+        Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_InvokesCallback()
+    {
+        AudioFilterMode? received = null;
+        var menu = CreateMenu(onFilterChanged: mode => received = mode);
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Down);   // Warm
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
+    }
+
+    [Test]
+    public void AudioFilter_Back_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        for (int i = 0; i < 7; i++) menu.HandleKey(Keys.Down); // Back is at index 7
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_Escape_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Escape);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
     [Test]

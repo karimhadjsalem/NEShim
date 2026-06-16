@@ -2,6 +2,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
 using NSubstitute;
@@ -37,15 +38,15 @@ internal class MainMenuScreenTests
 
     // No background image path — avoids any file I/O in the constructor
     private MainMenuScreen CreateScreen(
-        Action<int>?  onVolumeChanged          = null,
-        Action<bool>? onScrubberToggled        = null,
-        Action<bool>? onMenuMusicToggled       = null,
-        Action<bool>? onGraphicsScalerToggled  = null) =>
+        Action<int>?             onVolumeChanged         = null,
+        Action<AudioFilterMode>? onFilterChanged         = null,
+        Action<bool>?            onMenuMusicToggled      = null,
+        Action<bool>?            onGraphicsScalerToggled = null) =>
         new(_saveStates, _config, new LocalizationData(), null,
             _ => { },
             () => { },
             onVolumeChanged         ?? (_ => { }),
-            onScrubberToggled       ?? (_ => { }),
+            onFilterChanged         ?? (_ => { }),
             onMenuMusicToggled      ?? (_ => { }),
             onGraphicsScalerToggled ?? (_ => { }));
 
@@ -251,7 +252,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
-        // Volume, Sound Scrubber, Menu Music, ← Back
+        // Volume + Audio Filter + Menu Music + Back
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(4));
     }
 
@@ -296,21 +297,23 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Sound_ScrubberToggle_UpdatesConfigAndCallsBack()
+    public void Sound_FilterSelect_UpdatesConfigAndCallsBack()
     {
-        var config = new AppConfig { SoundScrubberEnabled = false };
-        bool callbackReceived = false;
+        var config = new AppConfig { AudioFilter = "Default" };
+        AudioFilterMode? received = null;
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, on => callbackReceived = on, _ => { }, _ => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Down);   // select Scrubber (index 1)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(Keys.Down);   // index 1 = Audio Filter item
+        screen.HandleKey(Keys.Return); // enter AudioFilter sub-screen
+        screen.HandleKey(Keys.Down);   // index 1 = Warm
+        screen.HandleKey(Keys.Return); // select Warm → returns to Sound
 
-        Assert.That(config.SoundScrubberEnabled, Is.True);
-        Assert.That(callbackReceived, Is.True);
+        Assert.That(config.AudioFilter, Is.EqualTo("Warm"));
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
     [Test]
@@ -324,8 +327,7 @@ internal class MainMenuScreenTests
             _ => { }, _ => { }, on => received = on, _ => { });
 
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // select Menu Music (index 2)
+        for (int i = 0; i < 2; i++) screen.HandleKey(Keys.Down); // Music is at index 2
         screen.HandleKey(Keys.Return);
 
         Assert.That(config.MainMenuMusicEnabled, Is.False);
@@ -337,11 +339,102 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // select ← Back (index 3)
+        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // Back is at index 3
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    // ---- Audio Filter sub-screen ----
+
+    private static void OpenAudioFilterScreen(MainMenuScreen screen)
+    {
+        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // Sound (index 3)
+        screen.HandleKey(Keys.Return);                             // enter Sound
+        screen.HandleKey(Keys.Down);                              // Audio Filter item (index 1)
+        screen.HandleKey(Keys.Return);                            // enter AudioFilter screen
+    }
+
+    [Test]
+    public void AudioFilter_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.AudioFilter));
+    }
+
+    [Test]
+    public void AudioFilter_GetTitle_ReturnsAudioFilter()
+    {
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("AUDIO FILTER"));
+    }
+
+    [Test]
+    public void AudioFilter_GetCurrentItems_ReturnsEightItems()
+    {
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        // 7 filter modes + Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(8));
+    }
+
+    [Test]
+    public void AudioFilter_ActiveFilter_ShowsCheckmark()
+    {
+        _config.AudioFilter = "Warm";
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        string[] items = screen.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  ")); // Default — not active
+        Assert.That(items[1], Does.StartWith("✓"));  // Warm — active
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_UpdatesConfigAndReturnsToSound()
+    {
+        _config.AudioFilter = "Default";
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        screen.HandleKey(Keys.Down);   // index 1 = Warm
+        screen.HandleKey(Keys.Return); // select Warm
+        Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_InvokesCallback()
+    {
+        AudioFilterMode? received = null;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { },
+            _ => { }, mode => received = mode, _ => { }, _ => { });
+        OpenAudioFilterScreen(screen);
+        screen.HandleKey(Keys.Down);   // Warm
+        screen.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
+    }
+
+    [Test]
+    public void AudioFilter_Back_ReturnsToSound()
+    {
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        for (int i = 0; i < 7; i++) screen.HandleKey(Keys.Down); // Back is at index 7
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_Escape_ReturnsToSound()
+    {
+        using var screen = CreateScreen();
+        OpenAudioFilterScreen(screen);
+        screen.HandleKey(Keys.Escape);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
 
     [Test]

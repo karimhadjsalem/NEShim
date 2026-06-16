@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
 using NEShim.Saves;
@@ -24,8 +25,8 @@ internal sealed partial class InGameMenu
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<bool>     _onScrubberToggled;
-    private readonly Action<bool>     _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode> _onFilterChanged;
+    private readonly Action<bool>            _onGraphicsScalerToggled;
 
     private readonly (string Label, string ConfigKey)[] _bindingActions;
     private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
@@ -96,9 +97,9 @@ internal sealed partial class InGameMenu
         Action           onReturnToMainMenu,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
-        Action<int>      onVolumeChanged,
-        Action<bool>     onScrubberToggled,
-        Action<bool>     onGraphicsScalerToggled)
+        Action<int>             onVolumeChanged,
+        Action<AudioFilterMode> onFilterChanged,
+        Action<bool>            onGraphicsScalerToggled)
     {
         _saveStates              = saveStates;
         _config                  = config;
@@ -109,7 +110,7 @@ internal sealed partial class InGameMenu
         _onWindowModeToggle      = onWindowModeToggle;
         _onConfigSaved           = onConfigSaved;
         _onVolumeChanged         = onVolumeChanged;
-        _onScrubberToggled       = onScrubberToggled;
+        _onFilterChanged         = onFilterChanged;
         _onGraphicsScalerToggled = onGraphicsScalerToggled;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
@@ -127,6 +128,7 @@ internal sealed partial class InGameMenu
             [Screen.GamepadBindings]        = new GamepadBindingsHandler(this),
             [Screen.Video]                  = new VideoHandler(this),
             [Screen.Sound]                  = new SoundHandler(this),
+            [Screen.AudioFilter]            = new AudioFilterHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
                 () => { _saveStates.LoadFromActiveSlot(); Close(); }),
@@ -325,6 +327,7 @@ internal sealed partial class InGameMenu
         Screen.GamepadBindings  => Screen.Settings,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
+        Screen.AudioFilter      => Screen.Sound,
         _                       => Screen.Root,
     };
 

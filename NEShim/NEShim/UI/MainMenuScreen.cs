@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
 using NEShim.Saves;
@@ -78,9 +79,9 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<bool>     _onScrubberToggled;
-    private readonly Action<bool>     _onMenuMusicToggled;
-    private readonly Action<bool>     _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode> _onFilterChanged;
+    private readonly Action<bool>            _onMenuMusicToggled;
+    private readonly Action<bool>            _onGraphicsScalerToggled;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -97,10 +98,10 @@ internal sealed partial class MainMenuScreen : IDisposable
         string?          bgImagePath,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
-        Action<int>      onVolumeChanged,
-        Action<bool>     onScrubberToggled,
-        Action<bool>     onMenuMusicToggled,
-        Action<bool>     onGraphicsScalerToggled,
+        Action<int>             onVolumeChanged,
+        Action<AudioFilterMode> onFilterChanged,
+        Action<bool>            onMenuMusicToggled,
+        Action<bool>            onGraphicsScalerToggled,
         Bitmap?          bgImage = null)
     {
         _saveStates              = saveStates;
@@ -109,7 +110,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onWindowModeToggle      = onWindowModeToggle;
         _onConfigSaved           = onConfigSaved;
         _onVolumeChanged         = onVolumeChanged;
-        _onScrubberToggled       = onScrubberToggled;
+        _onFilterChanged         = onFilterChanged;
         _onMenuMusicToggled      = onMenuMusicToggled;
         _onGraphicsScalerToggled = onGraphicsScalerToggled;
 
@@ -142,6 +143,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
             [Screen.Video]            = new VideoHandler(this),
             [Screen.Sound]            = new SoundHandler(this),
+            [Screen.AudioFilter]      = new AudioFilterHandler(this),
         };
 
     // ---- Show (re-entry from in-game) ----
@@ -319,6 +321,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.GamepadBindings  => Screen.Settings,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
+        Screen.AudioFilter      => Screen.Sound,
         _                       => Screen.Main,
     };
 

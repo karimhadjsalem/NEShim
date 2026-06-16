@@ -32,9 +32,9 @@ internal sealed class LocalizationData
 
     // ---- Shared sound items ----
     /// <summary>Format string — {0} is the volume value (0–100).</summary>
-    public string SoundVolume     { get; init; } = "◀  Volume: {0}  ▶";
-    public string SoundScrubberOn  { get; init; } = "Sound Scrubber: On";
-    public string SoundScrubberOff { get; init; } = "Sound Scrubber: Off";
+    public string SoundVolume      { get; init; } = "◀  Volume: {0}  ▶";
+    public string AudioFilterLabel { get; init; } = "Audio Filter";
+    public string AudioFilterTitle { get; init; } = "AUDIO FILTER";
     /// <summary>Main menu only — not shown in the in-game pause menu.</summary>
     public string SoundMusicOn  { get; init; } = "Menu Music: On";
     public string SoundMusicOff { get; init; } = "Menu Music: Off";
