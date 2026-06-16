@@ -622,17 +622,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     /// <summary>
     /// In D3D11 mode, keeps GamePanel permanently hidden — all rendering including menus
-    /// goes through the swap chain overlay. The sole exception is when the Steam overlay
-    /// is active, which requires the GDI+ surface visible so the hook can paint into it.
+    /// goes through the swap chain. Steam's overlay hooks IDXGISwapChain::Present and
+    /// composites itself directly into the swap chain buffer; a visible GDI child window
+    /// (GamePanel) would sit above the swap chain in DWM's Z-order and cover the overlay.
     /// No-op in GDI+ fallback mode (GamePanel always visible).
     /// </summary>
     private void UpdateGamePanelVisibility()
     {
         if (_gamePanel is null || _renderer?.OwnsFrameSurface != true) return;
-        bool steamOverlayActive =
-            (_emulationThread?.ActivePauseReasons & EmulationThread.PauseReasons.Overlay) != 0;
-        _gamePanel.Visible = steamOverlayActive;
-        Logger.Log($"[Renderer] GamePanel.Visible={_gamePanel.Visible} (D3D11 mode).");
+        _gamePanel.Visible = false;
+        Logger.Log("[Renderer] GamePanel.Visible=False (D3D11 mode).");
     }
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
