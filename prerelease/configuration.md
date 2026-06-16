@@ -55,9 +55,11 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `audioBufferFrames` | integer | `3` | Size of the audio ring buffer in frames (~16.67 ms each). Increase if you hear crackling; decrease to reduce latency. Range: 1–8 is typical. |
 | `audioDevice` | string | `""` | Reserved for future use. Currently the audio system tries WASAPI shared mode, then falls back to WaveOut automatically. |
 | `volume` | integer | `100` | Master volume for game audio (0–100). Adjustable in the Sound menu. |
-| `soundScrubberEnabled` | boolean | `false` | When `true`, applies an extra low-pass at ~8 kHz after the standard NES filter chain, producing a warmer sound on modern speakers. See [audio processors](architecture.md#audio). |
+| `audioFilter` | string | `"Default"` | Audio filter applied to the NES audio output. `"Default"` — standard NES filter chain (HP@37Hz → HP@39Hz → LP@14kHz). `"Warm"` — adds a LP@8kHz stage for warmer sound on modern speakers. `"PseudoStereo"` — Haas-effect stereo widening from the mono source. `"WarmStereo"` — PseudoStereo + Warm lowpass combined. `"Compression"` — soft look-ahead compression to even out DPCM channel spikes. Unknown values throw a startup error. |
+| `mainMenuMusicVolume` | integer | `100` | Volume for main menu music (0–100), independent of the game audio `volume` field. Setting one does not affect the other. |
 | `mainMenuMusicEnabled` | boolean | `true` | When `false`, silences the main menu music regardless of `mainMenuMusicPath`. |
 | `mainMenuMusicPath` | string | `""` | Path to an audio file (MP3, WAV) played on the pre-game main menu. Looping. Leave empty to disable. |
+| ~~`soundScrubberEnabled`~~ | boolean | `false` | **Deprecated.** Use `audioFilter: "Warm"` instead. If `true` and `audioFilter` is still `"Default"`, the config loader promotes it to `"Warm"` automatically. |
 
 ---
 
@@ -65,7 +67,9 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `graphicsSmoothingEnabled` | boolean | `false` | When `false`, uses nearest-neighbour (pixel-perfect) scaling. When `true`, uses bilinear filtering for a softer look. Togglable in the Video menu. |
+| `videoFilter` | string | `"NearestNeighbour"` | Video filter applied to the NES framebuffer before display. `"NearestNeighbour"` — pixel-perfect, no smoothing (default). `"Bilinear"` — bilinear filtering for a softer look. `"PixelPerfect"` — nearest-neighbour with 8:7 pixel aspect ratio correction. `"CrtScanlines"` — nearest-neighbour with a scanline overlay shader. `"NtscComposite"` — NTSC composite encode/decode (CPU-side, blargg nes_ntsc). Unknown values throw a startup error. |
+| `overscanMode` | string | `"Auto"` | Controls how the NES PPU's 240-scanline output is cropped. `"Auto"` — NTSC crop (top and bottom 8 rows hidden, 224 rows displayed); correct default for the vast majority of NES games. `"NTSC"` — same as Auto, explicit. `"None"` — display all 240 rows. |
+| ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
 | `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. |
 | `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. |
@@ -206,9 +210,11 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "sidebarRightPath": "art/sidebar_right.png",
   "mainMenuMusicPath": "audio/menu_theme.mp3",
   "volume": 80,
-  "soundScrubberEnabled": false,
+  "audioFilter": "Default",
+  "mainMenuMusicVolume": 100,
   "mainMenuMusicEnabled": true,
-  "graphicsSmoothingEnabled": false,
+  "videoFilter": "NearestNeighbour",
+  "overscanMode": "Auto",
   "mainMenuPosition": "BottomCenter",
   "showFps": false,
 
