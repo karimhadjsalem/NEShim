@@ -193,12 +193,17 @@ Handlers are nested private classes and therefore have full access to all privat
 void ResetState();
 ```
 
-The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`. The new processor's state is reset before it takes effect to avoid pops. Two implementations ship:
+The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`. The new processor's state is reset before it takes effect to avoid pops. Seven implementations ship, selected via the `audioFilter` config field and the Audio Filter sub-menu in both the in-game pause menu and the main menu:
 
-| Class | Description |
-|---|---|
-| `NesFilterProcessor` | Emulates the NES hardware output filter: HP@37Hz → HP@39Hz → LP@14kHz. Accurate to the real hardware. |
-| `SoundScrubberProcessor` | Modified filter for warmer sound: HP@80Hz → HP@80Hz → LP@14kHz → LP@8kHz. The raised HP cutoffs tighten bass transients; the extra LP stage removes harsh square-wave harmonics. |
+| Class | `audioFilter` value | Description |
+|---|---|---|
+| `NesFilterProcessor` | `"Default"` | Emulates the NES hardware output filter: HP@37Hz → HP@39Hz → LP@14kHz. Accurate to the real hardware. |
+| `SoundScrubberProcessor` | `"Warm"` | Modified filter for warmer sound: HP@80Hz → HP@80Hz → LP@14kHz → LP@8kHz. The raised HP cutoffs tighten bass transients; the extra LP stage removes harsh square-wave harmonics. |
+| `PseudoStereoProcessor` | `"PseudoStereo"` | Standard NES filter chain + Haas-effect stereo widening. L = direct × 0.6, R = 20 ms delayed × 0.4. Constructor accepts `delayMs` so tests can warm up quickly. |
+| `WarmStereoProcessor` | `"WarmStereo"` | `PseudoStereo` + independent LP@8kHz per channel applied after the Haas split. |
+| `CompressionProcessor` | `"Compression"` | Standard NES chain + look-ahead RMS compressor (220-sample window, −6 dBFS threshold, 3:1 ratio, +2 dB makeup). Evens out DPCM channel level spikes. Running sum-of-squares for O(1) RMS; no per-sample buffer traversal. |
+| `BassBoostProcessor` | `"BassBoost"` | Standard NES chain + additive low-shelf LP@150Hz (`β ≈ 0.979`). Adds ~+4 dB at DC, ~+2 dB at 150 Hz; no effect above 1 kHz. For fuller sound on bass-light speakers or headphones. |
+| `TapeSaturationProcessor` | `"Saturation"` | Standard NES chain + tanh soft-clip (`Drive = 1.5`, normalized so 0 dBFS → 1.0). Super-linear below full scale (mid-level signals get a small boost); smooth saturation at peaks. Never clips to digital full-scale. |
 
 ### Main menu music
 
@@ -457,10 +462,10 @@ Key interfaces consumed:
 
 ## Adding a new audio processor
 
-1. Implement `IAudioProcessor` in `NEShim/Audio/`.
-2. Instantiate it in `MainForm` alongside the existing processors (they are kept alive for zero-allocation runtime swaps).
-3. Wire the toggle to `AppConfig`, the in-game Sound menu, and the main menu Sound screen.
-4. Call `AudioPlayer.SetProcessor(newProcessor)` in the relevant toggle callback.
+1. Implement `IAudioProcessor` in `NEShim/Audio/`. Constructor must accept `int sampleRate = 44100` so tests can override it.
+2. Add a new value to `AudioFilterMode` in `NEShim/Audio/AudioFilterMode.cs`. Add the matching `Parse()` case and, if the name is multi-word, a `DisplayName()` case in `AudioFilterModeParser`.
+3. Add the new mode to the `CreateProcessor` switch in `MainForm.cs`.
+4. No menu changes are needed — both `SoundHandler` classes read `Enum.GetValues<AudioFilterMode>()` dynamically. The new mode appears automatically in the Audio Filter sub-screen of both the in-game pause menu and the main menu.
 
 ---
 
