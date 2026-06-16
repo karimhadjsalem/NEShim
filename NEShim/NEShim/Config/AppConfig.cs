@@ -36,7 +36,22 @@ public sealed class AppConfig
     // When true, displays a live FPS counter in the top-right corner during gameplay.
     public bool ShowFps { get; set; } = false;
 
-    // When true, bilinear filtering is applied when scaling the NES frame.
+    // Video filter applied to the NES framebuffer before display.
+    // "NearestNeighbour" (default) — pixel-perfect, no smoothing.
+    // "Bilinear"         — bilinear filtering, softer look.
+    // "PixelPerfect"     — nearest-neighbour with 8:7 pixel aspect ratio correction.
+    // "CrtScanlines"     — nearest-neighbour with scanline overlay shader.
+    // "NtscComposite"    — NTSC composite encode/decode (CPU-side blargg nes_ntsc).
+    public string VideoFilter { get; set; } = "NearestNeighbour";
+
+    // Controls how the NES PPU's 240-scanline output is cropped.
+    // "None" — display all 240 rows.
+    // "NTSC" — crop 8 rows top and bottom, display 224 rows (matches NTSC TV output).
+    // "Auto" — apply NTSC cropping (default; correct for the vast majority of NES games).
+    public string OverscanMode { get; set; } = "Auto";
+
+    // Deprecated — use VideoFilter: "Bilinear" instead.
+    // If true and VideoFilter is still "NearestNeighbour", the loader promotes to "Bilinear".
     public bool GraphicsSmoothingEnabled { get; set; } = false;
 
     // ── Audio ─────────────────────────────────────────────────────────────────
@@ -48,11 +63,23 @@ public sealed class AppConfig
     // Master volume for game audio (0–100).
     public int Volume { get; set; } = 100;
 
-    // When true, applies an additional LP@8kHz stage for warmer, less harsh sound.
+    // Audio filter applied to the NES audio output.
+    // "Default"      — standard NES filter chain, no additional processing.
+    // "Warm"         — adds lowpass at ~8 kHz (replaces soundScrubberEnabled: true).
+    // "PseudoStereo" — Haas-effect stereo widening from mono source.
+    // "WarmStereo"   — PseudoStereo + Warm lowpass combined.
+    // "Compression"  — soft look-ahead compression to even out DPCM channel spikes.
+    public string AudioFilter { get; set; } = "Default";
+
+    // Deprecated — use AudioFilter: "Warm" instead.
+    // If true and AudioFilter is still "Default", the loader promotes to "Warm".
     public bool SoundScrubberEnabled { get; set; } = false;
 
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
+
+    // Volume for main menu music, independent of the game audio Volume field. Range 0–100.
+    public int MainMenuMusicVolume { get; set; } = 100;
 
     // ── Input ─────────────────────────────────────────────────────────────────
 

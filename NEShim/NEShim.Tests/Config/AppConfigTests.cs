@@ -140,4 +140,32 @@ internal class AppConfigTests
         Assert.That(config.OverrideStartBindingProtection, Is.False);
     }
 
+    [Test]
+    public void VideoFilter_DefaultIsNearestNeighbour()
+    {
+        var config = new AppConfig();
+        Assert.That(config.VideoFilter, Is.EqualTo("NearestNeighbour"));
+    }
+
+    [Test]
+    public void AudioFilter_DefaultIsDefault()
+    {
+        var config = new AppConfig();
+        Assert.That(config.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
+    public void OverscanMode_DefaultIsAuto()
+    {
+        var config = new AppConfig();
+        Assert.That(config.OverscanMode, Is.EqualTo("Auto"));
+    }
+
+    [Test]
+    public void MainMenuMusicVolume_DefaultIsOneHundred()
+    {
+        var config = new AppConfig();
+        Assert.That(config.MainMenuMusicVolume, Is.EqualTo(100));
+    }
+
 }

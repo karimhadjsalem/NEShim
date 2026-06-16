@@ -33,6 +33,7 @@ public static class ConfigLoader
         {
             string json = File.ReadAllText(configPath);
             var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            MigrateDeprecatedFields(config);
             Logger.Log($"[Config] Loaded from {configPath}");
             return config;
         }
@@ -41,6 +42,15 @@ public static class ConfigLoader
             Logger.Log($"[Config] Parse error — using defaults: {ex.Message}");
             return new AppConfig();
         }
+    }
+
+    private static void MigrateDeprecatedFields(AppConfig config)
+    {
+        if (config.SoundScrubberEnabled && config.AudioFilter == "Default")
+            config.AudioFilter = "Warm";
+
+        if (config.GraphicsSmoothingEnabled && config.VideoFilter == "NearestNeighbour")
+            config.VideoFilter = "Bilinear";
     }
 
     internal static void SaveTo(AppConfig config, string configPath)

@@ -176,4 +176,66 @@ internal class ConfigLoaderTests
 
         Assert.That(second.Volume, Is.EqualTo(first.Volume));
     }
+
+    // ---- Deprecated field migration ----
+
+    [Test]
+    public void LoadFrom_SoundScrubberEnabled_PromotesToWarmAudioFilter()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = true, AudioFilter = "Default" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("Warm"));
+    }
+
+    [Test]
+    public void LoadFrom_SoundScrubberEnabled_DoesNotOverrideExplicitAudioFilter()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = true, AudioFilter = "PseudoStereo" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("PseudoStereo"));
+    }
+
+    [Test]
+    public void LoadFrom_SoundScrubberDisabled_LeavesAudioFilterDefault()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = false, AudioFilter = "Default" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
+    public void LoadFrom_GraphicsSmoothingEnabled_PromotesToBilinearVideoFilter()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = true, VideoFilter = "NearestNeighbour" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("Bilinear"));
+    }
+
+    [Test]
+    public void LoadFrom_GraphicsSmoothingEnabled_DoesNotOverrideExplicitVideoFilter()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = true, VideoFilter = "CrtScanlines" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void LoadFrom_GraphicsSmoothingDisabled_LeavesVideoFilterDefault()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = false, VideoFilter = "NearestNeighbour" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("NearestNeighbour"));
+    }
 }
