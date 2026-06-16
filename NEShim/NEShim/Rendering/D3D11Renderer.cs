@@ -60,12 +60,25 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private int _viewportWidth;
     private int _viewportHeight;
 
-    // Active NES content size — may be smaller than _nesWidth/_nesHeight (e.g. 256×224 for NTSC
-    // with default overscan crop). Updated in UploadFrame; triggers a letterbox recompute.
+    private Filters.ID3D11Filter _activeFilter = new Filters.PixelPerfectD3D11Filter();
+    private OverscanMode         _overscanMode = OverscanMode.Overscan;
+
+    private const float UnderscanScale = 0.88f;
+
+    // Active NES content size as reported by the emulator. Updated in UploadFrame.
     private int _contentWidth;
     private int _contentHeight;
-    // v1 for the NES quad UV — contentHeight / textureHeight so the black overscan rows are hidden.
+
+    // UV range for the NES quad. Normally v0=0, v1=contentHeight/textureHeight.
+    // In Overscan mode, 8 rows are cropped from top (v0) and bottom (v1).
+    private float _nesV0 = 0f;
     private float _nesV1 = 1f;
+
+    // Effective display height used for aspect ratio computation.
+    // Differs from _contentHeight when overscan mode is active.
+    private int _displayHeight;
+
+    private const int OverscanCropRows = 8;
 
     // Letterbox clip-space edges — updated by UpdateLetterboxRect().
     // _nesY0 is the TOP edge (higher clip-space y), _nesY1 is the BOTTOM (lower clip-space y).
@@ -98,6 +111,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _nesHeight     = nesHeight;
         _contentWidth  = nesWidth;
         _contentHeight = nesHeight;
+        _displayHeight = nesHeight;
 
         // BizHawk IVideoProvider returns int[] where each int is 0xAARRGGBB.
         // In little-endian memory the bytes are [B, G, R, A] — BGRA — which maps
@@ -190,6 +204,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _alphaBlendState = device.CreateBlendState(blendDesc);
 
         CreateOverlayResources();
+        UpdateOverscanUV();
         UpdateLetterboxRect();
 
         Logger.Log($"[D3D11Renderer] Initialized ({nesWidth}×{nesHeight}, B8G8R8A8_UNorm, point-clamp). Renderer mode: D3D11.");
@@ -203,14 +218,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// </summary>
     public unsafe void UploadFrame(ReadOnlySpan<int> nesPixels, int contentWidth, int contentHeight)
     {
-        // If the NES core changed its active output size (e.g. first frame reports 256×224
-        // rather than the initial 256×240), recompute the letterbox rect so the black
-        // overscan rows are excluded from the display area.
         if (contentWidth != _contentWidth || contentHeight != _contentHeight)
         {
             _contentWidth  = contentWidth;
             _contentHeight = contentHeight;
-            _nesV1         = (float)contentHeight / _nesHeight;
+            UpdateOverscanUV();
             UpdateLetterboxRect();
         }
 
@@ -266,6 +278,35 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // when SetAchievement + StoreStats are called. GdiRenderer keeps its custom banner
     // as a fallback for when the overlay isn't available.
     public void ShowAchievementNotification(string name) { }
+
+    /// <summary>
+    /// Injects a new D3D11 filter. Updates the aspect ratio and destination rect immediately.
+    /// Called by MainForm with a filter created by D3D11FilterFactory.
+    /// </summary>
+    public void SetFilter(Filters.ID3D11Filter filter)
+    {
+        _activeFilter = filter;
+        UpdateLetterboxRect();
+    }
+
+    /// <inheritdoc/>
+    public void SetOverscanMode(OverscanMode mode)
+    {
+        _overscanMode = mode;
+        UpdateOverscanUV();
+        UpdateLetterboxRect();
+    }
+
+    /// <summary>
+    /// Applies both filter and overscan in one call. Used at startup and after device recovery.
+    /// </summary>
+    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan)
+    {
+        _activeFilter = filter;
+        _overscanMode = overscan;
+        UpdateOverscanUV();
+        UpdateLetterboxRect();
+    }
 
     /// <summary>
     /// Recreates size-dependent D3D11 resources after a window resize or mode change.
@@ -330,10 +371,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
             DrawSidebars();
 
         // Draw the letterboxed NES frame.
-        // v1 = _nesV1 (not 1.0) so the UV stops at the last content row,
-        // excluding black overscan rows that BizHawk leaves at the bottom of the texture.
+        // _nesV0/_nesV1 define the UV crop window (affected by overscan mode).
         _context.PSSetShaderResource(0, _nesTextureView);
-        WriteQuadToVB(_nesX0, _nesY0, _nesX1, _nesY1, 0f, 0f, 1f, _nesV1);
+        WriteQuadToVB(_nesX0, _nesY0, _nesX1, _nesY1, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
 
         // Draw GDI+-sourced overlay (FPS, toast, achievement) — alpha-blended.
@@ -532,18 +572,40 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _rightSidebarTex?.Dispose(); _rightSidebarTex = null;
     }
 
+    // ---- Overscan UV helpers -----------------------------------------------------------
+
+    /// <summary>
+    /// Recomputes _nesV0, _nesV1, and _displayHeight from the current overscan mode and
+    /// content height. Must be called before UpdateLetterboxRect whenever either changes.
+    /// </summary>
+    private void UpdateOverscanUV()
+    {
+        if (_overscanMode == OverscanMode.Overscan && _contentHeight >= OverscanCropRows * 2)
+        {
+            _nesV0         = (float)OverscanCropRows / _nesHeight;
+            _nesV1         = (float)(_contentHeight - OverscanCropRows) / _nesHeight;
+            _displayHeight = _contentHeight - OverscanCropRows * 2;
+        }
+        else
+        {
+            _nesV0         = 0f;
+            _nesV1         = (float)_contentHeight / _nesHeight;
+            _displayHeight = _contentHeight;
+        }
+    }
+
     // ---- Vertex buffer helpers ---------------------------------------------------------
 
     /// <summary>
     /// Computes the letterbox clip-space edges using the NES 8:7 pixel aspect ratio.
-    /// Called once on construction and again after each Resize.
+    /// Applies Underscan scaling when the overscan mode is set to Underscan.
+    /// Called once on construction and again after each Resize or overscan mode change.
     /// </summary>
     private void UpdateLetterboxRect()
     {
-        const float PixelAspect = 8f / 7f;
-        // Use content dimensions (e.g. 256×224 for NTSC) not the full texture size (256×240),
-        // so the aspect ratio matches what the NES actually outputs to the visible area.
-        float displayAspect = _contentWidth * PixelAspect / _contentHeight;
+        // Use _activeFilter.PixelAspectRatio so future shader-based filters (e.g. NTSC,
+        // which may alter perceived pixel width) are handled without touching this method.
+        float displayAspect = _contentWidth * _activeFilter.PixelAspectRatio / _displayHeight;
         float windowAspect  = (float)_viewportWidth / _viewportHeight;
 
         float destW, destH;
@@ -558,14 +620,20 @@ internal sealed class D3D11Renderer : IFrameRenderer
             destH = destW / displayAspect;
         }
 
+        if (_overscanMode == OverscanMode.Underscan)
+        {
+            destW *= UnderscanScale;
+            destH *= UnderscanScale;
+        }
+
         float destX = (_viewportWidth  - destW) / 2f;
         float destY = (_viewportHeight - destH) / 2f;
 
         // D3D clip space: x ∈ [-1,1], y=+1 at top, y=-1 at bottom.
         _nesX0 = (destX / _viewportWidth)           * 2f - 1f;  // left edge
         _nesX1 = ((destX + destW) / _viewportWidth) * 2f - 1f;  // right edge
-        _nesY0 = 1f - (destY / _viewportHeight) * 2f;                   // top edge
-        _nesY1 = 1f - ((destY + destH) / _viewportHeight) * 2f;         // bottom edge
+        _nesY0 = 1f - (destY / _viewportHeight) * 2f;           // top edge
+        _nesY1 = 1f - ((destY + destH) / _viewportHeight) * 2f; // bottom edge
     }
 
     /// <summary>

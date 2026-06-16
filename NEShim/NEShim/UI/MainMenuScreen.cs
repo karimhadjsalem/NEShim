@@ -79,9 +79,10 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<AudioFilterMode> _onFilterChanged;
-    private readonly Action<bool>            _onMenuMusicToggled;
-    private readonly Action<bool>            _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode>           _onFilterChanged;
+    private readonly Action<bool>                      _onMenuMusicToggled;
+    private readonly Action<Rendering.VideoFilterMode> _onVideoFilterChanged;
+    private readonly Action<Rendering.OverscanMode>    _onOverscanModeChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -101,7 +102,8 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<int>             onVolumeChanged,
         Action<AudioFilterMode> onFilterChanged,
         Action<bool>            onMenuMusicToggled,
-        Action<bool>            onGraphicsScalerToggled,
+        Action<Rendering.VideoFilterMode> onVideoFilterChanged,
+        Action<Rendering.OverscanMode>    onOverscanModeChanged,
         Bitmap?          bgImage = null)
     {
         _saveStates              = saveStates;
@@ -110,9 +112,10 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onWindowModeToggle      = onWindowModeToggle;
         _onConfigSaved           = onConfigSaved;
         _onVolumeChanged         = onVolumeChanged;
-        _onFilterChanged         = onFilterChanged;
-        _onMenuMusicToggled      = onMenuMusicToggled;
-        _onGraphicsScalerToggled = onGraphicsScalerToggled;
+        _onFilterChanged       = onFilterChanged;
+        _onMenuMusicToggled    = onMenuMusicToggled;
+        _onVideoFilterChanged  = onVideoFilterChanged;
+        _onOverscanModeChanged = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);

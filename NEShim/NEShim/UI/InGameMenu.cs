@@ -25,8 +25,9 @@ internal sealed partial class InGameMenu
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<AudioFilterMode> _onFilterChanged;
-    private readonly Action<bool>            _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode>        _onFilterChanged;
+    private readonly Action<Rendering.VideoFilterMode> _onVideoFilterChanged;
+    private readonly Action<Rendering.OverscanMode>    _onOverscanModeChanged;
 
     private readonly (string Label, string ConfigKey)[] _bindingActions;
     private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
@@ -99,7 +100,8 @@ internal sealed partial class InGameMenu
         Action           onConfigSaved,
         Action<int>             onVolumeChanged,
         Action<AudioFilterMode> onFilterChanged,
-        Action<bool>            onGraphicsScalerToggled)
+        Action<Rendering.VideoFilterMode> onVideoFilterChanged,
+        Action<Rendering.OverscanMode>    onOverscanModeChanged)
     {
         _saveStates              = saveStates;
         _config                  = config;
@@ -109,9 +111,10 @@ internal sealed partial class InGameMenu
         _onReturnToMainMenu      = onReturnToMainMenu;
         _onWindowModeToggle      = onWindowModeToggle;
         _onConfigSaved           = onConfigSaved;
-        _onVolumeChanged         = onVolumeChanged;
-        _onFilterChanged         = onFilterChanged;
-        _onGraphicsScalerToggled = onGraphicsScalerToggled;
+        _onVolumeChanged       = onVolumeChanged;
+        _onFilterChanged       = onFilterChanged;
+        _onVideoFilterChanged  = onVideoFilterChanged;
+        _onOverscanModeChanged = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);

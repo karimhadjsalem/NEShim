@@ -230,12 +230,48 @@ internal class ConfigLoaderTests
     }
 
     [Test]
-    public void LoadFrom_GraphicsSmoothingDisabled_LeavesVideoFilterDefault()
+    public void LoadFrom_NearestNeighbour_MigratesTo_PixelPerfect()
     {
         var original = new AppConfig { GraphicsSmoothingEnabled = false, VideoFilter = "NearestNeighbour" };
         ConfigLoader.SaveTo(original, _configPath);
 
         var loaded = ConfigLoader.LoadFrom(_configPath);
-        Assert.That(loaded.VideoFilter, Is.EqualTo("NearestNeighbour"));
+        Assert.That(loaded.VideoFilter, Is.EqualTo("PixelPerfect"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_None_MigratesTo_Normal()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"None"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Normal"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_NTSC_MigratesTo_Overscan()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"NTSC"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Overscan"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_Auto_MigratesTo_Overscan()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"Auto"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Overscan"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_Valid_NotMigrated()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"Underscan"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Underscan"));
     }
 }

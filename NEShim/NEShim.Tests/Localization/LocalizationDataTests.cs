@@ -88,4 +88,53 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.InGameRebindPressButton, Does.Contain("\n"));
     }
+
+    [Test]
+    public void DefaultInstance_VideoFilterSmooth_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterSmooth, Is.EqualTo("Smooth"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoFilterPixelPerfect_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterPixelPerfect, Is.EqualTo("Pixel Perfect"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoFilterCrtScanlines_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterCrtScanlines, Is.EqualTo("CRT Scanlines"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoFilterNtscComposite_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterNtscComposite, Is.EqualTo("NTSC Composite"));
+    }
+
+    [Test]
+    public void DefaultInstance_OverscanOverscan_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.OverscanOverscan, Is.EqualTo("Overscan"));
+    }
+
+    [Test]
+    public void DefaultInstance_OverscanNormal_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.OverscanNormal, Is.EqualTo("Normal"));
+    }
+
+    [Test]
+    public void DefaultInstance_OverscanUnderscan_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.OverscanUnderscan, Is.EqualTo("Underscan"));
+    }
 }

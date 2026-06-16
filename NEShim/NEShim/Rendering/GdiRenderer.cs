@@ -29,8 +29,8 @@ internal sealed class GdiRenderer : IFrameRenderer
 
     public void UploadFrame(ReadOnlySpan<int> pixels, int contentWidth, int contentHeight)
         => _gamePanel.UpdateFrame(pixels);
-    public void Tick(bool vsync)                          => _hook.Present();
-    public void Resize(int width, int height)             => _hook.Resize(width, height);
+    public void Tick(bool vsync)          => _hook.Present();
+    public void Resize(int width, int height) => _hook.Resize(width, height);
 
     public void UpdateFpsOverlay(bool show, float fps)
     {
@@ -41,6 +41,24 @@ internal sealed class GdiRenderer : IFrameRenderer
     public void SetSidebars(Bitmap? left, Bitmap? right) => _gamePanel.SetSidebars(left, right);
     public void ShowToast(string text)                   => _gamePanel.ShowToast(text);
     public void ShowAchievementNotification(string name) => _gamePanel.ShowAchievementNotification(name);
+
+    /// <summary>
+    /// Injects a new GDI+ filter. Takes effect on the next paint cycle.
+    /// Called by MainForm with a filter created by GdiFilterFactory.
+    /// </summary>
+    public void SetFilter(Filters.IGdiFilter filter) => _gamePanel.SetFilter(filter);
+
+    /// <inheritdoc/>
+    public void SetOverscanMode(OverscanMode overscan) => _gamePanel.SetOverscanMode(overscan);
+
+    /// <summary>
+    /// Applies both filter and overscan in one call. Used at startup and after device recovery.
+    /// </summary>
+    public void InitializeRenderingOptions(Filters.IGdiFilter filter, OverscanMode overscan)
+    {
+        _gamePanel.SetFilter(filter);
+        _gamePanel.SetOverscanMode(overscan);
+    }
 
     // GDI+ path: scene rendering goes through GamePanel.OnPaint; these are no-ops.
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) { }

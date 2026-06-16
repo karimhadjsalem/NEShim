@@ -51,6 +51,16 @@ public static class ConfigLoader
 
         if (config.GraphicsSmoothingEnabled && config.VideoFilter == "NearestNeighbour")
             config.VideoFilter = "Bilinear";
+
+        if (config.VideoFilter == "NearestNeighbour")
+            config.VideoFilter = "PixelPerfect";
+
+        config.OverscanMode = config.OverscanMode switch
+        {
+            "None"           => "Normal",
+            "NTSC" or "Auto" => "Overscan",
+            _                => config.OverscanMode,
+        };
     }
 
     internal static void SaveTo(AppConfig config, string configPath)

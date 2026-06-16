@@ -60,4 +60,10 @@ internal interface IFrameRenderer : IDisposable
     /// Called when menu state changes (navigation, screen transition). No-op in GdiRenderer.
     /// </summary>
     void MarkOverlayDirty();
+
+    /// <summary>
+    /// Applies an overscan mode change immediately. Safe to call mid-game — takes effect
+    /// on the next rendered frame. Implemented by both D3D11Renderer and GdiRenderer.
+    /// </summary>
+    void SetOverscanMode(OverscanMode overscan);
 }

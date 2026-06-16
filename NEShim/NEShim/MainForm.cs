@@ -70,10 +70,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private Bitmap?        _preloadedMenuBackground;
     private MainMenuMusic? _preloadedMusic;
 
-    // Scaler instances kept alive for zero-allocation runtime swaps.
-    private readonly IGraphicsScaler _nearestScaler  = new NearestNeighborScaler();
-    private readonly IGraphicsScaler _bilinearScaler = new BilinearScaler();
-
     private bool _isFullscreen = true;
 
     public MainForm()
@@ -130,8 +126,33 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
 
+        ApplyRenderingOptions();
+
         // IFrameRenderer.Resize handles swap chain resize (D3D11) or hook resize (GDI+).
         Resize += (_, _) => _renderer?.Resize(Width, Height);
+    }
+
+    private void ApplyRenderingOptions()
+    {
+        var mode    = Rendering.VideoFilterModeParser.Parse(_config!.VideoFilter);
+        var overscan = Rendering.OverscanModeParser.Parse(_config.OverscanMode);
+
+        var supported = Platform.PlatformDetector.IsD3D11Active
+            ? Rendering.VideoFilterModeParser.D3D11Supported
+            : Rendering.VideoFilterModeParser.GdiSupported;
+
+        if (!supported.Contains(mode))
+        {
+            Logger.Log($"[Renderer] VideoFilter '{_config.VideoFilter}' is not supported in " +
+                       $"{(Platform.PlatformDetector.IsD3D11Active ? "D3D11" : "GDI+")} mode; " +
+                       $"falling back to PixelPerfect.");
+            mode = Rendering.VideoFilterMode.PixelPerfect;
+        }
+
+        if (_renderer is Rendering.D3D11Renderer d3d)
+            d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan);
+        else if (_renderer is Rendering.GdiRenderer gdi)
+            gdi.InitializeRenderingOptions(Rendering.Filters.GdiFilterFactory.Create(mode), overscan);
     }
 
     private void OnD3DDeviceLost(object? sender, EventArgs e)
@@ -152,6 +173,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
+        ApplyRenderingOptions();
 
         // Update EmulationThread's renderer reference while emulation is still paused.
         // EmulationThread.UpdateRenderer is safe here — ManualResetEventSlim provides the barrier.
@@ -311,8 +333,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     {
         _frameBuffer  = new FrameBuffer();
         _gamePanel    = new GamePanel(_frameBuffer) { Dock = DockStyle.Fill };
-        _gamePanel.SetScaler(_config!.GraphicsSmoothingEnabled ? _bilinearScaler : _nearestScaler);
-        _sidebarLeft  = LoadSidebarBitmap(_config.SidebarLeftPath);
+        _sidebarLeft  = LoadSidebarBitmap(_config!.SidebarLeftPath);
         _sidebarRight = LoadSidebarBitmap(_config.SidebarRightPath);
         Controls.Add(_gamePanel);
     }
@@ -399,10 +420,20 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                     _mainMenuMusic?.Stop();
                 }
             },
-            onGraphicsScalerToggled: on =>
+            onVideoFilterChanged: mode =>
             {
-                _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
-                ConfigLoader.Save(_config!);
+                _config!.VideoFilter = mode.ToString();
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                else if (_renderer is Rendering.GdiRenderer gdi)
+                    gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
+                ConfigLoader.Save(_config);
+            },
+            onOverscanModeChanged: overscan =>
+            {
+                _config!.OverscanMode = overscan.ToString();
+                _renderer?.SetOverscanMode(overscan);
+                ConfigLoader.Save(_config);
             });
 
         _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
@@ -467,11 +498,21 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _audio?.SetVolume(vol / 100f);
                 _mainMenuMusic?.SetMasterVolume(vol / 100f);
             },
-            onFilterChanged:         mode => _audio?.SetProcessor(CreateProcessor(mode)),
-            onGraphicsScalerToggled: on =>
+            onFilterChanged: mode => _audio?.SetProcessor(CreateProcessor(mode)),
+            onVideoFilterChanged: mode =>
             {
-                _gamePanel?.SetScaler(on ? _bilinearScaler : _nearestScaler);
-                ConfigLoader.Save(_config!);
+                _config!.VideoFilter = mode.ToString();
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                else if (_renderer is Rendering.GdiRenderer gdi)
+                    gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
+                ConfigLoader.Save(_config);
+            },
+            onOverscanModeChanged: overscan =>
+            {
+                _config!.OverscanMode = overscan.ToString();
+                _renderer?.SetOverscanMode(overscan);
+                ConfigLoader.Save(_config);
             });
         _menu.Opened += () => BeginInvoke(() =>
         {

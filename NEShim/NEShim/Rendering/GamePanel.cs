@@ -20,7 +20,9 @@ internal sealed class GamePanel : Panel
     private InGameMenu?      _menu;
     private MainMenuScreen?  _mainMenu;
     private LogoScreen?      _logoScreen;
-    private IGraphicsScaler  _scaler = new NearestNeighborScaler();
+    private Filters.IGdiFilter _activeFilter = new Filters.PixelPerfectGdiFilter();
+    private IGraphicsScaler    _scaler       = new NearestNeighborScaler();
+    private OverscanMode       _overscanMode = OverscanMode.Overscan;
     private Bitmap?          _sidebarLeft;
     private Bitmap?          _sidebarRight;
 
@@ -45,8 +47,8 @@ internal sealed class GamePanel : Panel
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool ShowFps { get => _showFps; set => _showFps = value; }
 
-    // NES pixels are not square — display width = bufferWidth * (8/7)
-    private const float NesPixelAspect = 8f / 7f;
+    private const float UnderscanScale   = 0.88f;
+    private const int   OverscanCropRows = 8;
 
     public GamePanel(FrameBuffer frameBuffer)
     {
@@ -72,7 +74,26 @@ internal sealed class GamePanel : Panel
 
     public void SetLogoScreen(LogoScreen? logo) => _logoScreen = logo;
 
-    public void SetScaler(IGraphicsScaler scaler) => _scaler = scaler;
+    /// <summary>
+    /// Injects a new GDI+ filter. Updates the cached scaler and triggers a repaint.
+    /// Safe to call mid-game — takes effect on the next paint cycle.
+    /// </summary>
+    public void SetFilter(Filters.IGdiFilter filter)
+    {
+        _activeFilter = filter;
+        _scaler       = filter.CreateScaler();
+        Invalidate();
+    }
+
+    /// <summary>
+    /// Applies an overscan mode change. Triggers a repaint.
+    /// Safe to call mid-game — takes effect on the next paint cycle.
+    /// </summary>
+    public void SetOverscanMode(OverscanMode overscan)
+    {
+        _overscanMode = overscan;
+        Invalidate();
+    }
 
     /// <summary>
     /// Sets the images drawn in the left and right letterbox bars during GDI+ gameplay.
@@ -187,35 +208,44 @@ internal sealed class GamePanel : Panel
         _scaler.Configure(g);
 
         int srcW = _frameBuffer.Width;
-        int srcH = _frameBuffer.Height;
 
-        float displayAspect = srcW * NesPixelAspect / srcH;
+        bool applyOverscanCrop = _overscanMode == OverscanMode.Overscan;
+        int  srcY = applyOverscanCrop ? OverscanCropRows : 0;
+        int  srcH = applyOverscanCrop ? _frameBuffer.Height - OverscanCropRows * 2 : _frameBuffer.Height;
+
+        float parWidth      = srcW * _activeFilter.PixelAspectRatio;
+        float displayAspect = parWidth / srcH;
         float panelAspect   = (float)Width / Height;
 
-        int destW, destH;
+        float destWf, destHf;
         if (panelAspect > displayAspect)
         {
-            destH = Height;
-            destW = (int)(Height * displayAspect);
+            destHf = Height;
+            destWf = Height * displayAspect;
         }
         else
         {
-            destW = Width;
-            destH = (int)(Width / displayAspect);
+            destWf = Width;
+            destHf = Width / displayAspect;
         }
 
+        if (_overscanMode == OverscanMode.Underscan)
+        {
+            destWf *= UnderscanScale;
+            destHf *= UnderscanScale;
+        }
+
+        int destW = (int)destWf;
+        int destH = (int)destHf;
         int destX = (Width  - destW) / 2;
         int destY = (Height - destH) / 2;
 
-        // Fill letterbox bars with black
+        // Fill the area outside the NES image with black
         g.CompositingMode = CompositingMode.SourceCopy;
         using var black = new SolidBrush(Color.Black);
-        if (destX > 0) g.FillRectangle(black, 0, 0, destX, Height);
-        if (destY > 0) g.FillRectangle(black, 0, 0, Width, destY);
-        if (destX > 0) g.FillRectangle(black, Width - destX, 0, destX, Height);
-        if (destY > 0) g.FillRectangle(black, 0, Height - destY, Width, destY);
+        g.FillRectangle(black, 0, 0, Width, Height);
 
-        // Draw sidebar images over the left and right bars if configured
+        // Draw sidebar images over the left and right letterbox bars if configured
         if (destX > 0)
         {
             if (_sidebarLeft  != null) OverlayRenderer.DrawSidebar(g, _sidebarLeft,  new Rectangle(0,             0, destX, Height));
@@ -224,7 +254,7 @@ internal sealed class GamePanel : Panel
                 _scaler.Configure(g); // restore scaler settings changed by DrawSidebar
         }
 
-        var srcRect  = new Rectangle(0, 0, srcW, srcH);
+        var srcRect  = new Rectangle(0, srcY, srcW, srcH);
         var destRect = new Rectangle(destX, destY, destW, destH);
 
         if (_menu?.IsOpen == true)

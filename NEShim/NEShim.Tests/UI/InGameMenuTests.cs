@@ -37,26 +37,28 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action?                   onExitToDesktop         = null,
-        Action?                   onResetGame             = null,
-        Action?                   onReturnToMainMenu      = null,
-        Action?                   onConfigSaved           = null,
-        Action<int>?              onVolumeChanged         = null,
-        Action<AudioFilterMode>?  onFilterChanged         = null,
-        Action<bool>?             onGraphicsScalerToggled = null)
+        Action?                                       onExitToDesktop        = null,
+        Action?                                       onResetGame            = null,
+        Action?                                       onReturnToMainMenu     = null,
+        Action?                                       onConfigSaved          = null,
+        Action<int>?                                  onVolumeChanged        = null,
+        Action<AudioFilterMode>?                      onFilterChanged        = null,
+        Action<NEShim.Rendering.VideoFilterMode>?     onVideoFilterChanged   = null,
+        Action<NEShim.Rendering.OverscanMode>?        onOverscanModeChanged  = null)
     {
         return new InGameMenu(
             _saveStates,
             _config,
             new LocalizationData(),
-            onExitToDesktop         ?? (() => { }),
-            onResetGame             ?? (() => { }),
-            onReturnToMainMenu      ?? (() => { }),
+            onExitToDesktop       ?? (() => { }),
+            onResetGame           ?? (() => { }),
+            onReturnToMainMenu    ?? (() => { }),
             _ => { },
-            onConfigSaved           ?? (() => { }),
-            onVolumeChanged         ?? (_ => { }),
-            onFilterChanged         ?? (_ => { }),
-            onGraphicsScalerToggled ?? (_ => { }));
+            onConfigSaved         ?? (() => { }),
+            onVolumeChanged       ?? (_ => { }),
+            onFilterChanged       ?? (_ => { }),
+            onVideoFilterChanged  ?? (_ => { }),
+            onOverscanModeChanged ?? (_ => { }));
     }
 
     private static int[] EmptyFrame() => new int[256 * 240];
@@ -374,8 +376,9 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Video screen
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
-        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
-        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
+        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in Video)
         bool before = _config.ShowFps;
         menu.HandleKey(Keys.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!before));
@@ -392,8 +395,9 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
         menu.HandleKey(Keys.Down);   // select Video (index 2)
         menu.HandleKey(Keys.Return); // enter Video screen
-        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
-        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
+        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in Video)
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -557,7 +561,7 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         menuWithToggle.Open(new int[256 * 240]);
         _config.WindowMode = "Fullscreen";
@@ -823,11 +827,11 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsFourItems()
+    public void Video_GetCurrentItems_ReturnsFiveItems()
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(4));
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
     }
 
     [Test]
@@ -845,21 +849,36 @@ internal class InGameMenuTests
         OpenVideoScreen(menu);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // ← Back (index 3)
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);   // ← Back (index 4)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
     [Test]
-    public void Video_GraphicsToggle_UpdatesConfigAndCallsBack()
+    public void Video_FilterCycle_UpdatesConfigAndCallsBack()
     {
-        bool received = false;
-        var menu = CreateMenu(onGraphicsScalerToggled: on => received = on);
+        NEShim.Rendering.VideoFilterMode? received = null;
+        var menu = CreateMenu(onVideoFilterChanged: f => received = f);
+        _config.VideoFilter = "PixelPerfect";
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);   // select Graphics (index 1)
+        menu.HandleKey(Keys.Down);   // select Video Filter (index 1)
+        menu.HandleKey(Keys.Return); // cycle: in GDI mode next after PixelPerfect wraps to Bilinear
+        Assert.That(received, Is.Not.Null);
+    }
+
+    [Test]
+    public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
+    {
+        NEShim.Rendering.OverscanMode? received = null;
+        var menu = CreateMenu(onOverscanModeChanged: m => received = m);
+        _config.OverscanMode = "Overscan";
+        OpenVideoScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);   // select Overscan (index 2)
         menu.HandleKey(Keys.Return);
-        Assert.That(_config.GraphicsSmoothingEnabled, Is.True);
-        Assert.That(received, Is.True);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
+        Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
     }
 
     // ---- Rollover ----

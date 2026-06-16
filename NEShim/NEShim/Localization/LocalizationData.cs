@@ -25,10 +25,21 @@ internal sealed class LocalizationData
     // ---- Shared video items ----
     public string VideoWindowFullscreen { get; init; } = "Window Mode: Fullscreen";
     public string VideoWindowWindowed   { get; init; } = "Window Mode: Windowed";
-    public string VideoGraphicsSmooth   { get; init; } = "Graphics: Smooth";
-    public string VideoGraphicsOriginal { get; init; } = "Graphics: Original";
+    public string VideoFilterLabel      { get; init; } = "Video Filter";
+    public string OverscanLabel         { get; init; } = "Overscan";
     public string VideoFpsOn            { get; init; } = "FPS Overlay: On";
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
+
+    // ---- Video filter display names ----
+    public string VideoFilterSmooth        { get; init; } = "Smooth";
+    public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
+    public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
+    public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
+
+    // ---- Overscan mode display names ----
+    public string OverscanOverscan  { get; init; } = "Overscan";
+    public string OverscanNormal    { get; init; } = "Normal";
+    public string OverscanUnderscan { get; init; } = "Underscan";
 
     // ---- Shared sound items ----
     /// <summary>Format string — {0} is the volume value (0–100).</summary>

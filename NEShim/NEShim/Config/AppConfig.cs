@@ -37,21 +37,22 @@ public sealed class AppConfig
     public bool ShowFps { get; set; } = false;
 
     // Video filter applied to the NES framebuffer before display.
-    // "NearestNeighbour" (default) — pixel-perfect, no smoothing.
-    // "Bilinear"         — bilinear filtering, softer look.
-    // "PixelPerfect"     — nearest-neighbour with 8:7 pixel aspect ratio correction.
-    // "CrtScanlines"     — nearest-neighbour with scanline overlay shader.
-    // "NtscComposite"    — NTSC composite encode/decode (CPU-side blargg nes_ntsc).
-    public string VideoFilter { get; set; } = "NearestNeighbour";
+    // GDI+ mode supports: "Bilinear" (smooth), "PixelPerfect" (8:7 PAR, hard edges).
+    // D3D11 mode supports: "PixelPerfect"; "CrtScanlines" and "NtscComposite" coming soon.
+    // Unsupported values for the active renderer are silently ignored at startup.
+    // "NearestNeighbour" is a deprecated alias — migrated to "PixelPerfect" at load time.
+    public string VideoFilter { get; set; } = "PixelPerfect";
 
-    // Controls how the NES PPU's 240-scanline output is cropped.
-    // "None" — display all 240 rows.
-    // "NTSC" — crop 8 rows top and bottom, display 224 rows (matches NTSC TV output).
-    // "Auto" — apply NTSC cropping (default; correct for the vast majority of NES games).
-    public string OverscanMode { get; set; } = "Auto";
+    // Controls how the NES image is displayed relative to the window edges.
+    // "Overscan"  — crop 8 rows top and bottom (224 rows visible); matches original NTSC TV output.
+    // "Normal"    — display all 240 rows.
+    // "Underscan" — display all 240 rows but scale the image to 88% of the window, with a
+    //               uniform black border on all sides (simulates an underscanned CRT monitor).
+    // Legacy values "NTSC" and "Auto" map to "Overscan"; "None" maps to "Normal".
+    public string OverscanMode { get; set; } = "Overscan";
 
     // Deprecated — use VideoFilter: "Bilinear" instead.
-    // If true and VideoFilter is still "NearestNeighbour", the loader promotes to "Bilinear".
+    // If true and VideoFilter is "NearestNeighbour", the loader promotes to "Bilinear".
     public bool GraphicsSmoothingEnabled { get; set; } = false;
 
     // ── Audio ─────────────────────────────────────────────────────────────────

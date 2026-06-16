@@ -5,10 +5,18 @@ namespace NEShim.Tests.Rendering;
 [TestFixture]
 internal class OverscanModeParserTests
 {
-    [TestCase("None", OverscanMode.None)]
-    [TestCase("NTSC", OverscanMode.Ntsc)]
-    [TestCase("Auto", OverscanMode.Auto)]
+    [TestCase("Overscan",  OverscanMode.Overscan)]
+    [TestCase("Normal",    OverscanMode.Normal)]
+    [TestCase("Underscan", OverscanMode.Underscan)]
     public void Parse_KnownValue_ReturnsCorrectMode(string input, OverscanMode expected)
+    {
+        Assert.That(OverscanModeParser.Parse(input), Is.EqualTo(expected));
+    }
+
+    [TestCase("None", OverscanMode.Normal)]
+    [TestCase("NTSC", OverscanMode.Overscan)]
+    [TestCase("Auto", OverscanMode.Overscan)]
+    public void Parse_LegacyAlias_ReturnsMigratedMode(string input, OverscanMode expected)
     {
         Assert.That(OverscanModeParser.Parse(input), Is.EqualTo(expected));
     }

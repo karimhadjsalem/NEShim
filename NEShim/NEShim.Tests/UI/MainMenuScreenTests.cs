@@ -38,17 +38,19 @@ internal class MainMenuScreenTests
 
     // No background image path — avoids any file I/O in the constructor
     private MainMenuScreen CreateScreen(
-        Action<int>?             onVolumeChanged         = null,
-        Action<AudioFilterMode>? onFilterChanged         = null,
-        Action<bool>?            onMenuMusicToggled      = null,
-        Action<bool>?            onGraphicsScalerToggled = null) =>
+        Action<int>?                                  onVolumeChanged       = null,
+        Action<AudioFilterMode>?                      onFilterChanged       = null,
+        Action<bool>?                                 onMenuMusicToggled    = null,
+        Action<NEShim.Rendering.VideoFilterMode>?     onVideoFilterChanged  = null,
+        Action<NEShim.Rendering.OverscanMode>?        onOverscanModeChanged = null) =>
         new(_saveStates, _config, new LocalizationData(), null,
             _ => { },
             () => { },
-            onVolumeChanged         ?? (_ => { }),
-            onFilterChanged         ?? (_ => { }),
-            onMenuMusicToggled      ?? (_ => { }),
-            onGraphicsScalerToggled ?? (_ => { }));
+            onVolumeChanged       ?? (_ => { }),
+            onFilterChanged       ?? (_ => { }),
+            onMenuMusicToggled    ?? (_ => { }),
+            onVideoFilterChanged  ?? (_ => { }),
+            onOverscanModeChanged ?? (_ => { }));
 
     private void CreateSlotFile(int slot) =>
         File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
@@ -272,7 +274,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
         screen.HandleKey(Keys.Left);
@@ -288,7 +290,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right);
@@ -304,7 +306,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Down);   // index 1 = Audio Filter item
@@ -324,7 +326,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, _ => { }, on => received = on, _ => { });
+            _ => { }, _ => { }, on => received = on, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         for (int i = 0; i < 2; i++) screen.HandleKey(Keys.Down); // Music is at index 2
@@ -411,7 +413,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(screen);
         screen.HandleKey(Keys.Down);   // Warm
         screen.HandleKey(Keys.Return);
@@ -466,12 +468,12 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsFourItems()
+    public void Video_GetCurrentItems_ReturnsFiveItems()
     {
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        // Window Mode, FPS Overlay, Graphics, ← Back
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(4));
+        // Window Mode, Video Filter, Overscan, FPS Overlay, ← Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
     }
 
     [Test]
@@ -489,21 +491,37 @@ internal class MainMenuScreenTests
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // ← Back (index 3)
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // ← Back (index 4)
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
     [Test]
-    public void Video_GraphicsToggle_UpdatesConfigAndCallsBack()
+    public void Video_FilterCycle_UpdatesConfigAndCallsBack()
     {
-        bool received = false;
-        using var screen = CreateScreen(onGraphicsScalerToggled: on => received = on);
+        NEShim.Rendering.VideoFilterMode? received = null;
+        using var screen = CreateScreen(onVideoFilterChanged: mode => received = mode);
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);   // select Graphics (index 1)
+        screen.HandleKey(Keys.Down);   // Video Filter (index 1)
         screen.HandleKey(Keys.Return);
-        Assert.That(_config.GraphicsSmoothingEnabled, Is.True);
-        Assert.That(received, Is.True);
+        // GDI filter cycle: [Bilinear, PixelPerfect]. Default is PixelPerfect → cycles to Bilinear
+        Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
+    }
+
+    [Test]
+    public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
+    {
+        NEShim.Rendering.OverscanMode? received = null;
+        using var screen = CreateScreen(onOverscanModeChanged: mode => received = mode);
+        OpenVideoScreen(screen);
+        screen.HandleKey(Keys.Down);   // Video Filter (index 1)
+        screen.HandleKey(Keys.Down);   // Overscan (index 2)
+        screen.HandleKey(Keys.Return);
+        // Overscan cycle: Overscan → Normal → Underscan. Default is Overscan → Normal
+        Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
     }
 
     // ---- Rollover ----
@@ -931,7 +949,7 @@ internal class MainMenuScreenTests
         _config.WindowMode = "Windowed";
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
         Assert.That(received, Is.True); // Windowed → Fullscreen (toggled to true)
@@ -944,7 +962,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // FPS Overlay (index 2)
+        screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);   // FPS Overlay (index 3)
         screen.HandleKey(Keys.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!initial));
     }
@@ -985,7 +1004,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Left); // already at 0 — no change
         Assert.That(_config.Volume, Is.EqualTo(0));
@@ -999,7 +1018,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right); // already at 100 — no change
         Assert.That(_config.Volume, Is.EqualTo(100));

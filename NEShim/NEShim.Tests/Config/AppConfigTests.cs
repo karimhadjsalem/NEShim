@@ -141,10 +141,10 @@ internal class AppConfigTests
     }
 
     [Test]
-    public void VideoFilter_DefaultIsNearestNeighbour()
+    public void VideoFilter_DefaultIsPixelPerfect()
     {
         var config = new AppConfig();
-        Assert.That(config.VideoFilter, Is.EqualTo("NearestNeighbour"));
+        Assert.That(config.VideoFilter, Is.EqualTo("PixelPerfect"));
     }
 
     [Test]
@@ -155,10 +155,10 @@ internal class AppConfigTests
     }
 
     [Test]
-    public void OverscanMode_DefaultIsAuto()
+    public void OverscanMode_DefaultIsOverscan()
     {
         var config = new AppConfig();
-        Assert.That(config.OverscanMode, Is.EqualTo("Auto"));
+        Assert.That(config.OverscanMode, Is.EqualTo("Overscan"));
     }
 
     [Test]
