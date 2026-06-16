@@ -220,7 +220,7 @@ The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — se
 
 Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* the swap chain surface — so Steam's overlay content would be painted over by GDI+ if GamePanel were visible.
 
-In D3D11 mode, `GamePanel` is **permanently hidden** (`Visible = false`). All rendering — NES frames, logo splash, main menu, in-game menu, and HUD overlays — goes through `D3D11Renderer` via the swap chain. The sole exception is when the Steam overlay is active (`PauseReasons.Overlay` set): GamePanel is made briefly visible so the overlay can composite over a GDI surface, then hidden again when the overlay closes.
+In D3D11 mode, `GamePanel` is **permanently hidden** (`Visible = false`), including when the Steam overlay is active. All rendering — NES frames, logo splash, main menu, in-game menu, and HUD overlays — goes through `D3D11Renderer` via the swap chain. Making GamePanel visible when the overlay is open would place a GDI child window above the swap chain surface in DWM's Z-order, covering the overlay content — so it must remain hidden at all times.
 
 In GDI+ fallback mode, GamePanel stays visible at all times and handles all rendering through `OnPaint`.
 
