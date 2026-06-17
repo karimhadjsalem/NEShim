@@ -479,6 +479,14 @@ internal class MainMenuScreenTests
     }
 
     [Test]
+    public void Video_GetCurrentItems_DoesNotContainColorEffect_InGdiMode()
+    {
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        Assert.That(screen.GetCurrentItems().Any(i => i.Contains("Color Effect")), Is.False);
+    }
+
+    [Test]
     public void Video_GetTitle_ReturnsVideo()
     {
         using var screen = CreateScreen();

@@ -838,6 +838,14 @@ internal class InGameMenuTests
     }
 
     [Test]
+    public void Video_GetCurrentItems_DoesNotContainColorEffect_InGdiMode()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.GetCurrentItems().Any(i => i.Contains("Color Effect")), Is.False);
+    }
+
+    [Test]
     public void Video_GetTitle_ReturnsVideo()
     {
         var menu = CreateMenu();
