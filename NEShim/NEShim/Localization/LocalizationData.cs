@@ -30,11 +30,20 @@ internal sealed class LocalizationData
     public string VideoFpsOn            { get; init; } = "FPS Overlay: On";
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
 
-    // ---- Video filter display names ----
+    // ---- Video filter sub-menu ----
+    public string VideoFilterTitle         { get; init; } = "VIDEO FILTER";
     public string VideoFilterSmooth        { get; init; } = "Smooth";
     public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
+
+    // ---- Color effect sub-menu ----
+    public string VideoColorFilterLabel    { get; init; } = "Color Effect";
+    public string VideoColorFilterTitle    { get; init; } = "COLOR EFFECT";
+    public string VideoColorFilterNone     { get; init; } = "None";
+    public string VideoColorFilterWarm     { get; init; } = "Warm";
+    public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
+    public string VideoColorFilterNesColors { get; init; } = "NES Colors";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";

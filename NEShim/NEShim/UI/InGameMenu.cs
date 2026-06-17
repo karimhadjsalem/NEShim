@@ -25,9 +25,10 @@ internal sealed partial class InGameMenu
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<AudioFilterMode>        _onFilterChanged;
-    private readonly Action<Rendering.VideoFilterMode> _onVideoFilterChanged;
-    private readonly Action<Rendering.OverscanMode>    _onOverscanModeChanged;
+    private readonly Action<AudioFilterMode>                  _onFilterChanged;
+    private readonly Action<Rendering.VideoFilterMode>        _onVideoFilterChanged;
+    private readonly Action<Rendering.VideoColorFilterMode>   _onVideoColorFilterChanged;
+    private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
 
     private readonly (string Label, string ConfigKey)[] _bindingActions;
     private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
@@ -100,21 +101,23 @@ internal sealed partial class InGameMenu
         Action           onConfigSaved,
         Action<int>             onVolumeChanged,
         Action<AudioFilterMode> onFilterChanged,
-        Action<Rendering.VideoFilterMode> onVideoFilterChanged,
-        Action<Rendering.OverscanMode>    onOverscanModeChanged)
+        Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
+        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
+        Action<Rendering.OverscanMode>         onOverscanModeChanged)
     {
-        _saveStates              = saveStates;
-        _config                  = config;
-        _localization            = localization;
-        _onExitToDesktop         = onExitToDesktop;
-        _onResetGame             = onResetGame;
-        _onReturnToMainMenu      = onReturnToMainMenu;
-        _onWindowModeToggle      = onWindowModeToggle;
-        _onConfigSaved           = onConfigSaved;
-        _onVolumeChanged       = onVolumeChanged;
-        _onFilterChanged       = onFilterChanged;
-        _onVideoFilterChanged  = onVideoFilterChanged;
-        _onOverscanModeChanged = onOverscanModeChanged;
+        _saveStates                 = saveStates;
+        _config                     = config;
+        _localization               = localization;
+        _onExitToDesktop            = onExitToDesktop;
+        _onResetGame                = onResetGame;
+        _onReturnToMainMenu         = onReturnToMainMenu;
+        _onWindowModeToggle         = onWindowModeToggle;
+        _onConfigSaved              = onConfigSaved;
+        _onVolumeChanged            = onVolumeChanged;
+        _onFilterChanged            = onFilterChanged;
+        _onVideoFilterChanged       = onVideoFilterChanged;
+        _onVideoColorFilterChanged  = onVideoColorFilterChanged;
+        _onOverscanModeChanged      = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -132,6 +135,8 @@ internal sealed partial class InGameMenu
             [Screen.Video]                  = new VideoHandler(this),
             [Screen.Sound]                  = new SoundHandler(this),
             [Screen.AudioFilter]            = new AudioFilterHandler(this),
+            [Screen.VideoFilter]            = new VideoFilterHandler(this),
+            [Screen.VideoColorFilter]       = new VideoColorFilterHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
                 () => { _saveStates.LoadFromActiveSlot(); Close(); }),
@@ -331,6 +336,8 @@ internal sealed partial class InGameMenu
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
+        Screen.VideoFilter      => Screen.Video,
+        Screen.VideoColorFilter => Screen.Video,
         _                       => Screen.Root,
     };
 

@@ -1,4 +1,3 @@
-using NEShim.Platform;
 using NEShim.Rendering;
 
 namespace NEShim.UI;
@@ -10,19 +9,15 @@ internal sealed partial class MainMenuScreen
         private static readonly OverscanMode[] OverscanCycle =
             [OverscanMode.Overscan, OverscanMode.Normal, OverscanMode.Underscan];
 
-        private VideoFilterMode[] FilterCycle =>
-            PlatformDetector.IsD3D11Active
-                ? VideoFilterModeParser.D3D11Supported
-                : VideoFilterModeParser.GdiSupported;
-
         public VideoHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => 5;
+        public override int    ItemCount => 6;
 
         public override string[] GetItems()
         {
             var currentFilter   = VideoFilterModeParser.Parse(Menu._config.VideoFilter);
+            var currentColor    = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
             var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
             return new[]
             {
@@ -30,6 +25,7 @@ internal sealed partial class MainMenuScreen
                     ? Menu._localization.VideoWindowFullscreen
                     : Menu._localization.VideoWindowWindowed,
                 $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}",
+                $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}",
                 $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}",
                 Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff,
                 Menu._localization.Back,
@@ -44,25 +40,23 @@ internal sealed partial class MainMenuScreen
                     Menu._onWindowModeToggle(Menu._config.WindowMode != "Fullscreen");
                     break;
                 case 1:
-                    var filters   = FilterCycle;
-                    var current   = VideoFilterModeParser.Parse(Menu._config.VideoFilter);
-                    int next      = (Array.IndexOf(filters, current) + 1) % filters.Length;
-                    var newFilter = filters[next];
-                    Menu._config.VideoFilter = newFilter.ToString();
-                    Menu._onVideoFilterChanged(newFilter);
+                    Menu.NavigateTo(Screen.VideoFilter);
                     break;
                 case 2:
+                    Menu.NavigateTo(Screen.VideoColorFilter);
+                    break;
+                case 3:
                     var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
                     int nextIdx         = (Array.IndexOf(OverscanCycle, currentOverscan) + 1) % OverscanCycle.Length;
                     var newOverscan     = OverscanCycle[nextIdx];
                     Menu._config.OverscanMode = newOverscan.ToString();
                     Menu._onOverscanModeChanged(newOverscan);
                     break;
-                case 3:
+                case 4:
                     Menu._config.ShowFps = !Menu._config.ShowFps;
                     Menu._onConfigSaved();
                     break;
-                case 4:
+                case 5:
                     Menu.NavigateTo(Screen.Settings);
                     break;
             }
@@ -75,6 +69,15 @@ internal sealed partial class MainMenuScreen
             VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
             VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
             _                             => mode.ToString(),
+        };
+
+        private string ColorDisplayName(VideoColorFilterMode mode) => mode switch
+        {
+            VideoColorFilterMode.None               => Menu._localization.VideoColorFilterNone,
+            VideoColorFilterMode.Warm               => Menu._localization.VideoColorFilterWarm,
+            VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
+            VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
+            _                                       => mode.ToString(),
         };
 
         private string OverscanDisplayName(OverscanMode mode) => mode switch

@@ -81,8 +81,9 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<int>      _onVolumeChanged;
     private readonly Action<AudioFilterMode>           _onFilterChanged;
     private readonly Action<bool>                      _onMenuMusicToggled;
-    private readonly Action<Rendering.VideoFilterMode> _onVideoFilterChanged;
-    private readonly Action<Rendering.OverscanMode>    _onOverscanModeChanged;
+    private readonly Action<Rendering.VideoFilterMode>      _onVideoFilterChanged;
+    private readonly Action<Rendering.VideoColorFilterMode> _onVideoColorFilterChanged;
+    private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -102,20 +103,22 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<int>             onVolumeChanged,
         Action<AudioFilterMode> onFilterChanged,
         Action<bool>            onMenuMusicToggled,
-        Action<Rendering.VideoFilterMode> onVideoFilterChanged,
-        Action<Rendering.OverscanMode>    onOverscanModeChanged,
+        Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
+        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
+        Action<Rendering.OverscanMode>         onOverscanModeChanged,
         Bitmap?          bgImage = null)
     {
-        _saveStates              = saveStates;
-        _config                  = config;
-        _localization            = localization;
-        _onWindowModeToggle      = onWindowModeToggle;
-        _onConfigSaved           = onConfigSaved;
-        _onVolumeChanged         = onVolumeChanged;
-        _onFilterChanged       = onFilterChanged;
-        _onMenuMusicToggled    = onMenuMusicToggled;
-        _onVideoFilterChanged  = onVideoFilterChanged;
-        _onOverscanModeChanged = onOverscanModeChanged;
+        _saveStates                = saveStates;
+        _config                    = config;
+        _localization              = localization;
+        _onWindowModeToggle        = onWindowModeToggle;
+        _onConfigSaved             = onConfigSaved;
+        _onVolumeChanged           = onVolumeChanged;
+        _onFilterChanged           = onFilterChanged;
+        _onMenuMusicToggled        = onMenuMusicToggled;
+        _onVideoFilterChanged      = onVideoFilterChanged;
+        _onVideoColorFilterChanged = onVideoColorFilterChanged;
+        _onOverscanModeChanged     = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -147,6 +150,8 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.Video]            = new VideoHandler(this),
             [Screen.Sound]            = new SoundHandler(this),
             [Screen.AudioFilter]      = new AudioFilterHandler(this),
+            [Screen.VideoFilter]      = new VideoFilterHandler(this),
+            [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
         };
 
     // ---- Show (re-entry from in-game) ----
@@ -325,6 +330,8 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
+        Screen.VideoFilter      => Screen.Video,
+        Screen.VideoColorFilter => Screen.Video,
         _                       => Screen.Main,
     };
 

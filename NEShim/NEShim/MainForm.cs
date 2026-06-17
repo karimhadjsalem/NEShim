@@ -134,8 +134,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void ApplyRenderingOptions()
     {
-        var mode    = Rendering.VideoFilterModeParser.Parse(_config!.VideoFilter);
-        var overscan = Rendering.OverscanModeParser.Parse(_config.OverscanMode);
+        var mode      = Rendering.VideoFilterModeParser.Parse(_config!.VideoFilter);
+        var overscan  = Rendering.OverscanModeParser.Parse(_config.OverscanMode);
+        var colorMode = Rendering.VideoColorFilterModeParser.Parse(_config.VideoColorFilter);
 
         var supported = Platform.PlatformDetector.IsD3D11Active
             ? Rendering.VideoFilterModeParser.D3D11Supported
@@ -150,7 +151,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         }
 
         if (_renderer is Rendering.D3D11Renderer d3d)
-            d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan);
+            d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
         else if (_renderer is Rendering.GdiRenderer gdi)
             gdi.InitializeRenderingOptions(Rendering.Filters.GdiFilterFactory.Create(mode), overscan);
     }
@@ -429,6 +430,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                     gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
+            onVideoColorFilterChanged: mode =>
+            {
+                _config!.VideoColorFilter = mode.ToString();
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetColorFilter(mode);
+                ConfigLoader.Save(_config);
+            },
             onOverscanModeChanged: overscan =>
             {
                 _config!.OverscanMode = overscan.ToString();
@@ -506,6 +514,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                     d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
                 else if (_renderer is Rendering.GdiRenderer gdi)
                     gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
+                ConfigLoader.Save(_config);
+            },
+            onVideoColorFilterChanged: mode =>
+            {
+                _config!.VideoColorFilter = mode.ToString();
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetColorFilter(mode);
                 ConfigLoader.Save(_config);
             },
             onOverscanModeChanged: overscan =>

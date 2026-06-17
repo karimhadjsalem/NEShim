@@ -30,6 +30,22 @@ internal class D3D11FilterFactoryTests
     }
 
     [Test]
+    public void Create_CrtScanlines_ReturnsCrtScanlinesD3D11Filter()
+    {
+        var filter = D3D11FilterFactory.Create(VideoFilterMode.CrtScanlines);
+        Assert.That(filter, Is.InstanceOf<CrtScanlinesD3D11Filter>());
+        Assert.That(filter.FilterMode, Is.EqualTo(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void Create_NtscComposite_ReturnsNtscCompositeD3D11Filter()
+    {
+        var filter = D3D11FilterFactory.Create(VideoFilterMode.NtscComposite);
+        Assert.That(filter, Is.InstanceOf<NtscCompositeD3D11Filter>());
+        Assert.That(filter.FilterMode, Is.EqualTo(VideoFilterMode.NtscComposite));
+    }
+
+    [Test]
     public void Create_AllD3D11SupportedModes_ReturnNonNull()
     {
         foreach (var mode in VideoFilterModeParser.D3D11Supported)

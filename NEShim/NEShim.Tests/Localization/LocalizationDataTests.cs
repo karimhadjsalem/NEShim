@@ -137,4 +137,53 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.OverscanUnderscan, Is.EqualTo("Underscan"));
     }
+
+    [Test]
+    public void DefaultInstance_VideoFilterTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterTitle, Is.EqualTo("VIDEO FILTER"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterLabel, Is.EqualTo("Color Effect"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterTitle, Is.EqualTo("COLOR EFFECT"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterNone_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterNone, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterWarm_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterWarm, Is.EqualTo("Warm"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterGreyscale_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterGreyscale, Is.EqualTo("Greyscale"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterNesColors_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterNesColors, Is.EqualTo("NES Colors"));
+    }
 }

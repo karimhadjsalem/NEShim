@@ -51,6 +51,14 @@ public sealed class AppConfig
     // Legacy values "NTSC" and "Auto" map to "Overscan"; "None" maps to "Normal".
     public string OverscanMode { get; set; } = "Overscan";
 
+    // D3D11-only colour grade applied on top of the structural video filter.
+    // "None"               — no colour adjustment (default).
+    // "Warm"               — slight amber tint mimicking an aged CRT phosphor.
+    // "Greyscale"          — convert to greyscale using BT.601 luma weights.
+    // "NesColorCorrection" — approximate 2C02 composite → sRGB colour correction.
+    // Silently ignored in GDI+ mode (no D3D11 renderer to apply it).
+    public string VideoColorFilter { get; set; } = "None";
+
     // Deprecated — use VideoFilter: "Bilinear" instead.
     // If true and VideoFilter is "NearestNeighbour", the loader promotes to "Bilinear".
     public bool GraphicsSmoothingEnabled { get; set; } = false;

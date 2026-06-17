@@ -148,6 +148,13 @@ internal class AppConfigTests
     }
 
     [Test]
+    public void VideoColorFilter_DefaultIsNone()
+    {
+        var config = new AppConfig();
+        Assert.That(config.VideoColorFilter, Is.EqualTo("None"));
+    }
+
+    [Test]
     public void AudioFilter_DefaultIsDefault()
     {
         var config = new AppConfig();

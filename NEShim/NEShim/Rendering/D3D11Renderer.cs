@@ -31,10 +31,17 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11ShaderResourceView _nesTextureView;
     private readonly ID3D11Buffer             _vertexBuffer;
     private readonly ID3D11VertexShader       _vertexShader;
-    private readonly ID3D11PixelShader        _pixelShader;
+    private readonly ID3D11PixelShader        _passthroughPixelShader;
     private readonly ID3D11InputLayout        _inputLayout;
     private readonly ID3D11SamplerState       _samplerState;
     private readonly ID3D11BlendState         _alphaBlendState;
+    private readonly ID3D11Buffer             _filterCbuffer;
+
+    // Shader cache — keyed by resource name; passthrough reuses _passthroughPixelShader.
+    private readonly Dictionary<string, ID3D11PixelShader> _shaderCache = new();
+
+    // Active pixel shader — points at passthrough or a cached structural shader.
+    private ID3D11PixelShader _activePixelShader;
 
     // Recreated on Resize.
     private ID3D11RenderTargetView _renderTargetView;
@@ -60,8 +67,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private int _viewportWidth;
     private int _viewportHeight;
 
-    private Filters.ID3D11Filter _activeFilter = new Filters.PixelPerfectD3D11Filter();
-    private OverscanMode         _overscanMode = OverscanMode.Overscan;
+    private Filters.ID3D11Filter   _activeFilter    = new Filters.PixelPerfectD3D11Filter();
+    private OverscanMode           _overscanMode    = OverscanMode.Overscan;
+    private VideoColorFilterMode   _activeColorMode = VideoColorFilterMode.None;
 
     private const float UnderscanScale = 0.88f;
 
@@ -164,8 +172,30 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // DXVK on Proton compiles these DXBC bytecodes to SPIR-V at first launch
         // and caches them in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
         // The passthrough shaders are trivially simple, so first-launch compile is near-instant.
-        _vertexShader = device.CreateVertexShader(vsBytes);
-        _pixelShader  = device.CreatePixelShader(psBytes);
+        _vertexShader           = device.CreateVertexShader(vsBytes);
+        _passthroughPixelShader = device.CreatePixelShader(psBytes);
+        _activePixelShader      = _passthroughPixelShader;
+
+        // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
+        // Always present — every pixel shader reads from b0.
+        unsafe
+        {
+            float[] zeros = new float[4];
+            fixed (float* p = zeros)
+            {
+                device.CreateBuffer(
+                    new BufferDescription
+                    {
+                        ByteWidth      = (uint)(4 * sizeof(float)),
+                        Usage          = ResourceUsage.Dynamic,
+                        BindFlags      = BindFlags.ConstantBuffer,
+                        CPUAccessFlags = CpuAccessFlags.Write,
+                    },
+                    new SubresourceData((IntPtr)p, 0, 0),
+                    out var cb);
+                _filterCbuffer = cb!;
+            }
+        }
 
         _inputLayout = device.CreateInputLayout(
             new[]
@@ -280,13 +310,23 @@ internal sealed class D3D11Renderer : IFrameRenderer
     public void ShowAchievementNotification(string name) { }
 
     /// <summary>
-    /// Injects a new D3D11 filter. Updates the aspect ratio and destination rect immediately.
+    /// Injects a new D3D11 filter. Swaps the active pixel shader and updates the destination rect.
     /// Called by MainForm with a filter created by D3D11FilterFactory.
     /// </summary>
     public void SetFilter(Filters.ID3D11Filter filter)
     {
-        _activeFilter = filter;
+        _activeFilter      = filter;
+        _activePixelShader = ResolvePixelShader(filter);
         UpdateLetterboxRect();
+    }
+
+    /// <summary>
+    /// Updates the active colour grade applied on top of the structural filter.
+    /// No layout or rect change required — colour is a purely per-pixel operation.
+    /// </summary>
+    public void SetColorFilter(VideoColorFilterMode mode)
+    {
+        _activeColorMode = mode;
     }
 
     /// <inheritdoc/>
@@ -298,12 +338,15 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     /// <summary>
-    /// Applies both filter and overscan in one call. Used at startup and after device recovery.
+    /// Applies filter, overscan, and colour grade in one call. Used at startup and after device recovery.
     /// </summary>
-    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan)
+    public void InitializeRenderingOptions(
+        Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode = VideoColorFilterMode.None)
     {
-        _activeFilter = filter;
-        _overscanMode = overscan;
+        _activeFilter      = filter;
+        _activePixelShader = ResolvePixelShader(filter);
+        _overscanMode      = overscan;
+        _activeColorMode   = colorMode;
         UpdateOverscanUV();
         UpdateLetterboxRect();
     }
@@ -350,8 +393,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _nesTextureView.Dispose();
         _nesTexture.Dispose();
         _vertexBuffer.Dispose();
+        _filterCbuffer.Dispose();
         _inputLayout.Dispose();
-        _pixelShader.Dispose();
+        foreach (var shader in _shaderCache.Values)
+            shader.Dispose();
+        _passthroughPixelShader.Dispose();
         _vertexShader.Dispose();
         // _context, _device, _swapChain are not owned — do not dispose.
     }
@@ -365,6 +411,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
 
         SetupPipelineState();
+        UpdateFilterCbuffer();
 
         // Draw sidebar images in letterbox bars (opaque, no blend).
         if (_hasSidebars)
@@ -372,9 +419,20 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         // Draw the letterboxed NES frame.
         // _nesV0/_nesV1 define the UV crop window (affected by overscan mode).
+        // When a scene (menu/logo) is active, bypass the structural filter so scanlines
+        // don't bleed through the semi-transparent overlay background. Color grade is
+        // preserved because the passthrough shader also reads colorMode from the cbuffer.
+        bool sceneActive = _menuSceneProvider?.GetActiveScenePainter() != null
+            && _activePixelShader != _passthroughPixelShader;
+        if (sceneActive)
+            _context.PSSetShader(_passthroughPixelShader);
+
         _context.PSSetShaderResource(0, _nesTextureView);
         WriteQuadToVB(_nesX0, _nesY0, _nesX1, _nesY1, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
+
+        if (sceneActive)
+            _context.PSSetShader(_activePixelShader);
 
         // Draw GDI+-sourced overlay (FPS, toast, achievement) — alpha-blended.
         DrawOverlay();
@@ -396,8 +454,25 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.IASetVertexBuffer(0, _vertexBuffer, VertexStride);
         _context.IASetInputLayout(_inputLayout);
         _context.VSSetShader(_vertexShader);
-        _context.PSSetShader(_pixelShader);
+        _context.PSSetShader(_activePixelShader);
         _context.PSSetSampler(0, _samplerState);
+    }
+
+    private unsafe void UpdateFilterCbuffer()
+    {
+        Span<float> p = stackalloc float[4];
+        _activeFilter.WriteBaseParams(p, _contentWidth, _contentHeight);
+        p[3] = (float)_activeColorMode;
+
+        var mapped = _context.Map(_filterCbuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+        try
+        {
+            fixed (float* src = p)
+                Buffer.MemoryCopy(src, (void*)mapped.DataPointer, 4 * sizeof(float), 4 * sizeof(float));
+        }
+        finally { _context.Unmap(_filterCbuffer, 0); }
+
+        _context.PSSetConstantBuffers(0, 1, new[] { _filterCbuffer });
     }
 
     // ---- Sidebar rendering -------------------------------------------------------------
@@ -681,6 +756,21 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     // ---- Shader loading ----------------------------------------------------------------
+
+    private ID3D11PixelShader ResolvePixelShader(Filters.ID3D11Filter filter)
+    {
+        string? resourceName = filter.PixelShaderResourceName;
+        if (resourceName is null)
+            return _passthroughPixelShader;
+
+        if (_shaderCache.TryGetValue(resourceName, out var cached))
+            return cached;
+
+        byte[] bytecode = LoadShaderResource(resourceName);
+        var shader = _device.CreatePixelShader(bytecode);
+        _shaderCache[resourceName] = shader;
+        return shader;
+    }
 
     private static byte[] LoadShaderResource(string resourceName)
     {

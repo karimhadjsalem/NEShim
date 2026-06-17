@@ -13,7 +13,8 @@ public static class VideoFilterModeParser
 {
     // Filters available in each rendering mode. Order defines the menu cycle sequence.
     public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.Bilinear, VideoFilterMode.PixelPerfect];
-    public static readonly VideoFilterMode[] D3D11Supported = [VideoFilterMode.PixelPerfect];
+    public static readonly VideoFilterMode[] D3D11Supported =
+        [VideoFilterMode.PixelPerfect, VideoFilterMode.CrtScanlines, VideoFilterMode.NtscComposite];
 
     public static VideoFilterMode Parse(string value) => value switch
     {

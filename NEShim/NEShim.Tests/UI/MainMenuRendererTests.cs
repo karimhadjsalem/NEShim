@@ -41,7 +41,7 @@ internal class MainMenuRendererTests
 
     private MainMenuScreen CreateMenu() =>
         new(_saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
     // ---- GetMainPanelRect — position variants ----
     //
@@ -404,7 +404,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -419,7 +419,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
