@@ -468,7 +468,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawSidebars()
     {
-        // Sidebar pixel width on each side = destX (the letterbox bar width).
+        // Sidebar artwork should not have structural filters (scanlines, NTSC) applied.
+        // Use the passthrough shader so color grade still applies but geometry is unaffected.
+        _context.PSSetShader(_passthroughPixelShader);
+
         float sidebarPixelW = (_nesX0 + 1f) / 2f * _viewportWidth;
 
         if (_leftSidebarSrv is not null && _leftSidebarBmpSize != default)
@@ -486,6 +489,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
             WriteQuadToVB(_nesX1, 1f, 1f, -1f, u0, v0, u1, v1);
             _context.Draw(6, 0);
         }
+
+        _context.PSSetShader(_activePixelShader);
     }
 
     private void UploadSidebarBitmap(
