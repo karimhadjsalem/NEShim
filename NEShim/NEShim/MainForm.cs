@@ -148,6 +148,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                        $"{(Platform.PlatformDetector.IsD3D11Active ? "D3D11" : "GDI+")} mode; " +
                        $"falling back to PixelPerfect.");
             mode = Rendering.VideoFilterMode.PixelPerfect;
+            _config.VideoFilter = mode.ToString();
+            ConfigLoader.Save(_config);
         }
 
         if (_renderer is Rendering.D3D11Renderer d3d)

@@ -372,16 +372,15 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
-        // Navigate to Video → Down×3 to FPS (index 4 in the new 6-item Video layout)
+        // Navigate to Video → Down×2 to FPS (index 3 in the 5-item GDI Video layout)
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
         menu.HandleKey(Keys.Down);   // select Video (index 2)
         menu.HandleKey(Keys.Return); // enter Video screen
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
         menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
-        menu.HandleKey(Keys.Down);   // skip Color Effect (index 2)
-        menu.HandleKey(Keys.Down);   // skip Overscan (index 3)
-        menu.HandleKey(Keys.Down);   // select FPS (index 4 in Video)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
         bool before = _config.ShowFps;
         menu.HandleKey(Keys.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!before));
@@ -399,9 +398,8 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Down);   // select Video (index 2)
         menu.HandleKey(Keys.Return); // enter Video screen
         menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
-        menu.HandleKey(Keys.Down);   // skip Color Effect (index 2)
-        menu.HandleKey(Keys.Down);   // skip Overscan (index 3)
-        menu.HandleKey(Keys.Down);   // select FPS (index 4 in Video)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -831,12 +829,12 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsSixItems()
+    public void Video_GetCurrentItems_ReturnsFiveItemsInGdiMode()
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        // Window Mode, Video Filter, Color Effect, Overscan, FPS Overlay, ← Back
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(6));
+        // GDI mode: Window Mode, Video Filter, Overscan, FPS Overlay, ← Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
     }
 
     [Test]
@@ -852,7 +850,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // ← Back (index 5)
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // ← Back (index 4 in GDI mode)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
@@ -961,94 +959,6 @@ internal class InGameMenuTests
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
-    // ---- VideoColorFilter sub-menu ----
-
-    private void OpenVideoColorFilterSubMenu(InGameMenu menu)
-    {
-        OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // Color Effect (index 2)
-        menu.HandleKey(Keys.Return); // → VideoColorFilter sub-menu
-    }
-
-    [Test]
-    public void VideoColorFilter_NavigateTo_SetsCurrentScreen()
-    {
-        var menu = CreateMenu();
-        OpenVideoColorFilterSubMenu(menu);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoColorFilter));
-    }
-
-    [Test]
-    public void VideoColorFilter_GetTitle_ReturnsColorEffectTitle()
-    {
-        var menu = CreateMenu();
-        OpenVideoColorFilterSubMenu(menu);
-        Assert.That(menu.GetTitle(), Is.EqualTo("COLOR EFFECT"));
-    }
-
-    [Test]
-    public void VideoColorFilter_GetCurrentItems_ReturnsFiveItems()
-    {
-        var menu = CreateMenu();
-        OpenVideoColorFilterSubMenu(menu);
-        // AllModes (4) + Back = 5 items
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
-    }
-
-    [Test]
-    public void VideoColorFilter_DefaultNone_HasCheckmarkOnFirstItem()
-    {
-        var menu = CreateMenu();
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(menu);
-        var items = menu.GetCurrentItems();
-        Assert.That(items[0], Does.StartWith("✓")); // None is index 0
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_UpdatesConfig()
-    {
-        var menu = CreateMenu();
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);   // Warm (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(_config.VideoColorFilter, Is.EqualTo("Warm"));
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_FiresCallback()
-    {
-        NEShim.Rendering.VideoColorFilterMode? received = null;
-        var menu = CreateMenu(onVideoColorFilterChanged: m => received = m);
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);   // Warm (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoColorFilterMode.Warm));
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_NavigatesBackToVideo()
-    {
-        var menu = CreateMenu();
-        OpenVideoColorFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select None (index 0)
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
-    }
-
-    [Test]
-    public void VideoColorFilter_Back_NavigatesBackToVideo()
-    {
-        var menu = CreateMenu();
-        OpenVideoColorFilterSubMenu(menu);
-        var itemCount = menu.GetCurrentItems().Length;
-        for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Back
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
-    }
-
     [Test]
     public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
     {
@@ -1057,8 +967,7 @@ internal class InGameMenuTests
         _config.OverscanMode = "Overscan";
         OpenVideoScreen(menu);
         menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // select Overscan (index 3)
+        menu.HandleKey(Keys.Down);   // select Overscan (index 2 in GDI mode)
         menu.HandleKey(Keys.Return);
         Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
         Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));

@@ -470,12 +470,12 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsSixItems()
+    public void Video_GetCurrentItems_ReturnsFiveItemsInGdiMode()
     {
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        // Window Mode, Video Filter, Color Effect, Overscan, FPS Overlay, ← Back
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(6));
+        // GDI mode: Window Mode, Video Filter, Overscan, FPS Overlay, ← Back
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
     }
 
     [Test]
@@ -494,8 +494,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // ← Back (index 5)
+        screen.HandleKey(Keys.Down);   // ← Back (index 4 in GDI mode)
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
@@ -599,94 +598,6 @@ internal class MainMenuScreenTests
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 
-    // ---- VideoColorFilter sub-menu ----
-
-    private static void OpenVideoColorFilterSubMenu(MainMenuScreen screen)
-    {
-        OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // Color Effect (index 2)
-        screen.HandleKey(Keys.Return); // → VideoColorFilter sub-menu
-    }
-
-    [Test]
-    public void VideoColorFilter_NavigateTo_SetsCurrentScreen()
-    {
-        using var screen = CreateScreen();
-        OpenVideoColorFilterSubMenu(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoColorFilter));
-    }
-
-    [Test]
-    public void VideoColorFilter_GetTitle_ReturnsColorEffectTitle()
-    {
-        using var screen = CreateScreen();
-        OpenVideoColorFilterSubMenu(screen);
-        Assert.That(screen.GetTitle(), Is.EqualTo("COLOR EFFECT"));
-    }
-
-    [Test]
-    public void VideoColorFilter_GetCurrentItems_ReturnsFiveItems()
-    {
-        using var screen = CreateScreen();
-        OpenVideoColorFilterSubMenu(screen);
-        // AllModes (4) + Back = 5 items
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
-    }
-
-    [Test]
-    public void VideoColorFilter_DefaultNone_HasCheckmarkOnFirstItem()
-    {
-        using var screen = CreateScreen();
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(screen);
-        var items = screen.GetCurrentItems();
-        Assert.That(items[0], Does.StartWith("✓")); // None is index 0
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_UpdatesConfig()
-    {
-        using var screen = CreateScreen();
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);   // Warm (index 1)
-        screen.HandleKey(Keys.Return);
-        Assert.That(_config.VideoColorFilter, Is.EqualTo("Warm"));
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_FiresCallback()
-    {
-        NEShim.Rendering.VideoColorFilterMode? received = null;
-        using var screen = CreateScreen(onVideoColorFilterChanged: m => received = m);
-        _config.VideoColorFilter = "None";
-        OpenVideoColorFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);   // Warm (index 1)
-        screen.HandleKey(Keys.Return);
-        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoColorFilterMode.Warm));
-    }
-
-    [Test]
-    public void VideoColorFilter_SelectMode_NavigatesBackToVideo()
-    {
-        using var screen = CreateScreen();
-        OpenVideoColorFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select None (index 0)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
-    }
-
-    [Test]
-    public void VideoColorFilter_Back_NavigatesBackToVideo()
-    {
-        using var screen = CreateScreen();
-        OpenVideoColorFilterSubMenu(screen);
-        var itemCount = screen.GetCurrentItems().Length;
-        for (int i = 0; i < itemCount - 1; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // Back
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
-    }
-
     [Test]
     public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
     {
@@ -694,8 +605,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onOverscanModeChanged: mode => received = mode);
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);   // Video Filter (index 1)
-        screen.HandleKey(Keys.Down);   // Color Effect (index 2)
-        screen.HandleKey(Keys.Down);   // Overscan (index 3)
+        screen.HandleKey(Keys.Down);   // Overscan (index 2 in GDI mode)
         screen.HandleKey(Keys.Return);
         // Overscan cycle: Overscan → Normal → Underscan. Default is Overscan → Normal
         Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
@@ -1141,8 +1051,7 @@ internal class MainMenuScreenTests
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // FPS Overlay (index 4)
+        screen.HandleKey(Keys.Down);   // FPS Overlay (index 3 in GDI mode)
         screen.HandleKey(Keys.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!initial));
     }

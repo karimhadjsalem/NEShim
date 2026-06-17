@@ -12,28 +12,34 @@ internal sealed partial class InGameMenu
         public VideoHandler(InGameMenu menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => 6;
+        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 6 : 5;
 
         public override string[] GetItems()
         {
-            var currentFilter    = VideoFilterModeParser.Parse(Menu._config.VideoFilter);
-            var currentColor     = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
-            var currentOverscan  = OverscanModeParser.Parse(Menu._config.OverscanMode);
-            return new[]
-            {
-                Menu._config.WindowMode == "Fullscreen"
-                    ? Menu._localization.VideoWindowFullscreen
-                    : Menu._localization.VideoWindowWindowed,
-                $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}",
-                $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}",
-                $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}",
-                Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff,
-                Menu._localization.Back,
-            };
+            var currentFilter   = VideoFilterModeParser.Parse(Menu._config.VideoFilter);
+            var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
+
+            string windowItem   = Menu._config.WindowMode == "Fullscreen"
+                ? Menu._localization.VideoWindowFullscreen
+                : Menu._localization.VideoWindowWindowed;
+            string filterItem   = $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
+            string overscanItem = $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}";
+            string fpsItem      = Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff;
+
+            if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
+                return [windowItem, filterItem, overscanItem, fpsItem, Menu._localization.Back];
+
+            var currentColor = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
+            string colorItem = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
+            return [windowItem, filterItem, colorItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
         public override void Activate(int index)
         {
+            // In GDI mode Color Effect is hidden; shift indices ≥ 2 to match the full layout.
+            if (!NEShim.Platform.PlatformDetector.IsD3D11Active && index >= 2)
+                index++;
+
             switch (index)
             {
                 case 0:

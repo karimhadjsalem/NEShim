@@ -419,20 +419,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         // Draw the letterboxed NES frame.
         // _nesV0/_nesV1 define the UV crop window (affected by overscan mode).
-        // When a scene (menu/logo) is active, bypass the structural filter so scanlines
-        // don't bleed through the semi-transparent overlay background. Color grade is
-        // preserved because the passthrough shader also reads colorMode from the cbuffer.
-        bool sceneActive = _menuSceneProvider?.GetActiveScenePainter() != null
-            && _activePixelShader != _passthroughPixelShader;
-        if (sceneActive)
-            _context.PSSetShader(_passthroughPixelShader);
-
         _context.PSSetShaderResource(0, _nesTextureView);
         WriteQuadToVB(_nesX0, _nesY0, _nesX1, _nesY1, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
-
-        if (sceneActive)
-            _context.PSSetShader(_activePixelShader);
 
         // Draw GDI+-sourced overlay (FPS, toast, achievement) — alpha-blended.
         DrawOverlay();
@@ -567,11 +556,17 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         if (_overlaySrv is null) return;
 
+        // The overlay is GDI+-rendered content (menus, frozen frame, HUD). Draw it through
+        // the passthrough shader so structural filters (scanlines, NTSC) are not applied to
+        // the 2D overlay bitmap. Color grade (colorMode) is still applied via the cbuffer
+        // because the passthrough shader reads it.
+        _context.PSSetShader(_passthroughPixelShader);
         _context.OMSetBlendState(_alphaBlendState);
         _context.PSSetShaderResource(0, _overlaySrv);
         WriteQuadToVB(-1f, 1f, 1f, -1f);
         _context.Draw(6, 0);
         _context.OMSetBlendState(null);
+        _context.PSSetShader(_activePixelShader);
     }
 
     private void RenderOverlayBitmap()
