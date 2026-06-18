@@ -336,7 +336,7 @@ The renderer always fills `param[3]` with the active `VideoColorFilterMode` cast
 
 **Passthrough shader** (`Passthrough.ps.cso`) applies only the color grade — no structural effect. It is used for the overlay quad (menus, frozen frame, HUD elements) and the sidebar quads (letterbox bar artwork). This prevents scanline or NTSC effects from being applied to 2D overlay content or sidebar images. The passthrough shader is temporarily bound before those draws, then restored to `_activePixelShader` after.
 
-**Shader interface:** `ID3D11Filter` (in `NEShim.Rendering.Filters`) exposes `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (null → passthrough), and `WriteBaseParams(Span<float>, nesWidth, nesHeight)`. `D3D11FilterFactory` maps a `VideoFilterMode` value to the correct implementation. See [Video filters](filters.md) for the full filter reference.
+**Shader interface:** `ID3D11Filter` (in `NEShim.Rendering.Filters`) exposes `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (null → passthrough), `UseLinearSampler` (default false — override to true for bilinear-sampled filters), and `WriteBaseParams(Span<float>, nesWidth, nesHeight)`. `D3D11FilterFactory` maps a `VideoFilterMode` value to the correct implementation. See [Filters](filters.md) for the full filter reference.
 
 ### Overlay texture pipeline (D3D11)
 
@@ -405,7 +405,7 @@ In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `F
 - `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
 - `false` — D3D11 unavailable; GDI+ path is active.
 
-All 2.0+ structural video filters (`CrtScanlines`, `NtscComposite`) are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset (`VideoFilterModeParser.GdiSupported` or `D3D11Supported`). The Color Effect sub-menu is always shown but has no visual impact in GDI+ mode. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
+The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains five entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, and `NtscComposite`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining three are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is always shown but has no visual impact in GDI+ mode. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
@@ -502,7 +502,7 @@ Key interfaces consumed:
 
 1. Write a new `*.ps.hlsl` in `NEShim/Rendering/Shaders/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the standard `cbuffer FilterParams : register(b0)` layout (4 floats).
 2. Add its enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add the matching `Parse()` case, `DisplayName()` case, and append the value to `D3D11Supported`.
-3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`.
+3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`. Override `UseLinearSampler => true` if the filter uses bilinear sampling (no structural shader needed in that case — set `PixelShaderResourceName` to null so the passthrough shader is used).
 4. Add the case to `D3D11FilterFactory.Create()`.
 5. Register the shader in `NEShim.csproj`: add the `.hlsl` as a `<None>` item, the `.cso` as an `<EmbeddedResource>` with the correct `<LogicalName>`, and add the `<Exec>` entry to the `CompileShaders` target.
 6. No menu changes are needed — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically. The new filter appears automatically.

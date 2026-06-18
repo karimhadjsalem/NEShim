@@ -47,8 +47,9 @@ Controls how the 256×240 NES pixel buffer is scaled and stylised before display
 | Filter | `videoFilter` value | GDI+ | D3D11 | Description |
 |---|---|:---:|:---:|---|
 | Pixel Perfect | `"PixelPerfect"` | Yes | Yes | Nearest-neighbour scaling with 8:7 pixel aspect ratio correction. NES pixels were never square; this ratio (≈1.143) gives the correct display geometry on modern widescreen monitors. `"NearestNeighbour"` is a legacy alias. |
-| Smooth | `"Bilinear"` | Yes | — | Bilinear interpolation for a softer, anti-aliased look at arbitrary window sizes. GDI+ only. |
+| Smooth | `"Bilinear"` | Yes | Yes | Bilinear interpolation for a softer, anti-aliased look at arbitrary window sizes. In D3D11 mode a linear-clamp sampler is used; there is no structural shader. |
 | CRT Scanlines | `"CrtScanlines"` | — | D3D11 only | Nearest-neighbour with an alternating scanline darkening pattern. Every second horizontal line is darkened, approximating the phosphor gap of a CRT television. |
+| CRT Phosphor | `"CrtPhosphor"` | — | D3D11 only | CRT scanlines plus an aperture-grille phosphor mask. Each NES pixel is subdivided into three sub-columns (R/G/B dominant), mimicking the vertical phosphor stripes of a slot-mask CRT. Stacks with any color effect. |
 | NTSC Composite | `"NtscComposite"` | — | D3D11 only | Simulates NTSC composite signal degradation: horizontal chroma smearing, luma/chroma cross-talk, and a subtle noise layer. Reproduces the characteristic blended look of NES games on a composite TV connection. |
 
 **Default value:** `"PixelPerfect"`
@@ -71,6 +72,7 @@ A per-pixel color-grade transform applied after the structural video filter. D3D
 | Warm | `"Warm"` | Slight amber tint. Reds and greens lifted gently; blues desaturated. Recreates the warm cast of a CRT with an aging phosphor coating. |
 | Greyscale | `"Greyscale"` | Full desaturation using BT.601 luma coefficients (0.299 R + 0.587 G + 0.114 B). Preserves perceived brightness across the NES palette. |
 | NES Colors | `"NesColorCorrection"` | Small color-correction matrix shifting from the raw 2C02 composite palette toward a more accurate sRGB representation. Removes the slight pink/purple cast in uncorrected NES output. |
+| Cool | `"Cool"` | Blue-green tint approximating the D93 9300K white point used by CRT displays in consumer televisions. Reds slightly reduced, blues boosted. The cold counterpart to Warm. |
 
 **Default value:** `"None"`
 
@@ -91,12 +93,14 @@ Any structural filter can be combined with any color effect. Some examples:
 | Black-and-white film look | Pixel Perfect | Greyscale |
 | Full composite TV simulation | NTSC Composite | NES Colors |
 | Softer look with color correction | Pixel Perfect | NES Colors |
+| Authentic cold CRT (slot-mask + D93 white point) | CRT Phosphor | Cool |
+| 1980s arcade monitor look | CRT Phosphor | Warm |
 
 ---
 
 ## D3D11 shader architecture
 
-CRT Scanlines, NTSC Composite, and all color effects are implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources.
+CRT Scanlines, CRT Phosphor, NTSC Composite, and all color effects are implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources. Smooth (Bilinear) has no structural shader — it switches the renderer to a linear-clamp sampler while reusing the passthrough shader.
 
 ### Uniform constant buffer
 
@@ -108,7 +112,7 @@ cbuffer FilterParams : register(b0)
     float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, 0 for PP)
     float param1;     // structural param 1  (nesHeight / invHeight / 0)
     float param2;     // structural param 2  (scanlineIntensity / chromaStrength / 0)
-    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors — written by renderer
+    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool — written by renderer
 }
 ```
 
