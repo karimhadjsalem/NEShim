@@ -300,14 +300,43 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
             ├─ D3D11Renderer.UploadFrame
             │    └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
             └─ D3D11Renderer.DrawAndPresent(vsync: true)
-                      ├─ Draw fullscreen NES quad — passthrough VS + PS (point-clamp sampler)
-                      ├─ DrawOverlay — GDI+ Bitmap (menus / logo / HUD) alpha-blended over NES frame
+                      ├─ SetupPipelineState — bind _activePixelShader (structural filter)
+                      ├─ UpdateFilterCbuffer — write structural params + colorMode to b0
+                      ├─ DrawSidebars — sidebar quads drawn via passthrough shader
+                      ├─ Draw letterboxed NES quad — active structural filter shader
+                      ├─ DrawOverlay — GDI+ Bitmap (menus / frozen frame / HUD)
+                      │    drawn via passthrough shader, alpha-blended over NES frame
                       └─ SwapChain.Present(syncInterval=1) — vsync on
 ```
 
-`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, and sampler. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
+`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, sampler, and filter constant buffer. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
 
 **D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `MainForm` implements `IMenuSceneProvider`, returning a paint delegate for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path). `GamePanel` is permanently hidden in D3D11 mode and plays no role in rendering.
+
+### Video filter architecture (D3D11)
+
+Two independent filter axes can be combined freely:
+
+- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `CrtScanlines`, `NtscComposite`. Implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources.
+- **Color Effect** (`videoColorFilter` in config): a color-grade transform applied on top of any structural filter. Options: `None`, `Warm`, `Greyscale`, `NesColorCorrection`. Not a separate shader — the grade is a cbuffer value consumed by every structural shader via a shared `ColorGrade.hlsli` include.
+
+All pixel shaders use a uniform 4-float constant buffer (`b0`):
+
+```hlsl
+cbuffer FilterParams : register(b0)
+{
+    float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, 0 for PP)
+    float param1;     // structural param 1  (nesHeight / invHeight / 0)
+    float param2;     // structural param 2  (scanlineIntensity / chromaStrength / 0)
+    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors — written by renderer
+}
+```
+
+The renderer always fills `param[3]` with the active `VideoColorFilterMode` cast to `float`. Each structural filter fills `param[0..2]` via its `WriteBaseParams()` method. For Pixel Perfect all three structural params are zero (no-op), so the shader applies only the color grade.
+
+**Passthrough shader** (`Passthrough.ps.cso`) applies only the color grade — no structural effect. It is used for the overlay quad (menus, frozen frame, HUD elements) and the sidebar quads (letterbox bar artwork). This prevents scanline or NTSC effects from being applied to 2D overlay content or sidebar images. The passthrough shader is temporarily bound before those draws, then restored to `_activePixelShader` after.
+
+**Shader interface:** `ID3D11Filter` (in `NEShim.Rendering.Filters`) exposes `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (null → passthrough), and `WriteBaseParams(Span<float>, nesWidth, nesHeight)`. `D3D11FilterFactory` maps a `VideoFilterMode` value to the correct implementation. See [Video filters](filters.md) for the full filter reference.
 
 ### Overlay texture pipeline (D3D11)
 
@@ -376,7 +405,7 @@ In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `F
 - `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
 - `false` — D3D11 unavailable; GDI+ path is active.
 
-All 2.0+ video filters (CRT scanlines, palette shaders, etc.) are D3D11-only. Before any menu offers a filter option, gate on `PlatformDetector.IsD3D11Active`. The GDI+ fallback intentionally has no filter support.
+All 2.0+ structural video filters (`CrtScanlines`, `NtscComposite`) are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset (`VideoFilterModeParser.GdiSupported` or `D3D11Supported`). The Color Effect sub-menu is always shown but has no visual impact in GDI+ mode. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
@@ -466,6 +495,26 @@ Key interfaces consumed:
 2. Add a new value to `AudioFilterMode` in `NEShim/Audio/AudioFilterMode.cs`. Add the matching `Parse()` case and, if the name is multi-word, a `DisplayName()` case in `AudioFilterModeParser`.
 3. Add the new mode to the `CreateProcessor` switch in `MainForm.cs`.
 4. No menu changes are needed — both `SoundHandler` classes read `Enum.GetValues<AudioFilterMode>()` dynamically. The new mode appears automatically in the Audio Filter sub-screen of both the in-game pause menu and the main menu.
+
+---
+
+## Adding a new D3D11 video filter (structural)
+
+1. Write a new `*.ps.hlsl` in `NEShim/Rendering/Shaders/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the standard `cbuffer FilterParams : register(b0)` layout (4 floats).
+2. Add its enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add the matching `Parse()` case, `DisplayName()` case, and append the value to `D3D11Supported`.
+3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`.
+4. Add the case to `D3D11FilterFactory.Create()`.
+5. Register the shader in `NEShim.csproj`: add the `.hlsl` as a `<None>` item, the `.cso` as an `<EmbeddedResource>` with the correct `<LogicalName>`, and add the `<Exec>` entry to the `CompileShaders` target.
+6. No menu changes are needed — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically. The new filter appears automatically.
+
+## Adding a new color effect
+
+Color effects are cbuffer values consumed inside `ColorGrade.hlsli` — not separate shader files:
+
+1. Add an enum value to `VideoColorFilterMode` in `NEShim/Rendering/VideoColorFilterMode.cs`. Add `Parse()` and `DisplayName()` cases in `VideoColorFilterModeParser`.
+2. Add the corresponding branch to `ApplyColorGrade()` in `NEShim/Rendering/Shaders/ColorGrade.hlsli`.
+3. Recompile all shaders that include `ColorGrade.hlsli` (all `.ps.hlsl` files in the Shaders directory) and commit the updated `.cso` files.
+4. No menu or renderer changes are needed — the Color Effect sub-menu reads `VideoColorFilterModeParser.AllModes` dynamically, and the renderer always passes `(float)_activeColorMode` into `cbuffer[3]`.
 
 ---
 

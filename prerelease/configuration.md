@@ -67,7 +67,8 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `videoFilter` | string | `"NearestNeighbour"` | Video filter applied to the NES framebuffer before display. `"NearestNeighbour"` — pixel-perfect, no smoothing (default). `"Bilinear"` — bilinear filtering for a softer look. `"PixelPerfect"` — nearest-neighbour with 8:7 pixel aspect ratio correction. `"CrtScanlines"` — nearest-neighbour with a scanline overlay shader. `"NtscComposite"` — NTSC composite encode/decode (CPU-side, blargg nes_ntsc). Unknown values throw a startup error. |
+| `videoFilter` | string | `"PixelPerfect"` | Structural video filter applied to the NES framebuffer before display. `"NearestNeighbour"` / `"PixelPerfect"` — pixel-perfect nearest-neighbour scaling with 8:7 pixel aspect ratio correction (`"NearestNeighbour"` is a legacy alias for `"PixelPerfect"`). `"Bilinear"` — bilinear interpolation (GDI+ only). `"CrtScanlines"` — alternating scanline darkening shader (D3D11 only). `"NtscComposite"` — NTSC composite simulation shader with chroma smearing and noise (D3D11 only). If a D3D11-only filter is selected but D3D11 is unavailable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback to `config.json`. Unknown values throw a startup error. See [Video filters](filters.md). |
+| `videoColorFilter` | string | `"None"` | Color-grade effect applied after the structural filter (D3D11 only; stored but inactive in GDI+ mode). `"None"` — no transform. `"Warm"` — slight amber tint with reduced blues. `"Greyscale"` — full desaturation using BT.601 luma coefficients. `"NesColorCorrection"` — small color-correction matrix for more accurate 2C02 → sRGB output. Unknown values throw a startup error. See [Video filters](filters.md). |
 | `overscanMode` | string | `"Auto"` | Controls how the NES PPU's 240-scanline output is cropped. `"Auto"` — NTSC crop (top and bottom 8 rows hidden, 224 rows displayed); correct default for the vast majority of NES games. `"NTSC"` — same as Auto, explicit. `"None"` — display all 240 rows. |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
@@ -213,7 +214,8 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "audioFilter": "Default",
   "mainMenuMusicVolume": 100,
   "mainMenuMusicEnabled": true,
-  "videoFilter": "NearestNeighbour",
+  "videoFilter": "PixelPerfect",
+  "videoColorFilter": "None",
   "overscanMode": "Auto",
   "mainMenuPosition": "BottomCenter",
   "showFps": false,
