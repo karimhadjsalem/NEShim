@@ -15,8 +15,8 @@ https://karimhadjsalem.github.io/NEShim/
 - **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
-- **Audio** — volume control and optional sound scrubber for warmer playback on modern hardware
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). Each path exposes its own filter set and a three-way overscan setting; see [Video filters](#video-filters) below
+- **Audio** — volume control and seven audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation)
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds CRT Scanlines and NTSC Composite structural filters plus four color effects (None, Warm, Greyscale, NES Colors) that stack independently on top of any structural filter; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — UI language loaded from Steam at startup; nine built-in languages (English, French, German, Spanish, Japanese, Korean, Russian, Simplified Chinese, Brazilian Portuguese); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -57,20 +57,35 @@ Full configuration reference and a step-by-step publishing guide are on the proj
 
 ---
 
-## Video filters
+## Filters
+
+### Audio filters
+
+Seven audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, and Saturation. Switching takes effect immediately with no audio pop.
+
+### Video filters
 
 NEShim uses two rendering paths. The D3D11 renderer is used by default on all modern Windows systems; the GDI+ renderer is a complete fallback for hardware or driver configurations where D3D11 is unavailable. The active path is detected at startup and logged; it can be forced to GDI+ for debugging via `"forceRenderer": "gdi"` in `config.json`.
 
-Each path exposes only the filters it supports:
+Each rendering path exposes its own set of structural filters:
 
 | Filter | GDI+ | D3D11 |
 |---|:---:|:---:|
 | Pixel Perfect (8:7 PAR, point-sampled) | Yes | Yes |
 | Smooth (bilinear interpolation) | Yes | — |
-| CRT Scanlines _(coming in a future update)_ | — | D3D11 only |
-| NTSC Composite _(coming in a future update)_ | — | D3D11 only |
+| CRT Scanlines | — | D3D11 only |
+| NTSC Composite | — | D3D11 only |
 
-If `config.json` specifies a filter that is not supported by the active renderer, NEShim logs a warning and silently falls back to Pixel Perfect. The config file is not modified.
+D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
+
+| Color Effect | Description |
+|---|---|
+| None | No transform (default) |
+| Warm | Slight amber tint with reduced blues |
+| Greyscale | Full desaturation using BT.601 luma coefficients |
+| NES Colors | Color-correction matrix for more accurate 2C02 → sRGB output |
+
+If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `config.json`.
 
 **Overscan mode** is available in both renderers and controls how the 256×240 NES frame is cropped and scaled:
 
@@ -82,9 +97,9 @@ If `config.json` specifies a filter that is not supported by the active renderer
 
 Filter and overscan changes take effect immediately while the game is running — no restart needed.
 
-### Developer note — injectable filter interfaces
+### Developer note — injectable filter architecture
 
-Filters are injected into each renderer through the `IGdiFilter` / `ID3D11Filter` interfaces in `NEShim.Rendering.Filters`. `GdiFilterFactory` and `D3D11FilterFactory` map a `VideoFilterMode` enum value to the correct implementation. Adding a new D3D11 filter requires implementing `ID3D11Filter`, adding a concrete class, registering it in `D3D11FilterFactory`, and adding its value to `VideoFilterModeParser.D3D11Supported`. No changes to the renderer or menu wiring are needed.
+Structural filters implement `ID3D11Filter` (in `NEShim.Rendering.Filters`) and are compiled as DXBC pixel shaders. All shaders share a uniform 4-float constant buffer: structural params at `[0..2]` (filled by the filter), color mode at `[3]` (filled by the renderer). A shared `ColorGrade.hlsli` include applies the active Color Effect as the final step in every shader, so any structural filter + color effect combination works without shader permutations. Adding a new structural filter requires implementing `ID3D11Filter`, writing the `.ps.hlsl`, registering in `D3D11FilterFactory`, and adding to `VideoFilterModeParser.D3D11Supported` — no renderer or menu changes needed. Adding a new color effect only requires extending the enum and adding a branch in `ColorGrade.hlsli`.
 
 ---
 
