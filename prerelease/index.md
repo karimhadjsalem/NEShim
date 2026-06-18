@@ -18,6 +18,7 @@ NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes 
 | Page | What it covers |
 |---|---|
 | [Configuration reference](configuration.md) | Every field in `config.json`, with types, defaults, and examples |
+| [Filters](filters.md) | Audio filters (7 processors), structural video filters (Pixel Perfect, CRT Scanlines, NTSC Composite), and color effects (Warm, Greyscale, NES Colors); availability by renderer; shader architecture |
 | [Achievement system](achievements.md) | How to define memory-watch triggers, encode them, and seal the config |
 | [Publishing guide](publishing.md) | Step-by-step checklist for packaging a game for Steam release |
 | [Architecture](architecture.md) | Internals: thread model, subsystem design, patterns, how to extend |
