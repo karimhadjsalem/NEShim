@@ -11,6 +11,7 @@ internal class VideoColorFilterModeParserTests
     [TestCase("Warm",               VideoColorFilterMode.Warm)]
     [TestCase("Greyscale",          VideoColorFilterMode.Greyscale)]
     [TestCase("NesColorCorrection", VideoColorFilterMode.NesColorCorrection)]
+    [TestCase("Cool",               VideoColorFilterMode.Cool)]
     public void Parse_KnownValue_ReturnsCorrectMode(string value, VideoColorFilterMode expected)
     {
         Assert.That(VideoColorFilterModeParser.Parse(value), Is.EqualTo(expected));
@@ -36,6 +37,7 @@ internal class VideoColorFilterModeParserTests
     [TestCase(VideoColorFilterMode.Warm,               "Warm")]
     [TestCase(VideoColorFilterMode.Greyscale,          "Greyscale")]
     [TestCase(VideoColorFilterMode.NesColorCorrection, "NES Colors")]
+    [TestCase(VideoColorFilterMode.Cool,               "Cool")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoColorFilterMode mode, string expected)
     {
         Assert.That(VideoColorFilterModeParser.DisplayName(mode), Is.EqualTo(expected));
@@ -51,9 +53,15 @@ internal class VideoColorFilterModeParserTests
     // ---- AllModes ----
 
     [Test]
-    public void AllModes_ContainsFourEntries()
+    public void AllModes_ContainsFiveEntries()
     {
-        Assert.That(VideoColorFilterModeParser.AllModes.Length, Is.EqualTo(4));
+        Assert.That(VideoColorFilterModeParser.AllModes.Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void AllModes_ContainsCool()
+    {
+        Assert.That(VideoColorFilterModeParser.AllModes, Contains.Item(VideoColorFilterMode.Cool));
     }
 
     [Test]

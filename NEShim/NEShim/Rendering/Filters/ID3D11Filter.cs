@@ -22,6 +22,12 @@ internal interface ID3D11Filter
     string? PixelShaderResourceName => null;
 
     /// <summary>
+    /// When <c>true</c> the renderer binds a linear-clamp sampler instead of point-clamp.
+    /// Default is <c>false</c> — suitable for all pixel-art filters.
+    /// </summary>
+    bool UseLinearSampler => false;
+
+    /// <summary>
     /// Fills <paramref name="buffer"/>[0..2] with structural shader parameters.
     /// The renderer always writes the active colour mode into [3].
     /// Default is a no-op (all zeros) — suitable for PixelPerfect.

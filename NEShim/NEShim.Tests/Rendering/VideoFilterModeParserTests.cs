@@ -11,6 +11,7 @@ internal class VideoFilterModeParserTests
     [TestCase("Bilinear",         VideoFilterMode.Bilinear)]
     [TestCase("PixelPerfect",     VideoFilterMode.PixelPerfect)]
     [TestCase("CrtScanlines",     VideoFilterMode.CrtScanlines)]
+    [TestCase("CrtPhosphor",      VideoFilterMode.CrtPhosphor)]
     [TestCase("NtscComposite",    VideoFilterMode.NtscComposite)]
     public void Parse_KnownValue_ReturnsCorrectMode(string input, VideoFilterMode expected)
     {
@@ -31,6 +32,7 @@ internal class VideoFilterModeParserTests
     [TestCase(VideoFilterMode.Bilinear,      "Smooth")]
     [TestCase(VideoFilterMode.PixelPerfect,  "Pixel Perfect")]
     [TestCase(VideoFilterMode.CrtScanlines,  "CRT Scanlines")]
+    [TestCase(VideoFilterMode.CrtPhosphor,   "CRT Phosphor")]
     [TestCase(VideoFilterMode.NtscComposite, "NTSC Composite")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoFilterMode mode, string expected)
     {
@@ -40,9 +42,9 @@ internal class VideoFilterModeParserTests
     // ---- D3D11Supported ----
 
     [Test]
-    public void D3D11Supported_ContainsThreeEntries()
+    public void D3D11Supported_ContainsFiveEntries()
     {
-        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(3));
+        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(5));
     }
 
     [Test]
@@ -52,9 +54,21 @@ internal class VideoFilterModeParserTests
     }
 
     [Test]
+    public void D3D11Supported_ContainsBilinear()
+    {
+        Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.Bilinear));
+    }
+
+    [Test]
     public void D3D11Supported_ContainsCrtScanlines()
     {
         Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void D3D11Supported_ContainsCrtPhosphor()
+    {
+        Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.CrtPhosphor));
     }
 
     [Test]

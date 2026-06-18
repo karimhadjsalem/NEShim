@@ -72,8 +72,9 @@ Each rendering path exposes its own set of structural filters:
 | Filter | GDI+ | D3D11 |
 |---|:---:|:---:|
 | Pixel Perfect (8:7 PAR, point-sampled) | Yes | Yes |
-| Smooth (bilinear interpolation) | Yes | — |
+| Smooth (bilinear interpolation) | Yes | Yes |
 | CRT Scanlines | — | D3D11 only |
+| CRT Phosphor (scanlines + aperture-grille mask) | — | D3D11 only |
 | NTSC Composite | — | D3D11 only |
 
 D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
@@ -84,6 +85,7 @@ D3D11 mode also supports **Color Effects** that stack on top of any structural f
 | Warm | Slight amber tint with reduced blues |
 | Greyscale | Full desaturation using BT.601 luma coefficients |
 | NES Colors | Color-correction matrix for more accurate 2C02 → sRGB output |
+| Cool | Blue-green tint approximating the D93 9300K CRT white point |
 
 If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `config.json`.
 
@@ -99,7 +101,7 @@ Filter and overscan changes take effect immediately while the game is running �
 
 ### Developer note — injectable filter architecture
 
-Structural filters implement `ID3D11Filter` (in `NEShim.Rendering.Filters`) and are compiled as DXBC pixel shaders. All shaders share a uniform 4-float constant buffer: structural params at `[0..2]` (filled by the filter), color mode at `[3]` (filled by the renderer). A shared `ColorGrade.hlsli` include applies the active Color Effect as the final step in every shader, so any structural filter + color effect combination works without shader permutations. Adding a new structural filter requires implementing `ID3D11Filter`, writing the `.ps.hlsl`, registering in `D3D11FilterFactory`, and adding to `VideoFilterModeParser.D3D11Supported` — no renderer or menu changes needed. Adding a new color effect only requires extending the enum and adding a branch in `ColorGrade.hlsli`.
+Structural filters implement `ID3D11Filter` (in `NEShim.Rendering.Filters`) and are compiled as DXBC pixel shaders. All shaders share a uniform 4-float constant buffer: structural params at `[0..2]` (filled by the filter), color mode at `[3]` (filled by the renderer). A shared `ColorGrade.hlsli` include applies the active Color Effect as the final step in every shader, so any structural filter + color effect combination works without shader permutations. The interface also exposes `UseLinearSampler` (default false) — override to true for sampler-only filters like Bilinear, which require no pixel shader. Adding a new structural filter requires implementing `ID3D11Filter`, writing the `.ps.hlsl`, registering in `D3D11FilterFactory`, and adding to `VideoFilterModeParser.D3D11Supported` — no renderer or menu changes needed. Adding a new color effect only requires extending the enum and adding a branch in `ColorGrade.hlsli`.
 
 ---
 

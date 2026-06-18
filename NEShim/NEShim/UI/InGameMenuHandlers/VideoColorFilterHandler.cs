@@ -47,6 +47,7 @@ internal sealed partial class InGameMenu
             VideoColorFilterMode.Warm               => Menu._localization.VideoColorFilterWarm,
             VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
             VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
+            VideoColorFilterMode.Cool               => Menu._localization.VideoColorFilterCool,
             _                                       => mode.ToString(),
         };
     }

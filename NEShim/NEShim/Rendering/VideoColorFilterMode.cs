@@ -6,6 +6,7 @@ public enum VideoColorFilterMode
     Warm,
     Greyscale,
     NesColorCorrection,
+    Cool,
 }
 
 public static class VideoColorFilterModeParser
@@ -18,6 +19,7 @@ public static class VideoColorFilterModeParser
         "Warm"               => VideoColorFilterMode.Warm,
         "Greyscale"          => VideoColorFilterMode.Greyscale,
         "NesColorCorrection" => VideoColorFilterMode.NesColorCorrection,
+        "Cool"               => VideoColorFilterMode.Cool,
         _ => throw new ArgumentException($"Unknown videoColorFilter value: '{value}'"),
     };
 
@@ -27,6 +29,7 @@ public static class VideoColorFilterModeParser
         VideoColorFilterMode.Warm               => "Warm",
         VideoColorFilterMode.Greyscale          => "Greyscale",
         VideoColorFilterMode.NesColorCorrection => "NES Colors",
+        VideoColorFilterMode.Cool               => "Cool",
         _                                       => mode.ToString(),
     };
 }

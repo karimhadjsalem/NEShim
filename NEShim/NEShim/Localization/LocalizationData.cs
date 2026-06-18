@@ -35,6 +35,7 @@ internal sealed class LocalizationData
     public string VideoFilterSmooth        { get; init; } = "Smooth";
     public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
+    public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
 
     // ---- Color effect sub-menu ----
@@ -44,6 +45,7 @@ internal sealed class LocalizationData
     public string VideoColorFilterWarm     { get; init; } = "Warm";
     public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
     public string VideoColorFilterNesColors { get; init; } = "NES Colors";
+    public string VideoColorFilterCool     { get; init; } = "Cool";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";

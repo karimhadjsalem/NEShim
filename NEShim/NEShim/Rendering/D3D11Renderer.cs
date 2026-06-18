@@ -33,7 +33,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11VertexShader       _vertexShader;
     private readonly ID3D11PixelShader        _passthroughPixelShader;
     private readonly ID3D11InputLayout        _inputLayout;
-    private readonly ID3D11SamplerState       _samplerState;
+    private readonly ID3D11SamplerState       _pointSamplerState;
+    private readonly ID3D11SamplerState       _linearSamplerState;
     private readonly ID3D11BlendState         _alphaBlendState;
     private readonly ID3D11Buffer             _filterCbuffer;
 
@@ -207,15 +208,27 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         // Point-clamp sampler — preserves hard NES pixel edges.
         // Clamping prevents edge wrap artefacts on the NES texture boundary.
-        _samplerState = device.CreateSamplerState(new SamplerDescription
+        _pointSamplerState = device.CreateSamplerState(new SamplerDescription
         {
-            Filter        = Filter.MinMagMipPoint,
-            AddressU      = TextureAddressMode.Clamp,
-            AddressV      = TextureAddressMode.Clamp,
-            AddressW      = TextureAddressMode.Clamp,
+            Filter         = Filter.MinMagMipPoint,
+            AddressU       = TextureAddressMode.Clamp,
+            AddressV       = TextureAddressMode.Clamp,
+            AddressW       = TextureAddressMode.Clamp,
             ComparisonFunc = ComparisonFunction.Never,
-            MaxAnisotropy = 1,
-            MaxLOD        = float.MaxValue,
+            MaxAnisotropy  = 1,
+            MaxLOD         = float.MaxValue,
+        });
+
+        // Linear-clamp sampler — bilinear interpolation for smooth scaling.
+        _linearSamplerState = device.CreateSamplerState(new SamplerDescription
+        {
+            Filter         = Filter.MinMagMipLinear,
+            AddressU       = TextureAddressMode.Clamp,
+            AddressV       = TextureAddressMode.Clamp,
+            AddressW       = TextureAddressMode.Clamp,
+            ComparisonFunc = ComparisonFunction.Never,
+            MaxAnisotropy  = 1,
+            MaxLOD         = float.MaxValue,
         });
 
         // Alpha blend state for the GDI+ overlay quad (FPS, toast, achievement).
@@ -388,7 +401,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
         DisposeOverlayResources();
         DisposeSidebarResources();
         _alphaBlendState.Dispose();
-        _samplerState.Dispose();
+        _pointSamplerState.Dispose();
+        _linearSamplerState.Dispose();
         _renderTargetView.Dispose();
         _nesTextureView.Dispose();
         _nesTexture.Dispose();
@@ -444,7 +458,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.IASetInputLayout(_inputLayout);
         _context.VSSetShader(_vertexShader);
         _context.PSSetShader(_activePixelShader);
-        _context.PSSetSampler(0, _samplerState);
+        _context.PSSetSampler(0, _activeFilter.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
     }
 
     private unsafe void UpdateFilterCbuffer()

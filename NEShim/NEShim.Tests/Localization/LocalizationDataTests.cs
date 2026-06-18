@@ -186,4 +186,18 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.VideoColorFilterNesColors, Is.EqualTo("NES Colors"));
     }
+
+    [Test]
+    public void DefaultInstance_VideoColorFilterCool_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoColorFilterCool, Is.EqualTo("Cool"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoFilterCrtPhosphor_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterCrtPhosphor, Is.EqualTo("CRT Phosphor"));
+    }
 }
