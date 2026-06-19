@@ -147,7 +147,7 @@ Swap()             ←──── SpinLock ────→  FrontBuffer (read o
 
 `WriteBack` copies the NES pixel array into the back buffer. `Swap` atomically flips `_frontIndex` under a `SpinLock`. The paint thread always reads from `FrontBuffer` — it never touches the back buffer.
 
-When the pause menu is open, the emulation loop does not run `RunFrame`, so the front buffer holds the last frame before the pause. The frozen frame is also captured into a separate `int[]` copy via `CaptureFront()` when the menu opens, so the renderer can use it as a background under the semi-transparent overlay without race conditions.
+When the pause menu is open, the emulation loop does not run `RunFrame`, so the front buffer holds the last frame before the pause. In D3D11 mode the NES texture persists in the GPU between frames; the last rendered frame is visible beneath the semi-transparent menu overlay without any extra copy.
 
 ---
 
@@ -506,6 +506,8 @@ Key interfaces consumed:
 4. Add the case to `D3D11FilterFactory.Create()`.
 5. Register the shader in `NEShim.csproj`: add the `.hlsl` as a `<None>` item, the `.cso` as an `<EmbeddedResource>` with the correct `<LogicalName>`, and add the `<Exec>` entry to the `CompileShaders` target.
 6. No menu changes are needed — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically. The new filter appears automatically.
+
+> **Cbuffer constraint:** `b0` is fixed at 4 floats. Slots [0..2] are yours via `WriteBaseParams()`; slot [3] is the colour mode and is written by the renderer. If your filter needs more than 3 configuration floats, revisit the design rule in `CLAUDE.md` explicitly — do not add a second constant buffer silently.
 
 ## Adding a new color effect
 

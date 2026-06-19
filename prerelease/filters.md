@@ -118,6 +118,8 @@ cbuffer FilterParams : register(b0)
 
 The renderer always writes the active `VideoColorFilterMode` into `param[3]`. Each structural filter writes its own params into `param[0..2]` via `ID3D11Filter.WriteBaseParams()`. For Pixel Perfect all three structural params are zero.
 
+The buffer is intentionally fixed at 4 floats. No filter may use a second constant buffer; if a future filter genuinely needs more than 3 config floats, update the design rule in `CLAUDE.md` and `D3D11Renderer` deliberately.
+
 ### Shared color grade include
 
 All shaders `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as their final step. This means any structural filter + color effect combination works without shader permutations — the grade is baked into every shader via the shared include rather than compiled as separate variants.
