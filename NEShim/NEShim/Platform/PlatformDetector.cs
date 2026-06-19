@@ -25,8 +25,8 @@ internal static class PlatformDetector
     /// True when D3D11 initialisation succeeded and the D3D11 render path is active.
     /// Set once at startup by <see cref="MainForm"/> after <see cref="D3D11Renderer"/> is
     /// constructed. False on systems where D3D11 is unavailable (GDI+ fallback is used).
-    /// All 2.0+ video filters are D3D11-only and must gate on this property before
-    /// offering themselves as menu options.
+    /// All D3D11-only video filters (CRT, NTSC, palette shaders) must gate on this
+    /// property before offering themselves as menu options.
     /// </summary>
     internal static bool IsD3D11Active { get; private set; }
 

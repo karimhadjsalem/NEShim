@@ -716,8 +716,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// </summary>
     private void UpdateLetterboxRect()
     {
-        // Use _activeFilter.PixelAspectRatio so future shader-based filters (e.g. NTSC,
-        // which may alter perceived pixel width) are handled without touching this method.
+        // Use _activeFilter.PixelAspectRatio so filters that alter perceived pixel width
+        // (e.g. NtscComposite at 8/7 PAR) are handled without touching this method.
         float displayAspect = _contentWidth * _activeFilter.PixelAspectRatio / _displayHeight;
         float windowAspect  = (float)_viewportWidth / _viewportHeight;
 

@@ -610,12 +610,13 @@ internal class MainMenuScreenTests
     public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
     {
         NEShim.Rendering.OverscanMode? received = null;
+        _config.OverscanMode = "Overscan";
         using var screen = CreateScreen(onOverscanModeChanged: mode => received = mode);
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Down);   // Video Filter (index 1)
         screen.HandleKey(Keys.Down);   // Overscan (index 2 in GDI mode)
         screen.HandleKey(Keys.Return);
-        // Overscan cycle: Overscan → Normal → Underscan. Default is Overscan → Normal
+        // Overscan cycle: Overscan → Normal → Underscan
         Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
         Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
     }

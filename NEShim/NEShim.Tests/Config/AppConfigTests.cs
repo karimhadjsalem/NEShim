@@ -162,10 +162,10 @@ internal class AppConfigTests
     }
 
     [Test]
-    public void OverscanMode_DefaultIsOverscan()
+    public void OverscanMode_DefaultIsNormal()
     {
         var config = new AppConfig();
-        Assert.That(config.OverscanMode, Is.EqualTo("Overscan"));
+        Assert.That(config.OverscanMode, Is.EqualTo("Normal"));
     }
 
     [Test]

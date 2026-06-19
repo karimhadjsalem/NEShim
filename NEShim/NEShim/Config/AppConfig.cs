@@ -36,10 +36,11 @@ public sealed class AppConfig
     // When true, displays a live FPS counter in the top-right corner during gameplay.
     public bool ShowFps { get; set; } = false;
 
-    // Video filter applied to the NES framebuffer before display.
-    // GDI+ mode supports: "Bilinear" (smooth), "PixelPerfect" (8:7 PAR, hard edges).
-    // D3D11 mode supports: "PixelPerfect"; "CrtScanlines" and "NtscComposite" coming soon.
-    // Unsupported values for the active renderer are silently ignored at startup.
+    // Structural video filter applied to the NES framebuffer before display.
+    // GDI+ mode:  "PixelPerfect", "Bilinear"
+    // D3D11 mode: "PixelPerfect", "Bilinear", "CrtScanlines", "CrtPhosphor", "NtscComposite"
+    // If a D3D11-only filter is active when D3D11 is unavailable, NEShim falls back to
+    // "PixelPerfect" at startup and saves the change to config.json.
     // "NearestNeighbour" is a deprecated alias — migrated to "PixelPerfect" at load time.
     public string VideoFilter { get; set; } = "PixelPerfect";
 
@@ -49,14 +50,15 @@ public sealed class AppConfig
     // "Underscan" — display all 240 rows but scale the image to 88% of the window, with a
     //               uniform black border on all sides (simulates an underscanned CRT monitor).
     // Legacy values "NTSC" and "Auto" map to "Overscan"; "None" maps to "Normal".
-    public string OverscanMode { get; set; } = "Overscan";
+    public string OverscanMode { get; set; } = "Normal";
 
     // D3D11-only colour grade applied on top of the structural video filter.
-    // "None"               — no colour adjustment (default).
+    // "None"               — no color adjustment.
     // "Warm"               — slight amber tint mimicking an aged CRT phosphor.
     // "Greyscale"          — convert to greyscale using BT.601 luma weights.
     // "NesColorCorrection" — approximate 2C02 composite → sRGB colour correction.
-    // Silently ignored in GDI+ mode (no D3D11 renderer to apply it).
+    // "Cool"               — blue-green tint approximating the D93 9300K CRT white point.
+    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
     public string VideoColorFilter { get; set; } = "None";
 
     // Deprecated — use VideoFilter: "Bilinear" instead.
@@ -73,11 +75,13 @@ public sealed class AppConfig
     public int Volume { get; set; } = 100;
 
     // Audio filter applied to the NES audio output.
-    // "Default"      — standard NES filter chain, no additional processing.
-    // "Warm"         — adds lowpass at ~8 kHz (replaces soundScrubberEnabled: true).
-    // "PseudoStereo" — Haas-effect stereo widening from mono source.
+    // "Default"      — standard NES hardware filter chain (HP@37Hz → HP@39Hz → LP@14kHz).
+    // "Warm"         — raised HP cutoffs + LP@8kHz for warmer sound on modern speakers.
+    // "PseudoStereo" — Haas-effect stereo widening from the mono source.
     // "WarmStereo"   — PseudoStereo + Warm lowpass combined.
     // "Compression"  — soft look-ahead compression to even out DPCM channel spikes.
+    // "BassBoost"    — additive low-shelf boost at 150 Hz (+4 dB at DC, ~+2 dB at 150 Hz).
+    // "Saturation"   — tanh soft-clip after the standard chain; mild boost below full scale.
     public string AudioFilter { get; set; } = "Default";
 
     // Deprecated — use AudioFilter: "Warm" instead.
@@ -149,7 +153,7 @@ public sealed class AppConfig
 
     // Forces a specific rendering backend, bypassing automatic selection.
     // "auto"  — try D3D11 first; fall back to GDI+ if init fails (default)
-    // "d3d11" — require D3D11; fall back to GDI+ only if D3D11 init throws
+    // "d3d11" — same as "auto"; documents intent but still falls back to GDI+ if D3D11 init throws
     // "gdi"   — always use GDI+ (useful when diagnosing D3D11-specific issues)
     public string ForceRenderer { get; set; } = "auto";
 
