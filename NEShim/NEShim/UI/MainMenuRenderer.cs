@@ -61,7 +61,7 @@ internal static class MainMenuRenderer
 
         if (menu.CurrentScreen == MainMenuScreen.Screen.Main)
         {
-            int panelW = Math.Min(MainPanelMaxW, bounds.Width - 60);
+            int panelW = MenuRenderConstants.PanelW(MainPanelMaxW, bounds.Width);
             int panelH = PanelHeaderH + items.Length * ItemH + Pad;
             var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
             for (int i = 0; i < items.Length; i++)
@@ -76,8 +76,9 @@ internal static class MainMenuRenderer
         int  openMenuIdx = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
                            ? menu.OpenMenuBindingIndex : -1;
         bool hasSep      = openMenuIdx >= 0;
-        int  pw          = showCtrl ? Math.Min(FullPanelW, bounds.Width - 60) : Math.Min(SlimPanelW, bounds.Width - 60);
-        int  listW       = showCtrl ? pw - ControllerAreaW : pw;
+        int  ctrlAreaW   = MenuRenderConstants.PanelW(ControllerAreaW, bounds.Width);
+        int  pw          = showCtrl ? MenuRenderConstants.PanelW(FullPanelW, bounds.Width) : MenuRenderConstants.PanelW(SlimPanelW, bounds.Width);
+        int  listW       = showCtrl ? pw - ctrlAreaW : pw;
         int  ph          = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
         int  px          = Math.Max(8, (bounds.Width  - pw) / 2);
         int  py          = Math.Max(8, (bounds.Height - ph) / 2);
@@ -170,7 +171,7 @@ internal static class MainMenuRenderer
     private static void DrawMainPanel(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
         var items  = menu.GetCurrentItems();
-        int panelW = Math.Min(MainPanelMaxW, bounds.Width - 60);
+        int panelW = MenuRenderConstants.PanelW(MainPanelMaxW, bounds.Width);
         int panelH = PanelHeaderH + items.Length * ItemH + Pad;
         var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
 
@@ -191,8 +192,9 @@ internal static class MainMenuRenderer
                            ? menu.OpenMenuBindingIndex : -1;
         bool hasSep      = openMenuIdx >= 0;
         bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
-        int  panelW      = showCtrl ? Math.Min(FullPanelW, bounds.Width - 60) : Math.Min(SlimPanelW, bounds.Width - 60);
-        int  listW       = showCtrl ? panelW - ControllerAreaW : panelW;
+        int  ctrlAreaW   = MenuRenderConstants.PanelW(ControllerAreaW, bounds.Width);
+        int  panelW      = showCtrl ? MenuRenderConstants.PanelW(FullPanelW, bounds.Width) : MenuRenderConstants.PanelW(SlimPanelW, bounds.Width);
+        int  listW       = showCtrl ? panelW - ctrlAreaW : panelW;
         int  panelH      = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
         int  panelX      = Math.Max(8, (bounds.Width  - panelW) / 2);
         int  panelY      = Math.Max(8, (bounds.Height - panelH) / 2);
@@ -203,8 +205,8 @@ internal static class MainMenuRenderer
 
     private static void DrawRebindPrompt(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
-        int panelW = Math.Min(RebindPanelMaxW, bounds.Width - 60);
-        int panelH = RebindPanelH;
+        int panelW = MenuRenderConstants.PanelW(RebindPanelMaxW, bounds.Width);
+        int panelH = S(RebindPanelH);
         int panelX = (bounds.Width  - panelW) / 2;
         int panelY = (bounds.Height - panelH) / 2;
 
@@ -227,9 +229,9 @@ internal static class MainMenuRenderer
             : menu.Localization.MainMenuRebindPressKey;
 
         g.DrawString(menu.GetTitle(), tf, tb,
-            new RectangleF(panelX, panelY + 10, panelW, 44), centred);
+            new RectangleF(panelX, panelY + S(10), panelW, S(44)), centred);
         g.DrawString(hint, hf, hb,
-            new RectangleF(panelX, panelY + 60, panelW, 44), centred);
+            new RectangleF(panelX, panelY + S(60), panelW, S(44)), centred);
     }
 
     private static void DrawPanel(Graphics g, Rectangle panel, string title, Color titleColor,
@@ -258,7 +260,7 @@ internal static class MainMenuRenderer
             using var vDivPen = new Pen(Color.FromArgb(50, 255, 255, 255), 1);
             g.DrawLine(vDivPen, panel.X + listW, panel.Y + 8, panel.X + listW, panel.Y + panel.Height - 8);
 
-            var ctrlArea = new RectangleF(panel.X + listW + 6, panel.Y + 14, ControllerAreaW - 10, panel.Height - 28);
+            var ctrlArea = new RectangleF(panel.X + listW + 6, panel.Y + 14, panel.Width - listW - 10, panel.Height - 28);
             NesControllerDiagram.Draw(g, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel);
         }
 

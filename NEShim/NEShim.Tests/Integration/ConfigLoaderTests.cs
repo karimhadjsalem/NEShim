@@ -42,6 +42,15 @@ internal class ConfigLoaderTests
     }
 
     [Test]
+    public void LoadFrom_WhenFileDoesNotExist_OnNonSteamDeck_AudioFilterIsDefault()
+    {
+        // Tests run on Windows without the SteamDeck=1 env var, so IsSteamDeck is false.
+        // Verifies the non-Steam-Deck first-run path leaves AudioFilter at "Default".
+        var config = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(config.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
     public void LoadFrom_WhenFileDoesNotExist_ReturnsDefaultWindowMode()
     {
         var config = ConfigLoader.LoadFrom(_configPath);

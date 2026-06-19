@@ -223,8 +223,10 @@ internal sealed class EmulationThread
                         _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadNav(nav));
                 }
 
-                // Wait up to 16ms (~60fps menu poll). Returns early if unpaused or stopped.
-                _resumeEvent.Wait(16);
+                // Wait up to 4ms (~250Hz menu poll). Returns early if unpaused or stopped.
+                // Short interval cuts average input-to-detect latency from ~8ms to ~2ms,
+                // which is noticeable on Steam Deck where WM_TIMER fires late under Wine.
+                _resumeEvent.Wait(4);
                 if (_stopRequested) break;
 
                 // Reset the deadline grid so the first frame after resume targets

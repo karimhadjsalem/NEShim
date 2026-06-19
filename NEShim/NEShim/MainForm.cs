@@ -667,7 +667,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             WindowState     = FormWindowState.Normal;
             FormBorderStyle = FormBorderStyle.Sizable;
-            ClientSize      = new Size(768, 672); // ~3× NES with aspect correction
+            ClientSize      = new Size(1024, 672); // wider than NES display aspect to leave room for sidebars
             CenterToScreen();
         }
         _config!.WindowMode = fullscreen ? "Fullscreen" : "Windowed";
@@ -756,6 +756,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         else if (_menu?.IsOpen == true)         _menu.HandleGamepadNav(nav);
         _renderer?.MarkOverlayDirty();
         _gamePanel?.Invalidate();
+        // Render immediately rather than waiting for the next steam timer tick.
+        // On Wine/Proton, WM_TIMER can fire 20-30ms late; presenting here drops
+        // the visual response latency from "up to one timer interval" to near zero.
+        if (_emulationThread?.IsPaused == true)
+            _renderer?.Tick(vsync: false);
     }
 
     void UI.IMenuInputTarget.HandleGamepadButtonPress(string buttonName)
@@ -766,6 +771,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         if (toast is not null) _renderer?.ShowToast(toast);
         _renderer?.MarkOverlayDirty();
         _gamePanel?.Invalidate();
+        if (_emulationThread?.IsPaused == true)
+            _renderer?.Tick(vsync: false);
     }
 
     // ---- Form lifecycle -----------------------------------------------------------

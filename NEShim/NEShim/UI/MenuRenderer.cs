@@ -141,7 +141,7 @@ internal static class MenuRenderer
             using var vDivPen = new Pen(Color.FromArgb(50, 255, 255, 255), 1);
             g.DrawLine(vDivPen, panelX + listW, panelY + 8, panelX + listW, panelY + panelH - 8);
 
-            var ctrlArea = new RectangleF(panelX + listW + 6, panelY + 14, ControllerAreaW - 10, panelH - 28);
+            var ctrlArea = new RectangleF(panelX + listW + 6, panelY + 14, panelW - listW - 10, panelH - 28);
             NesControllerDiagram.Draw(g, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel);
         }
 
@@ -222,9 +222,11 @@ internal static class MenuRenderer
 
     private static void DrawDisconnectScreen(Graphics g, Rectangle bounds, InGameMenu menu)
     {
-        int panelX = Math.Max(8, (bounds.Width  - DisconnectPanelW) / 2);
-        int panelY = Math.Max(8, (bounds.Height - DisconnectPanelH) / 2);
-        var panelRect = new Rectangle(panelX, panelY, DisconnectPanelW, DisconnectPanelH);
+        int panelW = MenuRenderConstants.PanelW(DisconnectPanelW, bounds.Width);
+        int panelH = S(DisconnectPanelH);
+        int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
+        int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
+        var panelRect = new Rectangle(panelX, panelY, panelW, panelH);
 
         using var panelBrush = new SolidBrush(PanelColor);
         using var borderPen  = new Pen(WarningBorder, 2f);
@@ -239,10 +241,10 @@ internal static class MenuRenderer
 
         g.DrawString("Controller Disconnected",
             titleFont, titleBrush,
-            new RectangleF(panelX, panelY + DisconnectTitleY, DisconnectPanelW, DisconnectTitleH), centred);
+            new RectangleF(panelX, panelY + S(DisconnectTitleY), panelW, S(DisconnectTitleH)), centred);
         g.DrawString("Press any button to continue…",
             hintFont, hintBrush,
-            new RectangleF(panelX, panelY + DisconnectHintY, DisconnectPanelW, DisconnectHintH), centred);
+            new RectangleF(panelX, panelY + S(DisconnectHintY), panelW, S(DisconnectHintH)), centred);
     }
 
     private static bool ShouldShowController(Rectangle bounds, InGameMenu.Screen screen) =>
@@ -253,10 +255,11 @@ internal static class MenuRenderer
     private static (int panelX, int panelY, int panelW, int panelH, int listW) PanelMetrics(
         Rectangle bounds, int itemCount, int warningRowH, bool hasSeparator, bool showCtrl)
     {
+        int ctrlAreaW = MenuRenderConstants.PanelW(ControllerAreaW, bounds.Width);
         int panelW = showCtrl
-            ? Math.Min(FullPanelW, bounds.Width - 60)
-            : Math.Min(SlimPanelW, bounds.Width - 60);
-        int listW  = showCtrl ? panelW - ControllerAreaW : panelW;
+            ? MenuRenderConstants.PanelW(FullPanelW, bounds.Width)
+            : MenuRenderConstants.PanelW(SlimPanelW, bounds.Width);
+        int listW  = showCtrl ? panelW - ctrlAreaW : panelW;
         int panelH = PanelHeaderH + warningRowH + itemCount * ItemH + PanelPad + (hasSeparator ? SeparatorH : 0);
         int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
         int panelY = Math.Max(8, (bounds.Height - panelH) / 2);

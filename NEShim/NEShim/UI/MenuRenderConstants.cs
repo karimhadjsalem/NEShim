@@ -1,3 +1,5 @@
+using NEShim.Platform;
+
 namespace NEShim.UI;
 
 /// <summary>
@@ -10,4 +12,12 @@ internal static class MenuRenderConstants
     internal const int FullPanelW      = 520; // panel width when controller is shown
     internal const int SlimPanelW      = 440; // panel width when controller is hidden
     internal const int MinWidthForCtrl = 580; // minimum bounds.Width to show controller column
+
+    // On Steam Deck, panel widths scale proportionally to the viewport so menus maintain
+    // the same visual fraction of the screen as on the 768px windowed baseline (47% for
+    // the main panel). On desktop (IsSteamDeck = false) returns baseW unchanged.
+    internal static int PanelW(int baseW, int viewportW) =>
+        PlatformDetector.IsSteamDeck
+            ? Math.Min((int)(viewportW * baseW / 768f), viewportW - 60)
+            : baseW;
 }

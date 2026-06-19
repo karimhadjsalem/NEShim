@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NEShim.Platform;
 
 namespace NEShim.Config;
 
@@ -25,6 +26,8 @@ public static class ConfigLoader
         {
             Logger.Log($"[Config] config.json not found — writing defaults to {configPath}");
             var defaults = new AppConfig();
+            if (PlatformDetector.IsSteamDeck)
+                defaults.AudioFilter = "Saturation";
             SaveTo(defaults, configPath);
             return defaults;
         }
