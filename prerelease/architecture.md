@@ -405,7 +405,7 @@ In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `F
 - `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
 - `false` — D3D11 unavailable; GDI+ path is active.
 
-The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains five entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, and `NtscComposite`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining three are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is always shown but has no visual impact in GDI+ mode. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
+The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains five entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, and `NtscComposite`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining three are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
