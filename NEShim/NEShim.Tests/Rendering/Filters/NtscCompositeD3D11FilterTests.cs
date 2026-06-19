@@ -93,4 +93,10 @@ internal class NtscCompositeD3D11FilterTests
         _filter.WriteBaseParams(buffer, 256, 0);
         Assert.That(buffer[1], Is.EqualTo(0f));
     }
+
+    [Test]
+    public void UseLinearSampler_IsFalse()
+    {
+        Assert.That(((ID3D11Filter)_filter).UseLinearSampler, Is.False);
+    }
 }

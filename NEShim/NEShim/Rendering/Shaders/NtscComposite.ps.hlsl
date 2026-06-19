@@ -8,7 +8,7 @@ cbuffer FilterParams : register(b0)
     float invWidth;       // 1 / nesWidth
     float invHeight;      // 1 / nesHeight (unused, kept for alignment)
     float chromaStrength; // Blending strength for chroma smear (0=none, 1=full)
-    float colorMode;      // 0=none, 1=warm, 2=greyscale, 3=nes_colors
+    float colorMode;      // 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool
 }
 
 struct PSInput

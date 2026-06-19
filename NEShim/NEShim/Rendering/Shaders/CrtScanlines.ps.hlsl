@@ -8,7 +8,7 @@ cbuffer FilterParams : register(b0)
     float nesWidth;           // NES content width in pixels
     float nesHeight;          // NES content height in pixels
     float scanlineIntensity;  // Darkening factor for even scanlines (0=black, 1=no effect)
-    float colorMode;          // 0=none, 1=warm, 2=greyscale, 3=nes_colors
+    float colorMode;          // 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool
 }
 
 struct PSInput

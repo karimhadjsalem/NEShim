@@ -77,4 +77,10 @@ internal class CrtScanlinesD3D11FilterTests
         _filter.WriteBaseParams(buffer, 256, 240);
         Assert.That(buffer[3], Is.EqualTo(99f));
     }
+
+    [Test]
+    public void UseLinearSampler_IsFalse()
+    {
+        Assert.That(((ID3D11Filter)_filter).UseLinearSampler, Is.False);
+    }
 }

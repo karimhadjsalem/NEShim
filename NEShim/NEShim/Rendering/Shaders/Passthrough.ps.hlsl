@@ -8,7 +8,7 @@ cbuffer FilterParams : register(b0)
     float param0;     // unused for passthrough
     float param1;     // unused for passthrough
     float param2;     // unused for passthrough
-    float colorMode;  // 0=none, 1=warm, 2=greyscale, 3=nes_colors
+    float colorMode;  // 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool
 }
 
 struct PSInput

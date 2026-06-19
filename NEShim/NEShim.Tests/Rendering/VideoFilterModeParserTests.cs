@@ -104,6 +104,12 @@ internal class VideoFilterModeParserTests
     }
 
     [Test]
+    public void GdiSupported_DoesNotContainCrtPhosphor()
+    {
+        Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.CrtPhosphor));
+    }
+
+    [Test]
     public void GdiSupported_DoesNotContainNtscComposite()
     {
         Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.NtscComposite));

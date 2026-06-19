@@ -49,7 +49,10 @@ internal class BilinearD3D11FilterTests
     {
         ID3D11Filter filterInterface = _filter;
         Span<float> buffer = stackalloc float[4];
-        buffer[0] = 1f; buffer[1] = 2f; buffer[2] = 3f; buffer[3] = 4f;
+        buffer[0] = 1f;
+        buffer[1] = 2f;
+        buffer[2] = 3f;
+        buffer[3] = 4f;
         filterInterface.WriteBaseParams(buffer, 256, 240);
         Assert.That(buffer[0], Is.EqualTo(1f));
         Assert.That(buffer[1], Is.EqualTo(2f));
