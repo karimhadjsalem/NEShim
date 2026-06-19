@@ -24,6 +24,7 @@ NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes 
 | [Architecture](architecture.md) | Internals: thread model, subsystem design, patterns, how to extend |
 | [Input system](input.md) | Keyboard remapping, XInput, Steam Input, hotkeys, and the VDF file |
 | [Localization](localization.md) | Language files, Steam language detection, CJK font fallback |
+| [Steam Deck](steamdeck.md) | Automatic adjustments (menu scale, audio default), input latency fix, publishing requirements, known differences from Windows |
 
 ---
 
