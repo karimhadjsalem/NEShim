@@ -32,14 +32,13 @@ This only applies on first run. If `config.json` already exists (e.g., the user 
 
 ---
 
-## Input latency
+## Main menu rendering performance
 
-On Wine/Proton, `WM_TIMER` fires 20–30 ms late due to Gamescope compositor scheduling. NEShim uses two mitigations:
+On Wine/Proton, main menu navigation appeared laggy — pressing a button took noticeably longer to update the screen than in-game menu navigation. The root cause was rendering throughput, not input detection speed: the background image was rescaled with high-quality bicubic interpolation on every render frame. Under Wine's GDI+ implementation this takes tens of milliseconds, reducing the visible update rate from 60 Hz to roughly 5–10 Hz.
 
-1. **Immediate present after navigation**: After each gamepad nav event is dispatched to the UI thread, the renderer presents a new frame immediately rather than waiting for the next timer tick. This eliminates the "wait for timer" portion of the latency.
-2. **4 ms pause-loop poll interval**: The emulation thread's menu poll cycle runs at 4 ms intervals (250 Hz) while paused, cutting the average input-to-detection delay from ~8 ms to ~2 ms.
+The fix: `MainMenuScreen` caches the pre-scaled background bitmap at the current viewport size. The cache is built once on first display and rebuilt only when the viewport changes (e.g., toggling windowed/fullscreen). Each frame does a fast 1:1 pixel-copy blit of the cached bitmap instead of a full bicubic resample. Menu navigation now updates at 60 Hz.
 
-Combined, these reduce the typical button-press-to-screen-update latency to 3–5 ms. No configuration change is needed — both fixes are applied unconditionally.
+The menu present cycle is driven by the 16 ms Steam callback timer while the emulation loop is paused. Nav input is dispatched to the UI thread via `BeginInvoke` and marks the overlay dirty; the next timer tick presents the updated frame.
 
 ### Windowed mode and sidebars
 
@@ -78,6 +77,6 @@ NEShim uses `SwapEffect.FlipDiscard`, which is required for DXVK. The legacy `Di
 |---|---|
 | Steam overlay | Functions correctly. Steam's `GameOverlayRenderer64.dll` hooks `IDXGISwapChain::Present` and composites the overlay into the swap chain. |
 | XInput | The Steam Deck controller exposes itself as both XInput and Steam Input. NEShim reads both; Steam Input takes priority for menu navigation when native actions are configured. |
-| Timer precision | `WM_TIMER` is less precise under Wine/Proton. Menu rendering uses an immediate-present path after input events and a 4 ms pause-loop poll interval to keep latency low. |
+| Timer precision | `WM_TIMER` is less precise under Wine/Proton. Main menu rendering uses a pre-scaled background cache so each frame completes in under 1 ms; the 16 ms Steam callback timer drives presents at 60 Hz while paused. |
 | Audio latency | WASAPI shared mode is used first; WaveOut is the fallback. Both work under Wine. WASAPI typically has lower latency. |
 | Performance testing | Always use the published build (`local-publish.ps1`) for framerate testing. Debug and framework-dependent builds show artificially poor framerates under Wine that are not representative of the release. |
