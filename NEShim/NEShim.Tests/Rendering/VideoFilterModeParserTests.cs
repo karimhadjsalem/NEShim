@@ -114,4 +114,5 @@ internal class VideoFilterModeParserTests
     {
         Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.NtscComposite));
     }
+
 }

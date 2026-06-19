@@ -38,4 +38,11 @@ internal interface ID3D11Filter
     /// CLAUDE.md and <c>D3D11Renderer</c> deliberately rather than working around it silently.
     /// </remarks>
     void WriteBaseParams(Span<float> buffer, int nesWidth, int nesHeight) { }
+
+    /// <summary>
+    /// Called once per draw call before <see cref="WriteBaseParams"/> so filters that need
+    /// per-frame state (e.g. temporal noise phase) can update themselves.
+    /// Default is a no-op — only filters with per-frame animation need to override this.
+    /// </summary>
+    void NotifyFrame(int frameCount) { }
 }

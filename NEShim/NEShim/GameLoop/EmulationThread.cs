@@ -249,7 +249,7 @@ internal sealed class EmulationThread
                 _saveStates.AutoSave();
             }
 
-            // 5. Copy video to front buffer
+            // 5. Copy video to front buffer.
             var videoBuffer = _host.Video.GetVideoBuffer();
             _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
             _frameBuffer.Swap();

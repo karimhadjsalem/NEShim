@@ -6,7 +6,8 @@ namespace NEShim.Platform;
 /// </summary>
 internal static class MenuScale
 {
+    private const float NormalScale = 1.0f;
     private const float SteamDeckScale = 1.3f;
 
-    internal static float Scale { get; } = PlatformDetector.IsSteamDeck ? SteamDeckScale : 1.0f;
+    internal static float Scale { get; } = PlatformDetector.IsSteamDeck ? SteamDeckScale : NormalScale;
 }

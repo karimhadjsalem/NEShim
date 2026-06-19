@@ -27,8 +27,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11DeviceContext _context;
 
     // Owned D3D11 resources — all disposed in Dispose().
-    private readonly ID3D11Texture2D          _nesTexture;
-    private readonly ID3D11ShaderResourceView _nesTextureView;
+    private ID3D11Texture2D          _nesTexture   = null!;
+    private ID3D11ShaderResourceView _nesTextureView = null!;
     private readonly ID3D11Buffer             _vertexBuffer;
     private readonly ID3D11VertexShader       _vertexShader;
     private readonly ID3D11PixelShader        _passthroughPixelShader;
@@ -63,7 +63,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private System.Drawing.Size       _rightSidebarBmpSize;
     private bool                      _hasSidebars;
 
-    private readonly int _nesWidth;
+    private int _nesTextureWidth;
     private readonly int _nesHeight;
     private int _viewportWidth;
     private int _viewportHeight;
@@ -71,6 +71,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private Filters.ID3D11Filter   _activeFilter    = new Filters.PixelPerfectD3D11Filter();
     private OverscanMode           _overscanMode    = OverscanMode.Overscan;
     private VideoColorFilterMode   _activeColorMode = VideoColorFilterMode.None;
+    private int                    _drawFrameCount;
 
     private const float UnderscanScale = 0.88f;
 
@@ -116,7 +117,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _device        = device;
         _swapChain     = swapChain;
         _context       = device.ImmediateContext;
-        _nesWidth      = nesWidth;
         _nesHeight     = nesHeight;
         _contentWidth  = nesWidth;
         _contentHeight = nesHeight;
@@ -125,19 +125,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // BizHawk IVideoProvider returns int[] where each int is 0xAARRGGBB.
         // In little-endian memory the bytes are [B, G, R, A] — BGRA — which maps
         // directly to B8G8R8A8_UNorm with no byte swapping required.
-        _nesTexture = device.CreateTexture2D(new Texture2DDescription
-        {
-            Width             = (uint)nesWidth,
-            Height            = (uint)nesHeight,
-            MipLevels         = 1,
-            ArraySize         = 1,
-            Format            = Format.B8G8R8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage             = ResourceUsage.Dynamic,
-            BindFlags         = BindFlags.ShaderResource,
-            CPUAccessFlags    = CpuAccessFlags.Write,
-        });
-        _nesTextureView = device.CreateShaderResourceView(_nesTexture);
+        CreateNesTexture(nesWidth);
 
         using var backBuffer = swapChain.GetBuffer<ID3D11Texture2D>(0);
         _renderTargetView = device.CreateRenderTargetView(backBuffer);
@@ -250,7 +238,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         UpdateOverscanUV();
         UpdateLetterboxRect();
 
-        Logger.Log($"[D3D11Renderer] Initialized ({nesWidth}×{nesHeight}, B8G8R8A8_UNorm, point-clamp). Renderer mode: D3D11.");
+        Logger.Log($"[D3D11Renderer] Initialized ({_nesTextureWidth}×{_nesHeight}, B8G8R8A8_UNorm, point-clamp). Renderer mode: D3D11.");
     }
 
     // ---- IFrameRenderer ----------------------------------------------------------------
@@ -269,13 +257,15 @@ internal sealed class D3D11Renderer : IFrameRenderer
             UpdateLetterboxRect();
         }
 
+        RecreateNesTextureIfNeeded(contentWidth);
+
         var mapped = _context.Map(_nesTexture, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         try
         {
             var srcBytes = MemoryMarshal.AsBytes(nesPixels);
-            int srcStride = _nesWidth * 4;
+            int srcStride = contentWidth * 4;
 
-            // MappedSubresource.RowPitch is NOT guaranteed to equal nesWidth * 4.
+            // MappedSubresource.RowPitch is NOT guaranteed to equal contentWidth * 4.
             // DXVK aligns texture rows for Vulkan buffer compatibility — always
             // copy row-by-row and respect RowPitch, not the source stride.
             byte* dst = (byte*)mapped.DataPointer;
@@ -420,6 +410,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawAndPresent(bool vsync)
     {
+        _activeFilter.NotifyFrame(_drawFrameCount++);
+
         _context.OMSetRenderTargets(_renderTargetView);
         _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
         _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
@@ -659,6 +651,38 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _leftSidebarTex?.Dispose();  _leftSidebarTex  = null;
         _rightSidebarSrv?.Dispose(); _rightSidebarSrv = null;
         _rightSidebarTex?.Dispose(); _rightSidebarTex = null;
+    }
+
+    // ---- NES texture management --------------------------------------------------------
+
+    /// <summary>
+    /// Creates the NES texture and SRV at the given width (height is always _nesHeight).
+    /// Called from the constructor and from RecreateNesTextureIfNeeded.
+    /// </summary>
+    private void CreateNesTexture(int width)
+    {
+        _nesTexture = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width             = (uint)width,
+            Height            = (uint)_nesHeight,
+            MipLevels         = 1,
+            ArraySize         = 1,
+            Format            = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage             = ResourceUsage.Dynamic,
+            BindFlags         = BindFlags.ShaderResource,
+            CPUAccessFlags    = CpuAccessFlags.Write,
+        });
+        _nesTextureView = _device.CreateShaderResourceView(_nesTexture);
+        _nesTextureWidth = width;
+    }
+
+    private void RecreateNesTextureIfNeeded(int width)
+    {
+        if (width == _nesTextureWidth) return;
+        _nesTextureView.Dispose();
+        _nesTexture.Dispose();
+        CreateNesTexture(width);
     }
 
     // ---- Overscan UV helpers -----------------------------------------------------------
