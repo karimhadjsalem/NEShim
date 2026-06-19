@@ -53,7 +53,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `audioBufferFrames` | integer | `3` | Size of the audio ring buffer in frames (~16.67 ms each). Increase if you hear crackling; decrease to reduce latency. Range: 1–8 is typical. |
-| `audioDevice` | string | `""` | Reserved for future use. Currently the audio system tries WASAPI shared mode, then falls back to WaveOut automatically. |
+| `audioDevice` | string | `""` | Accepted but ignored. The audio system always tries WASAPI shared mode first, then falls back to WaveOut automatically. |
 | `volume` | integer | `100` | Master volume for game audio (0–100). Adjustable in the Sound menu. |
 | `audioFilter` | string | `"Default"` | Audio filter applied to the NES audio output. `"Default"` — standard NES filter chain (HP@37Hz → HP@39Hz → LP@14kHz). `"Warm"` — adds a LP@8kHz stage for warmer sound on modern speakers. `"PseudoStereo"` — Haas-effect stereo widening from the mono source. `"WarmStereo"` — PseudoStereo + Warm lowpass combined. `"Compression"` — soft look-ahead compression to even out DPCM channel spikes. `"BassBoost"` — additive low-shelf boost at 150 Hz (+4 dB DC, ~+2 dB at 150 Hz) on top of the standard NES filter, for fuller sound on bass-light speakers. `"Saturation"` — tanh soft-clip applied after the NES filter chain; super-linear below full scale (mild mid-level boost) with smooth limiting at peaks. Unknown values throw a startup error. |
 | `mainMenuMusicVolume` | integer | `100` | Volume for main menu music (0–100), independent of the game audio `volume` field. Setting one does not affect the other. |
@@ -69,7 +69,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 |---|---|---|---|
 | `videoFilter` | string | `"PixelPerfect"` | Structural video filter applied to the NES framebuffer before display. `"NearestNeighbour"` / `"PixelPerfect"` — pixel-perfect nearest-neighbour scaling with 8:7 pixel aspect ratio correction (`"NearestNeighbour"` is a legacy alias for `"PixelPerfect"`). `"Bilinear"` — bilinear interpolation (GDI+ and D3D11). `"CrtScanlines"` — alternating scanline darkening shader (D3D11 only). `"CrtPhosphor"` — scanlines plus aperture-grille phosphor mask (D3D11 only). `"NtscComposite"` — NTSC composite simulation shader with chroma smearing and noise (D3D11 only). If a D3D11-only filter is selected but D3D11 is unavailable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback to `config.json`. Unknown values throw a startup error. See [Filters](filters.md). |
 | `videoColorFilter` | string | `"None"` | Color-grade effect applied after the structural filter (D3D11 only; stored but inactive in GDI+ mode). `"None"` — no transform. `"Warm"` — slight amber tint with reduced blues. `"Greyscale"` — full desaturation using BT.601 luma coefficients. `"NesColorCorrection"` — small color-correction matrix for more accurate 2C02 → sRGB output. `"Cool"` — blue-green tint approximating the D93 9300K CRT white point. Unknown values throw a startup error. See [Filters](filters.md). |
-| `overscanMode` | string | `"Auto"` | Controls how the NES PPU's 240-scanline output is cropped. `"Auto"` — NTSC crop (top and bottom 8 rows hidden, 224 rows displayed); correct default for the vast majority of NES games. `"NTSC"` — same as Auto, explicit. `"None"` — display all 240 rows. |
+| `overscanMode` | string | `"Normal"` | Controls how the NES PPU's 240-scanline output is cropped. `"Normal"` — display all 240 rows (default). `"Overscan"` — NTSC crop (top and bottom 8 rows hidden, 224 rows displayed); matches original NTSC TV output. `"Underscan"` — display all 240 rows but scale the image to 88% of the window, leaving a uniform black border on all sides. Legacy values `"Auto"` and `"NTSC"` map to `"Overscan"`; `"None"` maps to `"Normal"`. |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
 | `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. |
@@ -216,7 +216,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "mainMenuMusicEnabled": true,
   "videoFilter": "PixelPerfect",
   "videoColorFilter": "None",
-  "overscanMode": "Auto",
+  "overscanMode": "Normal",
   "mainMenuPosition": "BottomCenter",
   "showFps": false,
 
