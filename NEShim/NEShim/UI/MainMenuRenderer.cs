@@ -134,28 +134,12 @@ internal static class MainMenuRenderer
 
     private static void DrawBackground(Graphics g, Rectangle bounds, MainMenuScreen menu)
     {
-        if (menu.Background != null)
+        var preScaled = menu.GetScaledBackground(bounds);
+        if (preScaled != null)
         {
-            float imgAspect   = (float)menu.Background.Width / menu.Background.Height;
-            float panelAspect = (float)bounds.Width / bounds.Height;
-            Rectangle dest;
-            if (panelAspect > imgAspect)
-            {
-                int h = (int)(bounds.Width / imgAspect);
-                dest = new Rectangle(bounds.X, bounds.Y + (bounds.Height - h) / 2, bounds.Width, h);
-            }
-            else
-            {
-                int w = (int)(bounds.Height * imgAspect);
-                dest = new Rectangle(bounds.X + (bounds.Width - w) / 2, bounds.Y, w, bounds.Height);
-            }
-
             g.CompositingMode = CompositingMode.SourceCopy;
-            using var black = new SolidBrush(Color.Black);
-            g.FillRectangle(black, bounds);
+            g.DrawImageUnscaled(preScaled, bounds.X, bounds.Y);
             g.CompositingMode = CompositingMode.SourceOver;
-            var src = new Rectangle(0, 0, menu.Background.Width, menu.Background.Height);
-            g.DrawImage(menu.Background, dest, src, GraphicsUnit.Pixel);
         }
         else
         {

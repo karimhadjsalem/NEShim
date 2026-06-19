@@ -660,11 +660,15 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _isFullscreen = fullscreen;
         if (fullscreen)
         {
+            WindowState     = FormWindowState.Normal;
             FormBorderStyle = FormBorderStyle.None;
-            WindowState     = FormWindowState.Maximized;
+            TopMost         = true;
+            var screenBounds = Screen.FromHandle(Handle).Bounds;
+            SetBounds(screenBounds.X, screenBounds.Y, screenBounds.Width, screenBounds.Height);
         }
         else
         {
+            TopMost         = false;
             WindowState     = FormWindowState.Normal;
             FormBorderStyle = FormBorderStyle.Sizable;
             ClientSize      = new Size(1024, 672); // wider than NES display aspect to leave room for sidebars

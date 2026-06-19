@@ -38,6 +38,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11BlendState         _alphaBlendState;
     private readonly ID3D11Buffer             _filterCbuffer;
 
+    private bool _isDisposed;
+
     // Shader cache — keyed by resource name; passthrough reuses _passthroughPixelShader.
     private readonly Dictionary<string, ID3D11PixelShader> _shaderCache = new();
 
@@ -249,6 +251,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// </summary>
     public unsafe void UploadFrame(ReadOnlySpan<int> nesPixels, int contentWidth, int contentHeight)
     {
+        if (_isDisposed) return;
         if (contentWidth != _contentWidth || contentHeight != _contentHeight)
         {
             _contentWidth  = contentWidth;
@@ -284,7 +287,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// Called on the UI thread from steamTimer at ~60 Hz.
     /// Also serves as the heartbeat that keeps the Steam overlay hook fed during pause.
     /// </summary>
-    public void Tick(bool vsync) => DrawAndPresent(vsync);
+    public void Tick(bool vsync)
+    {
+        if (_isDisposed) return;
+        DrawAndPresent(vsync);
+    }
 
     public void UpdateFpsOverlay(bool show, float fps)
     {
@@ -387,6 +394,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public void Dispose()
     {
+        _isDisposed = true;
         Logger.Log("[D3D11Renderer] Disposed.");
         DisposeOverlayResources();
         DisposeSidebarResources();

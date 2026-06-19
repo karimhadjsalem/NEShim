@@ -1,4 +1,6 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using NEShim.Audio;
 using NEShim.Config;
@@ -28,6 +30,11 @@ internal sealed partial class MainMenuScreen : IDisposable
     public bool    IsVisible       { get; private set; } = true;
     public int     SelectedIndex   { get; private set; }
     public Bitmap? Background      { get; }
+
+    // Pre-scaled background bitmap cache — rebuilt only when bounds change.
+    // Avoids per-frame HighQualityBicubic scaling in DrawBackground.
+    private Bitmap? _scaledBackground;
+    private Size    _scaledBoundsSize;
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
@@ -391,7 +398,50 @@ internal sealed partial class MainMenuScreen : IDisposable
             : "(none)";
     }
 
-    public void Dispose() => Background?.Dispose();
+    // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.
+    // The caller must not dispose the returned bitmap — it is owned by this instance.
+    internal Bitmap? GetScaledBackground(Rectangle bounds)
+    {
+        if (Background == null) return null;
+        if (_scaledBackground != null && _scaledBoundsSize == bounds.Size)
+            return _scaledBackground;
+
+        _scaledBackground?.Dispose();
+        _scaledBackground = null;
+
+        float imgAspect    = (float)Background.Width / Background.Height;
+        float boundsAspect = (float)bounds.Width / bounds.Height;
+        Rectangle dest;
+        if (boundsAspect > imgAspect)
+        {
+            int h = (int)(bounds.Width / imgAspect);
+            dest = new Rectangle(0, (bounds.Height - h) / 2, bounds.Width, h);
+        }
+        else
+        {
+            int w = (int)(bounds.Height * imgAspect);
+            dest = new Rectangle((bounds.Width - w) / 2, 0, w, bounds.Height);
+        }
+
+        var cached = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+        using var cg = Graphics.FromImage(cached);
+        cg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        cg.CompositingMode   = CompositingMode.SourceCopy;
+        using var black = new SolidBrush(Color.Black);
+        cg.FillRectangle(black, 0, 0, bounds.Width, bounds.Height);
+        cg.CompositingMode = CompositingMode.SourceOver;
+        cg.DrawImage(Background, dest);
+
+        _scaledBackground = cached;
+        _scaledBoundsSize = bounds.Size;
+        return cached;
+    }
+
+    public void Dispose()
+    {
+        _scaledBackground?.Dispose();
+        Background?.Dispose();
+    }
 
     internal static string? ResolveAssetPath(string path)
     {
