@@ -3,7 +3,7 @@
 Texture2D    nesTexture : register(t0);
 SamplerState nesSampler : register(s0);
 
-cbuffer FilterParams : register(b0)
+cbuffer FilterParams : register(b0)  // fixed 4 floats: [0..2] filter params, [3] colorMode
 {
     float param0;     // unused for passthrough
     float param1;     // unused for passthrough

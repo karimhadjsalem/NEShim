@@ -3,7 +3,7 @@
 Texture2D    nesTexture : register(t0);
 SamplerState nesSampler : register(s0);
 
-cbuffer FilterParams : register(b0)
+cbuffer FilterParams : register(b0)  // fixed 4 floats: [0..2] filter params, [3] colorMode
 {
     float nesWidth;           // NES content width in pixels
     float nesHeight;          // NES content height in pixels

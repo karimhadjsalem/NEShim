@@ -130,6 +130,8 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 **`PlatformDetector.IsD3D11Active`** is set once at startup after `D3D11Renderer` is (or isn't) constructed. All 2.0+ video filters (CRT, palette shaders) are D3D11-only and must gate on this flag before offering themselves in any menu. The GDI+ fallback path has no filter support.
 
+**Cbuffer layout is fixed.** `b0` is always exactly 4 floats: `{param0, param1, param2, colorMode}`. Structural filters may use slots [0..2] via `WriteBaseParams()`; the renderer owns slot [3] (color mode) and always writes it. No filter may use a second constant buffer — if a future filter genuinely needs more than 3 configuration floats, revisit this rule explicitly rather than working around it silently.
+
 **`forceRenderer` config flag** — developer option, not exposed in any menu. `"auto"` (default) tries D3D11 and falls back to GDI+. `"gdi"` skips D3D11 entirely, useful when isolating D3D11-specific rendering bugs. `"d3d11"` is equivalent to `"auto"` (D3D11 is already preferred); it documents intent but still falls back to GDI+ if D3D11 init throws.
 
 **Slow-frame timing log:** When `enableLogging` is true, `EmulationThread` logs any frame whose total work time exceeds 14 ms (2.67 ms below the 16.67 ms budget). Each log entry breaks down time into `input`, `runFrame`, `video`, and `audio` segments. This is the first place to look when investigating FPS regressions. Note: in a Debug build, `runFrame` typically takes 17–30 ms due to unoptimised BizHawk JIT output — this is expected and is not a bug. Always use a Release build for performance testing.

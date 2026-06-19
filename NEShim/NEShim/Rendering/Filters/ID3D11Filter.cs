@@ -28,9 +28,14 @@ internal interface ID3D11Filter
     bool UseLinearSampler => false;
 
     /// <summary>
-    /// Fills <paramref name="buffer"/>[0..2] with structural shader parameters.
-    /// The renderer always writes the active colour mode into [3].
-    /// Default is a no-op (all zeros) — suitable for PixelPerfect.
+    /// Fills <paramref name="buffer"/>[0..2] with filter-specific shader parameters.
+    /// Slot [3] is reserved for the colour mode and is written by the renderer — do not touch it here.
+    /// Default is a no-op (all zeros) — suitable for filters with no structural parameters.
     /// </summary>
+    /// <remarks>
+    /// The b0 cbuffer is fixed at exactly 4 floats. No filter may use a second constant buffer.
+    /// If a filter genuinely needs more than 3 configuration floats, update the design rule in
+    /// CLAUDE.md and <c>D3D11Renderer</c> deliberately rather than working around it silently.
+    /// </remarks>
     void WriteBaseParams(Span<float> buffer, int nesWidth, int nesHeight) { }
 }
