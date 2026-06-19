@@ -128,4 +128,30 @@ internal class LocalizationLoaderTests
         Assert.That(data.FontFamily, Is.EqualTo("Segoe UI"));
         Assert.That(data.Back,       Is.EqualTo("← Back"));
     }
+
+    [Test]
+    public void LoadFrom_AudioFilterKeys_PopulatedFromJson()
+    {
+        string path = Path.Combine(_tempDir, "audio.json");
+        File.WriteAllText(path,
+            """{ "audioFilterTitle": "TEST FILTER", "audioFilterDefault": "TestDefault", "audioFilterBassBoost": "TestBass" }""",
+            Encoding.UTF8);
+
+        var data = LocalizationLoader.LoadFrom(path);
+
+        Assert.That(data.AudioFilterTitle,    Is.EqualTo("TEST FILTER"));
+        Assert.That(data.AudioFilterDefault,  Is.EqualTo("TestDefault"));
+        Assert.That(data.AudioFilterBassBoost, Is.EqualTo("TestBass"));
+    }
+
+    [Test]
+    public void LoadFrom_BindNone_PopulatedFromJson()
+    {
+        string path = Path.Combine(_tempDir, "bind.json");
+        File.WriteAllText(path, """{ "bindNone": "(rien)" }""", Encoding.UTF8);
+
+        var data = LocalizationLoader.LoadFrom(path);
+
+        Assert.That(data.BindNone, Is.EqualTo("(rien)"));
+    }
 }

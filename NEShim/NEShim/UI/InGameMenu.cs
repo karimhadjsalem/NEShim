@@ -352,7 +352,7 @@ internal sealed partial class InGameMenu
     // ---- Rendering label helpers (used by binding handlers) ----
 
     private string KeyboardLabel(string configKey)
-        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
+        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? _localization.BindNone : _localization.BindNone;
 
     private string GetGamepadLabel(string configKey)
     {
@@ -364,8 +364,20 @@ internal sealed partial class InGameMenu
             return SteamInputManager.GetNativeLabel(actionName);
 
         return _config.InputMappings.TryGetValue(configKey, out var b)
-            ? b.GamepadButton ?? "(none)"
-            : "(none)";
+            ? b.GamepadButton ?? _localization.BindNone
+            : _localization.BindNone;
     }
+
+    private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
+    {
+        AudioFilterMode.Default      => _localization.AudioFilterDefault,
+        AudioFilterMode.Warm         => _localization.AudioFilterWarm,
+        AudioFilterMode.PseudoStereo => _localization.AudioFilterPseudoStereo,
+        AudioFilterMode.WarmStereo   => _localization.AudioFilterWarmStereo,
+        AudioFilterMode.Compression  => _localization.AudioFilterCompression,
+        AudioFilterMode.BassBoost    => _localization.AudioFilterBassBoost,
+        AudioFilterMode.Saturation   => _localization.AudioFilterSaturation,
+        _                            => mode.ToString(),
+    };
 
 }

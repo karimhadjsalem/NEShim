@@ -450,6 +450,83 @@ internal class MainMenuScreenTests
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
+    // ---- Localization: audio filter display names and BindNone ----
+
+    [Test]
+    public void AudioFilter_GetTitle_UsesLocalizedTitle()
+    {
+        var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
+        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenAudioFilterScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("FILT CUSTOM"));
+    }
+
+    [Test]
+    public void AudioFilter_GetCurrentItems_UsesLocalizedDefaultName()
+    {
+        var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
+        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenAudioFilterScreen(screen);
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("TestDefault"));
+    }
+
+    [Test]
+    public void Sound_AudioFilterItem_UsesLocalizedLabel()
+    {
+        var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
+        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenSoundScreen(screen);
+        Assert.That(screen.GetCurrentItems()[1], Does.Contain("TestLabel"));
+    }
+
+    [Test]
+    public void Video_FilterItem_ContainsCrtPhosphor_WhenActive()
+    {
+        _config.VideoFilter = "CrtPhosphor";
+        using var screen = CreateScreen();
+        OpenVideoScreen(screen);
+        Assert.That(screen.GetCurrentItems()[1], Does.Contain("CRT Phosphor"));
+    }
+
+    [Test]
+    public void KeyboardBindings_UnboundKey_ShowsBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);   // Settings
+        screen.HandleKey(Keys.Return); // enter Settings
+        screen.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("(none)"));
+    }
+
+    [Test]
+    public void KeyboardBindings_UnboundKey_UsesLocalizedBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+        var loc = new LocalizationData { BindNone = "(unset)" };
+        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        screen.HandleKey(Keys.Down);   // Settings
+        screen.HandleKey(Keys.Return); // enter Settings
+        screen.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("(unset)"));
+    }
+
+    [Test]
+    public void GamepadBindings_UnboundButton_ShowsBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("W", null);
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);   // Settings
+        screen.HandleKey(Keys.Return); // enter Settings
+        screen.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        screen.HandleKey(Keys.Return); // GamepadBindings
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("(none)"));
+    }
+
     // ---- Video screen ----
 
     private static void OpenVideoScreen(MainMenuScreen screen)

@@ -61,6 +61,15 @@ internal sealed class LocalizationData
     public string SoundMusicOn  { get; init; } = "Menu Music: On";
     public string SoundMusicOff { get; init; } = "Menu Music: Off";
 
+    // ---- Audio filter mode display names ----
+    public string AudioFilterDefault      { get; init; } = "Default";
+    public string AudioFilterWarm         { get; init; } = "Warm";
+    public string AudioFilterPseudoStereo { get; init; } = "Pseudo Stereo";
+    public string AudioFilterWarmStereo   { get; init; } = "Warm Stereo";
+    public string AudioFilterCompression  { get; init; } = "Compression";
+    public string AudioFilterBassBoost    { get; init; } = "Bass Boost";
+    public string AudioFilterSaturation   { get; init; } = "Saturation";
+
     // ---- Shared rebind screen titles ----
     /// <summary>Format string — {0} is the uppercase binding label, e.g. "UP".</summary>
     public string PressKeyTitle    { get; init; } = "PRESS KEY FOR  {0}";
@@ -75,6 +84,8 @@ internal sealed class LocalizationData
     public string BindB      { get; init; } = "B";
     public string BindStart  { get; init; } = "Start";
     public string BindSelect { get; init; } = "Select";
+    /// <summary>Shown in the binding list when a key or button has not been assigned.</summary>
+    public string BindNone   { get; init; } = "(none)";
 
     // ---- Shared save-slot strings ----
     /// <summary>Format string — {0} is the 1-based slot number.</summary>

@@ -23,8 +23,8 @@ internal sealed partial class MainMenuScreen
             {
                 var mode = AllFilters[i];
                 items[i] = mode == current
-                    ? $"✓ {AudioFilterModeParser.DisplayName(mode)}"
-                    : $"  {AudioFilterModeParser.DisplayName(mode)}";
+                    ? $"✓ {Menu.AudioFilterDisplayName(mode)}"
+                    : $"  {Menu.AudioFilterDisplayName(mode)}";
             }
             items[BackIndex] = Menu._localization.Back;
             return items;

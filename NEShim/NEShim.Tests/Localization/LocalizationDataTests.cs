@@ -200,4 +200,67 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.VideoFilterCrtPhosphor, Is.EqualTo("CRT Phosphor"));
     }
+
+    [Test]
+    public void DefaultInstance_AudioFilterTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterTitle, Is.EqualTo("AUDIO FILTER"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterDefault_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterDefault, Is.EqualTo("Default"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterWarm_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterWarm, Is.EqualTo("Warm"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterPseudoStereo_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterPseudoStereo, Is.EqualTo("Pseudo Stereo"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterWarmStereo_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterWarmStereo, Is.EqualTo("Warm Stereo"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterCompression_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterCompression, Is.EqualTo("Compression"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterBassBoost_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterBassBoost, Is.EqualTo("Bass Boost"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterSaturation_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterSaturation, Is.EqualTo("Saturation"));
+    }
+
+    [Test]
+    public void DefaultInstance_BindNone_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.BindNone, Is.EqualTo("(none)"));
+    }
 }

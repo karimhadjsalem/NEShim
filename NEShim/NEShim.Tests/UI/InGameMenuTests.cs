@@ -806,6 +806,90 @@ internal class InGameMenuTests
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
+    // ---- Localization: audio filter display names and BindNone ----
+
+    [Test]
+    public void AudioFilter_GetTitle_UsesLocalizedTitle()
+    {
+        var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
+        var menu = new InGameMenu(_saveStates, _config, loc,
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("FILT CUSTOM"));
+    }
+
+    [Test]
+    public void AudioFilter_GetCurrentItems_UsesLocalizedDefaultName()
+    {
+        var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
+        var menu = new InGameMenu(_saveStates, _config, loc,
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("TestDefault"));
+    }
+
+    [Test]
+    public void Sound_AudioFilterItem_UsesLocalizedLabel()
+    {
+        var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
+        var menu = new InGameMenu(_saveStates, _config, loc,
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetCurrentItems()[1], Does.Contain("TestLabel"));
+    }
+
+    [Test]
+    public void Video_FilterItem_ContainsCrtPhosphor_WhenActive()
+    {
+        _config.VideoFilter = "CrtPhosphor";
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.GetCurrentItems()[1], Does.Contain("CRT Phosphor"));
+    }
+
+    [Test]
+    public void KeyboardBindings_UnboundKey_ShowsBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("(none)"));
+    }
+
+    [Test]
+    public void KeyboardBindings_UnboundKey_UsesLocalizedBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+        var loc = new LocalizationData { BindNone = "(unset)" };
+        var menu = new InGameMenu(_saveStates, _config, loc,
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Return); // Key Bindings (index 0)
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("(unset)"));
+    }
+
+    [Test]
+    public void GamepadBindings_UnboundButton_ShowsBindNone()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("W", null);
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Settings
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("(none)"));
+    }
+
     // ---- Video screen ----
 
     private static void OpenVideoScreen(InGameMenu menu)

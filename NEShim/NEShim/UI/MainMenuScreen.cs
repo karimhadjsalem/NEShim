@@ -382,7 +382,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     // ---- Rendering label helpers (used by binding handlers) ----
 
     private string KeyboardLabel(string configKey)
-        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? "(none)" : "(none)";
+        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? _localization.BindNone : _localization.BindNone;
 
     private string GetGamepadLabel(string configKey)
     {
@@ -394,9 +394,21 @@ internal sealed partial class MainMenuScreen : IDisposable
             return SteamInputManager.GetNativeLabel(actionName);
 
         return _config.InputMappings.TryGetValue(configKey, out var b)
-            ? b.GamepadButton ?? "(none)"
-            : "(none)";
+            ? b.GamepadButton ?? _localization.BindNone
+            : _localization.BindNone;
     }
+
+    private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
+    {
+        AudioFilterMode.Default      => _localization.AudioFilterDefault,
+        AudioFilterMode.Warm         => _localization.AudioFilterWarm,
+        AudioFilterMode.PseudoStereo => _localization.AudioFilterPseudoStereo,
+        AudioFilterMode.WarmStereo   => _localization.AudioFilterWarmStereo,
+        AudioFilterMode.Compression  => _localization.AudioFilterCompression,
+        AudioFilterMode.BassBoost    => _localization.AudioFilterBassBoost,
+        AudioFilterMode.Saturation   => _localization.AudioFilterSaturation,
+        _                            => mode.ToString(),
+    };
 
     // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.
     // The caller must not dispose the returned bitmap — it is owned by this instance.

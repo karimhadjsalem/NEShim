@@ -73,6 +73,7 @@ internal sealed partial class InGameMenu
             VideoFilterMode.Bilinear      => Menu._localization.VideoFilterSmooth,
             VideoFilterMode.PixelPerfect  => Menu._localization.VideoFilterPixelPerfect,
             VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
+            VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
             VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
             _                             => mode.ToString(),
         };
