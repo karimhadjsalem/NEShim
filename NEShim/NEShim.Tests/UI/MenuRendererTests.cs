@@ -55,7 +55,7 @@ internal class MenuRendererTests
             _saveStates, _config,
             new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         return menu;
     }
 

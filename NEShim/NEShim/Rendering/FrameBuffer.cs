@@ -46,20 +46,4 @@ internal sealed class FrameBuffer
         }
     }
 
-    /// <summary>Copies the front buffer for menu overlay use (UI thread).</summary>
-    public int[] CaptureFront()
-    {
-        bool taken = false;
-        _lock.Enter(ref taken);
-        try
-        {
-            var copy = new int[FrontBuffer.Length];
-            Buffer.BlockCopy(FrontBuffer, 0, copy, 0, copy.Length * sizeof(int));
-            return copy;
-        }
-        finally
-        {
-            if (taken) _lock.Exit();
-        }
-    }
 }

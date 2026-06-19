@@ -77,8 +77,6 @@ internal sealed partial class InGameMenu
         key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
              or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
 
-    public int[]? FrozenFrame { get; private set; }
-
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
     public LocalizationData Localization => _localization;
 
@@ -151,10 +149,9 @@ internal sealed partial class InGameMenu
 
     // ---- Open / Close ----
 
-    public void Open(int[] frozenFrame, Screen startScreen = Screen.Root)
+    public void Open(Screen startScreen = Screen.Root)
     {
         if (IsOpen) return;
-        FrozenFrame     = frozenFrame;
         IsOpen          = true;
         Current         = startScreen;
         SelectedItem    = 0;

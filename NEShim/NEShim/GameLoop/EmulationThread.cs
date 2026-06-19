@@ -348,7 +348,7 @@ internal sealed class EmulationThread
         if (_input.ConsumeGamepadDisconnect() && !_menu.IsOpen)
         {
             Logger.Log("[Emulation] Controller disconnected — opening disconnect screen.");
-            _menu.Open(_frameBuffer.CaptureFront(), InGameMenu.Screen.ControllerDisconnected);
+            _menu.Open(InGameMenu.Screen.ControllerDisconnected);
             return;
         }
 
@@ -384,7 +384,7 @@ internal sealed class EmulationThread
             else
             {
                 Logger.Log("[Emulation] Hotkey: in-game menu opened.");
-                _menu.Open(_frameBuffer.CaptureFront());
+                _menu.Open();
             }
             return; // Skip other hotkeys if menu just toggled
         }

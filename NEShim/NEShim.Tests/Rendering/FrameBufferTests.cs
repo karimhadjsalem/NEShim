@@ -57,21 +57,6 @@ internal class FrameBufferTests
     }
 
     [Test]
-    public void CaptureFront_ReturnsCopyNotReference()
-    {
-        var fb  = new FrameBuffer();
-        var src = new int[256 * 240];
-        src[10] = 42;
-        fb.WriteBack(src, 256, 240);
-        fb.Swap();
-
-        int[] captured = fb.CaptureFront();
-        captured[10] = 99;
-
-        Assert.That(fb.FrontBuffer[10], Is.EqualTo(42)); // original unchanged
-    }
-
-    [Test]
     public void WriteBack_SrcLargerThanBuffer_DoesNotThrow()
     {
         var fb     = new FrameBuffer();

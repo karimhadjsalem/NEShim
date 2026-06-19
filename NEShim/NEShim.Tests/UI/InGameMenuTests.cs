@@ -63,8 +63,6 @@ internal class InGameMenuTests
             onOverscanModeChanged      ?? (_ => { }));
     }
 
-    private static int[] EmptyFrame() => new int[256 * 240];
-
     // Helper: create an empty slot-state file so SlotExists returns true
     private void CreateSlotFile(int slot) =>
         File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
@@ -75,7 +73,7 @@ internal class InGameMenuTests
     public void Open_SetsIsOpenTrue_AndCurrentScreenIsRoot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.IsOpen,   Is.True);
         Assert.That(menu.Current,  Is.EqualTo(InGameMenu.Screen.Root));
     }
@@ -84,7 +82,7 @@ internal class InGameMenuTests
     public void Close_WhenOpen_SetsIsOpenFalse()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.Close();
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -93,9 +91,9 @@ internal class InGameMenuTests
     public void Open_WhenAlreadyOpen_DoesNotResetSelection()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down); // move cursor to index 1
-        menu.Open(EmptyFrame());   // second open should be ignored
+        menu.Open();   // second open should be ignored
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
 
@@ -113,7 +111,7 @@ internal class InGameMenuTests
     public void HandleKey_Escape_WhenRootScreen_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Escape);
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -122,7 +120,7 @@ internal class InGameMenuTests
     public void HandleKey_Escape_WhenSubScreen_ReturnsToRoot_WithoutClosing()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate into Save Slot Select (index 2)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -139,7 +137,7 @@ internal class InGameMenuTests
     public void HandleKey_Down_IncreasesSelectedItem()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
@@ -148,7 +146,7 @@ internal class InGameMenuTests
     public void HandleKey_Up_AtFirst_WrapsToLast()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Root has 8 items (indices 0–7). Up from 0 wraps to 7.
         menu.HandleKey(Keys.Up);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
@@ -158,7 +156,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnResume_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // SelectedItem = 0 (Resume)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.IsOpen, Is.False);
@@ -171,7 +169,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Load Game (index 4): 0→1→2→3→4 (enabled because slot exists)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
@@ -185,7 +183,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
         menu.HandleKey(Keys.Return);   // confirm Yes
@@ -198,7 +196,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmLoad, at "Yes"
         menu.HandleKey(Keys.Down);     // move to "No"
@@ -212,7 +210,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnReturnToMainMenu_NavigatesToConfirmMainMenu_WithDefaultNo()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Return to Main Menu" (index 6).
         // With no save, Load Game (index 4) is skipped: 0→1→2→3→5→6
         for (int i = 0; i < 5; i++)
@@ -227,7 +225,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnExit_NavigatesToConfirmExit_WithDefaultNo()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Exit" (index 7): 0→1→2→3→5→6→7
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down);
@@ -242,7 +240,7 @@ internal class InGameMenuTests
     {
         bool callbackInvoked = false;
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++)
             menu.HandleKey(Keys.Down); // land on index 6
         menu.HandleKey(Keys.Return);   // enter ConfirmMainMenu (selection at "No")
@@ -258,7 +256,7 @@ internal class InGameMenuTests
     {
         bool callbackInvoked = false;
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++)
             menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmMainMenu, at "No"
@@ -274,7 +272,7 @@ internal class InGameMenuTests
     {
         bool exitInvoked = false;
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down); // land on index 7 (Exit)
         menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
@@ -290,7 +288,7 @@ internal class InGameMenuTests
     {
         bool exitInvoked = false;
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
@@ -307,7 +305,7 @@ internal class InGameMenuTests
     public void IsItemEnabled_LoadGame_ReturnsFalse_WhenActiveSlotEmpty()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Active slot is 0 by default; no save file exists
         Assert.That(menu.IsItemEnabled(4), Is.False);
     }
@@ -317,7 +315,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.IsItemEnabled(4), Is.True);
     }
 
@@ -325,7 +323,7 @@ internal class InGameMenuTests
     public void MoveCursor_SkipsDisabledLoadGame_LandsOnSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Save Game (index 3)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -345,7 +343,7 @@ internal class InGameMenuTests
         var menu    = CreateMenu();
         bool fired  = false;
         menu.Opened += () => fired = true;
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(fired, Is.True);
     }
 
@@ -355,7 +353,7 @@ internal class InGameMenuTests
         var menu    = CreateMenu();
         bool fired  = false;
         menu.Closed += () => fired = true;
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.Close();
         Assert.That(fired, Is.True);
     }
@@ -366,7 +364,7 @@ internal class InGameMenuTests
     public void Settings_FpsToggle_TogglesShowFps()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Settings (index 5 with no save — skips disabled Load Game)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
@@ -391,7 +389,7 @@ internal class InGameMenuTests
     {
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
@@ -410,7 +408,7 @@ internal class InGameMenuTests
     public void SaveSlotSelect_Activate_UpdatesActiveSlot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Select Save Slot" (index 2)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -433,7 +431,7 @@ internal class InGameMenuTests
     public void KeyBindings_EnterRebindMode_SetsRebindingAction()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Settings (index 5, skipping disabled Load Game at 4): 4 Downs then Return
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
@@ -450,7 +448,7 @@ internal class InGameMenuTests
     {
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings
@@ -467,7 +465,7 @@ internal class InGameMenuTests
     {
         string originalKey = _config.InputMappings["P1 Up"].Key!;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings
@@ -484,7 +482,7 @@ internal class InGameMenuTests
     public void GetTitle_ReturnsCorrectTitle_ForEachScreen()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.GetTitle(), Is.EqualTo("PAUSED"));
 
         // Navigate to ConfirmMainMenu
@@ -497,7 +495,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_Root_ReturnsEightItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
@@ -505,7 +503,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_ConfirmMainMenu_ReturnsTwoItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter ConfirmMainMenu
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(2));
@@ -517,7 +515,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_SaveSlotSelect_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter SaveSlotSelect
@@ -535,7 +533,7 @@ internal class InGameMenuTests
     {
         _config.WindowMode = "Fullscreen";
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
 
@@ -565,7 +563,7 @@ internal class InGameMenuTests
             fs => receivedFullscreen = fs,
             () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
-        menuWithToggle.Open(new int[256 * 240]);
+        menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
         for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(Keys.Down);
         menuWithToggle.HandleKey(Keys.Return); // Settings
@@ -583,7 +581,7 @@ internal class InGameMenuTests
     // Helper: navigate Open → Settings → Sound
     private void OpenSoundScreen(InGameMenu menu)
     {
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings
         menu.HandleKey(Keys.Return); // enter Settings
         for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Sound (index 3)
@@ -712,7 +710,7 @@ internal class InGameMenuTests
 
     private static void OpenAudioFilterScreen(InGameMenu menu)
     {
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
         for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
@@ -812,7 +810,7 @@ internal class InGameMenuTests
 
     private static void OpenVideoScreen(InGameMenu menu)
     {
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings (index 5, skipping disabled)
         menu.HandleKey(Keys.Return); // enter Settings
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
@@ -987,7 +985,7 @@ internal class InGameMenuTests
     public void HandleKey_Down_AtLast_WrapsToFirst()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Exit (index 7): skips disabled Load Game (4)
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
@@ -1003,7 +1001,7 @@ internal class InGameMenuTests
     {
         // P1 Up is bound to "W" by default; binding "W" to P1 Down should clear P1 Up
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings (index 0)
@@ -1022,7 +1020,7 @@ internal class InGameMenuTests
     // Helper: navigate to GamepadBindings screen
     private void OpenGamepadBindings(InGameMenu menu)
     {
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
         menu.HandleKey(Keys.Down); // Gamepad Controls (index 1)
@@ -1085,7 +1083,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_NoInputs_DoesNothing()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput());
         Assert.That(menu.SelectedItem, Is.EqualTo(0));
     }
@@ -1094,7 +1092,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Down_MovesSelection()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Down = true });
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
@@ -1103,7 +1101,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Up_AtFirst_WrapsToLast()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Up = true });
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
     }
@@ -1112,7 +1110,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Confirm_OnResume_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Confirm = true });
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1121,7 +1119,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Back_OnRoot_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Back = true });
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1130,7 +1128,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Back_OnSubScreen_NavigatesUp()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // → SaveSlotSelect
@@ -1145,7 +1143,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_DuringKeyRebinding_Ignores()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings
@@ -1162,7 +1160,7 @@ internal class InGameMenuTests
     {
         _config.Volume = 60;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Sound screen, select Volume (index 0)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
@@ -1180,7 +1178,7 @@ internal class InGameMenuTests
     {
         _config.Volume = 60;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
         for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
@@ -1196,7 +1194,7 @@ internal class InGameMenuTests
     public void HandleKey_Z_ActsAsConfirm_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Z); // Resume (index 0) → Close()
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1205,7 +1203,7 @@ internal class InGameMenuTests
     public void HandleKey_Space_ActsAsConfirm_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Space);
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1230,7 +1228,7 @@ internal class InGameMenuTests
     {
         bool reset = false;
         var menu = CreateMenu(onResetGame: () => reset = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down); // index 1 (Reset Game)
         menu.HandleKey(Keys.Return);
         Assert.That(reset,       Is.True);
@@ -1241,7 +1239,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnSaveGame_SavesAndClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down); // index 3 (Save Game)
@@ -1255,7 +1253,7 @@ internal class InGameMenuTests
     public void HandleGamepadButtonPress_WhenNotRebinding_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         string? result = menu.HandleGamepadButtonPress("A");
         Assert.That(result, Is.Null);
     }
@@ -1276,7 +1274,7 @@ internal class InGameMenuTests
     public void GetTitle_SaveSlotSelect_ContainsSelectSlot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // SaveSlotSelect
@@ -1287,7 +1285,7 @@ internal class InGameMenuTests
     public void GetTitle_Settings_ReturnsSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         Assert.That(menu.GetTitle(), Is.EqualTo("SETTINGS"));
@@ -1297,7 +1295,7 @@ internal class InGameMenuTests
     public void GetTitle_KeyboardBindings_ReturnsKeyboardControls()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1308,7 +1306,7 @@ internal class InGameMenuTests
     public void GetTitle_KeyboardBindings_DuringRebind_ShowsActionName()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings
@@ -1320,7 +1318,7 @@ internal class InGameMenuTests
     public void GetTitle_GamepadBindings_ReturnsGamepadControls()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1332,7 +1330,7 @@ internal class InGameMenuTests
     public void GetTitle_GamepadBindings_DuringRebind_ShowsActionName()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1346,7 +1344,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
         menu.HandleKey(Keys.Return); // ConfirmLoad
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
@@ -1356,7 +1354,7 @@ internal class InGameMenuTests
     public void GetTitle_ConfirmExit_ReturnsExitToDesktop()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // Exit (index 7)
         menu.HandleKey(Keys.Return); // ConfirmExit
         Assert.That(menu.GetTitle(), Is.EqualTo("EXIT TO DESKTOP?"));
@@ -1369,7 +1367,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // ConfirmLoad
         string[] items = menu.GetCurrentItems();
@@ -1382,7 +1380,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_ConfirmExit_ReturnsTwoItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // ConfirmExit
         string[] items = menu.GetCurrentItems();
@@ -1395,7 +1393,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_KeyboardBindings_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1406,7 +1404,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_GamepadBindings_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1420,7 +1418,7 @@ internal class InGameMenuTests
     public void Settings_Back_ReturnsToRoot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
@@ -1432,7 +1430,7 @@ internal class InGameMenuTests
     public void KeyboardBindings_Back_ReturnsToSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1445,7 +1443,7 @@ internal class InGameMenuTests
     public void GamepadBindings_Back_ReturnsToSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1490,7 +1488,7 @@ internal class InGameMenuTests
     {
         _config.OverrideStartBindingProtection = true;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
 
         // Navigate to GamepadBindings
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings (index 5)
@@ -1515,7 +1513,7 @@ internal class InGameMenuTests
     {
         _config.OverrideStartBindingProtection = true;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1529,7 +1527,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_KeyboardBindings_FirstItem_ReturnsP1Up()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
@@ -1541,7 +1539,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_KeyboardBindings_BackEntry_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
@@ -1554,7 +1552,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_NonBindingScreen_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.ActiveNesButton, Is.Null); // Root screen
     }
 }

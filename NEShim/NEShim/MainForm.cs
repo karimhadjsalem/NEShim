@@ -54,10 +54,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private Bitmap? _sidebarLeft;
     private Bitmap? _sidebarRight;
 
-    // Cached bitmap for the in-game menu frozen-frame background in D3D11 mode.
-    // Created when the in-game menu opens, disposed when it closes.
-    private Bitmap? _frozenFrameBitmap;
-
     private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
 
     // ---- Logo splash screen ----
@@ -533,17 +529,12 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             });
         _menu.Opened += () => BeginInvoke(() =>
         {
-            // Build frozen-frame bitmap for the D3D11 menu background.
-            _frozenFrameBitmap?.Dispose();
-            _frozenFrameBitmap = BuildFrozenFrameBitmap();
             _renderer?.MarkOverlayDirty();
             _gamePanel?.Invalidate();
             UpdateGamePanelVisibility();
         });
         _menu.Closed += () => BeginInvoke(() =>
         {
-            _frozenFrameBitmap?.Dispose();
-            _frozenFrameBitmap = null;
             _renderer?.MarkOverlayDirty();
             _gamePanel?.Invalidate();
             UpdateGamePanelVisibility();
@@ -751,53 +742,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             return (g, b) => MainMenuRenderer.Draw(g, b, _mainMenuScreen);
 
         if (_menu?.IsOpen == true)
-        {
-            var frozen = _frozenFrameBitmap;
-            return (g, b) =>
-            {
-                DrawFrozenFrameBackground(g, b, frozen);
-                MenuRenderer.Draw(g, b, _menu);
-            };
-        }
+            return (g, b) => MenuRenderer.Draw(g, b, _menu);
 
         return null;
-    }
-
-    private static void DrawFrozenFrameBackground(Graphics g, Rectangle bounds, Bitmap? frozen)
-    {
-        if (frozen is null) return;
-        const float PixelAspect = 8f / 7f;
-        float displayAspect = frozen.Width * PixelAspect / frozen.Height;
-        float panelAspect   = (float)bounds.Width / bounds.Height;
-        int destW, destH;
-        if (panelAspect > displayAspect)
-        { destH = bounds.Height; destW = (int)(destH * displayAspect); }
-        else
-        { destW = bounds.Width;  destH = (int)(destW / displayAspect); }
-        int destX = (bounds.Width  - destW) / 2;
-        int destY = (bounds.Height - destH) / 2;
-        g.CompositingMode   = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
-        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-        g.DrawImage(frozen, new Rectangle(destX, destY, destW, destH),
-            new Rectangle(0, 0, frozen.Width, frozen.Height), GraphicsUnit.Pixel);
-        g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
-    }
-
-    private Bitmap? BuildFrozenFrameBitmap()
-    {
-        if (_frameBuffer is null) return null;
-        var front = _frameBuffer.FrontBuffer;
-        var bmp = new Bitmap(256, 240, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        var bd = bmp.LockBits(new Rectangle(0, 0, 256, 240),
-            System.Drawing.Imaging.ImageLockMode.WriteOnly,
-            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        try
-        {
-            System.Runtime.InteropServices.Marshal.Copy(
-                front, 0, bd.Scan0, Math.Min(front.Length, 256 * 240));
-        }
-        finally { bmp.UnlockBits(bd); }
-        return bmp;
     }
 
     bool UI.IMenuInputTarget.IsWaitingForGamepadButton
@@ -851,7 +798,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         Logger.Log("[Shutdown] Disposing resources.");
         _logoTimer?.Dispose();
         _logoScreen?.Dispose();
-        _frozenFrameBitmap?.Dispose();
         _preloadedMenuBackground?.Dispose();
         _preloadedMusic?.Dispose();
         _steamTimer?.Dispose();
