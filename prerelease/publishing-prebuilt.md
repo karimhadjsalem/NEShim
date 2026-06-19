@@ -223,7 +223,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 | Setting | Recommendation |
 |---|---|
 | `volume` | Set a comfortable default (e.g. 80) so the game doesn't start at maximum volume. |
-| `soundScrubberEnabled` | Test both settings. On high-quality speakers the scrubber mode (`true`) is warmer. On laptop or TV speakers the default NES filter (`false`) may be fine. |
+| `audioFilter` | Choose a starting default for new players. `"Default"` matches real NES hardware output. `"Warm"` softens the high-frequency edge. `"Saturation"` adds a mild mid-level boost that works well on laptop and TV speakers. See the [audio filter reference](filters.md#audio-filter) for all options. |
 
 ---
 
@@ -244,9 +244,7 @@ Before uploading to Steam:
 
 ## Steam Deck
 
-NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility.
-
-If players report persistent frame jitter or audio stutters on Deck, they can add `"emulationSpinMs"` or `"audioDesiredLatencyMs"` to `config.json` to tune the frame timing spin window or audio buffer size. See the [configuration reference](configuration.md#steam-deck--proton) for details.
+NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility. See the [Steam Deck guide](steamdeck.md) for a full description of what is applied automatically on Deck.
 
 ---
 
