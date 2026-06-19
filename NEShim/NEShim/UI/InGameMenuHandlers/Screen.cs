@@ -5,6 +5,7 @@ internal sealed partial class InGameMenu
     public enum Screen
     {
         Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings,
-        Video, Sound, ConfirmLoad, ConfirmMainMenu, ConfirmExit, ControllerDisconnected
+        Video, Sound, AudioFilter, VideoFilter, VideoColorFilter,
+        ConfirmLoad, ConfirmMainMenu, ConfirmExit, ControllerDisconnected
     }
 }

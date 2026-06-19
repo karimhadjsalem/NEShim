@@ -48,6 +48,14 @@ internal class PauseReasonsTests
     }
 
     [Test]
+    public void DeviceLost_ValueIsPositivePowerOfTwo()
+    {
+        int v = (int)EmulationThread.PauseReasons.DeviceLost;
+        Assert.That(v, Is.GreaterThan(0));
+        Assert.That((v & (v - 1)), Is.EqualTo(0));
+    }
+
+    [Test]
     public void AllNonNoneValues_AreDistinct()
     {
         var values = new[]
@@ -56,6 +64,7 @@ internal class PauseReasonsTests
             EmulationThread.PauseReasons.Overlay,
             EmulationThread.PauseReasons.FocusLost,
             EmulationThread.PauseReasons.MainMenu,
+            EmulationThread.PauseReasons.DeviceLost,
         };
         Assert.That(values.Distinct().Count(), Is.EqualTo(values.Length));
     }
@@ -69,6 +78,7 @@ internal class PauseReasonsTests
             (int)EmulationThread.PauseReasons.Overlay,
             (int)EmulationThread.PauseReasons.FocusLost,
             (int)EmulationThread.PauseReasons.MainMenu,
+            (int)EmulationThread.PauseReasons.DeviceLost,
         };
         for (int i = 0; i < values.Length; i++)
         for (int j = i + 1; j < values.Length; j++)
@@ -106,7 +116,8 @@ internal class PauseReasonsTests
         var all = EmulationThread.PauseReasons.Menu
                 | EmulationThread.PauseReasons.Overlay
                 | EmulationThread.PauseReasons.FocusLost
-                | EmulationThread.PauseReasons.MainMenu;
+                | EmulationThread.PauseReasons.MainMenu
+                | EmulationThread.PauseReasons.DeviceLost;
         Assert.That((EmulationThread.PauseReasons.None & all), Is.EqualTo(EmulationThread.PauseReasons.None));
     }
 

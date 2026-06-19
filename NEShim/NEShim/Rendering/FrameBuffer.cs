@@ -25,8 +25,13 @@ internal sealed class FrameBuffer
     /// <summary>Copies pixel data into the back buffer (emulation thread).</summary>
     public void WriteBack(int[] src, int width, int height)
     {
-        int count = Math.Min(src.Length, BackBuffer.Length);
-        Buffer.BlockCopy(src, 0, BackBuffer, 0, count * sizeof(int));
+        int needed = width * height;
+        if (_buffers[0].Length < needed)
+        {
+            _buffers[0] = new int[needed];
+            _buffers[1] = new int[needed];
+        }
+        Buffer.BlockCopy(src, 0, BackBuffer, 0, needed * sizeof(int));
         Width  = width;
         Height = height;
     }
@@ -46,20 +51,4 @@ internal sealed class FrameBuffer
         }
     }
 
-    /// <summary>Copies the front buffer for menu overlay use (UI thread).</summary>
-    public int[] CaptureFront()
-    {
-        bool taken = false;
-        _lock.Enter(ref taken);
-        try
-        {
-            var copy = new int[FrontBuffer.Length];
-            Buffer.BlockCopy(FrontBuffer, 0, copy, 0, copy.Length * sizeof(int));
-            return copy;
-        }
-        finally
-        {
-            if (taken) _lock.Exit();
-        }
-    }
 }

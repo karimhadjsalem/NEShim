@@ -25,16 +25,38 @@ internal sealed class LocalizationData
     // ---- Shared video items ----
     public string VideoWindowFullscreen { get; init; } = "Window Mode: Fullscreen";
     public string VideoWindowWindowed   { get; init; } = "Window Mode: Windowed";
-    public string VideoGraphicsSmooth   { get; init; } = "Graphics: Smooth";
-    public string VideoGraphicsOriginal { get; init; } = "Graphics: Original";
+    public string VideoFilterLabel      { get; init; } = "Video Filter";
+    public string OverscanLabel         { get; init; } = "Overscan";
     public string VideoFpsOn            { get; init; } = "FPS Overlay: On";
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
 
+    // ---- Video filter sub-menu ----
+    public string VideoFilterTitle         { get; init; } = "VIDEO FILTER";
+    public string VideoFilterSmooth        { get; init; } = "Smooth";
+    public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
+    public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
+    public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
+    public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
+
+    // ---- Color effect sub-menu ----
+    public string VideoColorFilterLabel    { get; init; } = "Color Effect";
+    public string VideoColorFilterTitle    { get; init; } = "COLOR EFFECT";
+    public string VideoColorFilterNone     { get; init; } = "None";
+    public string VideoColorFilterWarm     { get; init; } = "Warm";
+    public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
+    public string VideoColorFilterNesColors { get; init; } = "NES Colors";
+    public string VideoColorFilterCool     { get; init; } = "Cool";
+
+    // ---- Overscan mode display names ----
+    public string OverscanOverscan  { get; init; } = "Overscan";
+    public string OverscanNormal    { get; init; } = "Normal";
+    public string OverscanUnderscan { get; init; } = "Underscan";
+
     // ---- Shared sound items ----
     /// <summary>Format string — {0} is the volume value (0–100).</summary>
-    public string SoundVolume     { get; init; } = "◀  Volume: {0}  ▶";
-    public string SoundScrubberOn  { get; init; } = "Sound Scrubber: On";
-    public string SoundScrubberOff { get; init; } = "Sound Scrubber: Off";
+    public string SoundVolume      { get; init; } = "◀  Volume: {0}  ▶";
+    public string AudioFilterLabel { get; init; } = "Audio Filter";
+    public string AudioFilterTitle { get; init; } = "AUDIO FILTER";
     /// <summary>Main menu only — not shown in the in-game pause menu.</summary>
     public string SoundMusicOn  { get; init; } = "Menu Music: On";
     public string SoundMusicOff { get; init; } = "Menu Music: Off";

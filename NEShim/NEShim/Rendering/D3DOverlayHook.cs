@@ -24,6 +24,18 @@ internal sealed class D3DOverlayHook : IDisposable
     private bool            _presentFailureLogged;
 
     /// <summary>
+    /// The D3D11 device created by this hook. Shared with <see cref="D3D11Renderer"/>.
+    /// Null if initialisation failed.
+    /// </summary>
+    internal ID3D11Device? Device => _device;
+
+    /// <summary>
+    /// The DXGI swap chain created by this hook. Shared with <see cref="D3D11Renderer"/>.
+    /// Null if initialisation failed.
+    /// </summary>
+    internal IDXGISwapChain? SwapChain => _swapChain;
+
+    /// <summary>
     /// Creates the D3D11 device and swap chain bound to <paramref name="hwnd"/>.
     /// Pass the top-level MainForm handle. Must be called on the UI thread after
     /// the window has been sized to its final dimensions.
@@ -52,6 +64,11 @@ internal sealed class D3DOverlayHook : IDisposable
 
             using var factory    = adapter.GetParent<IDXGIFactory>();
 
+            // FlipDiscard is required for DXVK on Proton/Steam Deck — the legacy Discard
+            // swap effect is emulated in DXVK via a slower blit path. FlipDiscard maps
+            // cleanly to VK_PRESENT_MODE_FIFO_KHR, which is the correct Vulkan path.
+            // Windowed = true is intentional: borderless windowed fullscreen is managed
+            // by MainForm.SetWindowMode; exclusive fullscreen has poor Alt+Tab on Proton.
             _swapChain = factory.CreateSwapChain(_device, new SwapChainDescription
             {
                 BufferCount       = 2,
@@ -62,7 +79,7 @@ internal sealed class D3DOverlayHook : IDisposable
                 BufferUsage       = Usage.RenderTargetOutput,
                 OutputWindow      = hwnd,
                 SampleDescription = new SampleDescription(1, 0),
-                SwapEffect        = SwapEffect.Discard,
+                SwapEffect        = SwapEffect.FlipDiscard,
                 Windowed          = true,
             });
 
@@ -106,10 +123,13 @@ internal sealed class D3DOverlayHook : IDisposable
         if (_swapChain is null) return;
         try
         {
-            _swapChain.ResizeBuffers(2,
+            // 0 = preserve buffer count, Format.Unknown = preserve format.
+            // DXVK ≤ 2.3 stalls one frame on ResizeBuffers for FlipDiscard swap chains;
+            // current Proton ships DXVK ≥ 2.4 where this is fixed.
+            _swapChain.ResizeBuffers(0,
                 (uint)Math.Max(width,  1),
                 (uint)Math.Max(height, 1),
-                Format.B8G8R8A8_UNorm,
+                Format.Unknown,
                 SwapChainFlags.None);
         }
         catch (Exception ex)

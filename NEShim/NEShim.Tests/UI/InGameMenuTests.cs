@@ -2,6 +2,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using BizHawk.Emulation.Common;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
 using NSubstitute;
@@ -36,29 +37,31 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action?       onExitToDesktop         = null,
-        Action?       onResetGame             = null,
-        Action?       onReturnToMainMenu      = null,
-        Action?       onConfigSaved           = null,
-        Action<int>?  onVolumeChanged         = null,
-        Action<bool>? onScrubberToggled       = null,
-        Action<bool>? onGraphicsScalerToggled = null)
+        Action?                                            onExitToDesktop            = null,
+        Action?                                            onResetGame                = null,
+        Action?                                            onReturnToMainMenu         = null,
+        Action?                                            onConfigSaved              = null,
+        Action<int>?                                       onVolumeChanged            = null,
+        Action<AudioFilterMode>?                           onFilterChanged            = null,
+        Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged       = null,
+        Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged  = null,
+        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged      = null)
     {
         return new InGameMenu(
             _saveStates,
             _config,
             new LocalizationData(),
-            onExitToDesktop         ?? (() => { }),
-            onResetGame             ?? (() => { }),
-            onReturnToMainMenu      ?? (() => { }),
+            onExitToDesktop            ?? (() => { }),
+            onResetGame                ?? (() => { }),
+            onReturnToMainMenu         ?? (() => { }),
             _ => { },
-            onConfigSaved           ?? (() => { }),
-            onVolumeChanged         ?? (_ => { }),
-            onScrubberToggled       ?? (_ => { }),
-            onGraphicsScalerToggled ?? (_ => { }));
+            onConfigSaved              ?? (() => { }),
+            onVolumeChanged            ?? (_ => { }),
+            onFilterChanged            ?? (_ => { }),
+            onVideoFilterChanged       ?? (_ => { }),
+            onVideoColorFilterChanged  ?? (_ => { }),
+            onOverscanModeChanged      ?? (_ => { }));
     }
-
-    private static int[] EmptyFrame() => new int[256 * 240];
 
     // Helper: create an empty slot-state file so SlotExists returns true
     private void CreateSlotFile(int slot) =>
@@ -70,7 +73,7 @@ internal class InGameMenuTests
     public void Open_SetsIsOpenTrue_AndCurrentScreenIsRoot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.IsOpen,   Is.True);
         Assert.That(menu.Current,  Is.EqualTo(InGameMenu.Screen.Root));
     }
@@ -79,7 +82,7 @@ internal class InGameMenuTests
     public void Close_WhenOpen_SetsIsOpenFalse()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.Close();
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -88,9 +91,9 @@ internal class InGameMenuTests
     public void Open_WhenAlreadyOpen_DoesNotResetSelection()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down); // move cursor to index 1
-        menu.Open(EmptyFrame());   // second open should be ignored
+        menu.Open();   // second open should be ignored
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
 
@@ -108,7 +111,7 @@ internal class InGameMenuTests
     public void HandleKey_Escape_WhenRootScreen_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Escape);
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -117,7 +120,7 @@ internal class InGameMenuTests
     public void HandleKey_Escape_WhenSubScreen_ReturnsToRoot_WithoutClosing()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate into Save Slot Select (index 2)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -134,7 +137,7 @@ internal class InGameMenuTests
     public void HandleKey_Down_IncreasesSelectedItem()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
@@ -143,7 +146,7 @@ internal class InGameMenuTests
     public void HandleKey_Up_AtFirst_WrapsToLast()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Root has 8 items (indices 0–7). Up from 0 wraps to 7.
         menu.HandleKey(Keys.Up);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
@@ -153,7 +156,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnResume_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // SelectedItem = 0 (Resume)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.IsOpen, Is.False);
@@ -166,7 +169,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Load Game (index 4): 0→1→2→3→4 (enabled because slot exists)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
@@ -180,7 +183,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
         menu.HandleKey(Keys.Return);   // confirm Yes
@@ -193,7 +196,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmLoad, at "Yes"
         menu.HandleKey(Keys.Down);     // move to "No"
@@ -207,7 +210,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnReturnToMainMenu_NavigatesToConfirmMainMenu_WithDefaultNo()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Return to Main Menu" (index 6).
         // With no save, Load Game (index 4) is skipped: 0→1→2→3→5→6
         for (int i = 0; i < 5; i++)
@@ -222,7 +225,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnExit_NavigatesToConfirmExit_WithDefaultNo()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Exit" (index 7): 0→1→2→3→5→6→7
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down);
@@ -237,7 +240,7 @@ internal class InGameMenuTests
     {
         bool callbackInvoked = false;
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++)
             menu.HandleKey(Keys.Down); // land on index 6
         menu.HandleKey(Keys.Return);   // enter ConfirmMainMenu (selection at "No")
@@ -253,7 +256,7 @@ internal class InGameMenuTests
     {
         bool callbackInvoked = false;
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++)
             menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmMainMenu, at "No"
@@ -269,7 +272,7 @@ internal class InGameMenuTests
     {
         bool exitInvoked = false;
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down); // land on index 7 (Exit)
         menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
@@ -285,7 +288,7 @@ internal class InGameMenuTests
     {
         bool exitInvoked = false;
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++)
             menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
@@ -302,7 +305,7 @@ internal class InGameMenuTests
     public void IsItemEnabled_LoadGame_ReturnsFalse_WhenActiveSlotEmpty()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Active slot is 0 by default; no save file exists
         Assert.That(menu.IsItemEnabled(4), Is.False);
     }
@@ -312,7 +315,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.IsItemEnabled(4), Is.True);
     }
 
@@ -320,7 +323,7 @@ internal class InGameMenuTests
     public void MoveCursor_SkipsDisabledLoadGame_LandsOnSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Save Game (index 3)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -340,7 +343,7 @@ internal class InGameMenuTests
         var menu    = CreateMenu();
         bool fired  = false;
         menu.Opened += () => fired = true;
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(fired, Is.True);
     }
 
@@ -350,7 +353,7 @@ internal class InGameMenuTests
         var menu    = CreateMenu();
         bool fired  = false;
         menu.Closed += () => fired = true;
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.Close();
         Assert.That(fired, Is.True);
     }
@@ -361,20 +364,21 @@ internal class InGameMenuTests
     public void Settings_FpsToggle_TogglesShowFps()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Settings (index 5 with no save — skips disabled Load Game)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
-        // Navigate: Down×2 to Video (index 2) → enter Video → Down×2 to FPS (index 2 in Video) → toggle
+        // Navigate to Video → Down×2 to FPS (index 3 in the 5-item GDI Video layout)
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
         menu.HandleKey(Keys.Down);   // select Video (index 2)
         menu.HandleKey(Keys.Return); // enter Video screen
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
-        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
-        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
+        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
         bool before = _config.ShowFps;
         menu.HandleKey(Keys.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!before));
@@ -385,14 +389,15 @@ internal class InGameMenuTests
     {
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
         menu.HandleKey(Keys.Down);   // select Video (index 2)
         menu.HandleKey(Keys.Return); // enter Video screen
-        menu.HandleKey(Keys.Down);   // skip Graphics (index 1)
-        menu.HandleKey(Keys.Down);   // select FPS (index 2 in Video)
+        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
         menu.HandleKey(Keys.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
@@ -403,7 +408,7 @@ internal class InGameMenuTests
     public void SaveSlotSelect_Activate_UpdatesActiveSlot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to "Select Save Slot" (index 2)
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
@@ -426,7 +431,7 @@ internal class InGameMenuTests
     public void KeyBindings_EnterRebindMode_SetsRebindingAction()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Settings (index 5, skipping disabled Load Game at 4): 4 Downs then Return
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
@@ -443,7 +448,7 @@ internal class InGameMenuTests
     {
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings
@@ -460,7 +465,7 @@ internal class InGameMenuTests
     {
         string originalKey = _config.InputMappings["P1 Up"].Key!;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings
@@ -477,7 +482,7 @@ internal class InGameMenuTests
     public void GetTitle_ReturnsCorrectTitle_ForEachScreen()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.GetTitle(), Is.EqualTo("PAUSED"));
 
         // Navigate to ConfirmMainMenu
@@ -490,7 +495,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_Root_ReturnsEightItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
@@ -498,7 +503,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_ConfirmMainMenu_ReturnsTwoItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter ConfirmMainMenu
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(2));
@@ -510,7 +515,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_SaveSlotSelect_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter SaveSlotSelect
@@ -528,7 +533,7 @@ internal class InGameMenuTests
     {
         _config.WindowMode = "Fullscreen";
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
 
@@ -556,9 +561,9 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
-        menuWithToggle.Open(new int[256 * 240]);
+        menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
         for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(Keys.Down);
         menuWithToggle.HandleKey(Keys.Return); // Settings
@@ -576,7 +581,7 @@ internal class InGameMenuTests
     // Helper: navigate Open → Settings → Sound
     private void OpenSoundScreen(InGameMenu menu)
     {
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings
         menu.HandleKey(Keys.Return); // enter Settings
         for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Sound (index 3)
@@ -596,6 +601,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
+        // Volume + Audio Filter + Back
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -665,25 +671,29 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Sound_ScrubberToggle_UpdatesConfig()
+    public void Sound_FilterSelect_UpdatesConfig()
     {
-        _config.SoundScrubberEnabled = false;
+        _config.AudioFilter = "Default";
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down); // select Scrubber (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(_config.SoundScrubberEnabled, Is.True);
+        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm → returns to Sound
+        Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
     }
 
     [Test]
-    public void Sound_ScrubberToggle_InvokesCallback()
+    public void Sound_FilterSelect_InvokesCallback()
     {
-        bool received = false;
-        var menu = CreateMenu(onScrubberToggled: on => received = on);
+        AudioFilterMode? received = null;
+        var menu = CreateMenu(onFilterChanged: mode => received = mode);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down); // select Scrubber
-        menu.HandleKey(Keys.Return);
-        Assert.That(received, Is.True);
+        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm → callback fired
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
     [Test]
@@ -691,10 +701,100 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down); // select Back (index 2)
+        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // Back is at index 2
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    // ---- Audio Filter sub-screen ----
+
+    private static void OpenAudioFilterScreen(InGameMenu menu)
+    {
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
+        menu.HandleKey(Keys.Return);                             // enter Sound
+        menu.HandleKey(Keys.Down);                              // Audio Filter item (index 1)
+        menu.HandleKey(Keys.Return);                            // enter AudioFilter screen
+    }
+
+    [Test]
+    public void AudioFilter_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.AudioFilter));
+    }
+
+    [Test]
+    public void AudioFilter_GetTitle_ReturnsAudioFilter()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("AUDIO FILTER"));
+    }
+
+    [Test]
+    public void AudioFilter_GetCurrentItems_ReturnsEightItems()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        // 7 filter modes + Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
+    }
+
+    [Test]
+    public void AudioFilter_ActiveFilter_ShowsCheckmark()
+    {
+        _config.AudioFilter = "Warm";
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  ")); // Default — not active
+        Assert.That(items[1], Does.StartWith("✓"));  // Warm — active
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_UpdatesConfigAndReturnsToSound()
+    {
+        _config.AudioFilter = "Default";
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Down);   // index 1 = Warm
+        menu.HandleKey(Keys.Return); // select Warm
+        Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_SelectMode_InvokesCallback()
+    {
+        AudioFilterMode? received = null;
+        var menu = CreateMenu(onFilterChanged: mode => received = mode);
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Down);   // Warm
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
+    }
+
+    [Test]
+    public void AudioFilter_Back_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        for (int i = 0; i < 7; i++) menu.HandleKey(Keys.Down); // Back is at index 7
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioFilter_Escape_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioFilterScreen(menu);
+        menu.HandleKey(Keys.Escape);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
     [Test]
@@ -710,7 +810,7 @@ internal class InGameMenuTests
 
     private static void OpenVideoScreen(InGameMenu menu)
     {
-        menu.Open(new int[256 * 240]);
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings (index 5, skipping disabled)
         menu.HandleKey(Keys.Return); // enter Settings
         menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 0)
@@ -727,11 +827,20 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Video_GetCurrentItems_ReturnsFourItems()
+    public void Video_GetCurrentItems_ReturnsFiveItemsInGdiMode()
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(4));
+        // GDI mode: Window Mode, Video Filter, Overscan, FPS Overlay, ← Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void Video_GetCurrentItems_DoesNotContainColorEffect_InGdiMode()
+    {
+        var menu = CreateMenu();
+        OpenVideoScreen(menu);
+        Assert.That(menu.GetCurrentItems().Any(i => i.Contains("Color Effect")), Is.False);
     }
 
     [Test]
@@ -747,23 +856,127 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // ← Back (index 3)
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // ← Back (index 4 in GDI mode)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
     [Test]
-    public void Video_GraphicsToggle_UpdatesConfigAndCallsBack()
+    public void Video_FilterSubMenu_SelectsFilterAndCallsBack()
     {
-        bool received = false;
-        var menu = CreateMenu(onGraphicsScalerToggled: on => received = on);
+        NEShim.Rendering.VideoFilterMode? received = null;
+        var menu = CreateMenu(onVideoFilterChanged: f => received = f);
+        _config.VideoFilter = "PixelPerfect";
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);   // select Graphics (index 1)
+        menu.HandleKey(Keys.Down);   // select Video Filter (index 1)
+        menu.HandleKey(Keys.Return); // enter VideoFilter sub-menu
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+        // GDI mode: [0]=Bilinear, [1]=PixelPerfect(✓), [2]=Back
+        // index 0 is already selected (SelectedItem resets to 0 on NavigateTo)
+        menu.HandleKey(Keys.Return); // select Bilinear
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
+        Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoFilter sub-menu ----
+
+    private void OpenVideoFilterSubMenu(InGameMenu menu)
+    {
+        OpenVideoScreen(menu);
+        menu.HandleKey(Keys.Down);   // Video Filter (index 1)
+        menu.HandleKey(Keys.Return); // → VideoFilter sub-menu
+    }
+
+    [Test]
+    public void VideoFilter_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoFilter_GetTitle_ReturnsVideoFilterTitle()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO FILTER"));
+    }
+
+    [Test]
+    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        // GDI mode: [Bilinear, PixelPerfect, Back]
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void VideoFilter_CurrentFilter_HasCheckmark()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "PixelPerfect";
+        OpenVideoFilterSubMenu(menu);
+        var items = menu.GetCurrentItems();
+        Assert.That(items[1], Does.StartWith("✓")); // PixelPerfect is at index 1 in GdiSupported
+    }
+
+    [Test]
+    public void VideoFilter_SelectFilter_UpdatesConfig()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "PixelPerfect";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
+    }
+
+    [Test]
+    public void VideoFilter_SelectFilter_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        var menu = CreateMenu(onVideoFilterChanged: m => received = m);
+        _config.VideoFilter = "PixelPerfect";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
+    }
+
+    [Test]
+    public void VideoFilter_SelectFilter_NavigatesBackToVideo()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Return); // select any filter
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void VideoFilter_Back_NavigatesBackToVideo()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        // Back is at last index — navigate to it
+        var itemCount = menu.GetCurrentItems().Length;
+        for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // Back
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void Video_OverscanCycle_UpdatesConfigAndCallsBack()
+    {
+        NEShim.Rendering.OverscanMode? received = null;
+        var menu = CreateMenu(onOverscanModeChanged: m => received = m);
+        _config.OverscanMode = "Overscan";
+        OpenVideoScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);   // select Overscan (index 2 in GDI mode)
         menu.HandleKey(Keys.Return);
-        Assert.That(_config.GraphicsSmoothingEnabled, Is.True);
-        Assert.That(received, Is.True);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
+        Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
     }
 
     // ---- Rollover ----
@@ -772,7 +985,7 @@ internal class InGameMenuTests
     public void HandleKey_Down_AtLast_WrapsToFirst()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Exit (index 7): skips disabled Load Game (4)
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
@@ -788,7 +1001,7 @@ internal class InGameMenuTests
     {
         // P1 Up is bound to "W" by default; binding "W" to P1 Down should clear P1 Up
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Key Bindings (index 0)
@@ -807,7 +1020,7 @@ internal class InGameMenuTests
     // Helper: navigate to GamepadBindings screen
     private void OpenGamepadBindings(InGameMenu menu)
     {
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
         menu.HandleKey(Keys.Down); // Gamepad Controls (index 1)
@@ -870,7 +1083,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_NoInputs_DoesNothing()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput());
         Assert.That(menu.SelectedItem, Is.EqualTo(0));
     }
@@ -879,7 +1092,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Down_MovesSelection()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Down = true });
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
@@ -888,7 +1101,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Up_AtFirst_WrapsToLast()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Up = true });
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
     }
@@ -897,7 +1110,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Confirm_OnResume_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Confirm = true });
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -906,7 +1119,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Back_OnRoot_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleGamepadNav(new MenuNavInput { Back = true });
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -915,7 +1128,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_Back_OnSubScreen_NavigatesUp()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // → SaveSlotSelect
@@ -930,7 +1143,7 @@ internal class InGameMenuTests
     public void HandleGamepadNav_DuringKeyRebinding_Ignores()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings
@@ -947,7 +1160,7 @@ internal class InGameMenuTests
     {
         _config.Volume = 60;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         // Navigate to Sound screen, select Volume (index 0)
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
@@ -965,7 +1178,7 @@ internal class InGameMenuTests
     {
         _config.Volume = 60;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
         for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down);
@@ -975,110 +1188,13 @@ internal class InGameMenuTests
         Assert.That(_config.Volume, Is.EqualTo(65));
     }
 
-    // ---- HandleMouseMove ----
-    // Root screen, bounds (0,0,640,480):
-    //   Item 0: (106, 104, 428, 36) → center (320, 122)
-    //   Item 1: (106, 142, 428, 36) → center (320, 160)
-
-    private static readonly Rectangle Bounds640 = new(0, 0, 640, 480);
-
-    [Test]
-    public void HandleMouseMove_WhenClosed_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        Assert.That(menu.HandleMouseMove(new Point(320, 160), Bounds640), Is.False);
-    }
-
-    [Test]
-    public void HandleMouseMove_DuringRebinding_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return); // RebindingAction set
-        Assert.That(menu.HandleMouseMove(new Point(320, 160), Bounds640), Is.False);
-    }
-
-    [Test]
-    public void HandleMouseMove_HitsNewItem_UpdatesSelectionAndReturnsTrue()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        // SelectedItem = 0; hover over item 1
-        bool result = menu.HandleMouseMove(new Point(320, 160), Bounds640);
-        Assert.That(result,           Is.True);
-        Assert.That(menu.SelectedItem, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void HandleMouseMove_HitsSameItem_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        // SelectedItem = 0; hover over item 0 again
-        bool result = menu.HandleMouseMove(new Point(320, 122), Bounds640);
-        Assert.That(result, Is.False);
-    }
-
-    [Test]
-    public void HandleMouseMove_NoHit_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        bool result = menu.HandleMouseMove(new Point(320, 50), Bounds640);
-        Assert.That(result, Is.False);
-    }
-
-    // ---- HandleMouseClick ----
-
-    [Test]
-    public void HandleMouseClick_WhenClosed_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        Assert.That(menu.HandleMouseClick(new Point(320, 122), Bounds640), Is.False);
-    }
-
-    [Test]
-    public void HandleMouseClick_DuringRebinding_ReturnsTrue()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return); // RebindingAction set
-        Assert.That(menu.HandleMouseClick(new Point(320, 122), Bounds640), Is.True);
-    }
-
-    [Test]
-    public void HandleMouseClick_HitsItem_ActivatesIt()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        // Click on item 0 (Resume) → closes menu
-        bool result = menu.HandleMouseClick(new Point(320, 122), Bounds640);
-        Assert.That(result,      Is.True);
-        Assert.That(menu.IsOpen, Is.False);
-    }
-
-    [Test]
-    public void HandleMouseClick_NoHit_ReturnsFalse()
-    {
-        var menu = CreateMenu();
-        menu.Open(EmptyFrame());
-        bool result = menu.HandleMouseClick(new Point(320, 50), Bounds640);
-        Assert.That(result, Is.False);
-    }
-
     // ---- HandleKey Z / Space ----
 
     [Test]
     public void HandleKey_Z_ActsAsConfirm_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Z); // Resume (index 0) → Close()
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1087,7 +1203,7 @@ internal class InGameMenuTests
     public void HandleKey_Space_ActsAsConfirm_ClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Space);
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1112,7 +1228,7 @@ internal class InGameMenuTests
     {
         bool reset = false;
         var menu = CreateMenu(onResetGame: () => reset = true);
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down); // index 1 (Reset Game)
         menu.HandleKey(Keys.Return);
         Assert.That(reset,       Is.True);
@@ -1123,7 +1239,7 @@ internal class InGameMenuTests
     public void HandleKey_Return_OnSaveGame_SavesAndClosesMenu()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down); // index 3 (Save Game)
@@ -1137,7 +1253,7 @@ internal class InGameMenuTests
     public void HandleGamepadButtonPress_WhenNotRebinding_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         string? result = menu.HandleGamepadButtonPress("A");
         Assert.That(result, Is.Null);
     }
@@ -1158,7 +1274,7 @@ internal class InGameMenuTests
     public void GetTitle_SaveSlotSelect_ContainsSelectSlot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // SaveSlotSelect
@@ -1169,7 +1285,7 @@ internal class InGameMenuTests
     public void GetTitle_Settings_ReturnsSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         Assert.That(menu.GetTitle(), Is.EqualTo("SETTINGS"));
@@ -1179,7 +1295,7 @@ internal class InGameMenuTests
     public void GetTitle_KeyboardBindings_ReturnsKeyboardControls()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1190,7 +1306,7 @@ internal class InGameMenuTests
     public void GetTitle_KeyboardBindings_DuringRebind_ShowsActionName()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings
@@ -1202,7 +1318,7 @@ internal class InGameMenuTests
     public void GetTitle_GamepadBindings_ReturnsGamepadControls()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1214,7 +1330,7 @@ internal class InGameMenuTests
     public void GetTitle_GamepadBindings_DuringRebind_ShowsActionName()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1228,7 +1344,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
         menu.HandleKey(Keys.Return); // ConfirmLoad
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
@@ -1238,7 +1354,7 @@ internal class InGameMenuTests
     public void GetTitle_ConfirmExit_ReturnsExitToDesktop()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // Exit (index 7)
         menu.HandleKey(Keys.Return); // ConfirmExit
         Assert.That(menu.GetTitle(), Is.EqualTo("EXIT TO DESKTOP?"));
@@ -1251,7 +1367,7 @@ internal class InGameMenuTests
     {
         CreateSlotFile(0);
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // ConfirmLoad
         string[] items = menu.GetCurrentItems();
@@ -1264,7 +1380,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_ConfirmExit_ReturnsTwoItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // ConfirmExit
         string[] items = menu.GetCurrentItems();
@@ -1277,7 +1393,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_KeyboardBindings_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1288,7 +1404,7 @@ internal class InGameMenuTests
     public void GetCurrentItems_GamepadBindings_ReturnsNineItems()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1302,7 +1418,7 @@ internal class InGameMenuTests
     public void Settings_Back_ReturnsToRoot()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
@@ -1314,7 +1430,7 @@ internal class InGameMenuTests
     public void KeyboardBindings_Back_ReturnsToSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // KeyboardBindings (index 0)
@@ -1327,7 +1443,7 @@ internal class InGameMenuTests
     public void GamepadBindings_Back_ReturnsToSettings()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1372,7 +1488,7 @@ internal class InGameMenuTests
     {
         _config.OverrideStartBindingProtection = true;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
 
         // Navigate to GamepadBindings
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings (index 5)
@@ -1397,7 +1513,7 @@ internal class InGameMenuTests
     {
         _config.OverrideStartBindingProtection = true;
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
@@ -1411,7 +1527,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_KeyboardBindings_FirstItem_ReturnsP1Up()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
@@ -1423,7 +1539,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_KeyboardBindings_BackEntry_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
         menu.HandleKey(Keys.Return); // Keyboard Controls (index 0)
@@ -1436,7 +1552,7 @@ internal class InGameMenuTests
     public void ActiveNesButton_NonBindingScreen_ReturnsNull()
     {
         var menu = CreateMenu();
-        menu.Open(EmptyFrame());
+        menu.Open();
         Assert.That(menu.ActiveNesButton, Is.Null); // Root screen
     }
 }

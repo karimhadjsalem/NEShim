@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NEShim.Platform;
 
 namespace NEShim.Config;
 
@@ -25,6 +26,8 @@ public static class ConfigLoader
         {
             Logger.Log($"[Config] config.json not found — writing defaults to {configPath}");
             var defaults = new AppConfig();
+            if (PlatformDetector.IsSteamDeck)
+                defaults.AudioFilter = "Saturation";
             SaveTo(defaults, configPath);
             return defaults;
         }
@@ -33,6 +36,7 @@ public static class ConfigLoader
         {
             string json = File.ReadAllText(configPath);
             var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            MigrateDeprecatedFields(config);
             Logger.Log($"[Config] Loaded from {configPath}");
             return config;
         }
@@ -41,6 +45,25 @@ public static class ConfigLoader
             Logger.Log($"[Config] Parse error — using defaults: {ex.Message}");
             return new AppConfig();
         }
+    }
+
+    private static void MigrateDeprecatedFields(AppConfig config)
+    {
+        if (config.SoundScrubberEnabled && config.AudioFilter == "Default")
+            config.AudioFilter = "Warm";
+
+        if (config.GraphicsSmoothingEnabled && config.VideoFilter == "NearestNeighbour")
+            config.VideoFilter = "Bilinear";
+
+        if (config.VideoFilter == "NearestNeighbour")
+            config.VideoFilter = "PixelPerfect";
+
+        config.OverscanMode = config.OverscanMode switch
+        {
+            "None"           => "Normal",
+            "NTSC" or "Auto" => "Overscan",
+            _                => config.OverscanMode,
+        };
     }
 
     internal static void SaveTo(AppConfig config, string configPath)

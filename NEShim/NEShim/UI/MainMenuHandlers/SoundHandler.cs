@@ -1,41 +1,50 @@
+using NEShim.Audio;
+
 namespace NEShim.UI;
 
 internal sealed partial class MainMenuScreen
 {
     private sealed class SoundHandler : ScreenHandler
     {
-        public  const int VolumeIndex    = 0;
-        private const int ScrubberIndex  = 1;
-        private const int MusicIndex     = 2;
-        private const int BackIndex      = 3;
+        public  const int VolumeIndex = 0;
+        private const int FilterIndex = 1;
+        private const int MusicIndex  = 2;
+        private const int BackIndex   = 3;
+
         public SoundHandler(MainMenuScreen menu) : base(menu) { }
+
         public override string   Title     => Menu._localization.SoundTitle;
         public override int      ItemCount => 4;
-        public override string[] GetItems() => new[]
+
+        public override string[] GetItems()
         {
-            string.Format(Menu._localization.SoundVolume, Menu._config.Volume),
-            Menu._config.SoundScrubberEnabled  ? Menu._localization.SoundScrubberOn : Menu._localization.SoundScrubberOff,
-            Menu._config.MainMenuMusicEnabled  ? Menu._localization.SoundMusicOn    : Menu._localization.SoundMusicOff,
-            Menu._localization.Back,
-        };
+            var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
+            var items = new string[4];
+            items[VolumeIndex] = string.Format(Menu._localization.SoundVolume, Menu._config.Volume);
+            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {AudioFilterModeParser.DisplayName(mode)}";
+            items[MusicIndex]  = Menu._config.MainMenuMusicEnabled
+                ? Menu._localization.SoundMusicOn
+                : Menu._localization.SoundMusicOff;
+            items[BackIndex]   = Menu._localization.Back;
+            return items;
+        }
+
         public override void Activate(int index)
         {
-            switch (index)
+            if (index == FilterIndex)
             {
-                case ScrubberIndex:
-                    bool scrubOn = !Menu._config.SoundScrubberEnabled;
-                    Menu._config.SoundScrubberEnabled = scrubOn;
-                    Menu._onScrubberToggled(scrubOn);
-                    break;
-                case MusicIndex:
-                    bool musicOn = !Menu._config.MainMenuMusicEnabled;
-                    Menu._config.MainMenuMusicEnabled = musicOn;
-                    Menu._onMenuMusicToggled(musicOn);
-                    break;
-                case BackIndex:
-                    Menu.NavigateTo(Screen.Settings);
-                    break;
+                Menu.NavigateTo(Screen.AudioFilter);
+                return;
             }
+            if (index == MusicIndex)
+            {
+                bool musicOn = !Menu._config.MainMenuMusicEnabled;
+                Menu._config.MainMenuMusicEnabled = musicOn;
+                Menu._onMenuMusicToggled(musicOn);
+                return;
+            }
+            if (index == BackIndex)
+                Menu.NavigateTo(Screen.Settings);
         }
     }
 }

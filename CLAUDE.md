@@ -59,13 +59,13 @@ Key subsystems and their responsibilities:
 | `NEShim.Config` | POCO config model + JSON load/save |
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
-| `NEShim.Rendering` | `FrameBuffer` (double-buffer), `GamePanel` (WinForms display), `D3DOverlayHook` (Steam overlay surface) |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain), scalers |
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
 | `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback |
-| `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers |
+| `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers; `IMenuInputTarget` (gamepad dispatch interface implemented by `MainForm`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
 ### BizHawk Emulation Core (`BizHawk/`)
@@ -100,13 +100,47 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 **Stateless renderer** — `MainMenuRenderer` and `MenuRenderer` are `internal static` classes with a single `Draw(Graphics, Rectangle, <StateType>)` entry point. They create and dispose all GDI+ resources within the call. Do not cache brushes, pens, or fonts across calls in these classes.
 
-### Steam overlay architecture
+**Pull scene interface (`IMenuSceneProvider`)** — `D3D11Renderer` does not know which UI scene (logo, main menu, in-game menu) is active. Instead it calls `IMenuSceneProvider.GetActiveScenePainter()` each frame. `MainForm` implements this: it returns a paint delegate (`Action<Graphics, Rectangle>`) for whichever scene is current, or `null` during gameplay (zero overhead on the hot path). The delegate is invoked inside `RenderOverlayBitmap()` before the FPS/toast/achievement overlays, so the scene is always painted under the HUD. Never add scene-detection logic to `D3D11Renderer` itself.
 
-The Steam overlay requires a D3D/OpenGL `Present()` call to hook — pure GDI+ apps have none, so `D3DOverlayHook` creates a minimal D3D11 swap chain bound to `MainForm.Handle`. `SteamManager.Tick()` calls `SteamAPI.RunCallbacks()` followed by `D3DOverlayHook.Present()` from a `System.Windows.Forms.Timer` (~60 Hz) on the UI thread. Steam must be initialised and ticked on the same thread.
+**Menu input interface (`IMenuInputTarget`)** — `EmulationThread` dispatches gamepad navigation without knowing about `GamePanel` or `MainForm` directly. It calls `IMenuInputTarget.IsWaitingForGamepadButton`, `HandleGamepadNav`, and `HandleGamepadButtonPress`. `MainForm` implements this interface and routes calls to whichever state machine is active. All implementations are explicit (e.g., `void UI.IMenuInputTarget.HandleGamepadNav(...)`) to avoid CS0051 accessibility issues caused by the internal `MenuNavInput` type appearing in a method signature.
 
-When the overlay activates (`GameOverlayActivated_t`), `GamePanel` is hidden so DWM exposes the swap chain surface. Steam's `GameOverlayRenderer64.dll` renders the overlay UI directly into the swap chain's back buffer via a vtable hook on `IDXGISwapChain::Present`. Without hiding `GamePanel`, the GDI+ child is composited above the swap chain by DWM and the overlay is invisible.
+### D3D11 rendering and Steam overlay architecture
 
-`D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. A `Form.Resize` handler calls `D3DOverlayHook.Resize` to keep the swap chain size correct when the user toggles windowed/fullscreen.
+`D3DOverlayHook` creates a D3D11 device and swap chain (using `SwapEffect.FlipDiscard` — required for DXVK on Proton) bound to `MainForm.Handle`. `RendererFactory.Create` tries to construct a `D3D11Renderer` first; if the hook device or swap chain is null, or the constructor throws, it falls back to `GdiRenderer`. `PlatformDetector.IsD3D11Active` is set once at startup to reflect which path was taken.
+
+**D3D11 is the primary path for all rendering** — not just NES frames. The logo splash, main menu, in-game menu, and all HUD overlays (FPS, toasts, achievements) are all composed by `D3D11Renderer`. There is no GDI+ fallback within D3D11 mode; the GDI+ path (`GdiRenderer`) is a complete self-contained alternative that takes over entirely when D3D11 is unavailable.
+
+**Frame delivery:** The emulation thread batches `UploadFrame` and `Tick` together in a single `BeginInvoke` on `MainForm`, so Present fires immediately after the texture is ready — tightly coupled to emulation timing with no clock drift. The `_steamTimer` (~60 Hz, UI thread) calls `SteamManager.Tick()` every tick but only calls `Renderer.Tick` when the emulation loop is paused, keeping the Steam overlay hook alive without a running emulation loop to supply `BeginInvoke` calls.
+
+**Overlay texture pipeline:** `D3D11Renderer` maintains a separate BGRA overlay texture the same size as the swap chain. `DrawOverlay()` checks whether any scene (via `IMenuSceneProvider.GetActiveScenePainter()`) or transient HUD element (FPS, toast, achievement) is active. If so, it calls `RenderOverlayBitmap()` — which paints GDI+ content into a CPU-side `Bitmap` (scene first, HUD on top), uploads it, and alpha-blends the overlay quad over the NES frame. `MarkOverlayDirty()` forces an overlay repaint on the next `DrawAndPresent` tick (called from `MainForm` whenever menu state changes). The scene painter is always re-invoked each frame while a scene is active, since cursor movement does not call `MarkOverlayDirty`.
+
+**Pixel format:** BizHawk's `IVideoProvider` returns `int[]` where each int is `0xAARRGGBB`. In little-endian memory the bytes are `[B, G, R, A]` — BGRA — which maps directly to `B8G8R8A8_UNorm` with no byte-swapping. Row copy in `UploadFrame` always uses `MappedSubresource.RowPitch` (DXVK may align rows wider than `width × 4`).
+
+**`GamePanel` in D3D11 mode:** `GamePanel` is permanently hidden (`Visible = false`) in D3D11 mode, including when the Steam overlay is active. Steam's overlay hooks `IDXGISwapChain::Present` and composites itself directly into the swap chain buffer; a visible GDI child window (GamePanel) would sit above the swap chain in DWM's Z-order and cover the overlay, which is why it must stay hidden. Menus, the logo, and the NES frame are all rendered by `D3D11Renderer` — `GamePanel` is not involved. `GamePanel.SetMenu`/`SetMainMenu`/`SetLogoScreen` calls from `MainForm` are harmless (the panel just caches references it never draws).
+
+**GDI+ fallback (`GdiRenderer`):** When D3D11 initialisation fails, `GdiRenderer` owns all rendering through `GamePanel.OnPaint`. `SetMenuSceneProvider` and `MarkOverlayDirty` are no-ops on `GdiRenderer`; menu/logo paint is triggered by `_gamePanel.Invalidate()` instead, and `GamePanel.OnPaint` dispatches to the same stateless renderer classes (`MenuRenderer`, `MainMenuRenderer`, `LogoRenderer`). `GdiRenderer.OwnsFrameSurface = false` causes `UpdateGamePanelVisibility()` to return early, leaving `GamePanel` visible at all times.
+
+**No mouse input:** Mouse navigation has been removed from all menus in both rendering paths. `Cursor.Hide()` is called once at `MainForm` startup and the cursor is never shown again. There are no `HandleMouseMove` or `HandleMouseClick` methods on `InGameMenu`, `MainMenuScreen`, or `GamePanel`. All menu navigation is keyboard or gamepad only.
+
+**`EmulationThread` decoupling:** `EmulationThread` holds no reference to `GamePanel`. It takes a `Control _uiMarshal` (for `BeginInvoke` — `MainForm` is passed) and an `IMenuInputTarget _menuInput` (for gamepad dispatch — also `MainForm`). `MainForm` implements `IMenuInputTarget` explicitly to avoid CS0051.
+
+**Device loss recovery:** `D3D11Renderer.DrawAndPresent()` fires `DeviceLost` on `DXGI_ERROR_DEVICE_REMOVED/RESET`. `MainForm` handles it by setting `PauseReasons.DeviceLost`, disposing both renderer and hook, recreating them (calling `_renderer.SetMenuSceneProvider(this)` again on the new renderer), then clearing the pause reason.
+
+`D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. `D3D11Renderer` is constructed immediately after. A `Form.Resize` handler calls `D3D11Renderer.Resize()` which calls `ResizeBuffers` and recreates the RTV.
+
+**`PlatformDetector.IsD3D11Active`** is set once at startup after `D3D11Renderer` is (or isn't) constructed. All 2.0+ video filters (CRT, palette shaders) are D3D11-only and must gate on this flag before offering themselves in any menu. The GDI+ fallback path has no filter support.
+
+**Cbuffer layout is fixed.** `b0` is always exactly 4 floats: `{param0, param1, param2, colorMode}`. Structural filters may use slots [0..2] via `WriteBaseParams()`; the renderer owns slot [3] (color mode) and always writes it. No filter may use a second constant buffer — if a future filter genuinely needs more than 3 configuration floats, revisit this rule explicitly rather than working around it silently.
+
+**`forceRenderer` config flag** — developer option, not exposed in any menu. `"auto"` (default) tries D3D11 and falls back to GDI+. `"gdi"` skips D3D11 entirely, useful when isolating D3D11-specific rendering bugs. `"d3d11"` is equivalent to `"auto"` (D3D11 is already preferred); it documents intent but still falls back to GDI+ if D3D11 init throws.
+
+**Slow-frame timing log:** When `enableLogging` is true, `EmulationThread` logs any frame whose total work time exceeds 14 ms (2.67 ms below the 16.67 ms budget). Each log entry breaks down time into `input`, `runFrame`, `video`, and `audio` segments. This is the first place to look when investigating FPS regressions. Note: in a Debug build, `runFrame` typically takes 17–30 ms due to unoptimised BizHawk JIT output — this is expected and is not a bug. Always use a Release build for performance testing.
+
+**Proton/DXVK notes:**
+- `SwapEffect.FlipDiscard` is required — legacy `Discard` is emulated via a slower blit path in DXVK.
+- `UploadFrame` copies row-by-row using `RowPitch` — DXVK aligns texture rows for Vulkan compatibility.
+- DXBC passthrough shaders compile to SPIR-V on first Proton launch (cached in Steam shader cache); near-instant due to trivial shader complexity.
+- Use `local-publish.ps1`, not raw `dotnet build`, for Proton performance testing.
 
 `SteamAPI.RestartAppIfNecessary(appId)` is called in `Program.Main` before `Application.Run`. It reads the App ID from `steam_appid.txt`. If the game was not launched via Steam, the call returns `true` and the process exits so Steam can relaunch it with the overlay DLL already injected.
 

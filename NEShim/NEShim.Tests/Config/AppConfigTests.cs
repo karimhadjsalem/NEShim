@@ -99,6 +99,13 @@ internal class AppConfigTests
     // ---- Hidden / developer-only defaults ----
 
     [Test]
+    public void ForceRenderer_DefaultIsAuto()
+    {
+        var config = new AppConfig();
+        Assert.That(config.ForceRenderer, Is.EqualTo("auto"));
+    }
+
+    [Test]
     public void EnableLogging_DefaultIsFalse()
     {
         var config = new AppConfig();
@@ -131,6 +138,41 @@ internal class AppConfigTests
     {
         var config = new AppConfig();
         Assert.That(config.OverrideStartBindingProtection, Is.False);
+    }
+
+    [Test]
+    public void VideoFilter_DefaultIsPixelPerfect()
+    {
+        var config = new AppConfig();
+        Assert.That(config.VideoFilter, Is.EqualTo("PixelPerfect"));
+    }
+
+    [Test]
+    public void VideoColorFilter_DefaultIsNone()
+    {
+        var config = new AppConfig();
+        Assert.That(config.VideoColorFilter, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void AudioFilter_DefaultIsDefault()
+    {
+        var config = new AppConfig();
+        Assert.That(config.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
+    public void OverscanMode_DefaultIsNormal()
+    {
+        var config = new AppConfig();
+        Assert.That(config.OverscanMode, Is.EqualTo("Normal"));
+    }
+
+    [Test]
+    public void MainMenuMusicVolume_DefaultIsOneHundred()
+    {
+        var config = new AppConfig();
+        Assert.That(config.MainMenuMusicVolume, Is.EqualTo(100));
     }
 
 }

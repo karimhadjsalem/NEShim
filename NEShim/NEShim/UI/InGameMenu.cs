@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
 using NEShim.Saves;
@@ -24,8 +25,10 @@ internal sealed partial class InGameMenu
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<bool>     _onScrubberToggled;
-    private readonly Action<bool>     _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode>                  _onFilterChanged;
+    private readonly Action<Rendering.VideoFilterMode>        _onVideoFilterChanged;
+    private readonly Action<Rendering.VideoColorFilterMode>   _onVideoColorFilterChanged;
+    private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
 
     private readonly (string Label, string ConfigKey)[] _bindingActions;
     private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
@@ -74,8 +77,6 @@ internal sealed partial class InGameMenu
         key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
              or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
 
-    public int[]? FrozenFrame { get; private set; }
-
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
     public LocalizationData Localization => _localization;
 
@@ -96,21 +97,25 @@ internal sealed partial class InGameMenu
         Action           onReturnToMainMenu,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
-        Action<int>      onVolumeChanged,
-        Action<bool>     onScrubberToggled,
-        Action<bool>     onGraphicsScalerToggled)
+        Action<int>             onVolumeChanged,
+        Action<AudioFilterMode> onFilterChanged,
+        Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
+        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
+        Action<Rendering.OverscanMode>         onOverscanModeChanged)
     {
-        _saveStates              = saveStates;
-        _config                  = config;
-        _localization            = localization;
-        _onExitToDesktop         = onExitToDesktop;
-        _onResetGame             = onResetGame;
-        _onReturnToMainMenu      = onReturnToMainMenu;
-        _onWindowModeToggle      = onWindowModeToggle;
-        _onConfigSaved           = onConfigSaved;
-        _onVolumeChanged         = onVolumeChanged;
-        _onScrubberToggled       = onScrubberToggled;
-        _onGraphicsScalerToggled = onGraphicsScalerToggled;
+        _saveStates                 = saveStates;
+        _config                     = config;
+        _localization               = localization;
+        _onExitToDesktop            = onExitToDesktop;
+        _onResetGame                = onResetGame;
+        _onReturnToMainMenu         = onReturnToMainMenu;
+        _onWindowModeToggle         = onWindowModeToggle;
+        _onConfigSaved              = onConfigSaved;
+        _onVolumeChanged            = onVolumeChanged;
+        _onFilterChanged            = onFilterChanged;
+        _onVideoFilterChanged       = onVideoFilterChanged;
+        _onVideoColorFilterChanged  = onVideoColorFilterChanged;
+        _onOverscanModeChanged      = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -127,6 +132,9 @@ internal sealed partial class InGameMenu
             [Screen.GamepadBindings]        = new GamepadBindingsHandler(this),
             [Screen.Video]                  = new VideoHandler(this),
             [Screen.Sound]                  = new SoundHandler(this),
+            [Screen.AudioFilter]            = new AudioFilterHandler(this),
+            [Screen.VideoFilter]            = new VideoFilterHandler(this),
+            [Screen.VideoColorFilter]       = new VideoColorFilterHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
                 () => { _saveStates.LoadFromActiveSlot(); Close(); }),
@@ -141,10 +149,9 @@ internal sealed partial class InGameMenu
 
     // ---- Open / Close ----
 
-    public void Open(int[] frozenFrame, Screen startScreen = Screen.Root)
+    public void Open(Screen startScreen = Screen.Root)
     {
         if (IsOpen) return;
-        FrozenFrame     = frozenFrame;
         IsOpen          = true;
         Current         = startScreen;
         SelectedItem    = 0;
@@ -277,36 +284,6 @@ internal sealed partial class InGameMenu
         }
     }
 
-    // ---- Mouse input ----
-
-    /// <summary>Highlights the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseMove(Point p, Rectangle bounds)
-    {
-        if (!IsOpen || RebindingAction != null) return false;
-        int hit = MenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit) && hit != SelectedItem)
-        {
-            SelectedItem = hit;
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>Activates the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseClick(Point p, Rectangle bounds)
-    {
-        if (!IsOpen) return false;
-        if (RebindingAction != null) return true;
-        int hit = MenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit))
-        {
-            SelectedItem = hit;
-            ActivateCurrent();
-            return true;
-        }
-        return false;
-    }
-
     // ---- Internal helpers ----
 
     private void AdjustVolume(int delta)
@@ -355,6 +332,9 @@ internal sealed partial class InGameMenu
         Screen.GamepadBindings  => Screen.Settings,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
+        Screen.AudioFilter      => Screen.Sound,
+        Screen.VideoFilter      => Screen.Video,
+        Screen.VideoColorFilter => Screen.Video,
         _                       => Screen.Root,
     };
 
@@ -387,7 +367,5 @@ internal sealed partial class InGameMenu
             ? b.GamepadButton ?? "(none)"
             : "(none)";
     }
-
-    public void Render(Graphics g, Rectangle bounds) => MenuRenderer.Draw(g, bounds, this);
 
 }

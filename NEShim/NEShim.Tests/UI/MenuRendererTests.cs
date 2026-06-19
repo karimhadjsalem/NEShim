@@ -54,8 +54,8 @@ internal class MenuRendererTests
         var menu = new InGameMenu(
             _saveStates, _config,
             new LocalizationData(),
-            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { });
-        menu.Open(new int[256 * 240]);
+            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+        menu.Open();
         return menu;
     }
 

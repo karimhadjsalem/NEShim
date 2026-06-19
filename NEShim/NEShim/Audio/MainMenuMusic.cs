@@ -106,6 +106,33 @@ internal sealed class MainMenuMusic : IDisposable
         _fadeTimer?.Start();
     }
 
+    /// <summary>
+    /// Suspends playback without losing position or resetting the fade level.
+    /// Call <see cref="Resume"/> to continue from the same point.
+    /// Designed for Steam overlay open/close — does nothing if not currently playing.
+    /// </summary>
+    public void Pause()
+    {
+        if (_disposed || _output == null) return;
+        _fadeTimer?.Stop();
+        if (_output.PlaybackState == PlaybackState.Playing)
+            _output.Pause();
+    }
+
+    /// <summary>
+    /// Resumes playback from where <see cref="Pause"/> left off and fades back in.
+    /// Does nothing if the output was not paused (e.g. music was never started or was stopped).
+    /// </summary>
+    public void Resume()
+    {
+        if (_disposed || _output == null) return;
+        if (_output.PlaybackState == PlaybackState.Paused)
+        {
+            _output.Play();
+            StartFadeIn();
+        }
+    }
+
     /// <summary>Stops playback immediately without fading.</summary>
     public void Stop()
     {

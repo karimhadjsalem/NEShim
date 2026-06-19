@@ -1,5 +1,8 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
 using NEShim.Saves;
@@ -27,6 +30,11 @@ internal sealed partial class MainMenuScreen : IDisposable
     public bool    IsVisible       { get; private set; } = true;
     public int     SelectedIndex   { get; private set; }
     public Bitmap? Background      { get; }
+
+    // Pre-scaled background bitmap cache — rebuilt only when bounds change.
+    // Avoids per-frame HighQualityBicubic scaling in DrawBackground.
+    private Bitmap? _scaledBackground;
+    private Size    _scaledBoundsSize;
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
@@ -78,9 +86,11 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
-    private readonly Action<bool>     _onScrubberToggled;
-    private readonly Action<bool>     _onMenuMusicToggled;
-    private readonly Action<bool>     _onGraphicsScalerToggled;
+    private readonly Action<AudioFilterMode>           _onFilterChanged;
+    private readonly Action<bool>                      _onMenuMusicToggled;
+    private readonly Action<Rendering.VideoFilterMode>      _onVideoFilterChanged;
+    private readonly Action<Rendering.VideoColorFilterMode> _onVideoColorFilterChanged;
+    private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -97,21 +107,25 @@ internal sealed partial class MainMenuScreen : IDisposable
         string?          bgImagePath,
         Action<bool>     onWindowModeToggle,
         Action           onConfigSaved,
-        Action<int>      onVolumeChanged,
-        Action<bool>     onScrubberToggled,
-        Action<bool>     onMenuMusicToggled,
-        Action<bool>     onGraphicsScalerToggled,
+        Action<int>             onVolumeChanged,
+        Action<AudioFilterMode> onFilterChanged,
+        Action<bool>            onMenuMusicToggled,
+        Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
+        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
+        Action<Rendering.OverscanMode>         onOverscanModeChanged,
         Bitmap?          bgImage = null)
     {
-        _saveStates              = saveStates;
-        _config                  = config;
-        _localization            = localization;
-        _onWindowModeToggle      = onWindowModeToggle;
-        _onConfigSaved           = onConfigSaved;
-        _onVolumeChanged         = onVolumeChanged;
-        _onScrubberToggled       = onScrubberToggled;
-        _onMenuMusicToggled      = onMenuMusicToggled;
-        _onGraphicsScalerToggled = onGraphicsScalerToggled;
+        _saveStates                = saveStates;
+        _config                    = config;
+        _localization              = localization;
+        _onWindowModeToggle        = onWindowModeToggle;
+        _onConfigSaved             = onConfigSaved;
+        _onVolumeChanged           = onVolumeChanged;
+        _onFilterChanged           = onFilterChanged;
+        _onMenuMusicToggled        = onMenuMusicToggled;
+        _onVideoFilterChanged      = onVideoFilterChanged;
+        _onVideoColorFilterChanged = onVideoColorFilterChanged;
+        _onOverscanModeChanged     = onOverscanModeChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -142,6 +156,9 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
             [Screen.Video]            = new VideoHandler(this),
             [Screen.Sound]            = new SoundHandler(this),
+            [Screen.AudioFilter]      = new AudioFilterHandler(this),
+            [Screen.VideoFilter]      = new VideoFilterHandler(this),
+            [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
         };
 
     // ---- Show (re-entry from in-game) ----
@@ -267,36 +284,6 @@ internal sealed partial class MainMenuScreen : IDisposable
         }
     }
 
-    // ---- Mouse input ----
-
-    /// <summary>Highlights the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseMove(System.Drawing.Point p, System.Drawing.Rectangle bounds)
-    {
-        if (!IsVisible || RebindingAction != null) return false;
-        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit) && hit != SelectedIndex)
-        {
-            SelectedIndex = hit;
-            return true;
-        }
-        return false;
-    }
-
-    /// <summary>Activates the item under the cursor. Returns true if repaint needed.</summary>
-    public bool HandleMouseClick(System.Drawing.Point p, System.Drawing.Rectangle bounds)
-    {
-        if (!IsVisible) return false;
-        if (RebindingAction != null) return true;
-        int hit = MainMenuRenderer.HitTestItem(p, bounds, this);
-        if (hit >= 0 && IsItemEnabled(hit))
-        {
-            SelectedIndex = hit;
-            ActivateCurrent();
-            return true;
-        }
-        return false;
-    }
-
     // ---- Internal helpers ----
 
     private void AdjustVolume(int delta)
@@ -349,6 +336,9 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.GamepadBindings  => Screen.Settings,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
+        Screen.AudioFilter      => Screen.Sound,
+        Screen.VideoFilter      => Screen.Video,
+        Screen.VideoColorFilter => Screen.Video,
         _                       => Screen.Main,
     };
 
@@ -408,7 +398,50 @@ internal sealed partial class MainMenuScreen : IDisposable
             : "(none)";
     }
 
-    public void Dispose() => Background?.Dispose();
+    // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.
+    // The caller must not dispose the returned bitmap — it is owned by this instance.
+    internal Bitmap? GetScaledBackground(Rectangle bounds)
+    {
+        if (Background == null) return null;
+        if (_scaledBackground != null && _scaledBoundsSize == bounds.Size)
+            return _scaledBackground;
+
+        _scaledBackground?.Dispose();
+        _scaledBackground = null;
+
+        float imgAspect    = (float)Background.Width / Background.Height;
+        float boundsAspect = (float)bounds.Width / bounds.Height;
+        Rectangle dest;
+        if (boundsAspect > imgAspect)
+        {
+            int h = (int)(bounds.Width / imgAspect);
+            dest = new Rectangle(0, (bounds.Height - h) / 2, bounds.Width, h);
+        }
+        else
+        {
+            int w = (int)(bounds.Height * imgAspect);
+            dest = new Rectangle((bounds.Width - w) / 2, 0, w, bounds.Height);
+        }
+
+        var cached = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+        using var cg = Graphics.FromImage(cached);
+        cg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        cg.CompositingMode   = CompositingMode.SourceCopy;
+        using var black = new SolidBrush(Color.Black);
+        cg.FillRectangle(black, 0, 0, bounds.Width, bounds.Height);
+        cg.CompositingMode = CompositingMode.SourceOver;
+        cg.DrawImage(Background, dest);
+
+        _scaledBackground = cached;
+        _scaledBoundsSize = bounds.Size;
+        return cached;
+    }
+
+    public void Dispose()
+    {
+        _scaledBackground?.Dispose();
+        Background?.Dispose();
+    }
 
     internal static string? ResolveAssetPath(string path)
     {

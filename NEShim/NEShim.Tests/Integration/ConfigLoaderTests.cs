@@ -42,6 +42,15 @@ internal class ConfigLoaderTests
     }
 
     [Test]
+    public void LoadFrom_WhenFileDoesNotExist_OnNonSteamDeck_AudioFilterIsDefault()
+    {
+        // Tests run on Windows without the SteamDeck=1 env var, so IsSteamDeck is false.
+        // Verifies the non-Steam-Deck first-run path leaves AudioFilter at "Default".
+        var config = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(config.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
     public void LoadFrom_WhenFileDoesNotExist_ReturnsDefaultWindowMode()
     {
         var config = ConfigLoader.LoadFrom(_configPath);
@@ -175,5 +184,103 @@ internal class ConfigLoaderTests
         var second = ConfigLoader.LoadFrom(_configPath);
 
         Assert.That(second.Volume, Is.EqualTo(first.Volume));
+    }
+
+    // ---- Deprecated field migration ----
+
+    [Test]
+    public void LoadFrom_SoundScrubberEnabled_PromotesToWarmAudioFilter()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = true, AudioFilter = "Default" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("Warm"));
+    }
+
+    [Test]
+    public void LoadFrom_SoundScrubberEnabled_DoesNotOverrideExplicitAudioFilter()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = true, AudioFilter = "PseudoStereo" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("PseudoStereo"));
+    }
+
+    [Test]
+    public void LoadFrom_SoundScrubberDisabled_LeavesAudioFilterDefault()
+    {
+        var original = new AppConfig { SoundScrubberEnabled = false, AudioFilter = "Default" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.AudioFilter, Is.EqualTo("Default"));
+    }
+
+    [Test]
+    public void LoadFrom_GraphicsSmoothingEnabled_PromotesToBilinearVideoFilter()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = true, VideoFilter = "NearestNeighbour" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("Bilinear"));
+    }
+
+    [Test]
+    public void LoadFrom_GraphicsSmoothingEnabled_DoesNotOverrideExplicitVideoFilter()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = true, VideoFilter = "CrtScanlines" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void LoadFrom_NearestNeighbour_MigratesTo_PixelPerfect()
+    {
+        var original = new AppConfig { GraphicsSmoothingEnabled = false, VideoFilter = "NearestNeighbour" };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.VideoFilter, Is.EqualTo("PixelPerfect"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_None_MigratesTo_Normal()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"None"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Normal"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_NTSC_MigratesTo_Overscan()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"NTSC"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Overscan"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_Auto_MigratesTo_Overscan()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"Auto"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Overscan"));
+    }
+
+    [Test]
+    public void LoadFrom_OverscanMode_Valid_NotMigrated()
+    {
+        File.WriteAllText(_configPath, """{"overscanMode":"Underscan"}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.OverscanMode, Is.EqualTo("Underscan"));
     }
 }
