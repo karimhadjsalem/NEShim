@@ -20,9 +20,7 @@ These apply whenever `SteamDeck=1` is detected in the environment (set by SteamO
 All menu font sizes, row heights, and panel widths scale on Steam Deck (up from the desktop baseline of 1.0×):
 
 - **Fonts and row heights**: 1.5× — 18pt item text, 63px row height
-- **Panel widths**: viewport-proportional — panels occupy the same fraction of the screen in both windowed and fullscreen modes, maintaining the correct visual proportion on the 1280×800 fullscreen display
-
-The viewport-proportional width scaling means a 360px panel on a 768px windowed viewport and a 600px panel on a 1280px fullscreen viewport each fill approximately 47% of the screen. Without this, the same 360px panel on a 1280px screen would appear disproportionately small.
+- **Panel widths**: 1.5× — same scale factor as fonts, so text and panel dimensions remain proportional to each other across windowed and fullscreen
 
 The `SteamDeck` env var is the detection mechanism; it is also set in Steam Deck Desktop Mode, so menus scale there too.
 
