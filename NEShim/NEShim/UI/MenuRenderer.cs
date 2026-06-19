@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using NEShim.Platform;
 
 namespace NEShim.UI;
 
@@ -23,9 +24,12 @@ internal static class MenuRenderer
 
     // In-game menu items are 4px shorter than main-menu items (38 vs 42) — the in-game
     // overlay is intentionally more compact so the frozen game frame stays visible.
-    internal const int ItemH      = 38;
-    private  const int PanelPad   = 16;
-    private  const int SeparatorH = 18;
+    // On Steam Deck all layout constants scale up so the menus remain readable at handheld distance.
+    internal static readonly int ItemH        = S(38);
+    private  static readonly int PanelPad     = S(16);
+    private  static readonly int SeparatorH   = S(18);
+    private  static readonly int PanelHeaderH = S(64); // header component in panel height calculation
+    private  static readonly int ItemsStartY  = S(56); // Y offset from panel top to first item row
 
     // Controller-column constants shared with MainMenuRenderer via MenuRenderConstants.
     private const int ControllerAreaW = MenuRenderConstants.ControllerAreaW;
@@ -66,7 +70,7 @@ internal static class MenuRenderer
             int extraY = hasSeparator && i >= openMenuIdx ? SeparatorH : 0;
             var itemRect = new Rectangle(
                 panelX + 6,
-                panelY + 56 + warningRowH + i * ItemH + extraY,
+                panelY + ItemsStartY + warningRowH + i * ItemH + extraY,
                 listW - 12,
                 ItemH - 2);
             if (itemRect.Contains(p)) return i;
@@ -109,25 +113,25 @@ internal static class MenuRenderer
         g.DrawRectangle(borderPen, panelRect);
 
         // Title
-        using var titleFont  = new Font(menu.Localization.FontFamily, 15f, FontStyle.Bold, GraphicsUnit.Point);
+        using var titleFont  = new Font(menu.Localization.FontFamily, 15f * MenuScale.Scale, FontStyle.Bold, GraphicsUnit.Point);
         var titleColor = isConfirm                                          ? WarningColor
                        : (menu.RebindingAction != null || menu.IsGamepadRebinding) ? SubtitleColor
                        : TitleColor;
         using var titleBrush = new SolidBrush(titleColor);
-        var titleRect = new RectangleF(panelX + PanelPad, panelY + 10, panelW - PanelPad * 2, 36);
+        var titleRect = new RectangleF(panelX + PanelPad, panelY + S(10), panelW - PanelPad * 2, S(36));
         var centred   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(title, titleFont, titleBrush, titleRect, centred);
 
         // Divider
         using var divPen = new Pen(Color.FromArgb(70, 255, 255, 255), 1);
-        g.DrawLine(divPen, panelX + PanelPad, panelY + 50, panelX + panelW - PanelPad, panelY + 50);
+        g.DrawLine(divPen, panelX + PanelPad, panelY + S(50), panelX + panelW - PanelPad, panelY + S(50));
 
         // Warning label on confirm screens
         if (isConfirm)
         {
-            using var warnFont  = new Font(menu.Localization.FontFamily, 11f, FontStyle.Italic, GraphicsUnit.Point);
+            using var warnFont  = new Font(menu.Localization.FontFamily, 11f * MenuScale.Scale, FontStyle.Italic, GraphicsUnit.Point);
             using var warnBrush = new SolidBrush(Color.FromArgb(200, 255, 180, 100));
-            var warnRect = new RectangleF(panelX + PanelPad, panelY + 52, panelW - PanelPad * 2, 28);
+            var warnRect = new RectangleF(panelX + PanelPad, panelY + S(52), panelW - PanelPad * 2, S(28));
             g.DrawString(menu.Localization.InGameConfirmWarning, warnFont, warnBrush, warnRect, centred);
         }
 
@@ -149,17 +153,17 @@ internal static class MenuRenderer
                     ? menu.Localization.InGameRebindPressButtonNoCancel
                     : menu.Localization.InGameRebindPressButton)
                 : menu.Localization.InGameRebindPressKey;
-            using var hintFont  = new Font(menu.Localization.FontFamily, 13f, FontStyle.Italic, GraphicsUnit.Point);
+            using var hintFont  = new Font(menu.Localization.FontFamily, 13f * MenuScale.Scale, FontStyle.Italic, GraphicsUnit.Point);
             using var hintBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 180));
-            var hintRect = new RectangleF(panelX + PanelPad, panelY + 56, listW - PanelPad * 2,
-                                           panelH - 56 - PanelPad);
+            var hintRect = new RectangleF(panelX + PanelPad, panelY + ItemsStartY, listW - PanelPad * 2,
+                                           panelH - ItemsStartY - PanelPad);
             g.DrawString(hint, hintFont, hintBrush, hintRect, centred);
             return;
         }
 
         // Item list (left portion)
-        using var itemFont   = new Font(menu.Localization.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Point);
-        using var selFont    = new Font(menu.Localization.FontFamily, 12f, FontStyle.Bold,    GraphicsUnit.Point);
+        using var itemFont   = new Font(menu.Localization.FontFamily, 12f * MenuScale.Scale, FontStyle.Regular, GraphicsUnit.Point);
+        using var selFont    = new Font(menu.Localization.FontFamily, 12f * MenuScale.Scale, FontStyle.Bold,    GraphicsUnit.Point);
         using var itemBrush  = new SolidBrush(ItemColor);
         using var amberBrush = new SolidBrush(AmberColor);
         using var dimBrush   = new SolidBrush(DimColor);
@@ -176,20 +180,20 @@ internal static class MenuRenderer
             // Draw separator before the OpenMenu system entry
             if (hasSeparator && i == openMenuIdx)
             {
-                int sepLineY = panelY + 56 + warningRowH + i * ItemH + 2;
+                int sepLineY = panelY + ItemsStartY + warningRowH + i * ItemH + 2;
                 using var sepPen   = new Pen(Color.FromArgb(70, 255, 255, 255), 1);
-                using var sepFont  = new Font(menu.Localization.FontFamily, 8f, FontStyle.Regular, GraphicsUnit.Point);
+                using var sepFont  = new Font(menu.Localization.FontFamily, 8f * MenuScale.Scale, FontStyle.Regular, GraphicsUnit.Point);
                 using var sepBrush = new SolidBrush(Color.FromArgb(140, 180, 180, 180));
                 g.DrawLine(sepPen, panelX + PanelPad, sepLineY, panelX + listW - PanelPad, sepLineY);
                 var nearFmt  = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
-                var sepRect  = new RectangleF(panelX + PanelPad, sepLineY + 3, listW - PanelPad * 2, 12);
+                var sepRect  = new RectangleF(panelX + PanelPad, sepLineY + 3, listW - PanelPad * 2, S(12));
                 g.DrawString(menu.Localization.SystemSectionLabel, sepFont, sepBrush, sepRect, nearFmt);
             }
 
             int extraY = hasSeparator && i >= openMenuIdx ? SeparatorH : 0;
             var itemRect = new Rectangle(
                 panelX + 6,
-                panelY + 56 + warningRowH + i * ItemH + extraY,
+                panelY + ItemsStartY + warningRowH + i * ItemH + extraY,
                 listW - 12,
                 ItemH - 2);
 
@@ -228,8 +232,8 @@ internal static class MenuRenderer
         g.DrawRectangle(borderPen,  panelRect);
 
         var centred = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        using var titleFont  = new Font(menu.Localization.FontFamily, 15f, FontStyle.Bold,   GraphicsUnit.Point);
-        using var hintFont   = new Font(menu.Localization.FontFamily, 11f, FontStyle.Italic, GraphicsUnit.Point);
+        using var titleFont  = new Font(menu.Localization.FontFamily, 15f * MenuScale.Scale, FontStyle.Bold,   GraphicsUnit.Point);
+        using var hintFont   = new Font(menu.Localization.FontFamily, 11f * MenuScale.Scale, FontStyle.Italic, GraphicsUnit.Point);
         using var titleBrush = new SolidBrush(WarningColor);
         using var hintBrush  = new SolidBrush(DimColor);
 
@@ -253,9 +257,11 @@ internal static class MenuRenderer
             ? Math.Min(FullPanelW, bounds.Width - 60)
             : Math.Min(SlimPanelW, bounds.Width - 60);
         int listW  = showCtrl ? panelW - ControllerAreaW : panelW;
-        int panelH = 64 + warningRowH + itemCount * ItemH + PanelPad + (hasSeparator ? SeparatorH : 0);
+        int panelH = PanelHeaderH + warningRowH + itemCount * ItemH + PanelPad + (hasSeparator ? SeparatorH : 0);
         int panelX = Math.Max(8, (bounds.Width  - panelW) / 2);
         int panelY = Math.Max(8, (bounds.Height - panelH) / 2);
         return (panelX, panelY, panelW, panelH, listW);
     }
+
+    private static int S(int value) => (int)Math.Round(value * MenuScale.Scale);
 }
