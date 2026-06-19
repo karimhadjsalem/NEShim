@@ -25,11 +25,4 @@ public static class AudioFilterModeParser
         _ => throw new ArgumentException($"Unknown audioFilter value: '{value}'"),
     };
 
-    public static string DisplayName(AudioFilterMode mode) => mode switch
-    {
-        AudioFilterMode.PseudoStereo => "Pseudo Stereo",
-        AudioFilterMode.WarmStereo   => "Warm Stereo",
-        AudioFilterMode.BassBoost    => "Bass Boost",
-        _                            => mode.ToString(),
-    };
 }

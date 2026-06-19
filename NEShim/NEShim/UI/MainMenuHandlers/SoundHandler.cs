@@ -21,7 +21,7 @@ internal sealed partial class MainMenuScreen
             var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
             var items = new string[4];
             items[VolumeIndex] = string.Format(Menu._localization.SoundVolume, Menu._config.Volume);
-            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {AudioFilterModeParser.DisplayName(mode)}";
+            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {Menu.AudioFilterDisplayName(mode)}";
             items[MusicIndex]  = Menu._config.MainMenuMusicEnabled
                 ? Menu._localization.SoundMusicOn
                 : Menu._localization.SoundMusicOff;

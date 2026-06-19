@@ -20,7 +20,7 @@ internal sealed partial class InGameMenu
             var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
             var items = new string[3];
             items[VolumeIndex] = string.Format(Menu._localization.SoundVolume, Menu._config.Volume);
-            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {AudioFilterModeParser.DisplayName(mode)}";
+            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {Menu.AudioFilterDisplayName(mode)}";
             items[BackIndex]   = Menu._localization.Back;
             return items;
         }
