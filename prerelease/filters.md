@@ -76,7 +76,7 @@ A per-pixel color-grade transform applied after the structural video filter. D3D
 
 **Default value:** `"None"`
 
-The Color Effect sub-menu is always visible regardless of renderer. In GDI+ mode the selection persists to config but has no immediate visual impact.
+The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mode and does not appear in the Video settings screen. The selection is not shown or persisted when GDI+ is active.
 
 **Adding a new color effect:** see the [Architecture guide — Adding a new color effect](architecture.md#adding-a-new-color-effect).
 
