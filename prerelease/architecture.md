@@ -317,7 +317,7 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
 
 Two independent filter axes can be combined freely:
 
-- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `CrtScanlines`, `NtscComposite`. Implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources.
+- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`. Implemented as DXBC pixel shaders (or sampler-only for `Bilinear`) compiled to `.cso` files and embedded as assembly resources.
 - **Color Effect** (`videoColorFilter` in config): a color-grade transform applied on top of any structural filter. Options: `None`, `Warm`, `Greyscale`, `NesColorCorrection`. Not a separate shader — the grade is a cbuffer value consumed by every structural shader via a shared `ColorGrade.hlsli` include.
 
 All pixel shaders use a uniform 4-float constant buffer (`b0`):
@@ -328,7 +328,7 @@ cbuffer FilterParams : register(b0)
     float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, 0 for PP)
     float param1;     // structural param 1  (nesHeight / invHeight / 0)
     float param2;     // structural param 2  (scanlineIntensity / chromaStrength / 0)
-    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors — written by renderer
+    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool — written by renderer
 }
 ```
 
@@ -336,7 +336,7 @@ The renderer always fills `param[3]` with the active `VideoColorFilterMode` cast
 
 **Passthrough shader** (`Passthrough.ps.cso`) applies only the color grade — no structural effect. It is used for the overlay quad (menus, frozen frame, HUD elements) and the sidebar quads (letterbox bar artwork). This prevents scanline or NTSC effects from being applied to 2D overlay content or sidebar images. The passthrough shader is temporarily bound before those draws, then restored to `_activePixelShader` after.
 
-**Shader interface:** `ID3D11Filter` (in `NEShim.Rendering.Filters`) exposes `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (null → passthrough), `UseLinearSampler` (default false — override to true for bilinear-sampled filters), and `WriteBaseParams(Span<float>, nesWidth, nesHeight)`. `D3D11FilterFactory` maps a `VideoFilterMode` value to the correct implementation. See [Filters](filters.md) for the full filter reference.
+**Shader interface:** `ID3D11Filter` (in `NEShim.Rendering.Filters`) exposes `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (null → passthrough), `UseLinearSampler` (default false — override to true for bilinear-sampled filters), `WriteBaseParams(Span<float>, nesWidth, nesHeight)` (default no-op — writes structural params to cbuffer slots [0..2]), and `NotifyFrame(int frameCount)` (default no-op — called once per draw call for filters that animate per-frame, e.g. NTSC noise). `D3D11FilterFactory` maps a `VideoFilterMode` value to the correct implementation. See [Filters](filters.md) for the full filter reference.
 
 ### Overlay texture pipeline (D3D11)
 
@@ -502,7 +502,7 @@ Key interfaces consumed:
 
 1. Write a new `*.ps.hlsl` in `NEShim/Rendering/Shaders/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the standard `cbuffer FilterParams : register(b0)` layout (4 floats).
 2. Add its enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add the matching `Parse()` case, `DisplayName()` case, and append the value to `D3D11Supported`.
-3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`. Override `UseLinearSampler => true` if the filter uses bilinear sampling (no structural shader needed in that case — set `PixelShaderResourceName` to null so the passthrough shader is used).
+3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`. Override `UseLinearSampler => true` if the filter uses bilinear sampling (no structural shader needed in that case — set `PixelShaderResourceName` to null so the passthrough shader is used). Override `NotifyFrame(int frameCount)` only if the filter needs per-frame animated state (e.g. noise phase).
 4. Add the case to `D3D11FilterFactory.Create()`.
 5. Register the shader in `NEShim.csproj`: add the `.hlsl` as a `<None>` item, the `.cso` as an `<EmbeddedResource>` with the correct `<LogicalName>`, and add the `<Exec>` entry to the `CompileShaders` target.
 6. No menu changes are needed — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically. The new filter appears automatically.
