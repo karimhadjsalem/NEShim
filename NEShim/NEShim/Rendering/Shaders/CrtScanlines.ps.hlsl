@@ -7,7 +7,7 @@ cbuffer FilterParams : register(b0)  // fixed 4 floats: [0..2] filter params, [3
 {
     float nesWidth;           // NES content width in pixels
     float nesHeight;          // NES content height in pixels
-    float scanlineIntensity;  // Darkening factor for even scanlines (0=black, 1=no effect)
+    float scanlineIntensity;  // Brightness multiplier for darkened scanlines — alternating rows; 0=black gaps, 1=no gaps
     float colorMode;          // 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool
 }
 
@@ -21,10 +21,12 @@ float4 main(PSInput input) : SV_TARGET
 {
     float4 c = nesTexture.Sample(nesSampler, input.texcoord);
 
-    // Darken every other row to simulate a CRT scanline gap.
-    float row  = floor(input.texcoord.y * nesHeight);
-    float dark = fmod(row, 2.0);
-    c.rgb = c.rgb * lerp(1.0, scanlineIntensity, dark);
+    // Gaussian scanline profile: each NES scanline peaks at its centre and fades
+    // toward the row edges, simulating the electron-beam spot on CRT phosphor.
+    // k=8 gives FWHM ≈ 59% of row height — typical consumer CRT focus.
+    float scanPos  = frac(input.texcoord.y * nesHeight);
+    float gaussian = exp(-8.0 * (scanPos - 0.5) * (scanPos - 0.5));
+    c.rgb *= lerp(scanlineIntensity, 1.0, gaussian);
 
     return ApplyColorGrade(c, colorMode);
 }
