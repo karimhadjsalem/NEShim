@@ -3,41 +3,56 @@ layout: default
 title: Localization
 nav_order: 7
 parent: Pre-release
-description: "Language support, custom language files, Steam language detection, and CJK font fallback."
+description: "Language support, in-game language switcher, custom language files, Steam/OS language detection, and CJK font fallback."
 permalink: /prerelease/localization/
 ---
 
 # Localization
 
-NEShim supports multiple UI languages through JSON language files shipped alongside the executable. The active language is detected from Steam at startup; the `language` config field provides a fallback for non-Steam publishing scenarios.
+NEShim supports multiple UI languages through JSON language files shipped alongside the executable. Players can also change the language at any time from the in-game Settings screen.
 
 ---
 
-## Overview
+## Selecting a language in-game
 
-At startup, NEShim resolves the active language in this order:
+Open the in-game menu → **Settings → Language**. The Language screen lists all supported languages by their native name with a flag icon:
 
-1. **Steam** — if Steam is running, `SteamApps.GetCurrentGameLanguage()` returns the current game language (e.g. `"french"`). This takes precedence over everything else.
-2. **`config.json` `language` field** — used only when Steam is not available and the field is not `"Auto"`.
-3. **English** — the built-in default, used when neither source provides a value.
+- **Auto** — lets the app choose automatically (see [Auto-detection order](#auto-detection-order) below)
+- **English**, **Français**, **Deutsch**, **Español**, **日本語**, **한국어**, **Русский**, **中文（简体）**, **Português**
 
-NEShim then loads `lang/<language>.json` from the directory alongside the executable. If the file does not exist, it falls back to `lang/english.json`. If that is also missing, it falls back to built-in English defaults with no file I/O.
+Selecting a language writes it to `config.json` immediately and reloads all menu text without restarting. A `✓` appears next to the active choice. Selecting **Auto** clears the override and restores automatic detection.
+
+---
+
+## Auto-detection order
+
+When `config.json` contains `"language": "Auto"` (or no language field at all), NEShim resolves the language at startup in this order:
+
+1. **Steam game language** — if Steam is running, `SteamApps.GetCurrentGameLanguage()` is checked first. This is the language set in the game's Properties dialog in Steam, not the Steam UI language.
+2. **OS UI culture** — if Steam is unavailable, `CultureInfo.CurrentUICulture` is checked and matched against the built-in language list by ISO 639-1 two-letter code (e.g. `fr` → `french`, `ja` → `japanese`).
+3. **English** — the built-in default, used when no resolver returns a match.
+
+Every resolver decision is written to the diagnostic log so you can trace exactly which path was taken.
+
+> **Explicit selection overrides Steam.** If the user picks a language in the Language screen (or you pre-set `"language"` in `config.json` to a specific code), that value takes priority over Steam — even when Steam is running. Auto mode is the only mode where Steam is consulted.
+
+NEShim then loads `lang/<language>.json` from the directory alongside the executable. If the file does not exist it falls back to `lang/english.json`. If that is also missing it falls back to built-in English defaults with no file I/O.
 
 ---
 
 ## Built-in languages
 
-| Steam language code | Language |
-|---|---|
-| `english` | English |
-| `french` | French |
-| `german` | German |
-| `spanish` | Spanish |
-| `japanese` | Japanese |
-| `korean` | Korean |
-| `russian` | Russian |
-| `schinese` | Simplified Chinese |
-| `portuguese` | Brazilian Portuguese |
+| Steam language code | Native name | ISO 639-1 |
+|---|---|---|
+| `english` | English | `en` |
+| `french` | Français | `fr` |
+| `german` | Deutsch | `de` |
+| `spanish` | Español | `es` |
+| `japanese` | 日本語 | `ja` |
+| `korean` | 한국어 | `ko` |
+| `russian` | Русский | `ru` |
+| `schinese` | 中文（简体） | `zh` |
+| `portuguese` | Português | `pt` |
 
 ---
 
@@ -51,10 +66,10 @@ NEShim then loads `lang/<language>.json` from the directory alongside the execut
 
 | Value | Behaviour |
 |---|---|
-| `"Auto"` (default) | Use English when Steam is not running |
-| Any Steam language code | Use that language when Steam is not running |
+| `"Auto"` (default) | Resolve automatically: Steam → OS culture → English |
+| Any Steam language code | Use that language; overrides Steam even when Steam is running |
 
-> **Note:** This field is ignored when Steam is running. Steam's game language setting always takes precedence.
+This field is written automatically when the player selects a language from the in-game Language screen.
 
 ---
 
@@ -159,7 +174,9 @@ You do not need a live Steam session to test a specific language. Set the `langu
 }
 ```
 
-NEShim will load `lang/french.json` and render all menu text in French. Steam is not involved when the exe is launched outside Steam, so the config value takes effect.
+NEShim will load `lang/french.json` and render all menu text in French. Because an explicit language overrides Steam, this works regardless of whether Steam is running.
+
+To test Auto mode with a specific OS culture, set `"language": "Auto"`, temporarily change Windows' display language in System Settings, and relaunch. The diagnostic log will show which resolver fired and which language was chosen.
 
 To verify a CJK language, launch with `"language": "japanese"` (or `"korean"`, `"schinese"`) and confirm that menu text renders legibly. If the specified `fontFamily` is not installed, Windows substitutes a fallback — check that glyphs are not rendered as blank boxes.
 
