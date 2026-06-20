@@ -18,6 +18,8 @@ internal class CultureInfoLanguageResolverTests
     [TestCase("fr-FR", "french")]
     [TestCase("de-DE", "german")]
     [TestCase("es-ES", "spanish")]
+    [TestCase("es-MX", "latam")]
+    [TestCase("es-AR", "latam")]
     [TestCase("ja-JP", "japanese")]
     [TestCase("ko-KR", "korean")]
     [TestCase("ru-RU", "russian")]

@@ -9,9 +9,9 @@ internal class LanguageRegistryTests
     // ---- AllLanguages ----
 
     [Test]
-    public void AllLanguages_HasNineEntries()
+    public void AllLanguages_HasTenEntries()
     {
-        Assert.That(LanguageRegistry.AllLanguages.Count, Is.EqualTo(9));
+        Assert.That(LanguageRegistry.AllLanguages.Count, Is.EqualTo(10));
     }
 
     [Test]
@@ -50,6 +50,8 @@ internal class LanguageRegistryTests
     [TestCase("fr-FR", "french")]
     [TestCase("de-DE", "german")]
     [TestCase("es-ES", "spanish")]
+    [TestCase("es-MX", "latam")]
+    [TestCase("es-AR", "latam")]
     [TestCase("ja-JP", "japanese")]
     [TestCase("ko-KR", "korean")]
     [TestCase("ru-RU", "russian")]

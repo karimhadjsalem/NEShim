@@ -39,6 +39,9 @@
         <EmbeddedResource Include="assets\flags\spanish.png">
             <LogicalName>NEShim.assets.flags.spanish.png</LogicalName>
         </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\latam.png">
+            <LogicalName>NEShim.assets.flags.latam.png</LogicalName>
+        </EmbeddedResource>
         <EmbeddedResource Include="assets\flags\japanese.png">
             <LogicalName>NEShim.assets.flags.japanese.png</LogicalName>
         </EmbeddedResource>
