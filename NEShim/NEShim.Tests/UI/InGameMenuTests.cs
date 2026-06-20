@@ -60,7 +60,8 @@ internal class InGameMenuTests
             onFilterChanged            ?? (_ => { }),
             onVideoFilterChanged       ?? (_ => { }),
             onVideoColorFilterChanged  ?? (_ => { }),
-            onOverscanModeChanged      ?? (_ => { }));
+            onOverscanModeChanged      ?? (_ => { }),
+            _ => { });
     }
 
     // Helper: create an empty slot-state file so SlotExists returns true
@@ -538,7 +539,7 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Return); // enter Settings
 
         string[] items = menu.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(5)); // Keyboard Controls, Gamepad Controls, Video, Sound, ← Back
+        Assert.That(items.Length, Is.EqualTo(6)); // Keyboard Controls, Gamepad Controls, Video, Sound, Language, ← Back
         Assert.That(items[2], Is.EqualTo("Video"));
 
         // Window Mode lives in the Video sub-screen
@@ -561,7 +562,7 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
@@ -814,7 +815,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -825,7 +826,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -836,7 +837,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(menu);
         Assert.That(menu.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -869,7 +870,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { BindNone = "(unset)" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
@@ -1505,7 +1506,7 @@ internal class InGameMenuTests
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // Back (index 5)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
     }

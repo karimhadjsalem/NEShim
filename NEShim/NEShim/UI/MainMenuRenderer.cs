@@ -288,8 +288,15 @@ internal static class MainMenuRenderer
                 ItemH - 2);
 
             Brush activeBrush = isOpenMenu ? amberBrush : onBrush;
+            var   icon        = menu.GetCurrentItemIcon(i);
 
-            if (selected && enabled)
+            if (icon != null)
+            {
+                if (selected && enabled) g.FillRectangle(selBrush, itemRect);
+                DrawItemWithIcon(g, icon, items[i], selected && enabled, enabled,
+                                 itemRect, selFont, itemFont, activeBrush, dimBrush, leftFmt);
+            }
+            else if (selected && enabled)
             {
                 g.FillRectangle(selBrush, itemRect);
                 g.DrawString("▶  " + items[i], selFont, activeBrush, (RectangleF)itemRect, leftFmt);
@@ -303,6 +310,29 @@ internal static class MainMenuRenderer
                 g.DrawString("    " + items[i] + menu.Localization.SlotNoSave, itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
+    }
+
+    private const int IconW   = 20;
+    private const int IconH   = 14;
+    private const int IconGap = 4;
+
+    private static void DrawItemWithIcon(
+        Graphics g, Bitmap icon, string text, bool selected, bool enabled,
+        Rectangle itemRect, Font selFont, Font itemFont, Brush activeBrush, Brush dimBrush, StringFormat leftFmt)
+    {
+        int iconW  = S(IconW);
+        int iconH  = S(IconH);
+        int iconX  = itemRect.X + S(2);
+        int iconY  = itemRect.Y + (itemRect.Height - iconH) / 2;
+        g.DrawImage(icon, new Rectangle(iconX, iconY, iconW, iconH));
+
+        int   textOffsetX = S(IconW + IconGap);
+        var   textRect    = new RectangleF(itemRect.X + textOffsetX, itemRect.Y,
+                                           itemRect.Width - textOffsetX, itemRect.Height);
+        Font  font        = selected ? selFont : itemFont;
+        Brush brush       = enabled  ? activeBrush : dimBrush;
+        string prefix     = selected ? "▶ " : "  ";
+        g.DrawString(prefix + text, font, brush, textRect, leftFmt);
     }
 
     // ---- Helpers ----

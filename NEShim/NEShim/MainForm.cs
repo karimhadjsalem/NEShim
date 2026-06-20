@@ -440,7 +440,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _config!.OverscanMode = overscan.ToString();
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
-            });
+            },
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
 
         _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
 
@@ -526,7 +527,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _config!.OverscanMode = overscan.ToString();
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
-            });
+            },
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
         _menu.Opened += () => BeginInvoke(() =>
         {
             _renderer?.MarkOverlayDirty();
@@ -621,28 +623,34 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private string ResolveLanguage()
     {
-        string? steamLang = SteamManager.GameLanguage;
-        if (!string.IsNullOrEmpty(steamLang))
-        {
-            Logger.Log($"[Localization] Language resolved from Steam: '{steamLang}'.");
-            return steamLang;
-        }
-
-        if (SteamManager.IsAvailable)
-            Logger.Log("[Localization] Steam is available but returned an empty language — falling through to config.");
-        else
-            Logger.Log("[Localization] Steam not available — checking config.Language.");
-
+        // Explicit config takes priority — user's in-menu choice overrides Steam and OS.
         if (_config is not null
             && !string.IsNullOrEmpty(_config.Language)
             && !_config.Language.Equals("Auto", StringComparison.OrdinalIgnoreCase))
         {
-            Logger.Log($"[Localization] Language resolved from config: '{_config.Language}'.");
+            Logger.Log($"[Localization] Language explicitly configured: '{_config.Language}'.");
             return _config.Language;
         }
 
-        Logger.Log($"[Localization] config.Language is '{_config?.Language ?? "(null)"}' — defaulting to 'english'.");
+        // Auto mode: Steam → OS culture → English.
+        var resolver = new Localization.ChainedLanguageResolver([
+            new Localization.SteamLanguageResolver(),
+            new Localization.CultureInfoLanguageResolver(),
+        ]);
+        string? lang = resolver.Resolve();
+        if (lang != null) return lang;
+
+        Logger.Log("[Localization] All resolvers returned null — defaulting to 'english'.");
         return "english";
+    }
+
+    private void OnLanguageChanged(string _)
+    {
+        ConfigLoader.Save(_config!);
+        var newData = LoadLocalization();
+        _menu?.UpdateLocalization(newData);
+        _mainMenuScreen?.UpdateLocalization(newData);
+        _renderer?.MarkOverlayDirty();
     }
 
     private LocalizationData LoadLocalization()

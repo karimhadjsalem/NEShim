@@ -27,6 +27,33 @@
     <ItemGroup>
         <EmbeddedResource Include="icon.ico" />
         <EmbeddedResource Include="logos\neshim-logo-splash.png" />
+        <EmbeddedResource Include="assets\flags\english.png">
+            <LogicalName>NEShim.assets.flags.english.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\french.png">
+            <LogicalName>NEShim.assets.flags.french.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\german.png">
+            <LogicalName>NEShim.assets.flags.german.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\spanish.png">
+            <LogicalName>NEShim.assets.flags.spanish.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\japanese.png">
+            <LogicalName>NEShim.assets.flags.japanese.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\korean.png">
+            <LogicalName>NEShim.assets.flags.korean.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\russian.png">
+            <LogicalName>NEShim.assets.flags.russian.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\schinese.png">
+            <LogicalName>NEShim.assets.flags.schinese.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="assets\flags\portuguese.png">
+            <LogicalName>NEShim.assets.flags.portuguese.png</LogicalName>
+        </EmbeddedResource>
     </ItemGroup>
 
     <!-- Remove all shader files from SDK auto-includes before re-adding explicitly.

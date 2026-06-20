@@ -263,4 +263,25 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.BindNone, Is.EqualTo("(none)"));
     }
+
+    [Test]
+    public void DefaultInstance_SettingsLanguage_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.SettingsLanguage, Is.EqualTo("Language"));
+    }
+
+    [Test]
+    public void DefaultInstance_LanguageTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.LanguageTitle, Is.EqualTo("LANGUAGE"));
+    }
+
+    [Test]
+    public void DefaultInstance_LanguageAuto_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.LanguageAuto, Is.EqualTo("Auto"));
+    }
 }

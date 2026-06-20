@@ -64,7 +64,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
-| `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback |
+| `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback; `LanguageRegistry` — static list of 9 `LanguageInfo` records with `FindByCode`/`FindByCulture`; `ILanguageResolver` strategy interface + `SteamLanguageResolver`, `CultureInfoLanguageResolver`, `ChainedLanguageResolver` implementations; `FlagImageLoader` — embedded PNG flag resources |
 | `NEShim.UI` | `InGameMenu`, `MainMenuScreen` state machines + stateless renderers; `IMenuInputTarget` (gamepad dispatch interface implemented by `MainForm`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
 
@@ -90,7 +90,11 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 ### Design patterns in use
 
-**State machine** — `InGameMenu` and `MainMenuScreen` each own a `Screen` enum and dispatch to a per-screen `ScreenHandler` (nested private class). Each handler encapsulates one screen's title, items, enabled-state logic, and activation logic. Adding a new screen requires: add an enum value, add a handler class, add one entry to `BuildHandlers()`. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer.
+**State machine** — `InGameMenu` and `MainMenuScreen` each own a `Screen` enum and dispatch to a per-screen `ScreenHandler` (nested private class). Each handler encapsulates one screen's title, items, enabled-state logic, and activation logic. Adding a new screen requires: add an enum value, add a handler class, add one entry to `BuildHandlers()`. Rendering is always delegated to a paired stateless `*Renderer` class that takes the state object as a read-only parameter. Never put rendering logic inside a state machine, and never put state mutation inside a renderer. `ScreenHandler` has a virtual `GetItemIcon(int index) => null`; only `LanguageHandler` overrides it to return flag `Bitmap`s from `FlagImageLoader`.
+
+**Strategy + Chain of Responsibility (language resolution)** — `ILanguageResolver` is the strategy. `ChainedLanguageResolver` (Chain of Responsibility) tries each in order: `SteamLanguageResolver` → `CultureInfoLanguageResolver`. `MainForm.ResolveLanguage()` checks `config.Language` first; if it's "Auto", it delegates to the chain. An explicit language in config overrides Steam. Both resolvers log every decision via `Logger.Log` for debugging.
+
+**Live language switching** — `InGameMenu.UpdateLocalization(LocalizationData)` and `MainMenuScreen.UpdateLocalization(LocalizationData)` rebuild binding arrays and handlers in-place when the user changes language in the Language screen. `MainForm.OnLanguageChanged` saves config, reloads localization, calls `UpdateLocalization` on both menus, and marks the overlay dirty.
 
 **Observer (events)** — Components communicate upward via C# events (`NewGameChosen`, `ResumeChosen`, `Opened`, `Closed`). Wiring is done in `MainForm.InitializeEmulator()`, keeping components decoupled.
 

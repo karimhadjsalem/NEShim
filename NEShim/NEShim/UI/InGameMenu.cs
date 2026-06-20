@@ -18,7 +18,7 @@ internal sealed partial class InGameMenu
 {
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
-    private readonly LocalizationData _localization;
+    private          LocalizationData _localization;
     private readonly Action           _onExitToDesktop;
     private readonly Action           _onResetGame;
     private readonly Action           _onReturnToMainMenu;
@@ -29,10 +29,11 @@ internal sealed partial class InGameMenu
     private readonly Action<Rendering.VideoFilterMode>        _onVideoFilterChanged;
     private readonly Action<Rendering.VideoColorFilterMode>   _onVideoColorFilterChanged;
     private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
+    private readonly Action<string>                           _onLanguageChanged;
 
-    private readonly (string Label, string ConfigKey)[] _bindingActions;
-    private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
-    private readonly IReadOnlyDictionary<Screen, ScreenHandler> _handlers;
+    private (string Label, string ConfigKey)[]          _bindingActions;
+    private (string Label, string ConfigKey)[]          _gamepadBindingActions;
+    private IReadOnlyDictionary<Screen, ScreenHandler>  _handlers;
 
     // ---- Public state ----
 
@@ -101,7 +102,8 @@ internal sealed partial class InGameMenu
         Action<AudioFilterMode> onFilterChanged,
         Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
         Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
-        Action<Rendering.OverscanMode>         onOverscanModeChanged)
+        Action<Rendering.OverscanMode>         onOverscanModeChanged,
+        Action<string>                         onLanguageChanged)
     {
         _saveStates                 = saveStates;
         _config                     = config;
@@ -116,6 +118,7 @@ internal sealed partial class InGameMenu
         _onVideoFilterChanged       = onVideoFilterChanged;
         _onVideoColorFilterChanged  = onVideoColorFilterChanged;
         _onOverscanModeChanged      = onOverscanModeChanged;
+        _onLanguageChanged          = onLanguageChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -135,6 +138,7 @@ internal sealed partial class InGameMenu
             [Screen.AudioFilter]            = new AudioFilterHandler(this),
             [Screen.VideoFilter]            = new VideoFilterHandler(this),
             [Screen.VideoColorFilter]       = new VideoColorFilterHandler(this),
+            [Screen.Language]               = new LanguageHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
                 () => { _saveStates.LoadFromActiveSlot(); Close(); }),
@@ -335,6 +339,7 @@ internal sealed partial class InGameMenu
         Screen.AudioFilter      => Screen.Sound,
         Screen.VideoFilter      => Screen.Video,
         Screen.VideoColorFilter => Screen.Video,
+        Screen.Language         => Screen.Settings,
         _                       => Screen.Root,
     };
 
@@ -348,6 +353,17 @@ internal sealed partial class InGameMenu
 
     public string GetTitle() =>
         _handlers.TryGetValue(Current, out var handler) ? handler.Title : "";
+
+    public Bitmap? GetCurrentItemIcon(int index) =>
+        _handlers.TryGetValue(Current, out var handler) ? handler.GetItemIcon(index) : null;
+
+    public void UpdateLocalization(LocalizationData data)
+    {
+        _localization          = data;
+        _bindingActions        = MenuBindingHelpers.BuildBindingActions(data);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config, _bindingActions);
+        _handlers              = BuildHandlers();
+    }
 
     // ---- Rendering label helpers (used by binding handlers) ----
 

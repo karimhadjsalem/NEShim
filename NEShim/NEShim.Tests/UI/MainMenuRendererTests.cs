@@ -41,7 +41,7 @@ internal class MainMenuRendererTests
 
     private MainMenuScreen CreateMenu() =>
         new(_saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
     // ---- GetMainPanelRect — position variants ----
     //
@@ -247,13 +247,13 @@ internal class MainMenuRendererTests
 
         Assert.That(menu.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
-        // Settings sub-screen (5 items), centered 800×600:
+        // Settings sub-screen (6 items), centered 800×600:
         //   panelW = min(440, 800-60) = 440
-        //   panelH = 52 + 5*42 + 14 = 276
+        //   panelH = 52 + 6*42 + 14 = 318
         //   panelX = max(8, (800-440)/2) = 180
-        //   panelY = max(8, (600-276)/2) = 162
-        //   item 0 rect: (186, 212, 428, 40) → center y = 232
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 232), Bounds800x600HT, menu), Is.EqualTo(0));
+        //   panelY = max(8, (600-318)/2) = 141
+        //   item 0 rect: (186, 191, 428, 40) → center y = 211
+        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 211), Bounds800x600HT, menu), Is.EqualTo(0));
     }
 
     [Test]
@@ -404,7 +404,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -419,7 +419,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
