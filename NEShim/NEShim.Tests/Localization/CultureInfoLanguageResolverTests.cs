@@ -14,22 +14,33 @@ internal class CultureInfoLanguageResolverTests
     [TearDown]
     public void TearDown() => CultureInfo.CurrentUICulture = _originalCulture;
 
-    [TestCase("en-US", "english")]
-    [TestCase("fr-FR", "french")]
-    [TestCase("de-DE", "german")]
-    [TestCase("es-ES", "spanish")]
-    [TestCase("es-MX", "latam")]
-    [TestCase("es-AR", "latam")]
-    [TestCase("ja-JP", "japanese")]
-    [TestCase("ko-KR", "korean")]
-    [TestCase("ru-RU", "russian")]
-    [TestCase("zh-CN", "schinese")]
-    [TestCase("pt-BR", "portuguese")]
+    [TestCase("en-US",   "english")]
+    [TestCase("fr-FR",   "french")]
+    [TestCase("de-DE",   "german")]
+    [TestCase("es-ES",   "spanish")]
+    [TestCase("es-MX",   "latam")]
+    [TestCase("es-AR",   "latam")]
+    [TestCase("ja-JP",   "japanese")]
+    [TestCase("ko-KR",   "korean")]
+    [TestCase("ru-RU",   "russian")]
+    [TestCase("zh-CN",   "schinese")]
+    [TestCase("zh-Hans", "schinese")]
+    [TestCase("pt-BR",   "portuguese")]
     public void Resolve_KnownCulture_ReturnsExpectedCode(string cultureName, string expectedCode)
     {
         CultureInfo.CurrentUICulture = new CultureInfo(cultureName);
         var resolver = new CultureInfoLanguageResolver();
         Assert.That(resolver.Resolve(), Is.EqualTo(expectedCode));
+    }
+
+    // Traditional Chinese must not resolve to schinese — they share TwoLetterISOLanguageName "zh".
+    [TestCase("zh-TW")]
+    [TestCase("zh-Hant")]
+    public void Resolve_TraditionalChinese_ReturnsNull(string cultureName)
+    {
+        CultureInfo.CurrentUICulture = new CultureInfo(cultureName);
+        var resolver = new CultureInfoLanguageResolver();
+        Assert.That(resolver.Resolve(), Is.Null);
     }
 
     [Test]

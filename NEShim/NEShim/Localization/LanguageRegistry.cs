@@ -18,12 +18,39 @@ internal static class LanguageRegistry
         new("japanese",   "日本語",                    ["ja"]),
         new("korean",     "한국어",                    ["ko"]),
         new("russian",    "Русский",                  ["ru"]),
-        new("schinese",   "中文（简体）",               ["zh"]),
+        // Explicit Simplified Chinese culture names only — "zh" alone would also match
+        // zh-Hant/zh-TW (Traditional Chinese) since both share TwoLetterISOLanguageName "zh".
+        new("schinese",   "中文（简体）",               ["zh-CN", "zh-SG", "zh-Hans", "zh-Hans-CN", "zh-Hans-SG"]),
         new("portuguese", "Português",                ["pt"]),
     };
 
+    // Steam API codes that differ from our internal language codes.
+    // "koreana" is Steam's legacy code for Korean; "brazilian" is Brazilian Portuguese.
+    private static readonly Dictionary<string, string> _steamCodeAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["koreana"]  = "korean",
+            ["brazilian"] = "portuguese",
+        };
+
     public static LanguageInfo? FindByCode(string code) =>
         AllLanguages.FirstOrDefault(l => l.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Looks up a language by the code Steam's GetCurrentGameLanguage() returns.
+    /// Handles known Steam quirks (e.g. "koreana" → korean, "brazilian" → portuguese).
+    /// Returns null for Steam languages we don't support (e.g. "tchinese").
+    /// </summary>
+    public static LanguageInfo? FindBySteamCode(string steamCode)
+    {
+        var direct = FindByCode(steamCode);
+        if (direct != null) return direct;
+
+        if (_steamCodeAliases.TryGetValue(steamCode, out string? alias))
+            return FindByCode(alias);
+
+        return null;
+    }
 
     public static LanguageInfo? FindByCulture(CultureInfo culture)
     {

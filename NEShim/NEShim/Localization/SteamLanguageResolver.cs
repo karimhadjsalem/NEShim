@@ -23,7 +23,14 @@ internal sealed class SteamLanguageResolver : ILanguageResolver
             return null;
         }
 
-        Logger.Log($"[Localization] SteamResolver: resolved '{lang}'.");
-        return lang;
+        var info = LanguageRegistry.FindBySteamCode(lang);
+        if (info is null)
+        {
+            Logger.Log($"[Localization] SteamResolver: unsupported Steam language '{lang}' — skipping.");
+            return null;
+        }
+
+        Logger.Log($"[Localization] SteamResolver: resolved '{lang}' → '{info.Code}'.");
+        return info.Code;
     }
 }
