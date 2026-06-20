@@ -18,7 +18,7 @@ NEShim supports multiple UI languages through JSON language files shipped alongs
 Open the in-game menu → **Settings → Language**. The Language screen lists all supported languages by their native name with a flag icon:
 
 - **Auto** — lets the app choose automatically (see [Auto-detection order](#auto-detection-order) below)
-- **English**, **Français**, **Deutsch**, **Español**, **日本語**, **한국어**, **Русский**, **中文（简体）**, **Português**
+- **English**, **Français**, **Deutsch**, **Español**, **Español (Latinoamérica)**, **日本語**, **한국어**, **Русский**, **中文（简体）**, **Português**
 
 Selecting a language writes it to `config.json` immediately and reloads all menu text without restarting. A `✓` appears next to the active choice. Selecting **Auto** clears the override and restores automatic detection.
 
@@ -29,7 +29,7 @@ Selecting a language writes it to `config.json` immediately and reloads all menu
 When `config.json` contains `"language": "Auto"` (or no language field at all), NEShim resolves the language at startup in this order:
 
 1. **Steam game language** — if Steam is running, `SteamApps.GetCurrentGameLanguage()` is checked first. This is the language set in the game's Properties dialog in Steam, not the Steam UI language.
-2. **OS UI culture** — if Steam is unavailable, `CultureInfo.CurrentUICulture` is checked and matched against the built-in language list by ISO 639-1 two-letter code (e.g. `fr` → `french`, `ja` → `japanese`).
+2. **OS UI culture** — if Steam is unavailable, `CultureInfo.CurrentUICulture` is checked and matched against the built-in language list. Full culture names take priority over two-letter codes so that LatAm locales (e.g. `es-MX`, `es-AR`) resolve to `latam` rather than `spanish` (e.g. `fr` → `french`, `ja` → `japanese`, `es-MX` → `latam`, `es-ES` → `spanish`).
 3. **English** — the built-in default, used when no resolver returns a match.
 
 Every resolver decision is written to the diagnostic log so you can trace exactly which path was taken.
@@ -42,17 +42,20 @@ NEShim then loads `lang/<language>.json` from the directory alongside the execut
 
 ## Built-in languages
 
-| Steam language code | Native name | ISO 639-1 |
+| Steam language code | Native name | Culture matching |
 |---|---|---|
 | `english` | English | `en` |
 | `french` | Français | `fr` |
 | `german` | Deutsch | `de` |
-| `spanish` | Español | `es` |
+| `spanish` | Español | `es` (fallback for unlisted Spanish locales) |
+| `latam` | Español (Latinoamérica) | `es-MX`, `es-AR`, `es-CO`, `es-CL`, `es-PE`, `es-VE`, `es-US`, `es-419` |
 | `japanese` | 日本語 | `ja` |
 | `korean` | 한국어 | `ko` |
 | `russian` | Русский | `ru` |
 | `schinese` | 中文（简体） | `zh` |
 | `portuguese` | Português | `pt` |
+
+> **Spanish vs. Latin American Spanish:** Steam's `latam` language code targets Latin American Spanish separately from `spanish` (Spain). Culture-based auto-detection uses full locale names first: `es-MX`, `es-AR`, and other listed locales resolve to `latam`; `es-ES` (and any unlisted `es-*` locale) falls back to `spanish`.
 
 ---
 
