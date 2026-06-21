@@ -416,7 +416,7 @@ The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) curren
 `SaveStateManager` wraps BizHawk's `IStatable` interface:
 
 - **8 named slots** stored as `slot{n}.state` (binary) + `slot{n}.meta` (JSON timestamp).
-- **Auto-save** stored as `autosave.state`. Written when the in-game menu opens, every ~5 minutes during active play (18,000-frame counter in `EmulationThread.Loop`), and on graceful exit — never while the pre-game main menu is showing.
+- **Auto-save** stored as `autosave.state`. Written when the in-game menu opens, every ~5 minutes during active play (18,000-frame counter in `EmulationThread.Loop`), and on graceful exit — never before the player has started a game session (i.e., if the player exits from the pre-game main menu without ever starting play, no auto-save is written).
 - `ActiveSlot` is persisted to `config.json` on exit.
 
 BizHawk's `IStatable` serialises the full emulator state (CPU registers, RAM, PPU, APU, mapper) to a `BinaryWriter`. Restoring from a state is immediate and cycle-accurate.
@@ -426,7 +426,7 @@ BizHawk's `IStatable` serialises the full emulator state (CPU registers, RAM, PP
 `SaveRamManager` wraps `ISaveRam`:
 
 - `LoadFromDisk()` is called at startup, before the first frame. If no `.srm` file exists, the emulator starts with uninitialised save RAM (same as a fresh cartridge).
-- `SaveToDisk()` is called on exit. It only writes the file if `ISaveRam.SaveRamModified` is true, avoiding unnecessary disk writes.
+- `SaveToDisk()` is called on exit, but only after the player has started a game session. Note: `ISaveRam.SaveRamModified` on the BizHawk NES core returns `true` for any cartridge that has a save RAM array, regardless of whether the game has written to it — it is not a write-tracking flag. The `_gameHasStarted` guard in `MainForm` is what prevents the SRM file from being created on first launch before any play.
 
 ---
 
