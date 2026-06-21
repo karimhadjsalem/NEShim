@@ -67,6 +67,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private MainMenuMusic? _preloadedMusic;
 
     private bool _isFullscreen = true;
+    private bool _gameHasStarted;
 
     public MainForm()
     {
@@ -447,6 +448,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
         _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
         {
+            _gameHasStarted = true;
             _mainMenuMusic?.FadeOut();
             SteamManager.ActivateGameplaySet();
             _emulationThread?.DismissMainMenu();
@@ -456,6 +458,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         });
         _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
         {
+            _gameHasStarted = true;
             // Save was already loaded by MainMenuScreen while thread was blocked.
             _mainMenuMusic?.FadeOut();
             SteamManager.ActivateGameplaySet();
@@ -797,10 +800,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         // Persist state — only auto-save if the game was actually running
         try
         {
-            if (_mainMenuScreen is null || !_mainMenuScreen.IsVisible)
+            if (_gameHasStarted)
                 _saveStates?.AutoSave();
             else
-                Logger.Log("[Shutdown] Main menu was visible — skipping auto-save.");
+                Logger.Log("[Shutdown] Game was never started — skipping auto-save.");
 
             _saveRam?.SaveToDisk();
 
