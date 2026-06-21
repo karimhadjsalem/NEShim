@@ -28,8 +28,8 @@ Selecting a language writes it to `config.json` immediately and reloads all menu
 
 When `config.json` contains `"language": "Auto"` (or no language field at all), NEShim resolves the language at startup in this order:
 
-1. **Steam game language** — if Steam is running, `SteamApps.GetCurrentGameLanguage()` is checked first. This is the language set in the game's Properties dialog in Steam, not the Steam UI language.
-2. **OS UI culture** — if Steam is unavailable, `CultureInfo.CurrentUICulture` is checked and matched against the built-in language list. Full culture names take priority over two-letter codes so that LatAm locales (e.g. `es-MX`, `es-AR`) resolve to `latam` rather than `spanish` (e.g. `fr` → `french`, `ja` → `japanese`, `es-MX` → `latam`, `es-ES` → `spanish`).
+1. **Steam game language** — if Steam is running, `SteamApps.GetCurrentGameLanguage()` is checked first. This is the language set in the game's Properties dialog in Steam, not the Steam UI language. The raw Steam code is normalized to NEShim's internal code before use: `koreana` → `korean`, `brazilian` → `portuguese`. Steam codes for unsupported languages (e.g. `tchinese`, `arabic`) return no match and fall through to step 2.
+2. **OS UI culture** — if Steam is unavailable or returned no match, `CultureInfo.CurrentUICulture` is checked. Full culture names take priority over two-letter codes so that LatAm locales resolve correctly (`es-MX` → `latam`, `es-ES` → `spanish`). Simplified Chinese matches on explicit culture names (`zh-CN`, `zh-Hans`, etc.); Traditional Chinese (`zh-TW`, `zh-Hant`) does not match any supported language and falls through to step 3.
 3. **English** — the built-in default, used when no resolver returns a match.
 
 Every resolver decision is written to the diagnostic log so you can trace exactly which path was taken.
@@ -42,18 +42,24 @@ NEShim then loads `lang/<language>.json` from the directory alongside the execut
 
 ## Built-in languages
 
-| Steam language code | Native name | Culture matching |
-|---|---|---|
-| `english` | English | `en` |
-| `french` | Français | `fr` |
-| `german` | Deutsch | `de` |
-| `spanish` | Español | `es` (fallback for unlisted Spanish locales) |
-| `latam` | Español (Latinoamérica) | `es-MX`, `es-AR`, `es-CO`, `es-CL`, `es-PE`, `es-VE`, `es-US`, `es-419` |
-| `japanese` | 日本語 | `ja` |
-| `korean` | 한국어 | `ko` |
-| `russian` | Русский | `ru` |
-| `schinese` | 中文（简体） | `zh` |
-| `portuguese` | Português | `pt` |
+| Code (lang file) | Native name | Steam API code | Culture matching |
+|---|---|---|---|
+| `english` | English | `english` | `en` |
+| `french` | Français | `french` | `fr` |
+| `german` | Deutsch | `german` | `de` |
+| `spanish` | Español | `spanish` | `es` (fallback for unlisted Spanish locales) |
+| `latam` | Español (Latinoamérica) | `latam` | `es-MX`, `es-AR`, `es-CO`, `es-CL`, `es-PE`, `es-VE`, `es-US`, `es-419` |
+| `japanese` | 日本語 | `japanese` | `ja` |
+| `korean` | 한국어 | `koreana` ¹ | `ko` |
+| `russian` | Русский | `russian` | `ru` |
+| `schinese` | 中文（简体） | `schinese` | `zh-CN`, `zh-SG`, `zh-Hans`, `zh-Hans-CN`, `zh-Hans-SG` ² |
+| `portuguese` | Português | `portuguese`, `brazilian` ³ | `pt` |
+
+¹ Steam's API returns `koreana` for Korean (a legacy quirk). NEShim maps this automatically to the `korean` lang file — you do not need a `koreana.json`.
+
+² Traditional Chinese (`zh-TW`, `zh-Hant`, `zh-HK`) is not a supported language and falls back to English. The bare `zh` two-letter code is intentionally not used because `zh-Hant` shares the same `TwoLetterISOLanguageName` value and would incorrectly match Simplified Chinese.
+
+³ Steam's `brazilian` code (Brazilian Portuguese) is mapped to `portuguese` since NEShim ships one Portuguese locale. Brazilian Steam users receive European Portuguese text.
 
 > **Spanish vs. Latin American Spanish:** Steam's `latam` language code targets Latin American Spanish separately from `spanish` (Spain). Culture-based auto-detection uses full locale names first: `es-MX`, `es-AR`, and other listed locales resolve to `latam`; `es-ES` (and any unlisted `es-*` locale) falls back to `spanish`.
 
@@ -231,7 +237,7 @@ In the dashboard under **Store Presence → Edit Store Page → Basic Info**, ch
 
 ### 4. Steam Input VDF localization
 
-The `game_actions_0.vdf` file (renamed to `game_actions_<AppID>.vdf` before release) contains a `"localization"` block with translated action names for each language. These names appear in the Steam overlay's controller binding UI. The built-in language files already cover all nine shipped languages. When adding a custom language, add a matching block in the VDF using the same Steam language code as a key.
+The `game_actions_0.vdf` file (renamed to `game_actions_<AppID>.vdf` before release) contains a `"localization"` block with translated action names for each language. These names appear in the Steam overlay's controller binding UI. The built-in language files already cover all ten shipped languages. When adding a custom language, add a matching block in the VDF using the same Steam language code as a key.
 
 Upload the VDF via the Steamworks dashboard under **Steam Input → Default Configuration**.
 
