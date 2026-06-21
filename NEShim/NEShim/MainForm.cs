@@ -801,11 +801,14 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         try
         {
             if (_gameHasStarted)
+            {
                 _saveStates?.AutoSave();
+                _saveRam?.SaveToDisk();
+            }
             else
-                Logger.Log("[Shutdown] Game was never started — skipping auto-save.");
-
-            _saveRam?.SaveToDisk();
+            {
+                Logger.Log("[Shutdown] Game was never started — skipping auto-save and SRM write.");
+            }
 
             if (_config is not null)
             {
