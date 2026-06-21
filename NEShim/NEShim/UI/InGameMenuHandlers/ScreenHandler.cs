@@ -11,5 +11,6 @@ internal sealed partial class InGameMenu
         public abstract string[] GetItems();
         public abstract void     Activate(int index);
         public virtual  bool     IsItemEnabled(int index) => true;
+        public virtual  Bitmap?  GetItemIcon(int index)   => null;
     }
 }

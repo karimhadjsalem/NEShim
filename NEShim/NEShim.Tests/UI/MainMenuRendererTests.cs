@@ -41,7 +41,7 @@ internal class MainMenuRendererTests
 
     private MainMenuScreen CreateMenu() =>
         new(_saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
     // ---- GetMainPanelRect — position variants ----
     //
@@ -195,10 +195,12 @@ internal class MainMenuRendererTests
     public void HitTestItem_DuringRebinding_ReturnsNegativeOne()
     {
         using var menu = CreateMenu();
-        // Main → Down once skips disabled Resume → lands on Settings (index 2) → enter → enter Keyboard → enter Up
+        // Main → Down once skips disabled Resume → lands on Settings → enter → Down×2 → Keyboard Controls (index 2) → rebind
         menu.HandleKey(Keys.Down);    // 0→(1 disabled)→2 (Settings)
         menu.HandleKey(Keys.Return);  // → Settings screen
-        menu.HandleKey(Keys.Return);  // → KeyboardBindings (item 0 = Keyboard Controls)
+        menu.HandleKey(Keys.Down);    // skip Video (index 0)
+        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
+        menu.HandleKey(Keys.Return);  // → KeyboardBindings (item 2 = Keyboard Controls)
         menu.HandleKey(Keys.Return);  // → starts rebinding "P1 Up"
 
         Assert.That(menu.RebindingAction, Is.Not.Null);
@@ -247,13 +249,13 @@ internal class MainMenuRendererTests
 
         Assert.That(menu.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
-        // Settings sub-screen (5 items), centered 800×600:
+        // Settings sub-screen (6 items), centered 800×600:
         //   panelW = min(440, 800-60) = 440
-        //   panelH = 52 + 5*42 + 14 = 276
+        //   panelH = 52 + 6*42 + 14 = 318
         //   panelX = max(8, (800-440)/2) = 180
-        //   panelY = max(8, (600-276)/2) = 162
-        //   item 0 rect: (186, 212, 428, 40) → center y = 232
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 232), Bounds800x600HT, menu), Is.EqualTo(0));
+        //   panelY = max(8, (600-318)/2) = 141
+        //   item 0 rect: (186, 191, 428, 40) → center y = 211
+        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 211), Bounds800x600HT, menu), Is.EqualTo(0));
     }
 
     [Test]
@@ -373,7 +375,9 @@ internal class MainMenuRendererTests
         using var menu = CreateMenu();
         menu.HandleKey(Keys.Down);    // Settings (skips disabled Resume)
         menu.HandleKey(Keys.Return);  // → Settings
-        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Down);    // skip Video (index 0)
+        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
+        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
         menu.HandleKey(Keys.Return);  // → GamepadBindings
         menu.HandleKey(Keys.Return);  // start rebind for P1 Up (index 0)
         Assert.That(menu.IsGamepadRebinding, Is.True);
@@ -388,7 +392,9 @@ internal class MainMenuRendererTests
         using var menu = CreateMenu();
         menu.HandleKey(Keys.Down);    // Settings
         menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Down);    // skip Video (index 0)
+        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
+        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
         menu.HandleKey(Keys.Return);  // → GamepadBindings
         menu.HandleKey(Keys.Return);  // start rebind
         Assert.That(menu.IsGamepadRebinding, Is.True);
@@ -404,7 +410,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -419,7 +425,7 @@ internal class MainMenuRendererTests
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
         using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);

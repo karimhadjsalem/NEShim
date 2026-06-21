@@ -21,6 +21,11 @@ internal sealed class LocalizationData
     public string SettingsGamepad  { get; init; } = "Gamepad Controls";
     public string SettingsVideo    { get; init; } = "Video";
     public string SettingsSound    { get; init; } = "Sound";
+    public string SettingsLanguage { get; init; } = "Language";
+
+    // ---- Language screen ----
+    public string LanguageTitle { get; init; } = "LANGUAGE";
+    public string LanguageAuto  { get; init; } = "Auto";
 
     // ---- Shared video items ----
     public string VideoWindowFullscreen { get; init; } = "Window Mode: Fullscreen";

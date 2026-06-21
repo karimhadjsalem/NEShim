@@ -19,9 +19,9 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed partial class MainMenuScreen : IDisposable
 {
-    private readonly (string Label, string ConfigKey)[] _bindingActions;
-    private readonly (string Label, string ConfigKey)[] _gamepadBindingActions;
-    private readonly IReadOnlyDictionary<Screen, ScreenHandler> _handlers;
+    private IReadOnlyDictionary<Screen, ScreenHandler>  _handlers;
+    private (string Label, string ConfigKey)[]          _bindingActions;
+    private (string Label, string ConfigKey)[]          _gamepadBindingActions;
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
     // ---- Public state ----
@@ -82,7 +82,7 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     private readonly SaveStateManager _saveStates;
     private readonly AppConfig        _config;
-    private readonly LocalizationData _localization;
+    private          LocalizationData _localization;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
@@ -91,6 +91,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<Rendering.VideoFilterMode>      _onVideoFilterChanged;
     private readonly Action<Rendering.VideoColorFilterMode> _onVideoColorFilterChanged;
     private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
+    private readonly Action<string>                         _onLanguageChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -113,6 +114,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
         Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
         Action<Rendering.OverscanMode>         onOverscanModeChanged,
+        Action<string>                         onLanguageChanged,
         Bitmap?          bgImage = null)
     {
         _saveStates                = saveStates;
@@ -126,6 +128,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onVideoFilterChanged      = onVideoFilterChanged;
         _onVideoColorFilterChanged = onVideoColorFilterChanged;
         _onOverscanModeChanged     = onOverscanModeChanged;
+        _onLanguageChanged         = onLanguageChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -159,6 +162,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.AudioFilter]      = new AudioFilterHandler(this),
             [Screen.VideoFilter]      = new VideoFilterHandler(this),
             [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
+            [Screen.Language]         = new LanguageHandler(this),
         };
 
     // ---- Show (re-entry from in-game) ----
@@ -339,6 +343,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.AudioFilter      => Screen.Sound,
         Screen.VideoFilter      => Screen.Video,
         Screen.VideoColorFilter => Screen.Video,
+        Screen.Language         => Screen.Settings,
         _                       => Screen.Main,
     };
 
@@ -378,6 +383,17 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     public string[] GetCurrentItems() =>
         _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItems() : Array.Empty<string>();
+
+    public Bitmap? GetCurrentItemIcon(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemIcon(index) : null;
+
+    public void UpdateLocalization(LocalizationData data)
+    {
+        _localization          = data;
+        _bindingActions        = MenuBindingHelpers.BuildBindingActions(data);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config, _bindingActions);
+        _handlers              = BuildHandlers();
+    }
 
     // ---- Rendering label helpers (used by binding handlers) ----
 

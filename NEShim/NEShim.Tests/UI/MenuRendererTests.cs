@@ -54,7 +54,7 @@ internal class MenuRendererTests
         var menu = new InGameMenu(
             _saveStates, _config,
             new LocalizationData(),
-            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         menu.Open();
         return menu;
     }
@@ -65,9 +65,11 @@ internal class MenuRendererTests
     public void HitTestItem_DuringKeyRebinding_ReturnsNegativeOne()
     {
         var menu = CreateOpenMenu();
-        // Root → Settings (Down×4 skips disabled Load Game at index 4) → Keyboard Controls → "Up" action
+        // Root → Settings (Down×4 skips disabled Load Game at index 4) → Keyboard Controls (index 2) → rebind
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // → Settings screen
+        menu.HandleKey(Keys.Down);   // skip Video (index 0)
+        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
         menu.HandleKey(Keys.Return); // → KeyboardBindings screen
         menu.HandleKey(Keys.Return); // → starts rebinding "P1 Up"
 
@@ -291,7 +293,9 @@ internal class MenuRendererTests
         var menu = CreateOpenMenu();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
         menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Down);   // skip Video (index 0)
+        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
         menu.HandleKey(Keys.Return); // GamepadBindings
         menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
         Assert.That(menu.IsGamepadRebinding, Is.True);
@@ -306,7 +310,9 @@ internal class MenuRendererTests
         var menu = CreateOpenMenu();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 1)
+        menu.HandleKey(Keys.Down);   // skip Video (index 0)
+        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
+        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
         menu.HandleKey(Keys.Return); // GamepadBindings
         menu.HandleKey(Keys.Return); // start rebind
         Assert.That(menu.IsGamepadRebinding, Is.True);
