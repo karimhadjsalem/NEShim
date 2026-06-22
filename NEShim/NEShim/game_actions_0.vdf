@@ -155,6 +155,25 @@
 			"Action_MenuConfirm" "Confirmar"
 			"Action_MenuBack"	"Atrás / Cancelar"
 		}
+		"latam"
+		{
+			"Set_Gameplay"		"Jugabilidad"
+			"Set_Menu"			"Menú"
+			"Action_Up"			"Arriba"
+			"Action_Down"		"Abajo"
+			"Action_Left"		"Izquierda"
+			"Action_Right"		"Derecha"
+			"Action_A"			"Botón A"
+			"Action_B"			"Botón B"
+			"Action_Start"		"Start"
+			"Action_Select"		"Select"
+			"Action_MenuUp"		"Menú Arriba"
+			"Action_MenuDown"	"Menú Abajo"
+			"Action_MenuLeft"	"Menú Izquierda"
+			"Action_MenuRight"	"Menú Derecha"
+			"Action_MenuConfirm" "Confirmar"
+			"Action_MenuBack"	"Atrás / Cancelar"
+		}
 		"japanese"
 		{
 			"Set_Gameplay"		"ゲームプレイ"
