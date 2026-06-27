@@ -71,6 +71,7 @@
         <None Include="Rendering\Shaders\CrtScanlines.ps.hlsl" />
         <None Include="Rendering\Shaders\CrtPhosphor.ps.hlsl" />
         <None Include="Rendering\Shaders\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Jinc2.ps.hlsl" />
         <None Include="Rendering\Shaders\ColorGrade.hlsli" />
         <!-- Compiled shader bytecode — produced by CompileShaders target below.
              DXVK on Proton translates this DXBC bytecode to SPIR-V on first launch
@@ -97,6 +98,10 @@
             <LogicalName>NEShim.Rendering.Shaders.NtscComposite.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Jinc2.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Jinc2.ps.cso</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
     </ItemGroup>
 
     <!-- Compile HLSL shaders to DXBC bytecode before building.
@@ -105,8 +110,8 @@
          developer with a local Windows SDK modifies the .hlsl sources.
          On CI runners (no Windows SDK installed), the checked-in CSOs are used as-is. -->
     <Target Name="CompileShaders" BeforeTargets="CoreCompile"
-            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
-            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.cso">
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.cso">
         <PropertyGroup>
             <!-- Try common Windows SDK paths. $(WindowsSDKVersion) has no trailing backslash,
                  so we add one explicitly between the version segment and "x64". -->
@@ -124,7 +129,7 @@
                  pre-compiled CSOs already exist from source control. This keeps CI builds
                  working without a Windows SDK install. If CSOs are missing AND fxc is
                  unavailable, the Exec commands below will fail with a clear shell error. -->
-            <_SkipShaderCompile Condition="'$(_FxcFoundAtKnownPath)' != 'true' And Exists('$(_ShaderDir)\Passthrough.vs.cso') And Exists('$(_ShaderDir)\Passthrough.ps.cso') And Exists('$(_ShaderDir)\CrtScanlines.ps.cso') And Exists('$(_ShaderDir)\CrtPhosphor.ps.cso') And Exists('$(_ShaderDir)\NtscComposite.ps.cso')">true</_SkipShaderCompile>
+            <_SkipShaderCompile Condition="'$(_FxcFoundAtKnownPath)' != 'true' And Exists('$(_ShaderDir)\Passthrough.vs.cso') And Exists('$(_ShaderDir)\Passthrough.ps.cso') And Exists('$(_ShaderDir)\CrtScanlines.ps.cso') And Exists('$(_ShaderDir)\CrtPhosphor.ps.cso') And Exists('$(_ShaderDir)\NtscComposite.ps.cso') And Exists('$(_ShaderDir)\Jinc2.ps.cso')">true</_SkipShaderCompile>
         </PropertyGroup>
         <Message Text="[CompileShaders] fxc.exe not found at a Windows SDK path — using pre-compiled CSOs from source control."
                  Condition="'$(_SkipShaderCompile)' == 'true'"
@@ -142,6 +147,9 @@
               CustomErrorRegularExpression="error X"
               Condition="'$(_SkipShaderCompile)' != 'true'" />
         <Exec Command="&quot;$(_FxcPath)&quot; /nologo /T ps_5_0 /E main /Fo &quot;$(_ShaderDir)\NtscComposite.ps.cso&quot; &quot;$(_ShaderDir)\NtscComposite.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipShaderCompile)' != 'true'" />
+        <Exec Command="&quot;$(_FxcPath)&quot; /nologo /T ps_5_0 /E main /Fo &quot;$(_ShaderDir)\Jinc2.ps.cso&quot; &quot;$(_ShaderDir)\Jinc2.ps.hlsl&quot;"
               CustomErrorRegularExpression="error X"
               Condition="'$(_SkipShaderCompile)' != 'true'" />
     </Target>

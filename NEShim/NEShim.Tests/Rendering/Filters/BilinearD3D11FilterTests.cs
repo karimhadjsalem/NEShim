@@ -33,9 +33,10 @@ internal class BilinearD3D11FilterTests
     }
 
     [Test]
-    public void PixelShaderResourceName_IsNull()
+    public void PixelShaderResourceName_IsJinc2Cso()
     {
-        Assert.That(((ID3D11Filter)_filter).PixelShaderResourceName, Is.Null);
+        Assert.That(((ID3D11Filter)_filter).PixelShaderResourceName,
+            Is.EqualTo("NEShim.Rendering.Shaders.Jinc2.ps.cso"));
     }
 
     [Test]
@@ -45,18 +46,13 @@ internal class BilinearD3D11FilterTests
     }
 
     [Test]
-    public void WriteBaseParams_DoesNotModifyBuffer()
+    public void WriteBaseParams_WritesNesWidthAndNesHeight()
     {
         ID3D11Filter filterInterface = _filter;
         Span<float> buffer = stackalloc float[4];
-        buffer[0] = 1f;
-        buffer[1] = 2f;
-        buffer[2] = 3f;
-        buffer[3] = 4f;
         filterInterface.WriteBaseParams(buffer, 256, 240);
-        Assert.That(buffer[0], Is.EqualTo(1f));
-        Assert.That(buffer[1], Is.EqualTo(2f));
-        Assert.That(buffer[2], Is.EqualTo(3f));
-        Assert.That(buffer[3], Is.EqualTo(4f));
+        Assert.That(buffer[0], Is.EqualTo(256f));
+        Assert.That(buffer[1], Is.EqualTo(240f));
     }
+
 }
