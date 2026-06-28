@@ -50,7 +50,7 @@ internal class ScanlineBobMotionEffectTests
     {
         var (_, dyEven) = _effect.GetFrameOffset(0);
         var (_, dyOdd)  = _effect.GetFrameOffset(1);
-        Assert.That(dyEven, Is.EqualTo(-dyOdd).Within(0.0001f));
+        Assert.That(dyEven, Is.EqualTo(-dyOdd).Within(1e-6f));
     }
 
     [Test]
@@ -63,29 +63,28 @@ internal class ScanlineBobMotionEffectTests
     }
 
     [Test]
-    public void NotifyLayout_AmplitudeEqualsHalfNESScanlineInClipSpace()
+    public void NotifyLayout_AtReferenceResolution_ReturnsReferenceAmplitude()
     {
-        // Expected: letterboxH / (240 * viewportH) = 810 / (240 * 1080) ≈ 0.003125
-        float expected = 810f / (240f * 1080f);
+        // 0.003 * 1080 / 1080 = 0.003
         var (_, dy) = _effect.GetFrameOffset(0);
-        Assert.That(dy, Is.EqualTo(expected).Within(0.0001f));
+        Assert.That(dy, Is.EqualTo(0.003f).Within(1e-5f));
     }
 
     [Test]
-    public void NotifyLayout_AmplitudeScalesWithViewportAndLetterbox()
+    public void NotifyLayout_At1440p_AmplitudeScalesDown()
     {
-        _effect.NotifyLayout(viewportHeight: 2160, letterboxHeight: 1620);
-        float expected = 1620f / (240f * 2160f);
+        _effect.NotifyLayout(viewportHeight: 1440, letterboxHeight: 1080);
+        float expected = 0.003f * 1080f / 1440f;
         var (_, dy) = _effect.GetFrameOffset(0);
-        Assert.That(dy, Is.EqualTo(expected).Within(0.0001f));
+        Assert.That(dy, Is.EqualTo(expected).Within(1e-5f));
     }
 
     [Test]
-    public void NotifyLayout_ZeroViewportHeight_DoesNotThrowOrChangeAmplitude()
+    public void NotifyLayout_ZeroViewportHeight_DoesNotChangeAmplitude()
     {
-        float amplitudeBefore = _effect.GetFrameOffset(0).Dy;
+        float before = _effect.GetFrameOffset(0).Dy;
         _effect.NotifyLayout(viewportHeight: 0, letterboxHeight: 810);
-        Assert.That(_effect.GetFrameOffset(0).Dy, Is.EqualTo(amplitudeBefore));
+        Assert.That(_effect.GetFrameOffset(0).Dy, Is.EqualTo(before));
     }
 
     [Test]
