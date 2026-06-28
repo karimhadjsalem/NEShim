@@ -317,8 +317,8 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
 
 Two independent filter axes can be combined freely:
 
-- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`. Implemented as DXBC pixel shaders (or sampler-only for `Bilinear`) compiled to `.cso` files and embedded as assembly resources.
-- **Color Effect** (`videoColorFilter` in config): a color-grade transform applied on top of any structural filter. Options: `None`, `Warm`, `Greyscale`, `NesColorCorrection`. Not a separate shader — the grade is a cbuffer value consumed by every structural shader via a shared `ColorGrade.hlsli` include.
+- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`. Implemented as DXBC pixel shaders (or sampler-only for `Bilinear`) compiled to `.cso` files and embedded as assembly resources.
+- **Color Effect** (`videoColorFilter` in config): a color-grade transform applied on top of any structural filter. Options: `None`, `Warm`, `Greyscale`, `NesColorCorrection`, `Cool`, `PhosphorAmber`, `PhosphorGreen`. Not a separate shader — the grade is a cbuffer value consumed by every structural shader via a shared `ColorGrade.hlsli` include.
 
 All pixel shaders use a uniform 4-float constant buffer (`b0`):
 
@@ -326,9 +326,9 @@ All pixel shaders use a uniform 4-float constant buffer (`b0`):
 cbuffer FilterParams : register(b0)
 {
     float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, 0 for PP)
-    float param1;     // structural param 1  (nesHeight / invHeight / 0)
+    float param1;     // structural param 1  (nesHeight / frameParity / 0)
     float param2;     // structural param 2  (scanlineIntensity / chromaStrength / 0)
-    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool — written by renderer
+    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool  5=phosphor_amber  6=phosphor_green — written by renderer
 }
 ```
 
@@ -405,7 +405,7 @@ In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `F
 - `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
 - `false` — D3D11 unavailable; GDI+ path is active.
 
-The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains five entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, and `NtscComposite`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining three are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
+The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains six entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, and `CrtScreen`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining four are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
