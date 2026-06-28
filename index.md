@@ -2,13 +2,13 @@
 layout: default
 title: NEShim
 nav_order: 1
-description: "NEShim — Windows shell for publishing NES games on Steam."
+description: "NEShim — full-featured NES emulator with native Steam integration for commercial publishing."
 permalink: /
 ---
 
 # NEShim
 
-NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes Steam SDK integration, allowing NES games to be published on Steam as native Windows applications — with achievements, overlay support, Steam Input, save states, and a configurable front-end UI — without modifying the ROM.
+NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
 ---
 

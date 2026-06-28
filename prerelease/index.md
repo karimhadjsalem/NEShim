@@ -9,7 +9,7 @@ permalink: /prerelease/
 
 # NEShim Documentation
 
-NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes Steam SDK integration, allowing NES games to be published on Steam as native Windows applications — with achievements, overlay support, Steam Input, save states, and a configurable front-end UI — without modifying the ROM.
+NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
 ---
 
@@ -18,7 +18,7 @@ NEShim is a Windows shell that wraps the BizHawk NES emulation core and exposes 
 | Page | What it covers |
 |---|---|
 | [Configuration reference](configuration.md) | Every field in `config.json`, with types, defaults, and examples |
-| [Filters](filters.md) | Audio filters (7 processors), structural video filters (Pixel Perfect, CRT Scanlines, NTSC Composite), and color effects (Warm, Greyscale, NES Colors); availability by renderer; shader architecture |
+| [Filters](filters.md) | Audio filters (7 processors), video filters (structural, overlay, color effects, motion effects), availability by renderer, combining examples, and shader architecture |
 | [Achievement system](achievements.md) | How to define memory-watch triggers, encode them, and seal the config |
 | [Publishing guide](publishing.md) | Step-by-step checklist for packaging a game for Steam release |
 | [Architecture](architecture.md) | Internals: thread model, subsystem design, patterns, how to extend |
