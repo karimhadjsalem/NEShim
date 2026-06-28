@@ -44,7 +44,6 @@ NEShim.Tests/              — NUnit test project
 NEShim.AchievementSigning/ — ECDSA-P256 signing library (AchievementSigner, AchievementDef)
 NEShim.SealAchievements/   — CLI tool for stamping achievement signatures (seal-achievements)
 BizHawk/                   — NES emulation core (adapted from BizHawk emulator)
-ref/                       — Reference binaries (BizHawk, Nintaco, tools) — not compiled
 ```
 
 ## Architecture
@@ -59,9 +58,10 @@ Key subsystems and their responsibilities:
 | `NEShim.Config` | POCO config model + JSON load/save |
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
-| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain); D3D11 subsystems: `Filters/` (structural pixel shaders + two-pass overlay via intermediate RT), `MotionEffects/`, `VideoColorFilterMode`, `OverscanMode` |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `IGraphicsScaler` + concrete GDI+ scalers (GDI+ only), `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain); D3D11 subsystems: `Filters/` (structural pixel shaders + two-pass overlay via intermediate RT), `MotionEffects/`, `VideoColorFilterMode`, `OverscanMode` |
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), Steam Deck detection (`IsSteamDeck`), D3D11 active flag (`IsD3D11Active`); `MenuScale` — font/layout scale factor (1.0× normal, 1.5× Steam Deck) |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Achievements` | `AchievementConfigLoader` — parses and signature-verifies `achievements.json`; `AchievementManager` — per-frame memory-watch evaluation and Steam unlock |
 | `NEShim.Localization` | `LocalizationData` — POCO with all UI strings and font family; `LocalizationLoader` — loads `lang/<language>.json` with English fallback; `LanguageRegistry` — static list of 10 `LanguageInfo` records with `FindByCode`/`FindBySteamCode`/`FindByCulture`; `ILanguageResolver` strategy interface + `SteamLanguageResolver`, `CultureInfoLanguageResolver`, `ChainedLanguageResolver` implementations; `FlagImageLoader` — embedded PNG flag resources |
@@ -137,6 +137,8 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 **Two-pass overlay pipeline:** When `_activeOverlay` is set (non-null), `DrawAndPresent` switches to a two-pass path. Pass 1 renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to `_letterboxPixelW × _letterboxPixelH` with `colorMode=0` (color grade deferred). Pass 2 renders the overlay filter reading from that intermediate texture to the swap chain backbuffer at the normal NES quad position, applying the real `colorMode` in this pass so the grade is applied only once. When `_activeOverlay` is null the single-pass path is taken with identical output to before (no overhead). `RecreateIntermediateTarget()` is called from `SetOverlayFilter` and `Resize`; it disposes and recreates the intermediate texture/RTV/SRV, or disposes without recreating when the overlay is cleared. The overlay slot accepts only `CrtScanlines`, `CrtPhosphor`, and `CrtScreen` — filters composable on an already-scaled frame. The menu prevents selecting the same filter for both primary and overlay via `IsItemEnabled`.
 
 **Cbuffer layout is fixed.** `b0` is always exactly 4 floats: `{param0, param1, param2, colorMode}`. Structural filters may use slots [0..2] via `WriteBaseParams()`; the renderer owns slot [3] (color mode) and always writes it. No filter may use a second constant buffer — if a future filter genuinely needs more than 3 configuration floats, revisit this rule explicitly rather than working around it silently.
+
+**Adding a new D3D11 video filter:** touch four places — (1) add an enum value to `VideoFilterMode`, (2) implement `ID3D11Filter` in a new class under `Filters/` (provide `FilterMode`, `PixelAspectRatio`, and `PixelShaderResourceName`; override `WriteBaseParams`/`NotifyFrame`/`UseLinearSampler` only if needed — all have no-op defaults), (3) add a case to `D3D11FilterFactory.Create`, (4) add the value to `VideoFilterModeParser.D3D11Supported` (and `OverlaySupported` if it can run as a second-pass overlay). The `.hlsl` compiles to `.cso` via the `CompileShaders` MSBuild target; pre-compiled `.cso` files checked into source control are used when `fxc.exe` is absent. Return `null` from `PixelShaderResourceName` to reuse the passthrough shader.
 
 **`forceRenderer` config flag** — developer option, not exposed in any menu. `"auto"` (default) tries D3D11 and falls back to GDI+. `"gdi"` skips D3D11 entirely, useful when isolating D3D11-specific rendering bugs. `"d3d11"` is equivalent to `"auto"` (D3D11 is already preferred); it documents intent but still falls back to GDI+ if D3D11 init throws.
 

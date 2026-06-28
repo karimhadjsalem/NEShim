@@ -6,8 +6,10 @@ internal sealed class CrtScreenD3D11Filter : ID3D11Filter
     private const float ChromaStrength   = 0.006f;
     private const float VignetteStrength = 0.35f;
 
+    private const float NesPixelAspect = 8f / 7f;
+
     public VideoFilterMode FilterMode       => VideoFilterMode.CrtScreen;
-    public float           PixelAspectRatio => 8f / 7f;
+    public float           PixelAspectRatio => NesPixelAspect;
     public bool            UseLinearSampler => true;
 
     public string? PixelShaderResourceName
