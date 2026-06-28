@@ -11,7 +11,7 @@ using NEShim.SealAchievements;
 //   seal-achievements --key-env <ENV_VAR>           [path/to/achievements.json]
 //
 // --gen-keypair  generates a new ECDSA-P256 keypair and exits.
-//                Embed the public key in AchievementSigner.DefaultPublicKeyBase64 (source build)
+//                Embed the public key in AchievementSigner.EmbeddedPublicKeyBase64 (source build)
 //                or set achievementPublicKey in config.json (pre-built release).
 //                Store the private key outside source control.
 //
@@ -27,7 +27,7 @@ if (args.Length == 1 && args[0] == "--gen-keypair")
     Console.WriteLine("Private key (keep secret — never commit; store in 1Password, a local file, or a CI secret):");
     Console.WriteLine(privateKey);
     Console.WriteLine();
-    Console.WriteLine("Public key (embed in AchievementSigner.DefaultPublicKeyBase64 OR set as achievementPublicKey in config.json):");
+    Console.WriteLine("Public key (embed in AchievementSigner.EmbeddedPublicKeyBase64 OR set as achievementPublicKey in config.json):");
     Console.WriteLine(publicKey);
     return 0;
 }
