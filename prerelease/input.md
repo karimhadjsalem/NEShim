@@ -290,8 +290,6 @@ Menu navigation combines XInput and Steam Input (edge-triggered):
 
 Keyboard navigation uses the arrow keys (Up/Down for cursor movement, Left/Right for volume), Enter/Space/Z to confirm, and Escape to go back.
 
-Mouse hover and click are also supported — hovering highlights items; clicking activates them.
-
 ---
 
 ## Input pipeline summary

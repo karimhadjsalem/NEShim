@@ -246,7 +246,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 | Setting | Recommendation |
 |---|---|
 | `volume` | Set a comfortable default (e.g. 80) so the game doesn't start at maximum volume. |
-| `soundScrubberEnabled` | Test both settings. On high-quality speakers the scrubber mode (`true`) is warmer. On laptop or TV speakers the default NES filter (`false`) may be fine. |
+| `audioFilter` | Choose a default filter. `"Default"` is the accurate NES hardware filter. `"Saturation"` is recommended for Steam Deck speakers. `"Warm"` suits speakers that benefit from a slightly softer sound. Unknown values throw a startup error. |
 
 ---
 
@@ -254,7 +254,7 @@ All artwork paths in `config.json` are relative to the executable directory.
 
 ### Shader compilation (pre-build requirement)
 
-NEShim's D3D11 renderer uses two HLSL shaders (`Passthrough.vs.hlsl` and `Passthrough.ps.hlsl`). These are compiled to DXBC bytecode (`.cso` files) by MSBuild using `fxc.exe` from the Windows SDK **before** the C# build begins. The compiled bytecode is embedded in the assembly as a resource — no `.cso` files ship with the game.
+NEShim's D3D11 renderer uses HLSL shaders for video filtering — a vertex/pixel passthrough pair plus one pixel shader per structural filter (`CrtScanlines.ps.hlsl`, `CrtPhosphor.ps.hlsl`, `NtscComposite.ps.hlsl`, `CrtScreen.ps.hlsl`). These are compiled to DXBC bytecode (`.cso` files) by MSBuild using `fxc.exe` from the Windows SDK **before** the C# build begins. The compiled bytecode is embedded in the assembly as a resource — no `.cso` files ship with the game.
 
 `fxc.exe` is automatically located by MSBuild at:
 
