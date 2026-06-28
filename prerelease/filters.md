@@ -8,13 +8,14 @@ description: "Audio filters and video filters — what each one does, when it's 
 
 # Filters
 
-NEShim has four independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
+NEShim has five independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
 
 | Axis | Config key | Menu location | Description |
 |---|---|---|---|
 | Audio Filter | `audioFilter` | Settings → Sound → Audio Filter | DSP processing applied to the NES mono audio output |
-| Video Filter | `videoFilter` | Settings → Video → Video Filter | Structural transform applied to the NES pixel buffer |
-| Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after the structural video filter (D3D11 only) |
+| Video Filter | `videoFilter` | Settings → Video → Video Filter | Primary structural transform applied to the NES pixel buffer |
+| Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
+| Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 only) |
 | Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 only) |
 
 ---
@@ -64,6 +65,29 @@ The active rendering path is detected at startup and shown in `neshim.log` when 
 
 ---
 
+## Video Overlay
+
+A second structural filter pass applied on top of the primary structural filter. D3D11 only — the option does not appear in GDI+ mode.
+
+When a Video Overlay is selected, `D3D11Renderer` renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to the letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the swap chain backbuffer at the normal NES quad position. Color grading (`videoColorFilter`) is deferred to this second pass so it applies once to the combined result. When the overlay is `"None"` (default), the single-pass path is taken with identical output and no overhead.
+
+The overlay slot accepts a subset of structural filters — those composable on top of an already-scaled frame:
+
+| Filter | `videoFilterOverlay` value | Description |
+|---|---|---|
+| None | `"None"` | No overlay. Single-pass rendering, no additional cost. |
+| CRT Scanlines | `"CrtScanlines"` | Scanline pass on top of the primary filter's output. Pairs well with Smooth or NTSC Composite as the base — the primary handles reconstruction or signal simulation, the overlay adds the CRT display surface. |
+| CRT Phosphor | `"CrtPhosphor"` | Aperture-grille phosphor mask applied to the primary filter's output. |
+| CRT Screen | `"CrtScreen"` | Barrel distortion, chromatic aberration, and vignette applied to the primary filter's output. Wraps any look inside a curved CRT shell. |
+
+**Default value:** `"None"`
+
+**Conflict prevention:** the overlay option menu disables any filter that matches the active primary filter — selecting the same filter in both slots is prevented at the menu level. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
+
+**UV note for overlay shaders:** the intermediate texture holds the upscaled primary frame. Overlay shaders receive UV coordinates spanning 0→1 over the letterbox area and use `nesHeight = 240` for scanline period calculations — the same values as in single-pass mode. Sampling an upscaled intermediate at these UVs gives sub-pixel scanline blending against a higher-resolution source, which generally produces better quality than the equivalent single-pass configuration.
+
+---
+
 ## Color Effect
 
 A per-pixel color-grade transform applied after the structural video filter. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
@@ -106,21 +130,27 @@ The Motion Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ m
 
 ## Combining video filters
 
-Any structural filter can be combined with any color effect and any motion effect. Some examples:
+Any structural filter can be combined with any overlay filter, any color effect, and any motion effect. Some examples:
 
-| Visual goal | Video Filter | Color Effect | Motion Effect |
-|---|---|---|---|
-| Classic accurate look | Pixel Perfect | None | None |
-| Retro CRT with aging monitor | CRT Scanlines | Warm | None |
-| Black-and-white film look | Pixel Perfect | Greyscale | None |
-| Full composite TV simulation | NTSC Composite | NES Colors | None |
-| Softer look with color correction | Smooth | NES Colors | None |
-| Authentic cold CRT (slot-mask + D93 white point) | CRT Phosphor | Cool | None |
-| 1980s arcade monitor look | CRT Phosphor | Warm | None |
-| Curved screen amber terminal | CRT Screen | Phosphor Amber | None |
-| Classic green monochrome CRT | Pixel Perfect | Phosphor Green | None |
-| Full vintage CRT simulation | CRT Screen | Warm | CRT Jitter |
-| Interlaced phosphor display | CRT Scanlines | None | Scanline Bob |
+| Visual goal | Video Filter | Video Overlay | Color Effect | Motion Effect |
+|---|---|---|---|---|
+| Classic accurate look | Pixel Perfect | None | None | None |
+| Retro CRT with aging monitor | CRT Scanlines | None | Warm | None |
+| Black-and-white film look | Pixel Perfect | None | Greyscale | None |
+| Full composite TV simulation | NTSC Composite | None | NES Colors | None |
+| Softer look with color correction | Smooth | None | NES Colors | None |
+| Authentic cold CRT (slot-mask + D93 white point) | CRT Phosphor | None | Cool | None |
+| 1980s arcade monitor look | CRT Phosphor | None | Warm | None |
+| Curved screen amber terminal | CRT Screen | None | Phosphor Amber | None |
+| Classic green monochrome CRT | Pixel Perfect | None | Phosphor Green | None |
+| Full vintage CRT simulation | CRT Screen | None | Warm | CRT Jitter |
+| Interlaced phosphor display | CRT Scanlines | None | None | Scanline Bob |
+| Smooth reconstruction + scanlines | Smooth | CRT Scanlines | None | None |
+| Smooth reconstruction + phosphor mask | Smooth | CRT Phosphor | Warm | None |
+| Sharp pixels in curved CRT shell | Pixel Perfect | CRT Screen | None | None |
+| Composite signal in curved CRT | NTSC Composite | CRT Screen | NES Colors | None |
+| Composite with scanline overlay | NTSC Composite | CRT Scanlines | None | None |
+| Full vintage CRT (curved + scanlines) | Pixel Perfect | CRT Screen | Warm | CRT Jitter |
 
 ---
 
