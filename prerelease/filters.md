@@ -35,7 +35,7 @@ Seven audio processors ship with NEShim, all operating on the 44.1 kHz mono outp
 
 Switching the audio filter takes effect immediately. The new processor's state is reset before it activates to prevent pops from accumulated DC offset.
 
-**Default value:** `"Default"`
+**Default value:** `"Default"` on Windows. On Steam Deck, the first-run default is `"Saturation"` — see [Steam Deck — Audio default on first run](steamdeck.md#audio-default-on-first-run).
 
 **Adding a new audio filter:** see the [Architecture guide — Adding a new audio processor](architecture.md#adding-a-new-audio-processor).
 
