@@ -119,8 +119,8 @@ The displacement is computed on the CPU each frame and written directly into the
 | Effect | `videoMotionEffect` value | Description |
 |---|---|---|
 | None | `"None"` | No displacement. The NES frame quad is drawn at its resting position. |
-| CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Amplitude is sub-pixel at 1080p (≤ 0.0004 clip units horizontally). |
-| Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad ±0.003 clip-space units vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude is approximately half a pixel at 1080p, keeping the effect subliminal rather than distracting. |
+| CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Horizontal and vertical amplitudes scale independently with viewport width and height respectively, keeping the physical pixel displacement constant across resolutions (calibrated at 1920×1080). |
+| Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude scales inversely with viewport height so the physical pixel displacement remains constant regardless of screen resolution (calibrated at 1080p). |
 
 **Default value:** `"None"`
 
