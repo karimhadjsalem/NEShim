@@ -20,7 +20,7 @@
   "videoFilterTitle": "VIDEOFILTER",
   "videoFilterSmooth": "Weich",
   "videoFilterPixelPerfect": "Pixel Perfect",
-  "videoFilterCrtScanlines": "CRT Scanlines",
+  "videoFilterCrtScanlines": "CRT Scanlinien",
   "videoFilterCrtPhosphor": "CRT Phosphor",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "CRT-Bildschirm",
@@ -101,7 +101,7 @@
   "inGameRebindStartReserved": "Start ist für das Menü reserviert",
   "systemSectionLabel": "SYSTEM",
   "bindOpenMenu": "Menü öffnen",
-  "inGameRebindPressButtonNoCancel": "Taste drücken\n(Esc zum Abbrechen)",
-  "mainMenuRebindPressButtonNoCancel": "Taste drücken  •  Esc zum Abbrechen",
+  "inGameRebindPressButtonNoCancel": "Knopf drücken\n(Esc zum Abbrechen)",
+  "mainMenuRebindPressButtonNoCancel": "Knopf drücken  •  Esc zum Abbrechen",
   "nesControllerLabel": "NES-Controller"
 }

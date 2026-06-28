@@ -365,6 +365,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     public void SetMotionEffect(VideoMotionEffectMode mode)
     {
         _activeMotionEffect = MotionEffects.MotionEffectFactory.Create(mode);
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
     }
 
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
@@ -514,8 +515,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         int scissorL = (int)((_nesX0 + 1f) * 0.5f * _viewportWidth);
         int scissorR = (int)((_nesX1 + 1f) * 0.5f * _viewportWidth);
-        int scissorT = (int)((1f - _nesY1) * 0.5f * _viewportHeight);
-        int scissorB = (int)((1f - _nesY0) * 0.5f * _viewportHeight);
+        int scissorT = (int)((1f - _nesY0) * 0.5f * _viewportHeight);
+        int scissorB = (int)((1f - _nesY1) * 0.5f * _viewportHeight);
         SetScissorRect(scissorL, scissorT, scissorR, scissorB);
         _context.RSSetState(_scissorRasterizerState);
         _context.PSSetShaderResource(0, srv);
@@ -890,6 +891,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         _letterboxPixelW = Math.Max(1, (int)destW);
         _letterboxPixelH = Math.Max(1, (int)destH);
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
     }
 
     /// <summary>

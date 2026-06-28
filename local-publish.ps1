@@ -39,6 +39,7 @@ dotnet publish $gameCsproj `
     --self-contained true `
     -p:PublishReadyToRun=true `
     -p:Version=$Version `
+    -p:DebugType=none `
     -o $outGame
 
 if ($LASTEXITCODE -ne 0) {
@@ -54,6 +55,7 @@ dotnet publish $toolCsproj `
     -r win-x64 `
     --self-contained true `
     -p:Version=$Version `
+    -p:DebugType=none `
     -o $outTool
 
 if ($LASTEXITCODE -ne 0) {
