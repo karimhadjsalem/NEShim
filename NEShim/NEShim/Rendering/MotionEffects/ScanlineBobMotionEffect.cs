@@ -11,7 +11,7 @@ internal sealed class ScanlineBobMotionEffect : IMotionEffect
 
     public VideoMotionEffectMode EffectMode => VideoMotionEffectMode.ScanlineBob;
 
-    public void NotifyLayout(int viewportHeight, int letterboxHeight)
+    public void NotifyLayout(int viewportWidth, int viewportHeight, int letterboxHeight)
     {
         if (viewportHeight <= 0)
             return;

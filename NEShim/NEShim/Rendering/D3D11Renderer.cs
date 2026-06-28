@@ -365,7 +365,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     public void SetMotionEffect(VideoMotionEffectMode mode)
     {
         _activeMotionEffect = MotionEffects.MotionEffectFactory.Create(mode);
-        _activeMotionEffect.NotifyLayout(_viewportHeight, _letterboxPixelH);
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
     }
 
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
@@ -891,7 +891,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         _letterboxPixelW = Math.Max(1, (int)destW);
         _letterboxPixelH = Math.Max(1, (int)destH);
-        _activeMotionEffect.NotifyLayout(_viewportHeight, _letterboxPixelH);
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
     }
 
     /// <summary>

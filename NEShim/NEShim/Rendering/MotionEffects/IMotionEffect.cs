@@ -20,5 +20,5 @@ internal interface IMotionEffect
     /// Called by D3D11Renderer whenever the viewport or letterbox dimensions change so that
     /// effects that scale with screen size can recalibrate. Default implementation is a no-op.
     /// </summary>
-    void NotifyLayout(int viewportHeight, int letterboxHeight) { }
+    void NotifyLayout(int viewportWidth, int viewportHeight, int letterboxHeight) { }
 }

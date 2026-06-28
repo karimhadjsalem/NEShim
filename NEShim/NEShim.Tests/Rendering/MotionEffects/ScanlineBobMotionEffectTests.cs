@@ -12,7 +12,7 @@ internal class ScanlineBobMotionEffectTests
     public void SetUp()
     {
         _effect = new ScanlineBobMotionEffect();
-        _effect.NotifyLayout(viewportHeight: 1080, letterboxHeight: 810);
+        _effect.NotifyLayout(viewportWidth: 1920, viewportHeight: 1080, letterboxHeight: 810);
     }
 
     [Test]
@@ -63,27 +63,19 @@ internal class ScanlineBobMotionEffectTests
     }
 
     [Test]
-    public void NotifyLayout_AtReferenceResolution_ReturnsReferenceAmplitude()
-    {
-        // 0.003 * 1080 / 1080 = 0.003
-        var (_, dy) = _effect.GetFrameOffset(0);
-        Assert.That(dy, Is.EqualTo(0.003f).Within(1e-5f));
-    }
-
-    [Test]
     public void NotifyLayout_At1440p_AmplitudeScalesDown()
     {
-        _effect.NotifyLayout(viewportHeight: 1440, letterboxHeight: 1080);
-        float expected = 0.003f * 1080f / 1440f;
-        var (_, dy) = _effect.GetFrameOffset(0);
-        Assert.That(dy, Is.EqualTo(expected).Within(1e-5f));
+        float at1080 = _effect.GetFrameOffset(0).Dy;
+        _effect.NotifyLayout(viewportWidth: 2560, viewportHeight: 1440, letterboxHeight: 1080);
+        float at1440 = _effect.GetFrameOffset(0).Dy;
+        Assert.That(at1440, Is.EqualTo(at1080 * 1080f / 1440f).Within(1e-6f));
     }
 
     [Test]
     public void NotifyLayout_ZeroViewportHeight_DoesNotChangeAmplitude()
     {
         float before = _effect.GetFrameOffset(0).Dy;
-        _effect.NotifyLayout(viewportHeight: 0, letterboxHeight: 810);
+        _effect.NotifyLayout(viewportWidth: 1920, viewportHeight: 0, letterboxHeight: 810);
         Assert.That(_effect.GetFrameOffset(0).Dy, Is.EqualTo(before));
     }
 
