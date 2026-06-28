@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-NEShim is a Windows application that wraps the BizHawk NES emulation core to allow integration with external SDKs (e.g., Steamworks). The BizHawk emulation code lives in `BizHawk/` and was adapted from the BizHawk multi-system emulator — it is the authoritative NES emulation layer and generally should not be modified unless fixing compatibility issues. The BizHawk code is treated as a frozen vendored dependency with no proactive upstream sync cadence — the NES core is decades-stable. Sync only when a specific emulation accuracy bug or confirmed security issue warrants it; cherry-pick the specific fix, do not bulk-merge.
+NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution on Steam. It started as a thin integration layer and has grown into a complete emulator host: D3D11 rendering pipeline with a multi-axis video filter stack (structural filters, two-pass overlay, color effects, motion effects), a 7-processor audio chain, full in-game and main-menu UI with keyboard/gamepad navigation, 10-language localization, ECDSA-signed achievements, and save states — all delivered as a single Windows executable that publishes any NES ROM to Steam without modifying the ROM. The BizHawk emulation code lives in `BizHawk/` and was adapted from the BizHawk multi-system emulator — it is the authoritative NES emulation layer and generally should not be modified unless fixing compatibility issues. The BizHawk code is treated as a frozen vendored dependency with no proactive upstream sync cadence — the NES core is decades-stable. Sync only when a specific emulation accuracy bug or confirmed security issue warrants it; cherry-pick the specific fix, do not bulk-merge.
 
 ## Build & Run Commands
 
@@ -59,7 +59,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Config` | POCO config model + JSON load/save |
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
-| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain), scalers |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain); D3D11 subsystems: `Filters/` (structural pixel shaders + two-pass overlay via intermediate RT), `MotionEffects/`, `VideoColorFilterMode`, `OverscanMode` |
 | `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
@@ -133,6 +133,8 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 `D3DOverlayHook` must be initialised **after** `SetWindowMode` so the swap chain dimensions match the final window size. `D3D11Renderer` is constructed immediately after. A `Form.Resize` handler calls `D3D11Renderer.Resize()` which calls `ResizeBuffers` and recreates the RTV.
 
 **`PlatformDetector.IsD3D11Active`** is set once at startup after `D3D11Renderer` is (or isn't) constructed. All 2.0+ video filters (CRT, palette shaders) are D3D11-only and must gate on this flag before offering themselves in any menu. The GDI+ fallback path has no filter support.
+
+**Two-pass overlay pipeline:** When `_activeOverlay` is set (non-null), `DrawAndPresent` switches to a two-pass path. Pass 1 renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to `_letterboxPixelW × _letterboxPixelH` with `colorMode=0` (color grade deferred). Pass 2 renders the overlay filter reading from that intermediate texture to the swap chain backbuffer at the normal NES quad position, applying the real `colorMode` in this pass so the grade is applied only once. When `_activeOverlay` is null the single-pass path is taken with identical output to before (no overhead). `RecreateIntermediateTarget()` is called from `SetOverlayFilter` and `Resize`; it disposes and recreates the intermediate texture/RTV/SRV, or disposes without recreating when the overlay is cleared. The overlay slot accepts only `CrtScanlines`, `CrtPhosphor`, and `CrtScreen` — filters composable on an already-scaled frame. The menu prevents selecting the same filter for both primary and overlay via `IsItemEnabled`.
 
 **Cbuffer layout is fixed.** `b0` is always exactly 4 floats: `{param0, param1, param2, colorMode}`. Structural filters may use slots [0..2] via `WriteBaseParams()`; the renderer owns slot [3] (color mode) and always writes it. No filter may use a second constant buffer — if a future filter genuinely needs more than 3 configuration floats, revisit this rule explicitly rather than working around it silently.
 
