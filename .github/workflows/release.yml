@@ -90,6 +90,7 @@ jobs:
           --self-contained true
           -p:PublishReadyToRun=true
           -p:Version=${{ steps.version.outputs.VERSION }}
+          -p:DebugType=none
           -o publish/NEShim
 
       - name: Publish sealer tool
@@ -100,6 +101,7 @@ jobs:
           -r win-x64
           --self-contained true
           -p:Version=${{ steps.version.outputs.VERSION }}
+          -p:DebugType=none
           -o publish/SealAchievements
 
       - name: Zip game artifact
