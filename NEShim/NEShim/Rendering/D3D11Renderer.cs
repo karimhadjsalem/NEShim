@@ -515,8 +515,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         int scissorL = (int)((_nesX0 + 1f) * 0.5f * _viewportWidth);
         int scissorR = (int)((_nesX1 + 1f) * 0.5f * _viewportWidth);
-        int scissorT = (int)((1f - _nesY1) * 0.5f * _viewportHeight);
-        int scissorB = (int)((1f - _nesY0) * 0.5f * _viewportHeight);
+        int scissorT = (int)((1f - _nesY0) * 0.5f * _viewportHeight);
+        int scissorB = (int)((1f - _nesY1) * 0.5f * _viewportHeight);
         SetScissorRect(scissorL, scissorT, scissorR, scissorB);
         _context.RSSetState(_scissorRasterizerState);
         _context.PSSetShaderResource(0, srv);
