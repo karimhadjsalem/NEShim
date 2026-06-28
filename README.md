@@ -1,6 +1,6 @@
 # NEShim
 
-A Windows shell that wraps the BizHawk NES emulation core and exposes Steam SDK integration, allowing NES games to be published on Steam as native Windows applications — with achievements, overlay support, Steam Input, save states, and a configurable front-end UI — without modifying the ROM.
+A full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
 
 ### Full Documentation
@@ -16,7 +16,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control and seven audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation)
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds CRT Scanlines and NTSC Composite structural filters plus four color effects (None, Warm, Greyscale, NES Colors) that stack independently on top of any structural filter; see [Filters](#filters) below
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds five exclusive structural filters (CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, and seven color effects — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -75,6 +75,7 @@ Each rendering path exposes its own set of structural filters:
 | Smooth (bilinear interpolation) | Yes | Yes |
 | CRT Scanlines | — | D3D11 only |
 | CRT Phosphor (scanlines + aperture-grille mask) | — | D3D11 only |
+| CRT Screen (barrel distortion + chromatic aberration + vignette) | — | D3D11 only |
 | NTSC Composite | — | D3D11 only |
 
 D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
@@ -83,11 +84,19 @@ D3D11 mode also supports **Color Effects** that stack on top of any structural f
 |---|---|
 | None | No transform (default) |
 | Warm | Slight amber tint with reduced blues |
+| Cool | Blue-green tint approximating the D93 9300K CRT white point |
 | Greyscale | Full desaturation using BT.601 luma coefficients |
 | NES Colors | Color-correction matrix for more accurate 2C02 → sRGB output |
-| Cool | Blue-green tint approximating the D93 9300K CRT white point |
+| Phosphor Amber | Greyscale converted to the warm orange-yellow of a monochrome amber phosphor display |
+| Phosphor Green | Greyscale converted to the bright green of P1 phosphor used in arcade and early CRT monitors |
 
 If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `config.json`.
+
+### Video Overlay (D3D11 only)
+
+A second structural filter pass applied on top of the primary structural filter. When active, `D3D11Renderer` renders the primary filter to an intermediate render target at letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the final swap chain buffer. Color grading is deferred to the second pass so it is applied only once to the combined image.
+
+Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
 
 **Overscan mode** is available in both renderers and controls how the 256×240 NES frame is cropped and scaled:
 

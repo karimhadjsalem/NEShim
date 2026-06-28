@@ -37,30 +37,33 @@ internal class InGameMenuTests
     }
 
     private InGameMenu CreateMenu(
-        Action?                                            onExitToDesktop            = null,
-        Action?                                            onResetGame                = null,
-        Action?                                            onReturnToMainMenu         = null,
-        Action?                                            onConfigSaved              = null,
-        Action<int>?                                       onVolumeChanged            = null,
-        Action<AudioFilterMode>?                           onFilterChanged            = null,
-        Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged       = null,
-        Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged  = null,
-        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged      = null)
+        Action?                                            onExitToDesktop                  = null,
+        Action?                                            onResetGame                      = null,
+        Action?                                            onReturnToMainMenu               = null,
+        Action?                                            onConfigSaved                    = null,
+        Action<int>?                                       onVolumeChanged                  = null,
+        Action<AudioFilterMode>?                           onFilterChanged                  = null,
+        Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged             = null,
+        Action<NEShim.Rendering.VideoFilterMode?>?         onVideoFilterOverlayChanged      = null,
+        Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged        = null,
+        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null)
     {
         return new InGameMenu(
             _saveStates,
             _config,
             new LocalizationData(),
-            onExitToDesktop            ?? (() => { }),
-            onResetGame                ?? (() => { }),
-            onReturnToMainMenu         ?? (() => { }),
+            onExitToDesktop                  ?? (() => { }),
+            onResetGame                      ?? (() => { }),
+            onReturnToMainMenu               ?? (() => { }),
             _ => { },
-            onConfigSaved              ?? (() => { }),
-            onVolumeChanged            ?? (_ => { }),
-            onFilterChanged            ?? (_ => { }),
-            onVideoFilterChanged       ?? (_ => { }),
-            onVideoColorFilterChanged  ?? (_ => { }),
-            onOverscanModeChanged      ?? (_ => { }),
+            onConfigSaved                    ?? (() => { }),
+            onVolumeChanged                  ?? (_ => { }),
+            onFilterChanged                  ?? (_ => { }),
+            onVideoFilterChanged             ?? (_ => { }),
+            onVideoFilterOverlayChanged      ?? (_ => { }),
+            onVideoColorFilterChanged        ?? (_ => { }),
+            _ => { },
+            onOverscanModeChanged            ?? (_ => { }),
             _ => { });
     }
 
@@ -560,7 +563,7 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
@@ -811,7 +814,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -822,7 +825,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -833,7 +836,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(menu);
         Assert.That(menu.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -868,7 +871,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { BindNone = "(unset)" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
@@ -956,8 +959,9 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Down);   // select Video Filter (index 1)
         menu.HandleKey(Keys.Return); // enter VideoFilter sub-menu
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-        // GDI mode: [0]=Bilinear, [1]=PixelPerfect(✓), [2]=Back
-        // index 0 is already selected (SelectedItem resets to 0 on NavigateTo)
+        // GDI mode: [0]=PixelPerfect(✓), [1]=Bilinear, [2]=Back
+        // cursor starts at index 0; navigate down to Bilinear before selecting
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
         menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
@@ -994,7 +998,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoFilterSubMenu(menu);
-        // GDI mode: [Bilinear, PixelPerfect, Back]
+        // GDI mode: [PixelPerfect, Bilinear, Back]
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -1005,7 +1009,7 @@ internal class InGameMenuTests
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
         var items = menu.GetCurrentItems();
-        Assert.That(items[1], Does.StartWith("✓")); // PixelPerfect is at index 1 in GdiSupported
+        Assert.That(items[0], Does.StartWith("✓")); // PixelPerfect is at index 0 in GdiSupported
     }
 
     [Test]
@@ -1014,7 +1018,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -1025,7 +1030,8 @@ internal class InGameMenuTests
         var menu = CreateMenu(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 
@@ -1048,6 +1054,38 @@ internal class InGameMenuTests
         for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Back
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoOverlay sub-menu (GDI mode — overlay entry absent) ----
+
+    [Test]
+    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode_OverlayEntryAbsent()
+    {
+        var menu = CreateMenu();
+        OpenVideoFilterSubMenu(menu);
+        // GDI mode: [PixelPerfect, Bilinear, Back] — no overlay entry
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+    }
+
+    // ---- VideoFilterModeParser overlay helpers ----
+
+    [Test]
+    public void VideoOverlay_ParseOverlay_None_ReturnsNull()
+    {
+        Assert.That(NEShim.Rendering.VideoFilterModeParser.ParseOverlay("None"), Is.Null);
+    }
+
+    [Test]
+    public void VideoOverlay_ParseOverlay_CrtScreen_ReturnsCrtScreen()
+    {
+        Assert.That(NEShim.Rendering.VideoFilterModeParser.ParseOverlay("CrtScreen"),
+            Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScreen));
+    }
+
+    [Test]
+    public void VideoOverlay_ParseOverlay_Unknown_ReturnsNull()
+    {
+        Assert.That(NEShim.Rendering.VideoFilterModeParser.ParseOverlay("Bilinear"), Is.Null);
     }
 
     [Test]
@@ -1447,6 +1485,154 @@ internal class InGameMenuTests
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
         menu.HandleKey(Keys.Return); // ConfirmLoad
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
+    }
+
+    // ---- VideoOverlayHandler ----
+
+    [Test]
+    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoOverlay));
+    }
+
+    [Test]
+    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+    }
+
+    [Test]
+    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        // None + CrtScanlines + CrtPhosphor + CrtScreen + Back = 5
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void VideoOverlay_DefaultNone_HasCheckmark()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoOverlay_ActiveOverlay_HasCheckmark()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        var items = menu.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
+        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_SetsConfigToNone()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None (index 0)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_UpdatesConfig()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
+        Assert.That(menu.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
+    }
+
+    [Test]
+    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.IsItemEnabled(0), Is.True); // None always enabled
+        Assert.That(menu.IsItemEnabled(4), Is.True); // Back always enabled
+    }
+
+    // ---- ControllerDisconnectedHandler ----
+
+    [Test]
+    public void ControllerDisconnected_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.ControllerDisconnected));
+    }
+
+    [Test]
+    public void ControllerDisconnected_GetCurrentItems_ReturnsEmpty()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        Assert.That(menu.GetCurrentItems(), Is.Empty);
     }
 
     [Test]

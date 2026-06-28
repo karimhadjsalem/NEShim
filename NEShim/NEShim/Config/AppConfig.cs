@@ -52,6 +52,18 @@ public sealed class AppConfig
     // Legacy values "NTSC" and "Auto" map to "Overscan"; "None" maps to "Normal".
     public string OverscanMode { get; set; } = "Normal";
 
+    // D3D11-only screen-space motion effect applied to the NES frame quad each frame.
+    // "None"      — no motion effect.
+    // "CrtJitter" — subtle per-frame drift simulating CRT TV hold instability.
+    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
+    public string VideoMotionEffect { get; set; } = "None";
+
+    // D3D11-only second-pass overlay filter stacked on top of VideoFilter.
+    // Only CrtScanlines, CrtPhosphor, and CrtScreen are valid overlay values.
+    // "None" disables the overlay (single-pass pipeline).
+    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
+    public string VideoFilterOverlay { get; set; } = "None";
+
     // D3D11-only colour grade applied on top of the structural video filter.
     // "None"               — no color adjustment.
     // "Warm"               — slight amber tint mimicking an aged CRT phosphor.

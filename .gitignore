@@ -8,3 +8,5 @@ NEShim/NEShim.sln.DotSettings.user
 /.claude
 /TestResults*
 /NEShim/TestResults
+/CoverageReport
+/CoverageResults

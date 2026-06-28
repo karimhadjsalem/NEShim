@@ -13,6 +13,7 @@ internal class VideoFilterModeParserTests
     [TestCase("CrtScanlines",     VideoFilterMode.CrtScanlines)]
     [TestCase("CrtPhosphor",      VideoFilterMode.CrtPhosphor)]
     [TestCase("NtscComposite",    VideoFilterMode.NtscComposite)]
+    [TestCase("CrtScreen",        VideoFilterMode.CrtScreen)]
     public void Parse_KnownValue_ReturnsCorrectMode(string input, VideoFilterMode expected)
     {
         Assert.That(VideoFilterModeParser.Parse(input), Is.EqualTo(expected));
@@ -34,6 +35,7 @@ internal class VideoFilterModeParserTests
     [TestCase(VideoFilterMode.CrtScanlines,  "CRT Scanlines")]
     [TestCase(VideoFilterMode.CrtPhosphor,   "CRT Phosphor")]
     [TestCase(VideoFilterMode.NtscComposite, "NTSC Composite")]
+    [TestCase(VideoFilterMode.CrtScreen,     "CRT Screen")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoFilterMode mode, string expected)
     {
         Assert.That(VideoFilterModeParser.DisplayName(mode), Is.EqualTo(expected));
@@ -42,9 +44,9 @@ internal class VideoFilterModeParserTests
     // ---- D3D11Supported ----
 
     [Test]
-    public void D3D11Supported_ContainsFiveEntries()
+    public void D3D11Supported_ContainsSixEntries()
     {
-        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(5));
+        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(6));
     }
 
     [Test]
@@ -75,6 +77,12 @@ internal class VideoFilterModeParserTests
     public void D3D11Supported_ContainsNtscComposite()
     {
         Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.NtscComposite));
+    }
+
+    [Test]
+    public void D3D11Supported_ContainsCrtScreen()
+    {
+        Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.CrtScreen));
     }
 
     // ---- GdiSupported ----
@@ -113,6 +121,64 @@ internal class VideoFilterModeParserTests
     public void GdiSupported_DoesNotContainNtscComposite()
     {
         Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.NtscComposite));
+    }
+
+    // ---- OverlaySupported ----
+
+    [Test]
+    public void OverlaySupported_ContainsThreeEntries()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported.Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtScanlines()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtPhosphor()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtPhosphor));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtScreen()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtScreen));
+    }
+
+    // ---- ParseOverlay ----
+
+    [Test]
+    public void ParseOverlay_None_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("None"), Is.Null);
+    }
+
+    [Test]
+    public void ParseOverlay_CrtScanlines_ReturnsCrtScanlines()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("CrtScanlines"), Is.EqualTo(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void ParseOverlay_CrtScreen_ReturnsCrtScreen()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("CrtScreen"), Is.EqualTo(VideoFilterMode.CrtScreen));
+    }
+
+    [Test]
+    public void ParseOverlay_Unknown_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("Bilinear"), Is.Null);
+    }
+
+    [Test]
+    public void ParseOverlay_EmptyString_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay(""), Is.Null);
     }
 
 }

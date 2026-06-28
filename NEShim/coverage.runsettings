@@ -6,7 +6,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Exclude>[BizHawk*]*</Exclude>
-          <ExcludeByFile>**/Program.cs,**/MainForm.cs,**/MainForm.Designer.cs,**/GamePanel.cs,**/EmulationThread.cs,**/SteamManager.cs,**/SteamInputManager.cs,**/D3DOverlayHook.cs,**/D3D11Renderer.cs,**/RendererFactory.cs,**/GdiRenderer.cs,**/PlatformDetector.cs,**/OverlayRenderer.cs,**/LogoRenderer.cs,**/EmulatorHost.cs,**/NeshimFileProvider.cs,**/NullOpenGLProvider.cs,**/MainMenuMusic.cs</ExcludeByFile>
+          <ExcludeByFile>**/Program.cs,**/MainForm.cs,**/MainForm.Designer.cs,**/GamePanel.cs,**/EmulationThread.cs,**/SteamManager.cs,**/SteamInputManager.cs,**/SteamLanguageResolver.cs,**/D3DOverlayHook.cs,**/D3D11Renderer.cs,**/RendererFactory.cs,**/GdiRenderer.cs,**/PlatformDetector.cs,**/OverlayRenderer.cs,**/LogoRenderer.cs,**/EmulatorHost.cs,**/NeshimFileProvider.cs,**/NullOpenGLProvider.cs,**/MainMenuMusic.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
     </DataCollectors>

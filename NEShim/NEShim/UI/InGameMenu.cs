@@ -27,7 +27,9 @@ internal sealed partial class InGameMenu
     private readonly Action<int>      _onVolumeChanged;
     private readonly Action<AudioFilterMode>                  _onFilterChanged;
     private readonly Action<Rendering.VideoFilterMode>        _onVideoFilterChanged;
+    private readonly Action<Rendering.VideoFilterMode?>       _onVideoFilterOverlayChanged;
     private readonly Action<Rendering.VideoColorFilterMode>   _onVideoColorFilterChanged;
+    private readonly Action<Rendering.VideoMotionEffectMode>  _onVideoMotionEffectChanged;
     private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
     private readonly Action<string>                           _onLanguageChanged;
 
@@ -100,10 +102,12 @@ internal sealed partial class InGameMenu
         Action           onConfigSaved,
         Action<int>             onVolumeChanged,
         Action<AudioFilterMode> onFilterChanged,
-        Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
-        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
-        Action<Rendering.OverscanMode>         onOverscanModeChanged,
-        Action<string>                         onLanguageChanged)
+        Action<Rendering.VideoFilterMode>       onVideoFilterChanged,
+        Action<Rendering.VideoFilterMode?>      onVideoFilterOverlayChanged,
+        Action<Rendering.VideoColorFilterMode>  onVideoColorFilterChanged,
+        Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
+        Action<Rendering.OverscanMode>          onOverscanModeChanged,
+        Action<string>                          onLanguageChanged)
     {
         _saveStates                 = saveStates;
         _config                     = config;
@@ -115,9 +119,11 @@ internal sealed partial class InGameMenu
         _onConfigSaved              = onConfigSaved;
         _onVolumeChanged            = onVolumeChanged;
         _onFilterChanged            = onFilterChanged;
-        _onVideoFilterChanged       = onVideoFilterChanged;
-        _onVideoColorFilterChanged  = onVideoColorFilterChanged;
-        _onOverscanModeChanged      = onOverscanModeChanged;
+        _onVideoFilterChanged        = onVideoFilterChanged;
+        _onVideoFilterOverlayChanged = onVideoFilterOverlayChanged;
+        _onVideoColorFilterChanged   = onVideoColorFilterChanged;
+        _onVideoMotionEffectChanged  = onVideoMotionEffectChanged;
+        _onOverscanModeChanged       = onOverscanModeChanged;
         _onLanguageChanged          = onLanguageChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
@@ -137,7 +143,9 @@ internal sealed partial class InGameMenu
             [Screen.Sound]                  = new SoundHandler(this),
             [Screen.AudioFilter]            = new AudioFilterHandler(this),
             [Screen.VideoFilter]            = new VideoFilterHandler(this),
+            [Screen.VideoOverlay]           = new VideoOverlayHandler(this),
             [Screen.VideoColorFilter]       = new VideoColorFilterHandler(this),
+            [Screen.VideoMotionEffect]      = new VideoMotionEffectHandler(this),
             [Screen.Language]               = new LanguageHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
@@ -338,6 +346,7 @@ internal sealed partial class InGameMenu
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
         Screen.VideoFilter      => Screen.Video,
+        Screen.VideoOverlay     => Screen.VideoFilter,
         Screen.VideoColorFilter => Screen.Video,
         Screen.Language         => Screen.Settings,
         _                       => Screen.Root,

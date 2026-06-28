@@ -34,25 +34,29 @@ internal class MainMenuScreenTests
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
+        NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
     // No background image path — avoids any file I/O in the constructor
     private MainMenuScreen CreateScreen(
-        Action<int>?                                       onVolumeChanged            = null,
-        Action<AudioFilterMode>?                           onFilterChanged            = null,
-        Action<bool>?                                      onMenuMusicToggled         = null,
-        Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged       = null,
-        Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged  = null,
-        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged      = null) =>
+        Action<int>?                                       onVolumeChanged                  = null,
+        Action<AudioFilterMode>?                           onFilterChanged                  = null,
+        Action<bool>?                                      onMenuMusicToggled               = null,
+        Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged             = null,
+        Action<NEShim.Rendering.VideoFilterMode?>?         onVideoFilterOverlayChanged      = null,
+        Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged        = null,
+        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null) =>
         new(_saveStates, _config, new LocalizationData(), null,
             _ => { },
             () => { },
-            onVolumeChanged            ?? (_ => { }),
-            onFilterChanged            ?? (_ => { }),
-            onMenuMusicToggled         ?? (_ => { }),
-            onVideoFilterChanged       ?? (_ => { }),
-            onVideoColorFilterChanged  ?? (_ => { }),
-            onOverscanModeChanged      ?? (_ => { }),
+            onVolumeChanged                  ?? (_ => { }),
+            onFilterChanged                  ?? (_ => { }),
+            onMenuMusicToggled               ?? (_ => { }),
+            onVideoFilterChanged             ?? (_ => { }),
+            onVideoFilterOverlayChanged      ?? (_ => { }),
+            onVideoColorFilterChanged        ?? (_ => { }),
+            _ => { },
+            onOverscanModeChanged            ?? (_ => { }),
             _ => { });
 
     private void CreateSlotFile(int slot) =>
@@ -277,7 +281,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
         screen.HandleKey(Keys.Left);
@@ -293,7 +297,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right);
@@ -309,7 +313,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Down);   // index 1 = Audio Filter item
@@ -329,7 +333,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
 
         OpenSoundScreen(screen);
         for (int i = 0; i < 2; i++) screen.HandleKey(Keys.Down); // Music is at index 2
@@ -416,7 +420,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(screen);
         screen.HandleKey(Keys.Down);   // Warm
         screen.HandleKey(Keys.Return);
@@ -458,7 +462,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -468,7 +472,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -478,7 +482,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         Assert.That(screen.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -511,7 +515,7 @@ internal class MainMenuScreenTests
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         var loc = new LocalizationData { BindNone = "(unset)" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         screen.HandleKey(Keys.Down);   // Settings
         screen.HandleKey(Keys.Return); // enter Settings
         screen.HandleKey(Keys.Down);   // skip Video (index 0)
@@ -633,7 +637,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        // GDI mode: [Bilinear, PixelPerfect, Back]
+        // GDI mode: [PixelPerfect, Bilinear, Back]
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -644,7 +648,7 @@ internal class MainMenuScreenTests
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
         var items = screen.GetCurrentItems();
-        Assert.That(items[1], Does.StartWith("✓")); // PixelPerfect is at index 1 in GdiSupported
+        Assert.That(items[0], Does.StartWith("✓")); // PixelPerfect is at index 0 in GdiSupported
     }
 
     [Test]
@@ -653,7 +657,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select Bilinear (index 0)
+        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(Keys.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -664,7 +669,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select Bilinear (index 0)
+        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 
@@ -686,6 +692,17 @@ internal class MainMenuScreenTests
         for (int i = 0; i < itemCount - 1; i++) screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Return); // Back
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
+
+    // ---- VideoOverlay (GDI mode — overlay entry absent) ----
+
+    [Test]
+    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode_OverlayEntryAbsent()
+    {
+        using var screen = CreateScreen();
+        OpenVideoFilterSubMenu(screen);
+        // GDI mode: [PixelPerfect, Bilinear, Back] — no overlay entry
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
     [Test]
@@ -1158,7 +1175,7 @@ internal class MainMenuScreenTests
         _config.WindowMode = "Windowed";
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
         Assert.That(received, Is.True); // Windowed → Fullscreen (toggled to true)
@@ -1215,7 +1232,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Left); // already at 0 — no change
         Assert.That(_config.Volume, Is.EqualTo(0));
@@ -1229,7 +1246,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right); // already at 100 — no change
         Assert.That(_config.Volume, Is.EqualTo(100));
@@ -1356,5 +1373,141 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         Assert.That(screen.ActiveNesButton, Is.Null); // Main screen
+    }
+
+    // ---- VideoOverlayHandler ----
+
+    // D3D11Supported = 6 filters; VideoOverlay → is at index 6, Back at 7.
+    // Default overlay = "None" → all VideoFilter items enabled → 6 Down presses reliably reaches index 6.
+    private void OpenVideoOverlaySubMenu(MainMenuScreen screen)
+    {
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoFilterSubMenu(screen);
+        for (int i = 0; i < 6; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoOverlay));
+    }
+
+    [Test]
+    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+    }
+
+    [Test]
+    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void VideoOverlay_DefaultNone_HasCheckmark()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        // _config.VideoFilterOverlay defaults to "None" — index 0 has checkmark
+        Assert.That(screen.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoOverlay_ActiveOverlay_HasCheckmark()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        var items = screen.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
+        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_SetsConfigToNone()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        screen.HandleKey(Keys.Return); // select None (index 0)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
+        using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Return); // select None
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_UpdatesConfig()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Return); // select None
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // Back (index 4)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
+    {
+        using var screen = CreateScreen();
+        _config.VideoFilter = "CrtScanlines";
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
+        Assert.That(screen.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
+    }
+
+    [Test]
+    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
+    {
+        using var screen = CreateScreen();
+        _config.VideoFilter = "CrtScanlines";
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.IsItemEnabled(0), Is.True); // None always enabled
+        Assert.That(screen.IsItemEnabled(4), Is.True); // Back always enabled
     }
 }
