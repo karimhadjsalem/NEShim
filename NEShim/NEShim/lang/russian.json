@@ -24,6 +24,8 @@
   "videoFilterCrtPhosphor": "CRT Люминофор",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "Экран CRT",
+  "videoFilterOverlayLabel": "Видеоналожение",
+  "videoFilterOverlayTitle": "ВИДЕОНАЛОЖЕНИЕ",
   "videoColorFilterLabel": "Цветовой эффект",
   "videoColorFilterTitle": "ЦВЕТОВОЙ ЭФФЕКТ",
   "videoColorFilterNone": "Нет",

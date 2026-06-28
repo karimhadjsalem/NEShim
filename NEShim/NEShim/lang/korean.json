@@ -24,6 +24,8 @@
   "videoFilterCrtPhosphor": "CRT 형광체",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "CRT 화면",
+  "videoFilterOverlayLabel": "영상 오버레이",
+  "videoFilterOverlayTitle": "영상 오버레이",
   "videoColorFilterLabel": "색상 효과",
   "videoColorFilterTitle": "색상 효과",
   "videoColorFilterNone": "없음",

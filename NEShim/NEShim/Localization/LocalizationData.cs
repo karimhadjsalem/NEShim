@@ -36,7 +36,9 @@ internal sealed class LocalizationData
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
 
     // ---- Video filter sub-menu ----
-    public string VideoFilterTitle         { get; init; } = "VIDEO FILTER";
+    public string VideoFilterTitle           { get; init; } = "VIDEO FILTER";
+    public string VideoFilterOverlayLabel    { get; init; } = "Video Overlay";
+    public string VideoFilterOverlayTitle    { get; init; } = "VIDEO OVERLAY";
     public string VideoFilterSmooth        { get; init; } = "Smooth";
     public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";

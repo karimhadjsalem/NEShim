@@ -123,4 +123,62 @@ internal class VideoFilterModeParserTests
         Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.NtscComposite));
     }
 
+    // ---- OverlaySupported ----
+
+    [Test]
+    public void OverlaySupported_ContainsThreeEntries()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported.Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtScanlines()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtPhosphor()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtPhosphor));
+    }
+
+    [Test]
+    public void OverlaySupported_ContainsCrtScreen()
+    {
+        Assert.That(VideoFilterModeParser.OverlaySupported, Contains.Item(VideoFilterMode.CrtScreen));
+    }
+
+    // ---- ParseOverlay ----
+
+    [Test]
+    public void ParseOverlay_None_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("None"), Is.Null);
+    }
+
+    [Test]
+    public void ParseOverlay_CrtScanlines_ReturnsCrtScanlines()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("CrtScanlines"), Is.EqualTo(VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void ParseOverlay_CrtScreen_ReturnsCrtScreen()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("CrtScreen"), Is.EqualTo(VideoFilterMode.CrtScreen));
+    }
+
+    [Test]
+    public void ParseOverlay_Unknown_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay("Bilinear"), Is.Null);
+    }
+
+    [Test]
+    public void ParseOverlay_EmptyString_ReturnsNull()
+    {
+        Assert.That(VideoFilterModeParser.ParseOverlay(""), Is.Null);
+    }
+
 }

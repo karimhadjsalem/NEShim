@@ -8,13 +8,19 @@ internal sealed partial class MainMenuScreen
         public MainHandler(MainMenuScreen menu) : base(menu) { }
         public override string   Title     => Menu._localization.MainMenuTitle;
         public override int      ItemCount => 4;
-        public override string[] GetItems() => new[]
+        public override string[] GetItems()
         {
-            Menu._localization.MainMenuNewGame,
-            Menu._localization.MainMenuResumeGame,
-            Menu._localization.MainMenuSettings,
-            Menu._localization.MainMenuExit,
-        };
+            var resumeLabel = Menu.CanResume
+                ? Menu._localization.MainMenuResumeGame
+                : Menu._localization.MainMenuResumeGame + Menu._localization.SlotNoSave;
+            return new[]
+            {
+                Menu._localization.MainMenuNewGame,
+                resumeLabel,
+                Menu._localization.MainMenuSettings,
+                Menu._localization.MainMenuExit,
+            };
+        }
         public override bool IsItemEnabled(int index) =>
             index != ResumeIndex || Menu.CanResume;
         public override void Activate(int index)

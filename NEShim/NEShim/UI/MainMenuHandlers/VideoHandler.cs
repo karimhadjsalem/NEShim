@@ -22,7 +22,10 @@ internal sealed partial class MainMenuScreen
             string windowItem   = Menu._config.WindowMode == "Fullscreen"
                 ? Menu._localization.VideoWindowFullscreen
                 : Menu._localization.VideoWindowWindowed;
-            string filterItem   = $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
+            var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
+            string filterItem = overlayMode.HasValue
+                ? $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)} + {FilterDisplayName(overlayMode.Value)}"
+                : $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
             string overscanItem = $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}";
             string fpsItem      = Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff;
 

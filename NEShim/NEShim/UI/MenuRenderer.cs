@@ -220,7 +220,7 @@ internal static class MenuRenderer
             }
             else
             {
-                g.DrawString("    " + items[i] + menu.Localization.SlotNoSave, itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
+                g.DrawString("    " + items[i], itemFont, dimBrush, (RectangleF)itemRect, leftFmt);
             }
         }
     }

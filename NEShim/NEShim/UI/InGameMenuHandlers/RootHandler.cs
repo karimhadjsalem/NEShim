@@ -4,22 +4,30 @@ internal sealed partial class InGameMenu
 {
     private sealed class RootHandler : ScreenHandler
     {
+        private bool CanLoad => Menu._saveStates.SlotExists(Menu._saveStates.ActiveSlot);
+
         public RootHandler(InGameMenu menu) : base(menu) { }
         public override string Title     => Menu._localization.InGamePausedTitle;
         public override int    ItemCount => 8;
-        public override string[] GetItems() => new[]
+        public override string[] GetItems()
         {
-            Menu._localization.InGameResume,
-            Menu._localization.InGameResetGame,
-            Menu._localization.InGameSelectSaveSlot,
-            Menu._localization.InGameSaveGame,
-            Menu._localization.InGameLoadGame,
-            Menu._localization.InGameSettings,
-            Menu._localization.InGameReturnToMain,
-            Menu._localization.InGameExit,
-        };
+            var loadLabel = CanLoad
+                ? Menu._localization.InGameLoadGame
+                : Menu._localization.InGameLoadGame + Menu._localization.SlotNoSave;
+            return new[]
+            {
+                Menu._localization.InGameResume,
+                Menu._localization.InGameResetGame,
+                Menu._localization.InGameSelectSaveSlot,
+                Menu._localization.InGameSaveGame,
+                loadLabel,
+                Menu._localization.InGameSettings,
+                Menu._localization.InGameReturnToMain,
+                Menu._localization.InGameExit,
+            };
+        }
         public override bool IsItemEnabled(int index) =>
-            index != RootItemLoadGame || Menu._saveStates.SlotExists(Menu._saveStates.ActiveSlot);
+            index != RootItemLoadGame || CanLoad;
         public override void Activate(int index)
         {
             switch (index)

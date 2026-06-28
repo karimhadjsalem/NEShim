@@ -24,6 +24,8 @@
   "videoFilterCrtPhosphor": "CRT 荧光屏",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "CRT屏幕",
+  "videoFilterOverlayLabel": "视频叠加",
+  "videoFilterOverlayTitle": "视频叠加",
   "videoColorFilterLabel": "色彩效果",
   "videoColorFilterTitle": "色彩效果",
   "videoColorFilterNone": "无",

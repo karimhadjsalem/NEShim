@@ -12,12 +12,13 @@ internal sealed partial class InGameMenu
                 ? VideoFilterModeParser.D3D11Supported
                 : VideoFilterModeParser.GdiSupported;
 
-        private int BackIndex => FilterOptions.Length;
+        private int OverlayIndex => FilterOptions.Length;
+        private int BackIndex    => PlatformDetector.IsD3D11Active ? FilterOptions.Length + 1 : FilterOptions.Length;
 
         public VideoFilterHandler(InGameMenu menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoFilterTitle;
-        public override int    ItemCount => FilterOptions.Length + 1;
+        public override int    ItemCount => FilterOptions.Length + (PlatformDetector.IsD3D11Active ? 2 : 1);
 
         public override string[] GetItems()
         {
@@ -31,8 +32,17 @@ internal sealed partial class InGameMenu
                     ? $"✓ {FilterDisplayName(mode)}"
                     : $"  {FilterDisplayName(mode)}";
             }
+            if (PlatformDetector.IsD3D11Active)
+                items[OverlayIndex] = $"  {Menu._localization.VideoFilterOverlayLabel} →";
             items[BackIndex] = Menu._localization.Back;
             return items;
+        }
+
+        public override bool IsItemEnabled(int index)
+        {
+            if (index >= FilterOptions.Length) return true;
+            var overlay = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
+            return overlay is null || FilterOptions[index] != overlay.Value;
         }
 
         public override void Activate(int index)
@@ -42,11 +52,19 @@ internal sealed partial class InGameMenu
                 var mode = FilterOptions[index];
                 Menu._config.VideoFilter = mode.ToString();
                 Menu._onVideoFilterChanged(mode);
+                Menu.NavigateTo(Screen.Video);
             }
-            Menu.NavigateTo(Screen.Video);
+            else if (PlatformDetector.IsD3D11Active && index == OverlayIndex)
+            {
+                Menu.NavigateTo(Screen.VideoOverlay);
+            }
+            else
+            {
+                Menu.NavigateTo(Screen.Video);
+            }
         }
 
-        private string FilterDisplayName(VideoFilterMode mode) => mode switch
+        internal string FilterDisplayName(VideoFilterMode mode) => mode switch
         {
             VideoFilterMode.Bilinear      => Menu._localization.VideoFilterSmooth,
             VideoFilterMode.PixelPerfect  => Menu._localization.VideoFilterPixelPerfect,

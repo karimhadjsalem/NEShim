@@ -24,6 +24,8 @@
   "videoFilterCrtPhosphor": "CRT Fósforo",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "Tela CRT",
+  "videoFilterOverlayLabel": "Sobreposição de vídeo",
+  "videoFilterOverlayTitle": "SOBREPOSIÇÃO DE VÍDEO",
   "videoColorFilterLabel": "Efeito de cor",
   "videoColorFilterTitle": "EFEITO DE COR",
   "videoColorFilterNone": "Nenhum",

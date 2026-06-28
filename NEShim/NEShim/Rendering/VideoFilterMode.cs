@@ -18,6 +18,19 @@ public static class VideoFilterModeParser
     public static readonly VideoFilterMode[] D3D11Supported =
         [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite];
 
+    // Overlay-eligible filters — work as a second pass on an already-scaled frame.
+    // Order defines the VideoOverlay sub-menu sequence (most useful first).
+    public static readonly VideoFilterMode[] OverlaySupported =
+        [VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen];
+
+    public static VideoFilterMode? ParseOverlay(string value) => value switch
+    {
+        "CrtScanlines" => VideoFilterMode.CrtScanlines,
+        "CrtPhosphor"  => VideoFilterMode.CrtPhosphor,
+        "CrtScreen"    => VideoFilterMode.CrtScreen,
+        _              => null,
+    };
+
     public static VideoFilterMode Parse(string value) => value switch
     {
         "NearestNeighbour" => VideoFilterMode.NearestNeighbour,

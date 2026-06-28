@@ -24,6 +24,8 @@
   "videoFilterCrtPhosphor": "CRT Phosphor",
   "videoFilterNtscComposite": "NTSC Composite",
   "videoFilterCrtScreen": "Écran CRT",
+  "videoFilterOverlayLabel": "Surimpression vidéo",
+  "videoFilterOverlayTitle": "SURIMPRESSION VIDÉO",
   "videoColorFilterLabel": "Effet couleur",
   "videoColorFilterTitle": "EFFET COULEUR",
   "videoColorFilterNone": "Aucun",

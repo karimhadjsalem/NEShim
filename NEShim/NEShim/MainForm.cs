@@ -154,6 +154,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
             d3d.SetMotionEffect(motionMode);
+            var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
+            d3d.SetOverlayFilter(overlayMode.HasValue
+                ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
+                : null);
         }
         else if (_renderer is Rendering.GdiRenderer gdi)
             gdi.InitializeRenderingOptions(Rendering.Filters.GdiFilterFactory.Create(mode), overscan);
@@ -433,6 +437,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                     gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
+            onVideoFilterOverlayChanged: mode =>
+            {
+                _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
+                ConfigLoader.Save(_config);
+            },
             onVideoColorFilterChanged: mode =>
             {
                 _config!.VideoColorFilter = mode.ToString();
@@ -527,6 +538,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                     d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
                 else if (_renderer is Rendering.GdiRenderer gdi)
                     gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
+                ConfigLoader.Save(_config);
+            },
+            onVideoFilterOverlayChanged: mode =>
+            {
+                _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
+                if (_renderer is Rendering.D3D11Renderer d3d)
+                    d3d.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
                 ConfigLoader.Save(_config);
             },
             onVideoColorFilterChanged: mode =>
