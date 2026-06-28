@@ -8,13 +8,14 @@ description: "Audio filters and video filters — what each one does, when it's 
 
 # Filters
 
-NEShim has three independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
+NEShim has four independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
 
 | Axis | Config key | Menu location | Description |
 |---|---|---|---|
 | Audio Filter | `audioFilter` | Settings → Sound → Audio Filter | DSP processing applied to the NES mono audio output |
 | Video Filter | `videoFilter` | Settings → Video → Video Filter | Structural transform applied to the NES pixel buffer |
 | Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after the structural video filter (D3D11 only) |
+| Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 only) |
 
 ---
 
@@ -50,6 +51,7 @@ Controls how the 256×240 NES pixel buffer is scaled and stylised before display
 | Smooth | `"Bilinear"` | Yes | Yes | Hann-windowed sinc reconstruction. A radially-symmetric kernel (16 samples in a 4×4 texel grid) weights each NES neighbour by a jinc-frequency sinc tapered with a Hann envelope, then normalises by the total weight. The sinc provides sharp edge reconstruction; the Hann window rolls the kernel smoothly to zero at its 2.44-texel support boundary, suppressing ringing without a second sinc lobe. GDI+ mode uses standard bilinear. |
 | CRT Scanlines | `"CrtScanlines"` | — | D3D11 only | Nearest-neighbour with a Gaussian scanline brightness profile. Each NES scanline peaks at full brightness at its centre and fades toward the row edges, recreating the electron-beam spot shape of a CRT phosphor screen. The gap between scanlines emerges from the falloff of adjacent rows rather than binary alternation, so the effect scales naturally — invisible at 1× zoom, increasingly visible as the display size grows. |
 | CRT Phosphor | `"CrtPhosphor"` | — | D3D11 only | CRT scanlines plus an aperture-grille phosphor mask. Each NES pixel is subdivided into three sub-columns (R/G/B dominant), mimicking the continuous vertical phosphor stripes of an aperture-grille CRT (e.g., Sony Trinitron). Stacks with any color effect. |
+| CRT Screen | `"CrtScreen"` | — | D3D11 only | Full-screen CRT simulation combining three effects in one pass: barrel distortion curves the image to match the convex surface of a CRT tube, per-channel chromatic aberration offsets R and B channel UVs independently so colour fringing appears at screen edges, and a radial vignette darkens the corners. UV wrapping is handled — pixels that fall outside [0,1] after warping are clamped to black, producing clean edge falloff. Stacks with any color effect. |
 | NTSC Composite | `"NtscComposite"` | — | D3D11 only | YIQ colour-space NTSC simulation running entirely on the GPU. A 5-tap chroma Gaussian blurs IQ components while keeping Y (luma) sharp, producing authentic chroma smearing and luma/chroma cross-talk at colour boundaries. Adds an animated analogue noise layer that shifts each frame, recreating the grain shimmer of a real composite signal. Output is 256 pixels wide (standard NES resolution). |
 
 **Default value:** `"PixelPerfect"`
@@ -70,9 +72,11 @@ A per-pixel color-grade transform applied after the structural video filter. D3D
 |---|---|---|
 | None | `"None"` | No color transform. Output is the raw NES palette. |
 | Warm | `"Warm"` | Slight amber tint. Reds and greens lifted gently; blues desaturated. Recreates the warm cast of a CRT with an aging phosphor coating. |
-| Greyscale | `"Greyscale"` | Full desaturation using BT.601 luma coefficients (0.299 R + 0.587 G + 0.114 B). Preserves perceived brightness across the NES palette. |
-| NES Colors | `"NesColorCorrection"` | Small color-correction matrix shifting from the raw 2C02 composite palette toward a more accurate sRGB representation. Removes the slight pink/purple cast in uncorrected NES output. |
 | Cool | `"Cool"` | Blue-green tint approximating the D93 9300K white point used by CRT displays in consumer televisions. Reds slightly reduced, blues boosted. The cold counterpart to Warm. |
+| NES Colors | `"NesColorCorrection"` | Small color-correction matrix shifting from the raw 2C02 composite palette toward a more accurate sRGB representation. Removes the slight pink/purple cast in uncorrected NES output. |
+| Greyscale | `"Greyscale"` | Full desaturation using BT.601 luma coefficients (0.299 R + 0.587 G + 0.114 B). Preserves perceived brightness across the NES palette. |
+| Phosphor Amber | `"PhosphorAmber"` | Desaturates the image using BT.601 luma coefficients, then tints the result to amber — the characteristic warm orange-yellow hue of monochrome phosphor displays common in early personal computers and terminals. |
+| Phosphor Green | `"PhosphorGreen"` | Desaturates the image using BT.601 luma coefficients, then tints the result to phosphor green — the bright green of P1 phosphor used in arcade monitors and early CRT displays. |
 
 **Default value:** `"None"`
 
@@ -82,25 +86,47 @@ The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mo
 
 ---
 
+## Motion Effect
+
+A per-frame screen-space displacement applied to the NES frame quad immediately before it is drawn. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
+
+The displacement is computed on the CPU each frame and written directly into the vertex buffer quad corners as a clip-space offset. There is no additional render pass; the overhead is a few ALU instructions before the existing `Draw(6, 0)` call. A scissor rect clipped to the NES frame bounds prevents the displaced quad from bleeding into sidebars or letterbox areas.
+
+| Effect | `videoMotionEffect` value | Description |
+|---|---|---|
+| None | `"None"` | No displacement. The NES frame quad is drawn at its resting position. |
+| CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Amplitude is sub-pixel at 1080p (≤ 0.0004 clip units horizontally). |
+| Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad ±0.003 clip-space units vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude is approximately half a pixel at 1080p, keeping the effect subliminal rather than distracting. |
+
+**Default value:** `"None"`
+
+The Motion Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mode and does not appear in the Video settings screen.
+
+---
+
 ## Combining video filters
 
-Any structural filter can be combined with any color effect. Some examples:
+Any structural filter can be combined with any color effect and any motion effect. Some examples:
 
-| Visual goal | Video Filter | Color Effect |
-|---|---|---|
-| Classic accurate look | Pixel Perfect | None |
-| Retro CRT with aging monitor | CRT Scanlines | Warm |
-| Black-and-white film look | Pixel Perfect | Greyscale |
-| Full composite TV simulation | NTSC Composite | NES Colors |
-| Softer look with color correction | Pixel Perfect | NES Colors |
-| Authentic cold CRT (slot-mask + D93 white point) | CRT Phosphor | Cool |
-| 1980s arcade monitor look | CRT Phosphor | Warm |
+| Visual goal | Video Filter | Color Effect | Motion Effect |
+|---|---|---|---|
+| Classic accurate look | Pixel Perfect | None | None |
+| Retro CRT with aging monitor | CRT Scanlines | Warm | None |
+| Black-and-white film look | Pixel Perfect | Greyscale | None |
+| Full composite TV simulation | NTSC Composite | NES Colors | None |
+| Softer look with color correction | Smooth | NES Colors | None |
+| Authentic cold CRT (slot-mask + D93 white point) | CRT Phosphor | Cool | None |
+| 1980s arcade monitor look | CRT Phosphor | Warm | None |
+| Curved screen amber terminal | CRT Screen | Phosphor Amber | None |
+| Classic green monochrome CRT | Pixel Perfect | Phosphor Green | None |
+| Full vintage CRT simulation | CRT Screen | Warm | CRT Jitter |
+| Interlaced phosphor display | CRT Scanlines | None | Scanline Bob |
 
 ---
 
 ## D3D11 shader architecture
 
-CRT Scanlines, CRT Phosphor, and NTSC Composite are implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources. All color effects also run as shaders via a shared include. Smooth (Bilinear) uses `Jinc2.ps.cso` — a 16-sample radially-symmetric reconstruction filter. For each output pixel it evaluates a Hann-windowed sinc kernel over a 4×4 NES texel grid: each sample weight is `sinc_norm(r / r1) · hann(r)` where r1 = 1.2197 (first zero of the jinc function) and the Hann envelope `0.5 + 0.5·cos(π·r / r_max)` tapers the kernel smoothly to zero at the 2.44-texel support boundary. Weights are summed and the result is divided by their total, giving a properly normalised reconstruction with crisp edges and suppressed ringing. A linear-clamp sampler is used; the shader samples at exact texel centres so the sampler mode does not affect reconstruction quality.
+CRT Scanlines, CRT Phosphor, CRT Screen, and NTSC Composite are implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources. All color effects also run as shaders via a shared include. Smooth (Bilinear) uses `Jinc2.ps.cso` — a 16-sample radially-symmetric reconstruction filter. For each output pixel it evaluates a Hann-windowed sinc kernel over a 4×4 NES texel grid: each sample weight is `sinc_norm(r / r1) · hann(r)` where r1 = 1.2197 (first zero of the jinc function) and the Hann envelope `0.5 + 0.5·cos(π·r / r_max)` tapers the kernel smoothly to zero at the 2.44-texel support boundary. Weights are summed and the result is divided by their total, giving a properly normalised reconstruction with crisp edges and suppressed ringing. A linear-clamp sampler is used; the shader samples at exact texel centres so the sampler mode does not affect reconstruction quality.
 
 ### Uniform constant buffer
 
@@ -109,10 +135,10 @@ All pixel shaders share the same 4-float constant buffer (`b0`):
 ```hlsl
 cbuffer FilterParams : register(b0)
 {
-    float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, 0 for PP)
-    float param1;     // structural param 1  (nesHeight for CRT, frameParity for NTSC, 0 for PP)
-    float param2;     // structural param 2  (scanlineIntensity / chromaStrength / 0)
-    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool — written by renderer
+    float param0;     // structural param 0  (nesWidth for CRT, invWidth for NTSC, barrelStrength for CrtScreen, 0 for PP)
+    float param1;     // structural param 1  (nesHeight for CRT, frameParity for NTSC, chromaStrength for CrtScreen, 0 for PP)
+    float param2;     // structural param 2  (scanlineIntensity / chromaStrength / vignetteStrength / 0)
+    float colorMode;  // 0=none  1=warm  2=greyscale  3=nes_colors  4=cool  5=phosphor_amber  6=phosphor_green — written by renderer
 }
 ```
 
@@ -123,6 +149,8 @@ The buffer is intentionally fixed at 4 floats. No filter may use a second consta
 ### Shared color grade include
 
 All shaders `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as their final step. This means any structural filter + color effect combination works without shader permutations — the grade is baked into every shader via the shared include rather than compiled as separate variants.
+
+The `colorMode` integer encodes all seven grades at fixed positions in the HLSL `if` chain: 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool, 5=phosphor_amber, 6=phosphor_green. The `VideoColorFilterMode` enum declaration order matches these positions exactly; adding a new color mode requires updating both the enum and the HLSL `if` chain together.
 
 ### Passthrough shader
 
