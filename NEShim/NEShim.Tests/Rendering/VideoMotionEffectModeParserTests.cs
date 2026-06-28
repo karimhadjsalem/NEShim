@@ -7,8 +7,9 @@ internal class VideoMotionEffectModeParserTests
 {
     // ---- Parse ----
 
-    [TestCase("None",      VideoMotionEffectMode.None)]
-    [TestCase("CrtJitter", VideoMotionEffectMode.CrtJitter)]
+    [TestCase("None",        VideoMotionEffectMode.None)]
+    [TestCase("CrtJitter",   VideoMotionEffectMode.CrtJitter)]
+    [TestCase("ScanlineBob", VideoMotionEffectMode.ScanlineBob)]
     public void Parse_KnownValue_ReturnsCorrectMode(string value, VideoMotionEffectMode expected)
     {
         Assert.That(VideoMotionEffectModeParser.Parse(value), Is.EqualTo(expected));
@@ -30,8 +31,9 @@ internal class VideoMotionEffectModeParserTests
 
     // ---- DisplayName ----
 
-    [TestCase(VideoMotionEffectMode.None,      "None")]
-    [TestCase(VideoMotionEffectMode.CrtJitter, "CRT Jitter")]
+    [TestCase(VideoMotionEffectMode.None,        "None")]
+    [TestCase(VideoMotionEffectMode.CrtJitter,   "CRT Jitter")]
+    [TestCase(VideoMotionEffectMode.ScanlineBob, "Scanline Bob")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoMotionEffectMode mode, string expected)
     {
         Assert.That(VideoMotionEffectModeParser.DisplayName(mode), Is.EqualTo(expected));
@@ -47,9 +49,9 @@ internal class VideoMotionEffectModeParserTests
     // ---- AllModes ----
 
     [Test]
-    public void AllModes_ContainsTwoEntries()
+    public void AllModes_ContainsThreeEntries()
     {
-        Assert.That(VideoMotionEffectModeParser.AllModes.Length, Is.EqualTo(2));
+        Assert.That(VideoMotionEffectModeParser.AllModes.Length, Is.EqualTo(3));
     }
 
     [Test]
@@ -62,6 +64,12 @@ internal class VideoMotionEffectModeParserTests
     public void AllModes_ContainsCrtJitter()
     {
         Assert.That(VideoMotionEffectModeParser.AllModes, Contains.Item(VideoMotionEffectMode.CrtJitter));
+    }
+
+    [Test]
+    public void AllModes_ContainsScanlineBob()
+    {
+        Assert.That(VideoMotionEffectModeParser.AllModes, Contains.Item(VideoMotionEffectMode.ScanlineBob));
     }
 
     [Test]

@@ -80,6 +80,7 @@ internal sealed partial class MainMenuScreen
             VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
             VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
             VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
+            VideoFilterMode.CrtScreen     => Menu._localization.VideoFilterCrtScreen,
             _                             => mode.ToString(),
         };
 
@@ -89,14 +90,18 @@ internal sealed partial class MainMenuScreen
             VideoColorFilterMode.Warm               => Menu._localization.VideoColorFilterWarm,
             VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
             VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
+            VideoColorFilterMode.Cool               => Menu._localization.VideoColorFilterCool,
+            VideoColorFilterMode.PhosphorAmber      => Menu._localization.VideoColorFilterPhosphorAmber,
+            VideoColorFilterMode.PhosphorGreen      => Menu._localization.VideoColorFilterPhosphorGreen,
             _                                       => mode.ToString(),
         };
 
         private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
         {
-            VideoMotionEffectMode.None      => Menu._localization.VideoMotionEffectNone,
-            VideoMotionEffectMode.CrtJitter => Menu._localization.VideoMotionEffectCrtJitter,
-            _                               => mode.ToString(),
+            VideoMotionEffectMode.None        => Menu._localization.VideoMotionEffectNone,
+            VideoMotionEffectMode.CrtJitter   => Menu._localization.VideoMotionEffectCrtJitter,
+            VideoMotionEffectMode.ScanlineBob => Menu._localization.VideoMotionEffectScanlineBob,
+            _                                 => mode.ToString(),
         };
 
         private string OverscanDisplayName(OverscanMode mode) => mode switch

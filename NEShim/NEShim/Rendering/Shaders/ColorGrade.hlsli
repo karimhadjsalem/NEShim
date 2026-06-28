@@ -1,5 +1,5 @@
 // Shared colour-grade post-process applied as the final step in every pixel shader.
-// mode: 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool
+// mode: 0=none, 1=warm, 2=greyscale, 3=nes_colors, 4=cool, 5=phosphor_amber, 6=phosphor_green
 float4 ApplyColorGrade(float4 c, float mode)
 {
     if (mode < 0.5)
@@ -32,10 +32,34 @@ float4 ApplyColorGrade(float4 c, float mode)
             c.a);
     }
 
-    // mode ~= 4 — cool (CRT D93 9300K white point approximation — slightly blue-green)
-    return float4(
-        saturate(c.r * 0.90),
-        saturate(c.g * 0.97),
-        saturate(c.b * 1.18),
-        c.a);
+    if (mode < 4.5)
+    {
+        // cool — CRT D93 9300K white point approximation (slightly blue-green)
+        return float4(
+            saturate(c.r * 0.90),
+            saturate(c.g * 0.97),
+            saturate(c.b * 1.18),
+            c.a);
+    }
+
+    if (mode < 5.5)
+    {
+        // phosphor_amber — desaturate then tint amber (classic amber phosphor monitor)
+        float luma = dot(c.rgb, float3(0.299, 0.587, 0.114));
+        return float4(
+            saturate(luma * 1.00),
+            saturate(luma * 0.60),
+            saturate(luma * 0.00),
+            c.a);
+    }
+
+    // mode ~= 6 — phosphor_green (classic green phosphor monitor)
+    {
+        float luma = dot(c.rgb, float3(0.299, 0.587, 0.114));
+        return float4(
+            saturate(luma * 0.00),
+            saturate(luma * 1.00),
+            saturate(luma * 0.10),
+            c.a);
+    }
 }

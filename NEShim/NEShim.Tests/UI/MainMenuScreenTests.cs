@@ -634,7 +634,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        // GDI mode: [Bilinear, PixelPerfect, Back]
+        // GDI mode: [PixelPerfect, Bilinear, Back]
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -645,7 +645,7 @@ internal class MainMenuScreenTests
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
         var items = screen.GetCurrentItems();
-        Assert.That(items[1], Does.StartWith("✓")); // PixelPerfect is at index 1 in GdiSupported
+        Assert.That(items[0], Does.StartWith("✓")); // PixelPerfect is at index 0 in GdiSupported
     }
 
     [Test]
@@ -654,7 +654,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select Bilinear (index 0)
+        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(Keys.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -665,7 +666,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select Bilinear (index 0)
+        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 

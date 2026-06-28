@@ -42,6 +42,7 @@ internal sealed class LocalizationData
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
     public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
+    public string VideoFilterCrtScreen     { get; init; } = "CRT Screen";
 
     // ---- Color effect sub-menu ----
     public string VideoColorFilterLabel    { get; init; } = "Color Effect";
@@ -50,13 +51,16 @@ internal sealed class LocalizationData
     public string VideoColorFilterWarm     { get; init; } = "Warm";
     public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
     public string VideoColorFilterNesColors { get; init; } = "NES Colors";
-    public string VideoColorFilterCool     { get; init; } = "Cool";
+    public string VideoColorFilterCool          { get; init; } = "Cool";
+    public string VideoColorFilterPhosphorAmber { get; init; } = "Phosphor Amber";
+    public string VideoColorFilterPhosphorGreen { get; init; } = "Phosphor Green";
 
     // ---- Motion effect sub-menu ----
     public string VideoMotionEffectLabel    { get; init; } = "Motion";
     public string VideoMotionEffectTitle    { get; init; } = "MOTION EFFECT";
     public string VideoMotionEffectNone     { get; init; } = "None";
-    public string VideoMotionEffectCrtJitter { get; init; } = "CRT Jitter";
+    public string VideoMotionEffectCrtJitter  { get; init; } = "CRT Jitter";
+    public string VideoMotionEffectScanlineBob { get; init; } = "Scanline Bob";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";

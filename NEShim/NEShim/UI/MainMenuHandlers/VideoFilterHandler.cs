@@ -53,6 +53,7 @@ internal sealed partial class MainMenuScreen
             VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
             VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
             VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
+            VideoFilterMode.CrtScreen     => Menu._localization.VideoFilterCrtScreen,
             _                             => mode.ToString(),
         };
     }

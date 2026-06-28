@@ -957,8 +957,9 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Down);   // select Video Filter (index 1)
         menu.HandleKey(Keys.Return); // enter VideoFilter sub-menu
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-        // GDI mode: [0]=Bilinear, [1]=PixelPerfect(✓), [2]=Back
-        // index 0 is already selected (SelectedItem resets to 0 on NavigateTo)
+        // GDI mode: [0]=PixelPerfect(✓), [1]=Bilinear, [2]=Back
+        // cursor starts at index 0; navigate down to Bilinear before selecting
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
         menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
@@ -995,7 +996,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoFilterSubMenu(menu);
-        // GDI mode: [Bilinear, PixelPerfect, Back]
+        // GDI mode: [PixelPerfect, Bilinear, Back]
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
     }
 
@@ -1006,7 +1007,7 @@ internal class InGameMenuTests
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
         var items = menu.GetCurrentItems();
-        Assert.That(items[1], Does.StartWith("✓")); // PixelPerfect is at index 1 in GdiSupported
+        Assert.That(items[0], Does.StartWith("✓")); // PixelPerfect is at index 0 in GdiSupported
     }
 
     [Test]
@@ -1015,7 +1016,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -1026,7 +1028,8 @@ internal class InGameMenuTests
         var menu = CreateMenu(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select Bilinear (index 0)
+        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(Keys.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 

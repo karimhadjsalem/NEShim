@@ -8,14 +8,15 @@ public enum VideoFilterMode
     CrtScanlines,
     CrtPhosphor,
     NtscComposite,
+    CrtScreen,
 }
 
 public static class VideoFilterModeParser
 {
-    // Filters available in each rendering mode. Order defines the menu cycle sequence.
-    public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.Bilinear, VideoFilterMode.PixelPerfect];
+    // Filters available in each rendering mode. Order defines the menu cycle sequence (most likely used first).
+    public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear];
     public static readonly VideoFilterMode[] D3D11Supported =
-        [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.NtscComposite];
+        [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite];
 
     public static VideoFilterMode Parse(string value) => value switch
     {
@@ -25,6 +26,7 @@ public static class VideoFilterModeParser
         "CrtScanlines"     => VideoFilterMode.CrtScanlines,
         "CrtPhosphor"      => VideoFilterMode.CrtPhosphor,
         "NtscComposite"    => VideoFilterMode.NtscComposite,
+        "CrtScreen"        => VideoFilterMode.CrtScreen,
         _ => throw new ArgumentException($"Unknown videoFilter value: '{value}'"),
     };
 
@@ -35,6 +37,7 @@ public static class VideoFilterModeParser
         VideoFilterMode.CrtScanlines  => "CRT Scanlines",
         VideoFilterMode.CrtPhosphor   => "CRT Phosphor",
         VideoFilterMode.NtscComposite => "NTSC Composite",
+        VideoFilterMode.CrtScreen     => "CRT Screen",
         _                             => mode.ToString(),
     };
 }

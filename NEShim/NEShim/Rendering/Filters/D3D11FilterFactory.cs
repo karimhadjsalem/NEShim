@@ -13,6 +13,7 @@ internal static class D3D11FilterFactory
         VideoFilterMode.CrtScanlines  => new CrtScanlinesD3D11Filter(),
         VideoFilterMode.CrtPhosphor   => new CrtPhosphorD3D11Filter(),
         VideoFilterMode.NtscComposite => new NtscCompositeD3D11Filter(),
+        VideoFilterMode.CrtScreen     => new CrtScreenD3D11Filter(),
         _                             => new PixelPerfectD3D11Filter(),
     };
 }
