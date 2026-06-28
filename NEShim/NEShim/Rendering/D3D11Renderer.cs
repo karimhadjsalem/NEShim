@@ -36,6 +36,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11SamplerState       _pointSamplerState;
     private readonly ID3D11SamplerState       _linearSamplerState;
     private readonly ID3D11BlendState         _alphaBlendState;
+    private readonly ID3D11RasterizerState    _scissorRasterizerState;
     private readonly ID3D11Buffer             _filterCbuffer;
 
     private bool _isDisposed;
@@ -70,10 +71,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private int _viewportWidth;
     private int _viewportHeight;
 
-    private Filters.ID3D11Filter   _activeFilter    = new Filters.PixelPerfectD3D11Filter();
-    private OverscanMode           _overscanMode    = OverscanMode.Overscan;
-    private VideoColorFilterMode   _activeColorMode = VideoColorFilterMode.None;
-    private int                    _drawFrameCount;
+    private Filters.ID3D11Filter        _activeFilter      = new Filters.PixelPerfectD3D11Filter();
+    private OverscanMode                _overscanMode      = OverscanMode.Overscan;
+    private VideoColorFilterMode        _activeColorMode   = VideoColorFilterMode.None;
+    private MotionEffects.IMotionEffect _activeMotionEffect = new MotionEffects.NoneMotionEffect();
+    private int                         _drawFrameCount;
 
     private const float UnderscanScale = 0.88f;
 
@@ -236,6 +238,14 @@ internal sealed class D3D11Renderer : IFrameRenderer
         };
         _alphaBlendState = device.CreateBlendState(blendDesc);
 
+        _scissorRasterizerState = device.CreateRasterizerState(new RasterizerDescription
+        {
+            FillMode        = Vortice.Direct3D11.FillMode.Solid,
+            CullMode        = CullMode.None,
+            ScissorEnable   = true,
+            DepthClipEnable = true,
+        });
+
         CreateOverlayResources();
         UpdateOverscanUV();
         UpdateLetterboxRect();
@@ -339,6 +349,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _activeColorMode = mode;
     }
 
+    public void SetMotionEffect(VideoMotionEffectMode mode)
+    {
+        _activeMotionEffect = MotionEffects.MotionEffectFactory.Create(mode);
+    }
+
     /// <inheritdoc/>
     public void SetOverscanMode(OverscanMode mode)
     {
@@ -399,6 +414,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         DisposeOverlayResources();
         DisposeSidebarResources();
         _alphaBlendState.Dispose();
+        _scissorRasterizerState.Dispose();
         _pointSamplerState.Dispose();
         _linearSamplerState.Dispose();
         _renderTargetView.Dispose();
@@ -432,10 +448,24 @@ internal sealed class D3D11Renderer : IFrameRenderer
             DrawSidebars();
 
         // Draw the letterboxed NES frame.
-        // _nesV0/_nesV1 define the UV crop window (affected by overscan mode).
+        // Scissor rect is set to the NES quad's resting bounds so jitter cannot bleed
+        // into sidebar or letterbox areas. The rect is computed from clip space:
+        //   pixelX = (clipX + 1) * 0.5 * viewportWidth
+        //   pixelY = (1 - clipY) * 0.5 * viewportHeight  (D3D Y axis: +1 = top)
+        int scissorL = (int)((_nesX0 + 1f) * 0.5f * _viewportWidth);
+        int scissorR = (int)((_nesX1 + 1f) * 0.5f * _viewportWidth);
+        int scissorT = (int)((1f - _nesY1) * 0.5f * _viewportHeight);
+        int scissorB = (int)((1f - _nesY0) * 0.5f * _viewportHeight);
+        SetScissorRect(scissorL, scissorT, scissorR, scissorB);
+        _context.RSSetState(_scissorRasterizerState);
+
         _context.PSSetShaderResource(0, _nesTextureView);
-        WriteQuadToVB(_nesX0, _nesY0, _nesX1, _nesY1, 0f, _nesV0, 1f, _nesV1);
+        var (jitterDx, jitterDy) = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
+        WriteQuadToVB(_nesX0 + jitterDx, _nesY0 + jitterDy, _nesX1 + jitterDx, _nesY1 + jitterDy,
+                      0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
+
+        _context.RSSetState(null); // restore default rasterizer (no scissor) for overlay
 
         // Draw GDI+-sourced overlay (FPS, toast, achievement) — alpha-blended.
         DrawOverlay();
@@ -449,6 +479,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
             Logger.Log($"[D3D11Renderer] Device lost (HRESULT 0x{result.Code:X8}). Firing DeviceLost event.");
             DeviceLost?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    private void SetScissorRect(int left, int top, int right, int bottom)
+    {
+        _context.RSSetScissorRects(1u, [new Vortice.RawRect(left, top, right, bottom)]);
     }
 
     private void SetupPipelineState()

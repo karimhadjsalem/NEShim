@@ -89,7 +89,8 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<AudioFilterMode>           _onFilterChanged;
     private readonly Action<bool>                      _onMenuMusicToggled;
     private readonly Action<Rendering.VideoFilterMode>      _onVideoFilterChanged;
-    private readonly Action<Rendering.VideoColorFilterMode> _onVideoColorFilterChanged;
+    private readonly Action<Rendering.VideoColorFilterMode>  _onVideoColorFilterChanged;
+    private readonly Action<Rendering.VideoMotionEffectMode> _onVideoMotionEffectChanged;
     private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
     private readonly Action<string>                         _onLanguageChanged;
 
@@ -112,8 +113,9 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<AudioFilterMode> onFilterChanged,
         Action<bool>            onMenuMusicToggled,
         Action<Rendering.VideoFilterMode>      onVideoFilterChanged,
-        Action<Rendering.VideoColorFilterMode> onVideoColorFilterChanged,
-        Action<Rendering.OverscanMode>         onOverscanModeChanged,
+        Action<Rendering.VideoColorFilterMode>  onVideoColorFilterChanged,
+        Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
+        Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                         onLanguageChanged,
         Bitmap?          bgImage = null)
     {
@@ -126,8 +128,9 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onFilterChanged           = onFilterChanged;
         _onMenuMusicToggled        = onMenuMusicToggled;
         _onVideoFilterChanged      = onVideoFilterChanged;
-        _onVideoColorFilterChanged = onVideoColorFilterChanged;
-        _onOverscanModeChanged     = onOverscanModeChanged;
+        _onVideoColorFilterChanged  = onVideoColorFilterChanged;
+        _onVideoMotionEffectChanged = onVideoMotionEffectChanged;
+        _onOverscanModeChanged      = onOverscanModeChanged;
         _onLanguageChanged         = onLanguageChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
@@ -162,6 +165,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.AudioFilter]      = new AudioFilterHandler(this),
             [Screen.VideoFilter]      = new VideoFilterHandler(this),
             [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
+            [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
             [Screen.Language]         = new LanguageHandler(this),
         };
 

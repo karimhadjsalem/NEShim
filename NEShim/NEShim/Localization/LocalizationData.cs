@@ -52,6 +52,12 @@ internal sealed class LocalizationData
     public string VideoColorFilterNesColors { get; init; } = "NES Colors";
     public string VideoColorFilterCool     { get; init; } = "Cool";
 
+    // ---- Motion effect sub-menu ----
+    public string VideoMotionEffectLabel    { get; init; } = "Motion";
+    public string VideoMotionEffectTitle    { get; init; } = "MOTION EFFECT";
+    public string VideoMotionEffectNone     { get; init; } = "None";
+    public string VideoMotionEffectCrtJitter { get; init; } = "CRT Jitter";
+
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";
     public string OverscanNormal    { get; init; } = "Normal";

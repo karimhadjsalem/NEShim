@@ -12,7 +12,7 @@ internal sealed partial class MainMenuScreen
         public VideoHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 6 : 5;
+        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 7 : 5;
 
         public override string[] GetItems()
         {
@@ -29,16 +29,18 @@ internal sealed partial class MainMenuScreen
             if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
                 return [windowItem, filterItem, overscanItem, fpsItem, Menu._localization.Back];
 
-            var currentColor = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
-            string colorItem = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
-            return [windowItem, filterItem, colorItem, overscanItem, fpsItem, Menu._localization.Back];
+            var currentColor  = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
+            var currentMotion = VideoMotionEffectModeParser.Parse(Menu._config.VideoMotionEffect);
+            string colorItem  = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
+            string motionItem = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
+            return [windowItem, filterItem, colorItem, motionItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
         public override void Activate(int index)
         {
-            // In GDI mode Color Effect is hidden; shift indices ≥ 2 to match the full layout.
+            // In GDI mode Color Effect and Motion Effect are hidden; shift indices ≥ 2 to match the full layout.
             if (!NEShim.Platform.PlatformDetector.IsD3D11Active && index >= 2)
-                index++;
+                index += 2;
 
             switch (index)
             {
@@ -52,17 +54,20 @@ internal sealed partial class MainMenuScreen
                     Menu.NavigateTo(Screen.VideoColorFilter);
                     break;
                 case 3:
+                    Menu.NavigateTo(Screen.VideoMotionEffect);
+                    break;
+                case 4:
                     var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
                     int nextIdx         = (Array.IndexOf(OverscanCycle, currentOverscan) + 1) % OverscanCycle.Length;
                     var newOverscan     = OverscanCycle[nextIdx];
                     Menu._config.OverscanMode = newOverscan.ToString();
                     Menu._onOverscanModeChanged(newOverscan);
                     break;
-                case 4:
+                case 5:
                     Menu._config.ShowFps = !Menu._config.ShowFps;
                     Menu._onConfigSaved();
                     break;
-                case 5:
+                case 6:
                     Menu.NavigateTo(Screen.Settings);
                     break;
             }
@@ -85,6 +90,13 @@ internal sealed partial class MainMenuScreen
             VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
             VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
             _                                       => mode.ToString(),
+        };
+
+        private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
+        {
+            VideoMotionEffectMode.None      => Menu._localization.VideoMotionEffectNone,
+            VideoMotionEffectMode.CrtJitter => Menu._localization.VideoMotionEffectCrtJitter,
+            _                               => mode.ToString(),
         };
 
         private string OverscanDisplayName(OverscanMode mode) => mode switch
