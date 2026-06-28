@@ -1487,6 +1487,154 @@ internal class InGameMenuTests
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
     }
 
+    // ---- VideoOverlayHandler ----
+
+    [Test]
+    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoOverlay));
+    }
+
+    [Test]
+    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+    }
+
+    [Test]
+    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        // None + CrtScanlines + CrtPhosphor + CrtScreen + Back = 5
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void VideoOverlay_DefaultNone_HasCheckmark()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoOverlay_ActiveOverlay_HasCheckmark()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        var items = menu.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
+        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_SetsConfigToNone()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None (index 0)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_UpdatesConfig()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        _config.VideoFilterOverlay = "None";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        menu.HandleKey(Keys.Return); // select None
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
+        Assert.That(menu.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
+    }
+
+    [Test]
+    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
+    {
+        var menu = CreateMenu();
+        _config.VideoFilter = "CrtScanlines";
+        menu.Open(InGameMenu.Screen.VideoOverlay);
+        Assert.That(menu.IsItemEnabled(0), Is.True); // None always enabled
+        Assert.That(menu.IsItemEnabled(4), Is.True); // Back always enabled
+    }
+
+    // ---- ControllerDisconnectedHandler ----
+
+    [Test]
+    public void ControllerDisconnected_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.ControllerDisconnected));
+    }
+
+    [Test]
+    public void ControllerDisconnected_GetCurrentItems_ReturnsEmpty()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        Assert.That(menu.GetCurrentItems(), Is.Empty);
+    }
+
     [Test]
     public void GetTitle_ConfirmExit_ReturnsExitToDesktop()
     {

@@ -30,4 +30,12 @@ internal class OverscanModeParserTests
     {
         Assert.That(() => OverscanModeParser.Parse(input), Throws.ArgumentException);
     }
+
+    [TestCase(OverscanMode.Overscan,  "Overscan")]
+    [TestCase(OverscanMode.Normal,    "Normal")]
+    [TestCase(OverscanMode.Underscan, "Underscan")]
+    public void DisplayName_KnownMode_ReturnsExpectedString(OverscanMode mode, string expected)
+    {
+        Assert.That(OverscanModeParser.DisplayName(mode), Is.EqualTo(expected));
+    }
 }

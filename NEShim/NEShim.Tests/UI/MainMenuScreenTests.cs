@@ -34,6 +34,7 @@ internal class MainMenuScreenTests
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
+        NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
     // No background image path — avoids any file I/O in the constructor
@@ -1372,5 +1373,141 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         Assert.That(screen.ActiveNesButton, Is.Null); // Main screen
+    }
+
+    // ---- VideoOverlayHandler ----
+
+    // D3D11Supported = 6 filters; VideoOverlay → is at index 6, Back at 7.
+    // Default overlay = "None" → all VideoFilter items enabled → 6 Down presses reliably reaches index 6.
+    private void OpenVideoOverlaySubMenu(MainMenuScreen screen)
+    {
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoFilterSubMenu(screen);
+        for (int i = 0; i < 6; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoOverlay));
+    }
+
+    [Test]
+    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+    }
+
+    [Test]
+    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void VideoOverlay_DefaultNone_HasCheckmark()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        // _config.VideoFilterOverlay defaults to "None" — index 0 has checkmark
+        Assert.That(screen.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoOverlay_ActiveOverlay_HasCheckmark()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        var items = screen.GetCurrentItems();
+        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
+        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_SetsConfigToNone()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        screen.HandleKey(Keys.Return); // select None (index 0)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectNone_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
+        using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Return); // select None
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_UpdatesConfig()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_FiresCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
+    }
+
+    [Test]
+    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        screen.HandleKey(Keys.Return); // select None
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
+    {
+        using var screen = CreateScreen();
+        OpenVideoOverlaySubMenu(screen);
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // Back (index 4)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+    }
+
+    [Test]
+    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
+    {
+        using var screen = CreateScreen();
+        _config.VideoFilter = "CrtScanlines";
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
+        Assert.That(screen.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
+    }
+
+    [Test]
+    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
+    {
+        using var screen = CreateScreen();
+        _config.VideoFilter = "CrtScanlines";
+        OpenVideoOverlaySubMenu(screen);
+        Assert.That(screen.IsItemEnabled(0), Is.True); // None always enabled
+        Assert.That(screen.IsItemEnabled(4), Is.True); // Back always enabled
     }
 }
