@@ -500,6 +500,8 @@ Key interfaces consumed:
 
 ## Adding a new D3D11 video filter (structural)
 
+> **Requires Windows SDK:** writing a new shader requires `fxc.exe` to compile your `.hlsl` to a `.cso` file. Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/). The SDK is only needed when adding or modifying shaders — building the project without shader changes works fine without it, using the pre-compiled `.cso` files checked into source control.
+
 1. Write a new `*.ps.hlsl` in `NEShim/Rendering/Shaders/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the standard `cbuffer FilterParams : register(b0)` layout (4 floats).
 2. Add its enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add the matching `Parse()` case, `DisplayName()` case, and append the value to `D3D11Supported`.
 3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`. Override `UseLinearSampler => true` if the filter uses bilinear sampling (no structural shader needed in that case — set `PixelShaderResourceName` to null so the passthrough shader is used). Override `NotifyFrame(int frameCount)` only if the filter needs per-frame animated state (e.g. noise phase).

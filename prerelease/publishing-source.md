@@ -262,15 +262,13 @@ NEShim's D3D11 renderer uses HLSL shaders for video filtering — a vertex/pixel
 $(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe
 ```
 
-If the Windows SDK is not installed, the build fails with:
+**If the Windows SDK is not installed**, MSBuild falls back to the pre-compiled `.cso` files that are checked into source control and the build succeeds. Shader recompilation is skipped entirely — a log message confirms this:
 
 ```
-error MSB3073: The command "fxc.exe ..." exited with code 9009.
+[CompileShaders] fxc.exe not found at a Windows SDK path — using pre-compiled CSOs from source control.
 ```
 
-Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/).
-
-> Shader recompilation is incremental — MSBuild only runs `fxc.exe` when the `.hlsl` source files are newer than the `.cso` outputs. The `.cso` files are checked in to source control alongside the `.hlsl` files, so contributors without the Windows SDK can still build as long as they haven't modified the shaders.
+**The Windows SDK is only required if you have modified the `.hlsl` source files or are adding a new shader.** In those cases the `.cso` either doesn't exist or is stale, the skip condition is not met, and the build will fail if `fxc.exe` cannot be found. Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/) before making shader changes. For guidance on adding a new structural filter, see the [Architecture guide — Adding a new D3D11 video filter](architecture.md#adding-a-new-d3d11-video-filter-structural).
 
 On Proton/Steam Deck, DXVK compiles the DXBC bytecode to SPIR-V on first launch and caches it in `~/.local/share/Steam/steamapps/shadercache/<appid>/`. The passthrough shaders are trivially simple; first-launch compile is near-instant.
 
