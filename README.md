@@ -26,11 +26,11 @@ https://karimhadjsalem.github.io/NEShim/
 
 ## Requirements
 
-- Windows 10 or later (x64)
-- .NET 9 runtime
-- Steam client (required for achievement and overlay features; the emulator runs without it but Steam features are silently disabled)
-- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. This file is **not** included in the repository (Valve SDK license); do not commit it to source control. Games deployed through Steam receive it automatically via the Steam depot.
-- A `.nes` ROM file
+**End users / players:** none — published builds are self-contained and prepackaged. Runs on Windows 10+ (x64) and Linux via Steam/Proton.
+
+**Publishers:** see the [publishing guide](https://karimhadjsalem.github.io/NEShim/) on the project site. You will also need `steam_api64.dll` from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — place it alongside the executable in your output package. This file is not included in the repository (Valve SDK license); do not commit it to source control.
+
+**Developers (building from source):** Windows 10+ (x64), .NET 9 SDK. See [Building from source](#building-from-source) below. Filter development (adding or modifying HLSL shaders) additionally requires `fxc.exe` from the Windows 10 SDK — standard builds use pre-compiled `.cso` files checked into source control and do not need it.
 
 ---
 
