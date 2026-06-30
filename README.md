@@ -16,7 +16,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control and seven audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation)
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds five exclusive structural filters (CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, and seven color effects — all independently stackable; see [Filters](#filters) below
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds five structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, and three motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion) — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -108,9 +108,22 @@ Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. A
 
 Filter and overscan changes take effect immediately while the game is running — no restart needed.
 
+**Motion Effects** (D3D11 only) animate the NES viewport each frame. CPU quad-offset effects (CRT Jitter, Scanline Bob) apply a per-frame clip-space displacement with no extra render pass. Shader-backed effects (Magnetic Distortion) render the primary/overlay filter to an intermediate render target and apply a pixel shader warp, adding one render pass when active:
+
+| Motion Effect | Description |
+|---|---|
+| None | No animation |
+| CRT Jitter | Micro-pixel translation simulating hold instability on an aging CRT |
+| Scanline Bob | 30 Hz vertical oscillation mimicking interlaced scanline wobble |
+| Magnetic Distortion | Per-pixel sine-wave UV warp simulating a magnetic field deflecting the CRT electron beam unevenly |
+
+Motion effects compose with all structural filters, the Video Overlay slot, and color effects.
+
 ### Developer note — injectable filter architecture
 
 Structural filters implement `ID3D11Filter` (in `NEShim.Rendering.Filters`) and are compiled as DXBC pixel shaders. All shaders share a uniform 4-float constant buffer: structural params at `[0..2]` (filled by the filter), color mode at `[3]` (filled by the renderer). A shared `ColorGrade.hlsli` include applies the active Color Effect as the final step in every shader, so any structural filter + color effect combination works without shader permutations. The interface also exposes `UseLinearSampler` (default false) — override to true for sampler-only filters like Bilinear, which require no pixel shader. Adding a new structural filter requires implementing `ID3D11Filter`, writing the `.ps.hlsl`, registering in `D3D11FilterFactory`, and adding to `VideoFilterModeParser.D3D11Supported` — no renderer or menu changes needed. Adding a new color effect only requires extending the enum and adding a branch in `ColorGrade.hlsli`.
+
+Motion effects implement `IMotionEffect` (in `NEShim.Rendering.MotionEffects`). CPU quad-offset effects implement only `GetFrameOffset`; shader-backed effects additionally return a `PixelShaderResourceName` and override `WriteShaderParams`, which causes the renderer to allocate an intermediate render target and run the warp as a dedicated pixel shader pass. Adding a new motion effect requires implementing `IMotionEffect`, optionally writing a `.ps.hlsl`, and registering in `MotionEffectFactory` and `VideoMotionEffectModeParser`.
 
 ---
 
