@@ -77,6 +77,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private OverscanMode                _overscanMode      = OverscanMode.Overscan;
     private VideoColorFilterMode        _activeColorMode   = VideoColorFilterMode.None;
     private MotionEffects.IMotionEffect _activeMotionEffect = new MotionEffects.NoneMotionEffect();
+    private ID3D11PixelShader?          _motionEffectPixelShader;
     private int                         _drawFrameCount;
 
     // Intermediate render target for two-pass overlay rendering.
@@ -85,6 +86,13 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private ID3D11ShaderResourceView? _intermediateTextureView;
     private int                       _intermediateWidth;
     private int                       _intermediateHeight;
+
+    // Intermediate render target for shader-backed motion effect rendering.
+    private ID3D11Texture2D?          _meIntermediate;
+    private ID3D11RenderTargetView?   _meIntermediateRtv;
+    private ID3D11ShaderResourceView? _meIntermediateSrv;
+    private int                       _meIntermediateWidth;
+    private int                       _meIntermediateHeight;
 
     // Pixel dimensions of the letterbox rect — updated in UpdateLetterboxRect, used by RecreateIntermediateTarget.
     private int _letterboxPixelW;
@@ -364,8 +372,12 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public void SetMotionEffect(VideoMotionEffectMode mode)
     {
-        _activeMotionEffect = MotionEffects.MotionEffectFactory.Create(mode);
+        _activeMotionEffect      = MotionEffects.MotionEffectFactory.Create(mode);
+        _motionEffectPixelShader = _activeMotionEffect.PixelShaderResourceName is { } r
+            ? ResolvePixelShader(r)
+            : null;
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
+        RecreateMotionEffectIntermediate();
     }
 
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
@@ -427,6 +439,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         CreateOverlayResources();
         UpdateLetterboxRect();
         RecreateIntermediateTarget();
+        RecreateMotionEffectIntermediate();
     }
 
     public void Dispose()
@@ -435,6 +448,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         Logger.Log("[D3D11Renderer] Disposed.");
         DisposeOverlayResources();
         DisposeIntermediateTarget();
+        DisposeMotionEffectIntermediate();
         DisposeSidebarResources();
         _alphaBlendState.Dispose();
         _scissorRasterizerState.Dispose();
@@ -469,14 +483,40 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawSinglePass(bool vsync)
     {
-        _context.OMSetRenderTargets(_renderTargetView);
-        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
-        SetupPipelineState();
-        UpdateFilterCbuffer();
-        if (_hasSidebars) DrawSidebars();
-        DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
-                    0f, _nesV0, 1f, _nesV1);
+        if (_meIntermediateRtv is not null)
+        {
+            // Sub-pass A: structural filter → motion effect intermediate, colorMode deferred.
+            _context.OMSetRenderTargets(_meIntermediateRtv);
+            _context.RSSetViewport(0, 0, _meIntermediateWidth, _meIntermediateHeight);
+            _context.ClearRenderTargetView(_meIntermediateRtv, new Color4(0f, 0f, 0f, 1f));
+            SetupPipelineState();
+            UpdateFilterCbuffer(colorModeOverride: 0f);
+            _context.PSSetShaderResource(0, _nesTextureView);
+            WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, _nesV0, 1f, _nesV1);
+            _context.Draw(6, 0);
+
+            // Sub-pass B: motion effect shader → backbuffer.
+            _context.OMSetRenderTargets(_renderTargetView);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
+            _context.PSSetShader(_motionEffectPixelShader);
+            _context.PSSetSampler(0, _linearSamplerState);
+            var jitterSP = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
+            WriteMotionEffectCbuffer();
+            DrawNesQuad(_meIntermediateSrv!, jitterSP, 0f, 0f, 1f, 1f);
+        }
+        else
+        {
+            _context.OMSetRenderTargets(_renderTargetView);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            SetupPipelineState();
+            UpdateFilterCbuffer();
+            if (_hasSidebars) DrawSidebars();
+            DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
+                        0f, _nesV0, 1f, _nesV1);
+        }
         _context.RSSetState(null);
         DrawOverlay();
         PresentAndCheckResult(vsync);
@@ -484,7 +524,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawTwoPass(bool vsync)
     {
-        // Pass 1: primary filter → intermediate RT (full quad, no jitter, colorMode=0).
+        // Pass 1: primary filter → overlay intermediate, colorMode deferred.
         _context.OMSetRenderTargets(_intermediateRtv!);
         _context.RSSetViewport(0, 0, _intermediateWidth, _intermediateHeight);
         _context.ClearRenderTargetView(_intermediateRtv!, new Color4(0f, 0f, 0f, 1f));
@@ -494,16 +534,44 @@ internal sealed class D3D11Renderer : IFrameRenderer
         WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
 
-        // Pass 2: overlay filter → backbuffer, reading from intermediate.
-        _context.OMSetRenderTargets(_renderTargetView);
-        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
-        UpdateOverlayCbuffer();
-        if (_hasSidebars) DrawSidebars();
-        _context.PSSetShader(_activeOverlayPixelShader!);
-        _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
-        DrawNesQuad(_intermediateTextureView!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
-                    0f, 0f, 1f, 1f);
+        if (_meIntermediateRtv is not null)
+        {
+            // Pass 2: overlay filter → motion effect intermediate, colorMode deferred.
+            _context.OMSetRenderTargets(_meIntermediateRtv);
+            _context.RSSetViewport(0, 0, _meIntermediateWidth, _meIntermediateHeight);
+            _context.ClearRenderTargetView(_meIntermediateRtv, new Color4(0f, 0f, 0f, 1f));
+            UpdateOverlayCbuffer(colorModeOverride: 0f);
+            _context.PSSetShader(_activeOverlayPixelShader!);
+            _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+            _context.PSSetShaderResource(0, _intermediateTextureView!);
+            WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, 0f, 1f, 1f);
+            _context.Draw(6, 0);
+
+            // Pass 3: motion effect shader → backbuffer.
+            _context.OMSetRenderTargets(_renderTargetView);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
+            _context.PSSetShader(_motionEffectPixelShader);
+            _context.PSSetSampler(0, _linearSamplerState);
+            var jitterTP = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
+            WriteMotionEffectCbuffer();
+            DrawNesQuad(_meIntermediateSrv!, jitterTP, 0f, 0f, 1f, 1f);
+        }
+        else
+        {
+            // Pass 2: overlay filter → backbuffer, reading from overlay intermediate.
+            _context.OMSetRenderTargets(_renderTargetView);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            UpdateOverlayCbuffer();
+            if (_hasSidebars) DrawSidebars();
+            _context.PSSetShader(_activeOverlayPixelShader!);
+            _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+            DrawNesQuad(_intermediateTextureView!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
+                        0f, 0f, 1f, 1f);
+        }
+
         _context.RSSetState(null);
         _context.PSSetShaderResource(0, _nesTextureView);
         DrawOverlay();
@@ -511,7 +579,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     private void DrawNesQuad(ID3D11ShaderResourceView srv, (float dx, float dy) jitter,
-                              float u0, float v0, float u1, float v1)
+                             float u0, float v0, float u1, float v1)
     {
         int scissorL = (int)((_nesX0 + 1f) * 0.5f * _viewportWidth);
         int scissorR = (int)((_nesX1 + 1f) * 0.5f * _viewportWidth);
@@ -559,10 +627,18 @@ internal sealed class D3D11Renderer : IFrameRenderer
         WriteCbufferParams(p);
     }
 
-    private unsafe void UpdateOverlayCbuffer()
+    private unsafe void UpdateOverlayCbuffer(float? colorModeOverride = null)
     {
         Span<float> p = stackalloc float[4];
         _activeOverlay!.WriteBaseParams(p, _contentWidth, _contentHeight);
+        p[3] = colorModeOverride ?? (float)_activeColorMode;
+        WriteCbufferParams(p);
+    }
+
+    private unsafe void WriteMotionEffectCbuffer()
+    {
+        Span<float> p = stackalloc float[4];
+        _activeMotionEffect.WriteShaderParams(p, _contentWidth, _contentHeight);
         p[3] = (float)_activeColorMode;
         WriteCbufferParams(p);
     }
@@ -786,6 +862,45 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _intermediateWidth = _intermediateHeight = 0;
     }
 
+    private void RecreateMotionEffectIntermediate()
+    {
+        if (_motionEffectPixelShader is null || _letterboxPixelW <= 0 || _letterboxPixelH <= 0)
+        {
+            DisposeMotionEffectIntermediate();
+            _meIntermediateWidth = _meIntermediateHeight = 0;
+            return;
+        }
+        if (_meIntermediate is not null &&
+            _letterboxPixelW == _meIntermediateWidth &&
+            _letterboxPixelH == _meIntermediateHeight)
+            return;
+
+        DisposeMotionEffectIntermediate();
+        _meIntermediateWidth  = _letterboxPixelW;
+        _meIntermediateHeight = _letterboxPixelH;
+        _meIntermediate = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width             = (uint)_meIntermediateWidth,
+            Height            = (uint)_meIntermediateHeight,
+            MipLevels         = 1,
+            ArraySize         = 1,
+            Format            = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage             = ResourceUsage.Default,
+            BindFlags         = BindFlags.RenderTarget | BindFlags.ShaderResource,
+        });
+        _meIntermediateRtv = _device.CreateRenderTargetView(_meIntermediate);
+        _meIntermediateSrv = _device.CreateShaderResourceView(_meIntermediate);
+        Logger.Log($"[D3D11Renderer] Motion effect intermediate RT created ({_meIntermediateWidth}×{_meIntermediateHeight}).");
+    }
+
+    private void DisposeMotionEffectIntermediate()
+    {
+        _meIntermediateSrv?.Dispose(); _meIntermediateSrv = null;
+        _meIntermediateRtv?.Dispose(); _meIntermediateRtv = null;
+        _meIntermediate?.Dispose();    _meIntermediate    = null;
+    }
+
     private void DisposeSidebarResources()
     {
         _leftSidebarSrv?.Dispose();  _leftSidebarSrv  = null;
@@ -892,6 +1007,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _letterboxPixelW = Math.Max(1, (int)destW);
         _letterboxPixelH = Math.Max(1, (int)destH);
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
+        RecreateMotionEffectIntermediate();
     }
 
     /// <summary>
@@ -941,8 +1057,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // ---- Shader loading ----------------------------------------------------------------
 
     private ID3D11PixelShader ResolvePixelShader(Filters.ID3D11Filter filter)
+        => ResolvePixelShader(filter.PixelShaderResourceName);
+
+    private ID3D11PixelShader ResolvePixelShader(string? resourceName)
     {
-        string? resourceName = filter.PixelShaderResourceName;
         if (resourceName is null)
             return _passthroughPixelShader;
 
