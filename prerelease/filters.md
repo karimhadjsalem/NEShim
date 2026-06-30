@@ -112,15 +112,19 @@ The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mo
 
 ## Motion Effect
 
-A per-frame screen-space displacement applied to the NES frame quad immediately before it is drawn. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
+A per-frame animated effect applied to the NES viewport. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
 
-The displacement is computed on the CPU each frame and written directly into the vertex buffer quad corners as a clip-space offset. There is no additional render pass; the overhead is a few ALU instructions before the existing `Draw(6, 0)` call. A scissor rect clipped to the NES frame bounds prevents the displaced quad from bleeding into sidebars or letterbox areas.
+Two implementation models exist:
+
+- **CPU quad-offset** (CRT Jitter, Scanline Bob): the displacement is computed on the CPU each frame and written into the vertex buffer quad corners as a clip-space offset. A scissor rect prevents the displaced quad from bleeding into sidebars or letterbox areas. No additional render pass; the overhead is a few ALU instructions before the existing `Draw(6, 0)` call.
+- **Shader pass** (Magnetic Distortion): the structural filter (and overlay filter, if active) is rendered into an intermediate letterbox-sized render target first, then a dedicated pixel shader reads from that intermediate and warps pixels per-UV as it renders to the backbuffer. This adds one render pass to the pipeline when active.
 
 | Effect | `videoMotionEffect` value | Description |
 |---|---|---|
-| None | `"None"` | No displacement. The NES frame quad is drawn at its resting position. |
+| None | `"None"` | No effect. The NES frame quad is drawn at its resting position. |
 | CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Horizontal and vertical amplitudes scale independently with viewport width and height respectively, keeping the physical pixel displacement constant across resolutions (calibrated at 1920×1080). |
 | Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude scales inversely with viewport height so the physical pixel displacement remains constant regardless of screen resolution (calibrated at 1080p). |
+| Magnetic Distortion | `"MagneticDistortion"` | Simulates magnetic interference on a CRT by warping UV coordinates in a pixel shader. A sine wave sweeps horizontally across the image each frame — each row is displaced by a different amount, so adjacent rows shift in opposite directions, matching the characteristic non-uniform warp of an external magnetic field deflecting the electron beam unevenly. The wave phase and amplitude evolve slowly over time for an organic feel. Pixels that warp past the horizontal texture boundary render as black, matching the edge roll-off seen on real CRTs. Runs as a shader pass (see above). |
 
 **Default value:** `"None"`
 
@@ -151,6 +155,9 @@ Any structural filter can be combined with any overlay filter, any color effect,
 | Composite signal in curved CRT | NTSC Composite | CRT Screen | NES Colors | None |
 | Composite with scanline overlay | NTSC Composite | CRT Scanlines | None | None |
 | Full vintage CRT (curved + scanlines) | Pixel Perfect | CRT Screen | Warm | CRT Jitter |
+| Magnetic interference (warm CRT) | CRT Scanlines | None | Warm | Magnetic Distortion |
+| Composite TV under interference | NTSC Composite | None | NES Colors | Magnetic Distortion |
+| Sharp pixels + magnetic warp | Pixel Perfect | None | None | Magnetic Distortion |
 
 ---
 
