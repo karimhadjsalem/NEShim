@@ -51,7 +51,7 @@ internal class VideoMotionEffectModeParserTests
     [Test]
     public void AllModes_ContainsThreeEntries()
     {
-        Assert.That(VideoMotionEffectModeParser.AllModes.Length, Is.EqualTo(3));
+        Assert.That(VideoMotionEffectModeParser.AllModes.Length, Is.EqualTo(4));
     }
 
     [Test]
