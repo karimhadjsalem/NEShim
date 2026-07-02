@@ -17,6 +17,7 @@ NEShim has five independent filter axes, all configurable at runtime via the in-
 | Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
 | Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 only) |
 | Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 only) |
+| Video Presets | `videoPreset` | Settings → Video → Presets | Coordinated preset bundles that apply multiple filter settings in one step (D3D11 only) |
 
 ---
 
@@ -146,6 +147,25 @@ Two implementation models exist:
 **Default value:** `"None"`
 
 The Motion Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mode and does not appear in the Video settings screen.
+
+---
+
+## Video Presets
+
+Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. D3D11 only — the Presets entry does not appear in GDI+ mode.
+
+| Preset | `videoPreset` value | Video Filter | Video Overlay | Color Effect | Motion Effect |
+|---|---|---|---|---|---|
+| Living Room | `"LivingRoom"` | CRT Screen | CRT Scanlines | NES Colors | CRT Jitter |
+| Arcade Monitor | `"Arcade"` | CRT Phosphor | None | Cool | CRT Jitter |
+| Sharp | `"Sharp"` | Sharp Pixel | None | NES Colors | None |
+| Phosphor | `"Phosphor"` | CRT Screen | CRT Phosphor | Phosphor Amber | Screen Glow |
+
+All presets use Normal overscan and neutral picture adjustments (0 brightness, 0 contrast, 0 saturation).
+
+The active preset name is shown inline on the Video settings screen next to the Presets entry. Selecting "None" from the Presets sub-menu clears the preset without changing any filter settings. **Changing any individual setting after applying a preset automatically resets `videoPreset` to `"None"`** — the preset name is a label, not a constraint; manual changes take full effect immediately.
+
+**Default value:** `"None"`
 
 ---
 
