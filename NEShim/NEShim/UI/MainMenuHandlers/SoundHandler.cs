@@ -11,6 +11,16 @@ internal sealed partial class MainMenuScreen
         private const int MusicIndex  = 2;
         private const int BackIndex   = 3;
 
+        private const int BarWidth = 20;
+
+        private static string VolumeSlider(string label, int value)
+        {
+            int filled = (int)Math.Round(value / 100.0 * BarWidth);
+            filled     = Math.Clamp(filled, 0, BarWidth);
+            string bar = new string('█', filled) + new string('░', BarWidth - filled);
+            return $"{label}  ◀{bar}▶  {value.ToString().PadLeft(3)}";
+        }
+
         public SoundHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string   Title     => Menu._localization.SoundTitle;
@@ -20,7 +30,7 @@ internal sealed partial class MainMenuScreen
         {
             var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
             var items = new string[4];
-            items[VolumeIndex] = string.Format(Menu._localization.SoundVolume, Menu._config.Volume);
+            items[VolumeIndex] = VolumeSlider(Menu._localization.SoundVolume, Menu._config.Volume);
             items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {Menu.AudioFilterDisplayName(mode)}";
             items[MusicIndex]  = Menu._config.MainMenuMusicEnabled
                 ? Menu._localization.SoundMusicOn

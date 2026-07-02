@@ -33,7 +33,7 @@ internal class VideoMotionEffectModeParserTests
 
     [TestCase(VideoMotionEffectMode.None,        "None")]
     [TestCase(VideoMotionEffectMode.CrtJitter,   "CRT Jitter")]
-    [TestCase(VideoMotionEffectMode.ScanlineBob, "Scanline Bob")]
+    [TestCase(VideoMotionEffectMode.ScanlineBob, "Scanline Flicker")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoMotionEffectMode mode, string expected)
     {
         Assert.That(VideoMotionEffectModeParser.DisplayName(mode), Is.EqualTo(expected));
@@ -49,7 +49,7 @@ internal class VideoMotionEffectModeParserTests
     // ---- AllModes ----
 
     [Test]
-    public void AllModes_ContainsThreeEntries()
+    public void AllModes_ContainsFiveEntries()
     {
         Assert.That(VideoMotionEffectModeParser.AllModes.Length, Is.EqualTo(5));
     }
@@ -81,5 +81,31 @@ internal class VideoMotionEffectModeParserTests
             Assert.That(VideoMotionEffectModeParser.Parse(name), Is.EqualTo(mode),
                 $"Round-trip failed for {mode}");
         }
+    }
+
+    [Test]
+    public void AllModes_ContainsMagneticDistortion()
+    {
+        Assert.That(VideoMotionEffectModeParser.AllModes, Contains.Item(VideoMotionEffectMode.MagneticDistortion));
+    }
+
+    [Test]
+    public void AllModes_ContainsPhosphorPersistence()
+    {
+        Assert.That(VideoMotionEffectModeParser.AllModes, Contains.Item(VideoMotionEffectMode.PhosphorPersistence));
+    }
+
+    [Test]
+    public void Parse_MagneticDistortion_ReturnsCorrectMode()
+    {
+        Assert.That(VideoMotionEffectModeParser.Parse("MagneticDistortion"),
+            Is.EqualTo(VideoMotionEffectMode.MagneticDistortion));
+    }
+
+    [Test]
+    public void DisplayName_MagneticDistortion_ReturnsNonEmpty()
+    {
+        Assert.That(VideoMotionEffectModeParser.DisplayName(VideoMotionEffectMode.MagneticDistortion),
+            Is.Not.Empty);
     }
 }

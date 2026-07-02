@@ -29,9 +29,9 @@ public static class VideoMotionEffectModeParser
     {
         VideoMotionEffectMode.None               => "None",
         VideoMotionEffectMode.CrtJitter          => "CRT Jitter",
-        VideoMotionEffectMode.ScanlineBob        => "Scanline Bob",
+        VideoMotionEffectMode.ScanlineBob        => "Scanline Flicker",
         VideoMotionEffectMode.MagneticDistortion  => "Magnetic Distortion",
-        VideoMotionEffectMode.PhosphorPersistence => "Phosphor Glow",
+        VideoMotionEffectMode.PhosphorPersistence => "Screen Glow",
         _                                         => mode.ToString(),
     };
 }

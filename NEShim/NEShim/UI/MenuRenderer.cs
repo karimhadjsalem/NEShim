@@ -173,7 +173,9 @@ internal static class MenuRenderer
             Alignment     = StringAlignment.Near,
             LineAlignment = StringAlignment.Center,
             Trimming      = StringTrimming.EllipsisCharacter,
+            FormatFlags   = StringFormatFlags.NoWrap,
         };
+        leftFmt.SetTabStops(0f, new float[] { (float)S(100) });
 
         for (int i = 0; i < items.Length; i++)
         {

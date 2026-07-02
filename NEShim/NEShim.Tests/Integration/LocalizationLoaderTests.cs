@@ -101,7 +101,7 @@ internal class LocalizationLoaderTests
               "slotLabel": "Slot {0}",
               "slotNoSave": "  (no save)",
               "slotActive": "  ◀ active",
-              "soundVolume": "◀  Volume: {0}  ▶"
+              "soundVolume": "Volume"
             }
             """,
             Encoding.UTF8);
@@ -114,7 +114,7 @@ internal class LocalizationLoaderTests
         Assert.That(data.SlotLabel,       Is.EqualTo("Slot {0}"));
         Assert.That(data.SlotNoSave,      Is.EqualTo("  (no save)"));
         Assert.That(data.SlotActive,      Is.EqualTo("  ◀ active"));
-        Assert.That(data.SoundVolume,     Is.EqualTo("◀  Volume: {0}  ▶"));
+        Assert.That(data.SoundVolume,     Is.EqualTo("Volume"));
     }
 
     [Test]

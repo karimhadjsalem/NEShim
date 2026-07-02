@@ -34,6 +34,7 @@ internal class InGameMenuTests
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
+        NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
     private InGameMenu CreateMenu(
@@ -1056,6 +1057,51 @@ internal class InGameMenuTests
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
+    // ---- VideoFilter: overlay conflict (D3D11 mode) ----
+    // D3D11Supported order: PixelPerfect(0), Bilinear(1), CrtScanlines(2), CrtPhosphor(3), CrtScreen(4), NtscComposite(5), Xbr(6), Back(7)
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayMatches_ClearsOverlay()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);   // Bilinear (1)
+        menu.HandleKey(Keys.Down);   // CrtScanlines (2)
+        menu.HandleKey(Keys.Return); // select CrtScanlines — matches overlay
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayMatches_FiresOverlayCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        bool callbackFired = false;
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => { callbackFired = true; received = m; });
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // select CrtScanlines
+        Assert.That(callbackFired, Is.True);
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayDiffers_KeepsOverlay()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtPhosphor";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
+    }
+
     // ---- VideoOverlay sub-menu (GDI mode — overlay entry absent) ----
 
     [Test]
@@ -1487,134 +1533,46 @@ internal class InGameMenuTests
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
     }
 
-    // ---- VideoOverlayHandler ----
+    // ---- Video screen Overlay cycle (D3D11 mode, index 2) ----
 
-    [Test]
-    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    // In D3D11 mode the Video screen is: Window(0), Filter(1), Overlay(2), Motion(3), Picture(4), Overscan(5), FPS(6), Back(7).
+    private void OpenVideoScreenD3D11(InGameMenu menu)
     {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoOverlay));
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoScreen(menu);
     }
 
     [Test]
-    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    public void Video_D3D11_ItemCount_IsEight()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+        OpenVideoScreenD3D11(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
     [Test]
-    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        // None + CrtScanlines + CrtPhosphor + CrtScreen + Back = 5
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
-    }
-
-    [Test]
-    public void VideoOverlay_DefaultNone_HasCheckmark()
+    public void Video_D3D11_OverlayCycle_FromNone_SetsCrtScanlines()
     {
         var menu = CreateMenu();
         _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
-    }
-
-    [Test]
-    public void VideoOverlay_ActiveOverlay_HasCheckmark()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        var items = menu.GetCurrentItems();
-        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
-        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
-    }
-
-    [Test]
-    public void VideoOverlay_SelectNone_SetsConfigToNone()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None (index 0)
-        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
-    }
-
-    [Test]
-    public void VideoOverlay_SelectNone_FiresCallback()
-    {
-        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
-        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None
-        Assert.That(received, Is.Null);
-    }
-
-    [Test]
-    public void VideoOverlay_SelectOverlay_UpdatesConfig()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        OpenVideoScreenD3D11(menu);
+        menu.HandleKey(Keys.Down); // Filter (1)
+        menu.HandleKey(Keys.Down); // Overlay (2)
         menu.HandleKey(Keys.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
 
     [Test]
-    public void VideoOverlay_SelectOverlay_FiresCallback()
+    public void Video_D3D11_OverlayCycle_SkipsPrimaryFilter()
     {
-        NEShim.Rendering.VideoFilterMode? received = null;
-        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        var menu = CreateMenu();
+        _config.VideoFilter        = "CrtScanlines";
         _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
-    }
-
-    [Test]
-    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-    }
-
-    [Test]
-    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
-        menu.HandleKey(Keys.Return);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-    }
-
-    [Test]
-    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilter = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
-        Assert.That(menu.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
-    }
-
-    [Test]
-    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilter = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.IsItemEnabled(0), Is.True); // None always enabled
-        Assert.That(menu.IsItemEnabled(4), Is.True); // Back always enabled
+        OpenVideoScreenD3D11(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
     // ---- ControllerDisconnectedHandler ----
@@ -1855,5 +1813,165 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         Assert.That(menu.ActiveNesButton, Is.Null); // Root screen
+    }
+
+    // ---- VideoPicture sub-screen (D3D11 mode, Picture is index 4 in Video) ----
+
+    private void OpenVideoPictureScreen(InGameMenu menu)
+    {
+        OpenVideoScreenD3D11(menu);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Picture (index 4)
+        menu.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoPicture_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoPicture));
+    }
+
+    [Test]
+    public void VideoPicture_GetCurrentItems_ReturnsSixItems()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void VideoPicture_GetTitle_ReturnsPictureTitle()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("PICTURE"));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessSlider_Default_ContainsBlockBarAndZero()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items[1], Does.Contain("0"));
+        Assert.That(items[1], Does.Contain("█"));
+        Assert.That(items[1], Does.Contain("░"));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnBrightness_IncreasesConfigBrightness()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // to Brightness (index 1)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_LeftOnBrightness_DecreasesConfigBrightness()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = 10;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // to Brightness
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(9));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnContrast_IncreasesConfigContrast()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast (index 2)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoContrast, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnSaturation_IncreasesConfigSaturation()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation (index 3)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoSaturation, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessAt100_RightDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = 100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(100));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessAtMinus100_LeftDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = -100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(-100));
+    }
+
+    [Test]
+    public void VideoPicture_ColorPreset_Activate_CyclesColorFilter()
+    {
+        var menu = CreateMenu();
+        _config.VideoColorFilter = "None";
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Return); // activate ColorPreset (index 0)
+        Assert.That(_config.VideoColorFilter, Is.Not.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoPicture_Reset_SetsAllValuesToZeroAndColorToNone()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness  = 50;
+        _config.VideoContrast    = -30;
+        _config.VideoSaturation  = 25;
+        _config.VideoColorFilter = "Warm";
+        OpenVideoPictureScreen(menu);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Reset (index 4)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
+        Assert.That(_config.VideoContrast,    Is.EqualTo(0));
+        Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
+        Assert.That(_config.VideoColorFilter, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoPicture_Back_NavigatesToVideoScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Back (index 5)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoFilter D3D11: Xbr filter ----
+
+    [Test]
+    public void VideoFilter_D3D11_SelectXbr_UpdatesConfig()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoFilterSubMenu(menu);
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Xbr (index 6)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilter, Is.EqualTo("Xbr"));
     }
 }

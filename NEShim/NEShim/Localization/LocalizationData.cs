@@ -36,47 +36,44 @@ internal sealed class LocalizationData
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
 
     // ---- Video filter sub-menu ----
-    public string VideoFilterTitle           { get; init; } = "VIDEO FILTER";
-    public string VideoFilterOverlayLabel    { get; init; } = "Video Overlay";
-    public string VideoFilterOverlayTitle    { get; init; } = "VIDEO OVERLAY";
+    public string VideoFilterTitle         { get; init; } = "VIDEO FILTER";
     public string VideoFilterSmooth        { get; init; } = "Smooth";
     public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
     public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
     public string VideoFilterCrtScreen     { get; init; } = "CRT Screen";
-    public string VideoFilterXbr           { get; init; } = "xBR Upscale";
+    public string VideoFilterXbr           { get; init; } = "Sharp Pixel";
 
-    // ---- Color effect sub-menu ----
-    public string VideoColorFilterLabel    { get; init; } = "Color Effect";
-    public string VideoColorFilterTitle    { get; init; } = "COLOR EFFECT";
-    public string VideoColorFilterNone     { get; init; } = "None";
-    public string VideoColorFilterWarm     { get; init; } = "Warm";
+    // ---- Overlay (cycle item on Video screen) ----
+    public string VideoOverlayLabel { get; init; } = "Overlay";
+
+    // ---- Color preset and color effect names (used in Picture screen) ----
+    public string VideoColorPresetLabel     { get; init; } = "Color";
+    public string VideoColorFilterNone      { get; init; } = "None";
+    public string VideoColorFilterWarm      { get; init; } = "Warm";
     public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
     public string VideoColorFilterNesColors { get; init; } = "NES Colors";
     public string VideoColorFilterCool          { get; init; } = "Cool";
-    public string VideoColorFilterPhosphorAmber { get; init; } = "Phosphor Amber";
-    public string VideoColorFilterPhosphorGreen { get; init; } = "Phosphor Green";
+    public string VideoColorFilterPhosphorAmber { get; init; } = "Amber Mono";
+    public string VideoColorFilterPhosphorGreen { get; init; } = "Green Mono";
 
     // ---- Motion effect sub-menu ----
     public string VideoMotionEffectLabel    { get; init; } = "Motion";
     public string VideoMotionEffectTitle    { get; init; } = "MOTION EFFECT";
     public string VideoMotionEffectNone     { get; init; } = "None";
-    public string VideoMotionEffectCrtJitter       { get; init; } = "CRT Jitter";
-    public string VideoMotionEffectScanlineBob     { get; init; } = "Scanline Bob";
+    public string VideoMotionEffectCrtJitter           { get; init; } = "CRT Jitter";
+    public string VideoMotionEffectScanlineBob         { get; init; } = "Scanline Flicker";
     public string VideoMotionEffectMagneticDistortion  { get; init; } = "Magnetic Distortion";
-    public string VideoMotionEffectPhosphorPersistence { get; init; } = "Phosphor Glow";
+    public string VideoMotionEffectPhosphorPersistence { get; init; } = "Screen Glow";
 
-    // ---- Picture adjust sub-menu ----
-    public string VideoPictureLabel     { get; init; } = "Picture Adjust";
-    public string VideoPictureTitle     { get; init; } = "PICTURE ADJUST";
-    /// <summary>Format string — {0} is the value (-100..100).</summary>
-    public string VideoBrightnessLabel  { get; init; } = "◀  Brightness: {0}  ▶";
-    /// <summary>Format string — {0} is the value (-100..100).</summary>
-    public string VideoContrastLabel    { get; init; } = "◀  Contrast: {0}  ▶";
-    /// <summary>Format string — {0} is the value (-100..100).</summary>
-    public string VideoSaturationLabel  { get; init; } = "◀  Saturation: {0}  ▶";
-    public string VideoResetPicture     { get; init; } = "Reset to Default";
+    // ---- Picture sub-menu ----
+    public string VideoPictureLabel    { get; init; } = "Picture";
+    public string VideoPictureTitle    { get; init; } = "PICTURE";
+    public string VideoBrightnessLabel { get; init; } = "Brightness";
+    public string VideoContrastLabel   { get; init; } = "Contrast";
+    public string VideoSaturationLabel { get; init; } = "Saturation";
+    public string VideoResetPicture    { get; init; } = "Reset to Default";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";
@@ -84,8 +81,7 @@ internal sealed class LocalizationData
     public string OverscanUnderscan { get; init; } = "Underscan";
 
     // ---- Shared sound items ----
-    /// <summary>Format string — {0} is the volume value (0–100).</summary>
-    public string SoundVolume      { get; init; } = "◀  Volume: {0}  ▶";
+    public string SoundVolume      { get; init; } = "Volume";
     public string AudioFilterLabel { get; init; } = "Audio Filter";
     public string AudioFilterTitle { get; init; } = "AUDIO FILTER";
     /// <summary>Main menu only — not shown in the in-game pause menu.</summary>

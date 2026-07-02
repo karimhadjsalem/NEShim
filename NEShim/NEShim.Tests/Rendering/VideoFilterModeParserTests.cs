@@ -44,7 +44,7 @@ internal class VideoFilterModeParserTests
     // ---- D3D11Supported ----
 
     [Test]
-    public void D3D11Supported_ContainsSixEntries()
+    public void D3D11Supported_ContainsSevenEntries()
     {
         Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(7));
     }
@@ -179,6 +179,26 @@ internal class VideoFilterModeParserTests
     public void ParseOverlay_EmptyString_ReturnsNull()
     {
         Assert.That(VideoFilterModeParser.ParseOverlay(""), Is.Null);
+    }
+
+    // ---- Xbr ----
+
+    [Test]
+    public void Parse_Xbr_ReturnsXbrMode()
+    {
+        Assert.That(VideoFilterModeParser.Parse("Xbr"), Is.EqualTo(VideoFilterMode.Xbr));
+    }
+
+    [Test]
+    public void DisplayName_Xbr_ReturnsSharpPixel()
+    {
+        Assert.That(VideoFilterModeParser.DisplayName(VideoFilterMode.Xbr), Is.EqualTo("Sharp Pixel"));
+    }
+
+    [Test]
+    public void D3D11Supported_ContainsXbr()
+    {
+        Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.Xbr));
     }
 
 }

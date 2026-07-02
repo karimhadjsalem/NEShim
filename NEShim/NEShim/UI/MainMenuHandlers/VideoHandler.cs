@@ -9,6 +9,9 @@ internal sealed partial class MainMenuScreen
         private static readonly OverscanMode[] OverscanCycle =
             [OverscanMode.Overscan, OverscanMode.Normal, OverscanMode.Underscan];
 
+        private static readonly VideoFilterMode?[] OverlayCycle =
+            [null, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen];
+
         public VideoHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
@@ -22,27 +25,24 @@ internal sealed partial class MainMenuScreen
             string windowItem   = Menu._config.WindowMode == "Fullscreen"
                 ? Menu._localization.VideoWindowFullscreen
                 : Menu._localization.VideoWindowWindowed;
-            var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
-            string filterItem = overlayMode.HasValue
-                ? $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)} + {FilterDisplayName(overlayMode.Value)}"
-                : $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
+            string filterItem   = $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
             string overscanItem = $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}";
             string fpsItem      = Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff;
 
             if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
                 return [windowItem, filterItem, overscanItem, fpsItem, Menu._localization.Back];
 
-            var currentColor  = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
+            var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
             var currentMotion = VideoMotionEffectModeParser.Parse(Menu._config.VideoMotionEffect);
-            string colorItem   = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
+            string overlayItem = $"{Menu._localization.VideoOverlayLabel}: {OverlayDisplayName(overlayMode)}";
             string motionItem  = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
             string pictureItem = Menu._localization.VideoPictureLabel;
-            return [windowItem, filterItem, colorItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
+            return [windowItem, filterItem, overlayItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
         public override void Activate(int index)
         {
-            // In GDI mode Color Effect, Motion Effect, and Picture are hidden;
+            // In GDI mode Overlay, Motion Effect, and Picture are hidden;
             // shift indices ≥ 2 to align with the full D3D11 layout.
             if (!NEShim.Platform.PlatformDetector.IsD3D11Active && index >= 2)
                 index += 3;
@@ -56,7 +56,7 @@ internal sealed partial class MainMenuScreen
                     Menu.NavigateTo(Screen.VideoFilter);
                     break;
                 case 2:
-                    Menu.NavigateTo(Screen.VideoColorFilter);
+                    CycleOverlay();
                     break;
                 case 3:
                     Menu.NavigateTo(Screen.VideoMotionEffect);
@@ -81,6 +81,26 @@ internal sealed partial class MainMenuScreen
             }
         }
 
+        private void CycleOverlay()
+        {
+            var current  = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
+            var primary  = VideoFilterModeParser.Parse(Menu._config.VideoFilter);
+            int startIdx = Array.IndexOf(OverlayCycle, current);
+            if (startIdx < 0) startIdx = 0;
+
+            for (int i = 1; i <= OverlayCycle.Length; i++)
+            {
+                int nextIdx   = (startIdx + i) % OverlayCycle.Length;
+                var candidate = OverlayCycle[nextIdx];
+                if (!candidate.HasValue || candidate.Value != primary)
+                {
+                    Menu._config.VideoFilterOverlay = candidate.HasValue ? candidate.Value.ToString() : "None";
+                    Menu._onVideoFilterOverlayChanged(candidate);
+                    return;
+                }
+            }
+        }
+
         private string FilterDisplayName(VideoFilterMode mode) => mode switch
         {
             VideoFilterMode.Bilinear      => Menu._localization.VideoFilterSmooth,
@@ -93,16 +113,13 @@ internal sealed partial class MainMenuScreen
             _                             => mode.ToString(),
         };
 
-        private string ColorDisplayName(VideoColorFilterMode mode) => mode switch
+        private string OverlayDisplayName(VideoFilterMode? mode) => mode switch
         {
-            VideoColorFilterMode.None               => Menu._localization.VideoColorFilterNone,
-            VideoColorFilterMode.Warm               => Menu._localization.VideoColorFilterWarm,
-            VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
-            VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
-            VideoColorFilterMode.Cool               => Menu._localization.VideoColorFilterCool,
-            VideoColorFilterMode.PhosphorAmber      => Menu._localization.VideoColorFilterPhosphorAmber,
-            VideoColorFilterMode.PhosphorGreen      => Menu._localization.VideoColorFilterPhosphorGreen,
-            _                                       => mode.ToString(),
+            null                         => Menu._localization.VideoColorFilterNone,
+            VideoFilterMode.CrtScanlines => Menu._localization.VideoFilterCrtScanlines,
+            VideoFilterMode.CrtPhosphor  => Menu._localization.VideoFilterCrtPhosphor,
+            VideoFilterMode.CrtScreen    => Menu._localization.VideoFilterCrtScreen,
+            _                            => mode.ToString()!,
         };
 
         private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch

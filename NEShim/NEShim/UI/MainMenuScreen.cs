@@ -166,15 +166,13 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.Settings]         = new SettingsHandler(this),
             [Screen.KeyboardBindings] = new KeyboardBindingsHandler(this),
             [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
-            [Screen.Video]            = new VideoHandler(this),
-            [Screen.Sound]            = new SoundHandler(this),
-            [Screen.AudioFilter]      = new AudioFilterHandler(this),
-            [Screen.VideoFilter]      = new VideoFilterHandler(this),
-            [Screen.VideoOverlay]     = new VideoOverlayHandler(this),
-            [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
+            [Screen.Video]             = new VideoHandler(this),
+            [Screen.Sound]             = new SoundHandler(this),
+            [Screen.AudioFilter]       = new AudioFilterHandler(this),
+            [Screen.VideoFilter]       = new VideoFilterHandler(this),
             [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
-            [Screen.VideoPicture]     = new VideoPictureHandler(this),
-            [Screen.Language]         = new LanguageHandler(this),
+            [Screen.VideoPicture]      = new VideoPictureHandler(this),
+            [Screen.Language]          = new LanguageHandler(this),
         };
 
     // ---- Show (re-entry from in-game) ----
@@ -341,10 +339,12 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     internal void ResetPicture()
     {
-        _config.VideoBrightness = 0;
-        _config.VideoContrast   = 0;
-        _config.VideoSaturation = 0;
+        _config.VideoBrightness  = 0;
+        _config.VideoContrast    = 0;
+        _config.VideoSaturation  = 0;
+        _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
         _onPictureAdjustChanged(0, 0, 0);
+        _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
     }
 
     private void NavigateCursor(int direction)
@@ -390,9 +390,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
-        Screen.VideoFilter      => Screen.Video,
-        Screen.VideoOverlay     => Screen.VideoFilter,
-        Screen.VideoColorFilter  => Screen.Video,
+        Screen.VideoFilter       => Screen.Video,
         Screen.VideoMotionEffect => Screen.Video,
         Screen.VideoPicture      => Screen.Video,
         Screen.Language          => Screen.Settings,

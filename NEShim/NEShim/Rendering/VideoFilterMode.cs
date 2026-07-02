@@ -53,7 +53,7 @@ public static class VideoFilterModeParser
         VideoFilterMode.CrtPhosphor   => "CRT Phosphor",
         VideoFilterMode.NtscComposite => "NTSC Composite",
         VideoFilterMode.CrtScreen     => "CRT Screen",
-        VideoFilterMode.Xbr           => "xBR Upscale",
+        VideoFilterMode.Xbr           => "Sharp Pixel",
         _                             => mode.ToString(),
     };
 }

@@ -10,6 +10,16 @@ internal sealed partial class InGameMenu
         private const int FilterIndex = 1;
         private const int BackIndex   = 2;
 
+        private const int BarWidth = 20;
+
+        private static string VolumeSlider(string label, int value)
+        {
+            int filled = (int)Math.Round(value / 100.0 * BarWidth);
+            filled     = Math.Clamp(filled, 0, BarWidth);
+            string bar = new string('█', filled) + new string('░', BarWidth - filled);
+            return $"{label}  ◀{bar}▶  {value.ToString().PadLeft(3)}";
+        }
+
         public SoundHandler(InGameMenu menu) : base(menu) { }
 
         public override string   Title     => Menu._localization.SoundTitle;
@@ -19,7 +29,7 @@ internal sealed partial class InGameMenu
         {
             var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
             var items = new string[3];
-            items[VolumeIndex] = string.Format(Menu._localization.SoundVolume, Menu._config.Volume);
+            items[VolumeIndex] = VolumeSlider(Menu._localization.SoundVolume, Menu._config.Volume);
             items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {Menu.AudioFilterDisplayName(mode)}";
             items[BackIndex]   = Menu._localization.Back;
             return items;

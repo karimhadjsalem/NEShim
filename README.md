@@ -15,8 +15,8 @@ https://karimhadjsalem.github.io/NEShim/
 - **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
-- **Audio** — volume control and seven audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation)
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds five structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, and three motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion) — all independently stackable; see [Filters](#filters) below
+- **Audio** — volume control and eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter)
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), and **picture adjustments** (brightness, contrast, saturation) — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -61,7 +61,7 @@ Full configuration reference and a step-by-step publishing guide are on the proj
 
 ### Audio filters
 
-Seven audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, and Saturation. Switching takes effect immediately with no audio pop.
+Eight audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, and Pop Filter (DMC click reduction). Switching takes effect immediately with no audio pop.
 
 ### Video filters
 
@@ -77,6 +77,7 @@ Each rendering path exposes its own set of structural filters:
 | CRT Phosphor (scanlines + aperture-grille mask) | — | D3D11 only |
 | CRT Screen (barrel distortion + chromatic aberration + vignette) | — | D3D11 only |
 | NTSC Composite | — | D3D11 only |
+| Sharp Pixel (Scale2x/EPX edge-preserving upscaler) | — | D3D11 only |
 
 D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
 
@@ -96,7 +97,7 @@ If `config.json` specifies a filter not supported by the active renderer, NEShim
 
 A second structural filter pass applied on top of the primary structural filter. When active, `D3D11Renderer` renders the primary filter to an intermediate render target at letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the final swap chain buffer. Color grading is deferred to the second pass so it is applied only once to the combined image.
 
-Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
+Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots; switching the primary filter to one that matches the current overlay automatically resets the overlay to None. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
 
 **Overscan mode** is available in both renderers and controls how the 256×240 NES frame is cropped and scaled:
 
@@ -118,6 +119,10 @@ Filter and overscan changes take effect immediately while the game is running �
 | Magnetic Distortion | Per-pixel sine-wave UV warp simulating a magnetic field deflecting the CRT electron beam unevenly |
 
 Motion effects compose with all structural filters, the Video Overlay slot, and color effects.
+
+### Picture Adjustments (D3D11 only)
+
+Three independent sliders available under **Settings → Video → Picture**: **Brightness** (−100 to +100), **Contrast** (−100 to +100), and **Saturation** (−100 to +100). Applied as a post-process pass after all structural, overlay, and motion effect passes. All three default to 0 (neutral); when all are neutral the pass is skipped entirely with no rendering overhead.
 
 ### Developer note — injectable filter architecture
 
