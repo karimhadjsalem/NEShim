@@ -100,6 +100,12 @@ public sealed class AppConfig
     // If true and AudioFilter is still "Default", the loader promotes to "Warm".
     public bool SoundScrubberEnabled { get; set; } = false;
 
+    // Brightness/Contrast/Saturation picture adjustments (-100..100; 0 = neutral).
+    // Applied as a D3D11 post-process pass after the structural filter.
+    public int VideoBrightness { get; set; } = 0;
+    public int VideoContrast   { get; set; } = 0;
+    public int VideoSaturation { get; set; } = 0;
+
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
 

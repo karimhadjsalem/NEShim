@@ -94,6 +94,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<Rendering.VideoMotionEffectMode> _onVideoMotionEffectChanged;
     private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
     private readonly Action<string>                         _onLanguageChanged;
+    private readonly Action<int, int, int>                  _onPictureAdjustChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -119,6 +120,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                         onLanguageChanged,
+        Action<int, int, int>                  onPictureAdjustChanged,
         Bitmap?          bgImage = null)
     {
         _saveStates                = saveStates;
@@ -135,6 +137,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onVideoMotionEffectChanged  = onVideoMotionEffectChanged;
         _onOverscanModeChanged      = onOverscanModeChanged;
         _onLanguageChanged         = onLanguageChanged;
+        _onPictureAdjustChanged    = onPictureAdjustChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -170,6 +173,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.VideoOverlay]     = new VideoOverlayHandler(this),
             [Screen.VideoColorFilter] = new VideoColorFilterHandler(this),
             [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
+            [Screen.VideoPicture]     = new VideoPictureHandler(this),
             [Screen.Language]         = new LanguageHandler(this),
         };
 
@@ -216,6 +220,12 @@ internal sealed partial class MainMenuScreen : IDisposable
         {
             if (key == Keys.Left)  { AdjustVolume(-5); return true; }
             if (key == Keys.Right) { AdjustVolume( 5); return true; }
+        }
+
+        if (CurrentScreen == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedIndex))
+        {
+            if (key == Keys.Left)  { AdjustPicture(SelectedIndex, -1); return true; }
+            if (key == Keys.Right) { AdjustPicture(SelectedIndex,  1); return true; }
         }
 
         switch (key)
@@ -283,6 +293,12 @@ internal sealed partial class MainMenuScreen : IDisposable
             if (nav.Right) { AdjustVolume( 5); return; }
         }
 
+        if (CurrentScreen == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedIndex))
+        {
+            if (nav.Left)  { AdjustPicture(SelectedIndex, -1); return; }
+            if (nav.Right) { AdjustPicture(SelectedIndex,  1); return; }
+        }
+
         if (nav.Up)   NavigateCursor(-1);
         if (nav.Down) NavigateCursor(1);
 
@@ -304,6 +320,31 @@ internal sealed partial class MainMenuScreen : IDisposable
         if (next == _config.Volume) return;
         _config.Volume = next;
         _onVolumeChanged(next);
+    }
+
+    private void AdjustPicture(int sliderIndex, int delta)
+    {
+        switch (sliderIndex)
+        {
+            case VideoPictureHandler.BrightnessIndex:
+                _config.VideoBrightness = Math.Clamp(_config.VideoBrightness + delta, -100, 100);
+                break;
+            case VideoPictureHandler.ContrastIndex:
+                _config.VideoContrast = Math.Clamp(_config.VideoContrast + delta, -100, 100);
+                break;
+            case VideoPictureHandler.SaturationIndex:
+                _config.VideoSaturation = Math.Clamp(_config.VideoSaturation + delta, -100, 100);
+                break;
+        }
+        _onPictureAdjustChanged(_config.VideoBrightness, _config.VideoContrast, _config.VideoSaturation);
+    }
+
+    internal void ResetPicture()
+    {
+        _config.VideoBrightness = 0;
+        _config.VideoContrast   = 0;
+        _config.VideoSaturation = 0;
+        _onPictureAdjustChanged(0, 0, 0);
     }
 
     private void NavigateCursor(int direction)
@@ -351,9 +392,11 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.AudioFilter      => Screen.Sound,
         Screen.VideoFilter      => Screen.Video,
         Screen.VideoOverlay     => Screen.VideoFilter,
-        Screen.VideoColorFilter => Screen.Video,
-        Screen.Language         => Screen.Settings,
-        _                       => Screen.Main,
+        Screen.VideoColorFilter  => Screen.Video,
+        Screen.VideoMotionEffect => Screen.Video,
+        Screen.VideoPicture      => Screen.Video,
+        Screen.Language          => Screen.Settings,
+        _                        => Screen.Main,
     };
 
     // ---- Resume-slot list ----
@@ -425,14 +468,15 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
     {
-        AudioFilterMode.Default      => _localization.AudioFilterDefault,
-        AudioFilterMode.Warm         => _localization.AudioFilterWarm,
-        AudioFilterMode.PseudoStereo => _localization.AudioFilterPseudoStereo,
-        AudioFilterMode.WarmStereo   => _localization.AudioFilterWarmStereo,
-        AudioFilterMode.Compression  => _localization.AudioFilterCompression,
-        AudioFilterMode.BassBoost    => _localization.AudioFilterBassBoost,
-        AudioFilterMode.Saturation   => _localization.AudioFilterSaturation,
-        _                            => mode.ToString(),
+        AudioFilterMode.Default       => _localization.AudioFilterDefault,
+        AudioFilterMode.Warm          => _localization.AudioFilterWarm,
+        AudioFilterMode.PseudoStereo  => _localization.AudioFilterPseudoStereo,
+        AudioFilterMode.WarmStereo    => _localization.AudioFilterWarmStereo,
+        AudioFilterMode.Compression   => _localization.AudioFilterCompression,
+        AudioFilterMode.BassBoost     => _localization.AudioFilterBassBoost,
+        AudioFilterMode.Saturation    => _localization.AudioFilterSaturation,
+        AudioFilterMode.DmcStabilizer => _localization.AudioFilterDmcStabilizer,
+        _                             => mode.ToString(),
     };
 
     // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.

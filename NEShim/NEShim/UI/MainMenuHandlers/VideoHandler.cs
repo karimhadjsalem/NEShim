@@ -12,7 +12,7 @@ internal sealed partial class MainMenuScreen
         public VideoHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 7 : 5;
+        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 8 : 5;
 
         public override string[] GetItems()
         {
@@ -34,16 +34,18 @@ internal sealed partial class MainMenuScreen
 
             var currentColor  = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
             var currentMotion = VideoMotionEffectModeParser.Parse(Menu._config.VideoMotionEffect);
-            string colorItem  = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
-            string motionItem = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
-            return [windowItem, filterItem, colorItem, motionItem, overscanItem, fpsItem, Menu._localization.Back];
+            string colorItem   = $"{Menu._localization.VideoColorFilterLabel}: {ColorDisplayName(currentColor)}";
+            string motionItem  = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
+            string pictureItem = Menu._localization.VideoPictureLabel;
+            return [windowItem, filterItem, colorItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
         public override void Activate(int index)
         {
-            // In GDI mode Color Effect and Motion Effect are hidden; shift indices ≥ 2 to match the full layout.
+            // In GDI mode Color Effect, Motion Effect, and Picture are hidden;
+            // shift indices ≥ 2 to align with the full D3D11 layout.
             if (!NEShim.Platform.PlatformDetector.IsD3D11Active && index >= 2)
-                index += 2;
+                index += 3;
 
             switch (index)
             {
@@ -60,17 +62,20 @@ internal sealed partial class MainMenuScreen
                     Menu.NavigateTo(Screen.VideoMotionEffect);
                     break;
                 case 4:
+                    Menu.NavigateTo(Screen.VideoPicture);
+                    break;
+                case 5:
                     var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
                     int nextIdx         = (Array.IndexOf(OverscanCycle, currentOverscan) + 1) % OverscanCycle.Length;
                     var newOverscan     = OverscanCycle[nextIdx];
                     Menu._config.OverscanMode = newOverscan.ToString();
                     Menu._onOverscanModeChanged(newOverscan);
                     break;
-                case 5:
+                case 6:
                     Menu._config.ShowFps = !Menu._config.ShowFps;
                     Menu._onConfigSaved();
                     break;
-                case 6:
+                case 7:
                     Menu.NavigateTo(Screen.Settings);
                     break;
             }
@@ -84,6 +89,7 @@ internal sealed partial class MainMenuScreen
             VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
             VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
             VideoFilterMode.CrtScreen     => Menu._localization.VideoFilterCrtScreen,
+            VideoFilterMode.Xbr           => Menu._localization.VideoFilterXbr,
             _                             => mode.ToString(),
         };
 
@@ -101,10 +107,12 @@ internal sealed partial class MainMenuScreen
 
         private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
         {
-            VideoMotionEffectMode.None        => Menu._localization.VideoMotionEffectNone,
-            VideoMotionEffectMode.CrtJitter   => Menu._localization.VideoMotionEffectCrtJitter,
-            VideoMotionEffectMode.ScanlineBob => Menu._localization.VideoMotionEffectScanlineBob,
-            _                                 => mode.ToString(),
+            VideoMotionEffectMode.None                 => Menu._localization.VideoMotionEffectNone,
+            VideoMotionEffectMode.CrtJitter            => Menu._localization.VideoMotionEffectCrtJitter,
+            VideoMotionEffectMode.ScanlineBob          => Menu._localization.VideoMotionEffectScanlineBob,
+            VideoMotionEffectMode.MagneticDistortion   => Menu._localization.VideoMotionEffectMagneticDistortion,
+            VideoMotionEffectMode.PhosphorPersistence  => Menu._localization.VideoMotionEffectPhosphorPersistence,
+            _                                          => mode.ToString(),
         };
 
         private string OverscanDisplayName(OverscanMode mode) => mode switch

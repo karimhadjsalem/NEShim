@@ -45,6 +45,7 @@ internal sealed class LocalizationData
     public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
     public string VideoFilterCrtScreen     { get; init; } = "CRT Screen";
+    public string VideoFilterXbr           { get; init; } = "xBR Upscale";
 
     // ---- Color effect sub-menu ----
     public string VideoColorFilterLabel    { get; init; } = "Color Effect";
@@ -61,8 +62,21 @@ internal sealed class LocalizationData
     public string VideoMotionEffectLabel    { get; init; } = "Motion";
     public string VideoMotionEffectTitle    { get; init; } = "MOTION EFFECT";
     public string VideoMotionEffectNone     { get; init; } = "None";
-    public string VideoMotionEffectCrtJitter  { get; init; } = "CRT Jitter";
-    public string VideoMotionEffectScanlineBob { get; init; } = "Scanline Bob";
+    public string VideoMotionEffectCrtJitter       { get; init; } = "CRT Jitter";
+    public string VideoMotionEffectScanlineBob     { get; init; } = "Scanline Bob";
+    public string VideoMotionEffectMagneticDistortion  { get; init; } = "Magnetic Distortion";
+    public string VideoMotionEffectPhosphorPersistence { get; init; } = "Phosphor Glow";
+
+    // ---- Picture adjust sub-menu ----
+    public string VideoPictureLabel     { get; init; } = "Picture Adjust";
+    public string VideoPictureTitle     { get; init; } = "PICTURE ADJUST";
+    /// <summary>Format string — {0} is the value (-100..100).</summary>
+    public string VideoBrightnessLabel  { get; init; } = "◀  Brightness: {0}  ▶";
+    /// <summary>Format string — {0} is the value (-100..100).</summary>
+    public string VideoContrastLabel    { get; init; } = "◀  Contrast: {0}  ▶";
+    /// <summary>Format string — {0} is the value (-100..100).</summary>
+    public string VideoSaturationLabel  { get; init; } = "◀  Saturation: {0}  ▶";
+    public string VideoResetPicture     { get; init; } = "Reset to Default";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";
@@ -84,8 +98,9 @@ internal sealed class LocalizationData
     public string AudioFilterPseudoStereo { get; init; } = "Pseudo Stereo";
     public string AudioFilterWarmStereo   { get; init; } = "Warm Stereo";
     public string AudioFilterCompression  { get; init; } = "Compression";
-    public string AudioFilterBassBoost    { get; init; } = "Bass Boost";
+    public string AudioFilterBassBoost     { get; init; } = "Bass Boost";
     public string AudioFilterSaturation   { get; init; } = "Saturation";
+    public string AudioFilterDmcStabilizer { get; init; } = "Pop Filter";
 
     // ---- Shared rebind screen titles ----
     /// <summary>Format string — {0} is the uppercase binding label, e.g. "UP".</summary>

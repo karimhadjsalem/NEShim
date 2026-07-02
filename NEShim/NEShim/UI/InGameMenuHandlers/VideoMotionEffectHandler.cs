@@ -43,10 +43,12 @@ internal sealed partial class InGameMenu
 
         private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
         {
-            VideoMotionEffectMode.None      => Menu._localization.VideoMotionEffectNone,
-            VideoMotionEffectMode.CrtJitter   => Menu._localization.VideoMotionEffectCrtJitter,
-            VideoMotionEffectMode.ScanlineBob => Menu._localization.VideoMotionEffectScanlineBob,
-            _                                 => mode.ToString(),
+            VideoMotionEffectMode.None                 => Menu._localization.VideoMotionEffectNone,
+            VideoMotionEffectMode.CrtJitter            => Menu._localization.VideoMotionEffectCrtJitter,
+            VideoMotionEffectMode.ScanlineBob          => Menu._localization.VideoMotionEffectScanlineBob,
+            VideoMotionEffectMode.MagneticDistortion   => Menu._localization.VideoMotionEffectMagneticDistortion,
+            VideoMotionEffectMode.PhosphorPersistence  => Menu._localization.VideoMotionEffectPhosphorPersistence,
+            _                                          => mode.ToString(),
         };
     }
 }

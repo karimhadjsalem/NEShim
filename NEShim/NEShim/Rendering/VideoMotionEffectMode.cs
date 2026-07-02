@@ -6,20 +6,22 @@ public enum VideoMotionEffectMode
     CrtJitter,
     ScanlineBob,
     MagneticDistortion,
+    PhosphorPersistence,
 }
 
 public static class VideoMotionEffectModeParser
 {
     // Most likely used first: None, CRT Jitter, Scanline Bob
     public static readonly VideoMotionEffectMode[] AllModes =
-        [VideoMotionEffectMode.None, VideoMotionEffectMode.CrtJitter, VideoMotionEffectMode.ScanlineBob, VideoMotionEffectMode.MagneticDistortion];
+        [VideoMotionEffectMode.None, VideoMotionEffectMode.CrtJitter, VideoMotionEffectMode.ScanlineBob, VideoMotionEffectMode.MagneticDistortion, VideoMotionEffectMode.PhosphorPersistence];
 
     public static VideoMotionEffectMode Parse(string value) => value switch
     {
         "None"               => VideoMotionEffectMode.None,
         "CrtJitter"          => VideoMotionEffectMode.CrtJitter,
         "ScanlineBob"        => VideoMotionEffectMode.ScanlineBob,
-        "MagneticDistortion" => VideoMotionEffectMode.MagneticDistortion,
+        "MagneticDistortion"  => VideoMotionEffectMode.MagneticDistortion,
+        "PhosphorPersistence" => VideoMotionEffectMode.PhosphorPersistence,
         _ => throw new ArgumentException($"Unknown videoMotionEffect value: '{value}'"),
     };
 
@@ -28,7 +30,8 @@ public static class VideoMotionEffectModeParser
         VideoMotionEffectMode.None               => "None",
         VideoMotionEffectMode.CrtJitter          => "CRT Jitter",
         VideoMotionEffectMode.ScanlineBob        => "Scanline Bob",
-        VideoMotionEffectMode.MagneticDistortion => "Magnetic Distortion",
-        _                                        => mode.ToString(),
+        VideoMotionEffectMode.MagneticDistortion  => "Magnetic Distortion",
+        VideoMotionEffectMode.PhosphorPersistence => "Phosphor Glow",
+        _                                         => mode.ToString(),
     };
 }

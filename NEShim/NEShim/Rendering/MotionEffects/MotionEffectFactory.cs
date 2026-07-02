@@ -6,7 +6,8 @@ internal static class MotionEffectFactory
     {
         VideoMotionEffectMode.CrtJitter          => new CrtJitterMotionEffect(),
         VideoMotionEffectMode.ScanlineBob        => new ScanlineBobMotionEffect(),
-        VideoMotionEffectMode.MagneticDistortion => new MagneticDistortionMotionEffect(),
-        _                                        => new NoneMotionEffect(),
+        VideoMotionEffectMode.MagneticDistortion  => new MagneticDistortionMotionEffect(),
+        VideoMotionEffectMode.PhosphorPersistence => new PhosphorPersistenceMotionEffect(),
+        _                                         => new NoneMotionEffect(),
     };
 }

@@ -81,8 +81,16 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     // Intermediate render targets — each groups a D3D11 texture, RTV, SRV, and pixel
     // dimensions into a single object so the three sub-resources always move together.
-    private readonly IntermediateRenderTarget _overlayRt      = new();
-    private readonly IntermediateRenderTarget _motionEffectRt = new();
+    private readonly IntermediateRenderTarget _overlayRt        = new();
+    private readonly IntermediateRenderTarget _motionEffectRt   = new();
+    private readonly IntermediateRenderTarget _temporalRtA      = new();
+    private readonly IntermediateRenderTarget _temporalRtB      = new();
+    private          bool                     _temporalUseA     = true;
+    private readonly IntermediateRenderTarget _pictureAdjustRt  = new();
+    private          ID3D11PixelShader?       _pictureAdjustPixelShader;
+    private          float                    _brightness        = 0f;
+    private          float                    _contrast          = 1f;
+    private          float                    _saturation        = 1f;
 
     // Pixel dimensions of the letterbox rect — updated in UpdateLetterboxRect.
     private int _letterboxPixelW;
@@ -176,9 +184,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // DXVK on Proton compiles these DXBC bytecodes to SPIR-V at first launch
         // and caches them in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
         // The passthrough shaders are trivially simple, so first-launch compile is near-instant.
-        _vertexShader           = device.CreateVertexShader(vsBytes);
-        _passthroughPixelShader = device.CreatePixelShader(psBytes);
-        _activePixelShader      = _passthroughPixelShader;
+        _vertexShader              = device.CreateVertexShader(vsBytes);
+        _passthroughPixelShader    = device.CreatePixelShader(psBytes);
+        _activePixelShader         = _passthroughPixelShader;
+        _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.PictureAdjust.ps.cso");
 
         // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
         // Always present — every pixel shader reads from b0.
@@ -370,6 +379,18 @@ internal sealed class D3D11Renderer : IFrameRenderer
         SyncMotionEffectRt();
     }
 
+    /// <summary>
+    /// Updates the brightness, contrast, and saturation post-process pass.
+    /// Values are on a -100..100 scale; 0 = neutral.
+    /// </summary>
+    public void SetPictureAdjust(int brightness, int contrast, int saturation)
+    {
+        _brightness = brightness * 0.002f;
+        _contrast   = 1f + contrast   * 0.01f;
+        _saturation = 1f + saturation * 0.01f;
+        SyncPictureAdjustRt();
+    }
+
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
     {
         _activeOverlay            = overlay;
@@ -399,6 +420,13 @@ internal sealed class D3D11Renderer : IFrameRenderer
         UpdateLetterboxRect();
     }
 
+    // Routes NES content draws to the picture adjust RT when B/C/S are non-default.
+    private ID3D11RenderTargetView CurrentFinalTarget =>
+        _pictureAdjustRt.IsReady ? _pictureAdjustRt.Rtv! : _renderTargetView;
+
+    private bool IsPictureAdjustActive =>
+        _brightness != 0f || _contrast != 1f || _saturation != 1f;
+
     /// <summary>
     /// Recreates size-dependent D3D11 resources after a window resize or mode change.
     /// Must be called on the UI thread.
@@ -427,8 +455,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _viewportHeight   = Math.Max(height, 1);
 
         CreateOverlayResources();
-        UpdateLetterboxRect();  // -> SyncMotionEffectRt at new letterbox dimensions
+        UpdateLetterboxRect();  // -> SyncMotionEffectRt (which calls SyncTemporalRts) at new letterbox dimensions
         SyncOverlayRt();        // overlay RT also needs to reflect new letterbox dimensions
+        SyncPictureAdjustRt();  // picture adjust RT matches viewport size
     }
 
     public void Dispose()
@@ -438,6 +467,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
         DisposeOverlayResources();
         _overlayRt.Dispose();
         _motionEffectRt.Dispose();
+        _temporalRtA.Dispose();
+        _temporalRtB.Dispose();
+        _pictureAdjustRt.Dispose();
         DisposeSidebarResources();
         _alphaBlendState.Dispose();
         _scissorRasterizerState.Dispose();
@@ -465,26 +497,34 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _drawFrameCount++;
 
         if (_activeOverlay is not null && _overlayRt.IsReady)
-            DrawTwoPass(vsync);
+            DrawTwoPass();
         else
-            DrawSinglePass(vsync);
+            DrawSinglePass();
+
+        DrawPictureAdjust();
+        DrawOverlay();
+        PresentAndCheckResult(vsync);
     }
 
-    private void DrawSinglePass(bool vsync)
+    private void DrawSinglePass()
     {
         if (_motionEffectRt.IsReady)
         {
             // Sub-pass A: structural filter → motion effect intermediate, colorMode deferred.
             DrawStructuralFilterToTarget(_motionEffectRt);
 
-            // Sub-pass B: motion effect shader → backbuffer.
-            DrawMotionEffectToBackbuffer();
+            // Sub-pass B: motion effect (or temporal blend) → final target.
+            if (_temporalRtA.IsReady)
+                DrawTemporalMotionEffect();
+            else
+                DrawMotionEffectToBackbuffer();
         }
         else
         {
-            _context.OMSetRenderTargets(_renderTargetView);
+            var finalTarget = CurrentFinalTarget;
+            _context.OMSetRenderTargets(finalTarget);
             _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
             SetupPipelineState();
             UpdateFilterCbuffer();
             if (_hasSidebars) DrawSidebars();
@@ -492,11 +532,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
                         0f, _nesV0, 1f, _nesV1);
         }
         _context.RSSetState(null);
-        DrawOverlay();
-        PresentAndCheckResult(vsync);
     }
 
-    private void DrawTwoPass(bool vsync)
+    private void DrawTwoPass()
     {
         // Pass 1: primary filter → overlay intermediate, colorMode deferred.
         DrawStructuralFilterToTarget(_overlayRt);
@@ -514,15 +552,19 @@ internal sealed class D3D11Renderer : IFrameRenderer
             WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, 0f, 1f, 1f);
             _context.Draw(6, 0);
 
-            // Pass 3: motion effect shader → backbuffer.
-            DrawMotionEffectToBackbuffer();
+            // Pass 3: motion effect (or temporal blend) → final target.
+            if (_temporalRtA.IsReady)
+                DrawTemporalMotionEffect();
+            else
+                DrawMotionEffectToBackbuffer();
         }
         else
         {
-            // Pass 2: overlay filter → backbuffer, reading from overlay intermediate.
-            _context.OMSetRenderTargets(_renderTargetView);
+            // Pass 2: overlay filter → final target, reading from overlay intermediate.
+            var finalTarget = CurrentFinalTarget;
+            _context.OMSetRenderTargets(finalTarget);
             _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-            _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+            _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
             UpdateOverlayCbuffer();
             if (_hasSidebars) DrawSidebars();
             _context.PSSetShader(_activeOverlayPixelShader!);
@@ -533,8 +575,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         _context.RSSetState(null);
         _context.PSSetShaderResource(0, _nesTextureView);
-        DrawOverlay();
-        PresentAndCheckResult(vsync);
     }
 
     // Renders the NES texture through the structural filter (colorMode deferred to 0)
@@ -553,18 +593,54 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     // Renders from the motion effect intermediate RT through the ME pixel shader to the
-    // backbuffer. Sidebars are drawn first so they appear behind the NES viewport.
+    // final target. Sidebars are drawn first so they appear behind the NES viewport.
     private void DrawMotionEffectToBackbuffer()
     {
-        _context.OMSetRenderTargets(_renderTargetView);
+        var finalTarget = CurrentFinalTarget;
+        _context.OMSetRenderTargets(finalTarget);
         _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
+        _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
         if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
         _context.PSSetShader(_motionEffectPixelShader);
         _context.PSSetSampler(0, _linearSamplerState);
         var jitter = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
         WriteMotionEffectCbuffer();
         DrawNesQuad(_motionEffectRt.Srv!, jitter, 0f, 0f, 1f, 1f);
+    }
+
+    // Temporal phosphor blend: reads current frame (t0) + history (t1) → write RT,
+    // then blits the result to the final target with sidebars. Flips the ping-pong each call.
+    private void DrawTemporalMotionEffect()
+    {
+        var historyRt = _temporalUseA ? _temporalRtA : _temporalRtB;
+        var writeRt   = _temporalUseA ? _temporalRtB : _temporalRtA;
+
+        // Blend pass: current (_motionEffectRt = t0) + history (t1) → writeRt
+        _context.OMSetRenderTargets(writeRt.Rtv!);
+        _context.RSSetViewport(0, 0, writeRt.Width, writeRt.Height);
+        _context.ClearRenderTargetView(writeRt.Rtv!, new Color4(0f, 0f, 0f, 0f));
+        _context.PSSetShader(_motionEffectPixelShader);
+        _context.PSSetSampler(0, _activeMotionEffect.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+        _context.PSSetShaderResource(0, _motionEffectRt.Srv!);
+        _context.PSSetShaderResource(1, historyRt.Srv!);
+        WriteMotionEffectCbuffer();
+        WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, 0f, 1f, 1f);
+        _context.Draw(6, 0);
+        _context.PSSetShaderResource(1, null!); // unbind history SRV slot at D3D11 interop boundary
+
+        // Blit to final target (colorMode=0; already applied in blend pass)
+        var finalTarget = CurrentFinalTarget;
+        _context.OMSetRenderTargets(finalTarget);
+        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+        _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
+        if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
+        _context.PSSetShader(_passthroughPixelShader);
+        _context.PSSetSampler(0, _linearSamplerState);
+        UpdateFilterCbuffer(colorModeOverride: 0f);
+        DrawNesQuad(writeRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount), 0f, 0f, 1f, 1f);
+        _context.PSSetShader(_activePixelShader);
+
+        _temporalUseA = !_temporalUseA;
     }
 
     private void DrawNesQuad(ID3D11ShaderResourceView srv, (float dx, float dy) jitter,
@@ -611,7 +687,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private unsafe void UpdateFilterCbuffer(float? colorModeOverride = null)
     {
         Span<float> p = stackalloc float[4];
-        _activeFilter.WriteBaseParams(p, _contentWidth, _contentHeight);
+        _activeFilter.WriteBaseParams(p, _contentWidth, _nesHeight);
         p[3] = colorModeOverride ?? (float)_activeColorMode;
         WriteCbufferParams(p);
     }
@@ -619,7 +695,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private unsafe void UpdateOverlayCbuffer(float? colorModeOverride = null)
     {
         Span<float> p = stackalloc float[4];
-        _activeOverlay!.WriteBaseParams(p, _contentWidth, _contentHeight);
+        _activeOverlay!.WriteBaseParams(p, _contentWidth, _nesHeight);
         p[3] = colorModeOverride ?? (float)_activeColorMode;
         WriteCbufferParams(p);
     }
@@ -837,6 +913,60 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _motionEffectPixelShader is not null ? _letterboxPixelH : 0);
         if (changed && _motionEffectRt.IsReady)
             Logger.Log($"[D3D11Renderer] Motion effect intermediate RT created ({_motionEffectRt.Width}×{_motionEffectRt.Height}).");
+        SyncTemporalRts();
+    }
+
+    private void SyncTemporalRts()
+    {
+        bool needsTemporal = _activeMotionEffect.NeedsTemporalBuffer && _motionEffectPixelShader is not null;
+        int w = needsTemporal ? _letterboxPixelW : 0;
+        int h = needsTemporal ? _letterboxPixelH : 0;
+
+        bool changedA = _temporalRtA.Sync(_device, w, h);
+        bool changedB = _temporalRtB.Sync(_device, w, h);
+
+        if ((changedA || changedB) && _temporalRtA.IsReady)
+        {
+            _context.ClearRenderTargetView(_temporalRtA.Rtv!, new Color4(0f, 0f, 0f, 0f));
+            _context.ClearRenderTargetView(_temporalRtB.Rtv!, new Color4(0f, 0f, 0f, 0f));
+            _temporalUseA = true;
+            Logger.Log($"[D3D11Renderer] Temporal RTs created ({_temporalRtA.Width}×{_temporalRtA.Height}) for phosphor persistence.");
+        }
+    }
+
+    private void SyncPictureAdjustRt()
+    {
+        bool changed = _pictureAdjustRt.Sync(_device,
+            IsPictureAdjustActive ? _viewportWidth : 0,
+            IsPictureAdjustActive ? _viewportHeight : 0);
+        if (changed && _pictureAdjustRt.IsReady)
+            Logger.Log($"[D3D11Renderer] Picture adjust RT created ({_pictureAdjustRt.Width}×{_pictureAdjustRt.Height}).");
+    }
+
+    // Applies brightness/contrast/saturation to the picture adjust RT and blits to _renderTargetView.
+    // No-op when IsPictureAdjustActive is false (_pictureAdjustRt.IsReady is also false in that case).
+    private void DrawPictureAdjust()
+    {
+        if (!_pictureAdjustRt.IsReady) return;
+
+        Span<float> p = stackalloc float[4];
+        p[0] = _brightness;
+        p[1] = _contrast;
+        p[2] = _saturation;
+        p[3] = 0f;
+        WriteCbufferParams(p);
+
+        _context.OMSetRenderTargets(_renderTargetView);
+        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+        _context.PSSetShader(_pictureAdjustPixelShader);
+        _context.PSSetSampler(0, _linearSamplerState);
+        _context.PSSetShaderResource(0, _pictureAdjustRt.Srv!);
+        WriteQuadToVB(-1f, 1f, 1f, -1f);
+        _context.Draw(6, 0);
+
+        // Restore filter cbuffer so DrawOverlay sees the correct colorMode.
+        _context.PSSetShader(_activePixelShader);
+        UpdateFilterCbuffer();
     }
 
     private void DisposeSidebarResources()

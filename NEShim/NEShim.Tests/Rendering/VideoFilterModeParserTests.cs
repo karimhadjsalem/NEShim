@@ -46,7 +46,7 @@ internal class VideoFilterModeParserTests
     [Test]
     public void D3D11Supported_ContainsSixEntries()
     {
-        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(6));
+        Assert.That(VideoFilterModeParser.D3D11Supported.Length, Is.EqualTo(7));
     }
 
     [Test]

@@ -62,6 +62,14 @@ internal interface IFrameRenderer : IDisposable
     void MarkOverlayDirty();
 
     /// <summary>
+    /// Applies Brightness / Contrast / Saturation picture adjustments.
+    /// Values are integers in the range -100..100; 0 = neutral for all three.
+    /// D3D11Renderer routes these through a dedicated post-process pass after structural
+    /// filter rendering and before the UI overlay. No-op in GdiRenderer.
+    /// </summary>
+    void SetPictureAdjust(int brightness, int contrast, int saturation);
+
+    /// <summary>
     /// Applies an overscan mode change immediately. Safe to call mid-game — takes effect
     /// on the next rendered frame. Implemented by both D3D11Renderer and GdiRenderer.
     /// </summary>

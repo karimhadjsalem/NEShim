@@ -154,6 +154,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
             d3d.SetMotionEffect(motionMode);
+            d3d.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation);
             var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
             d3d.SetOverlayFilter(overlayMode.HasValue
                 ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
@@ -367,13 +368,14 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private static IAudioProcessor CreateProcessor(AudioFilterMode mode) => mode switch
     {
-        AudioFilterMode.Warm         => new SoundScrubberProcessor(),
-        AudioFilterMode.PseudoStereo => new PseudoStereoProcessor(),
-        AudioFilterMode.WarmStereo   => new WarmStereoProcessor(),
-        AudioFilterMode.Compression  => new CompressionProcessor(),
-        AudioFilterMode.BassBoost    => new BassBoostProcessor(),
-        AudioFilterMode.Saturation   => new TapeSaturationProcessor(),
-        _                            => new NesFilterProcessor(),
+        AudioFilterMode.Warm          => new SoundScrubberProcessor(),
+        AudioFilterMode.PseudoStereo  => new PseudoStereoProcessor(),
+        AudioFilterMode.WarmStereo    => new WarmStereoProcessor(),
+        AudioFilterMode.Compression   => new CompressionProcessor(),
+        AudioFilterMode.BassBoost     => new BassBoostProcessor(),
+        AudioFilterMode.Saturation    => new TapeSaturationProcessor(),
+        AudioFilterMode.DmcStabilizer => new DmcStabilizerProcessor(),
+        _                             => new NesFilterProcessor(),
     };
 
     private LocalizationData InitializeSteamAndLocalization()
@@ -464,7 +466,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onPictureAdjustChanged: (brightness, contrast, saturation) =>
+            {
+                if (_renderer is Rendering.D3D11Renderer d3dPic)
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation);
+                ConfigLoader.Save(_config!);
+            });
 
         _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
 
@@ -567,7 +575,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onPictureAdjustChanged: (brightness, contrast, saturation) =>
+            {
+                if (_renderer is Rendering.D3D11Renderer d3dPic)
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation);
+                ConfigLoader.Save(_config!);
+            });
         _menu.Opened += () => BeginInvoke(() =>
         {
             _renderer?.MarkOverlayDirty();
