@@ -1,11 +1,11 @@
 namespace NEShim.Rendering.Filters;
 
 /// <summary>
-/// Scale2x / EPX edge-preserving upscaler.
-/// Each NES texel is conceptually expanded to a 2×2 block; for each output pixel the
-/// quadrant rule decides whether to use the centre texel or one of its cardinal
-/// neighbours, sharpening edges while leaving diagonals and flat regions unchanged.
-/// Point sampling is used so that the neighbour reads snap to exact texel centres.
+/// xBRZ edge-preserving upscaler.
+/// Analyses a 5×5 pixel neighbourhood around each texel to classify edge direction
+/// and strength, then blends colours across detected edges using two-stage interpolation.
+/// Produces crisper diagonal edges than Scale2x/EPX without the colour bleed of HQx.
+/// Point sampling is used so that neighbour reads snap to exact texel centres.
 /// </summary>
 internal sealed class XbrD3D11Filter : ID3D11Filter
 {

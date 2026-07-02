@@ -77,7 +77,7 @@ Each rendering path exposes its own set of structural filters:
 | CRT Phosphor (scanlines + aperture-grille mask) | — | D3D11 only |
 | CRT Screen (barrel distortion + chromatic aberration + vignette) | — | D3D11 only |
 | NTSC Composite | — | D3D11 only |
-| Sharp Pixel (Scale2x/EPX edge-preserving upscaler) | — | D3D11 only |
+| Sharp Pixel (xBRZ edge-preserving upscaler) | — | D3D11 only |
 
 D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
 
