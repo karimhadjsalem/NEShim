@@ -60,6 +60,9 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `mainMenuMusicEnabled` | boolean | `true` | When `false`, silences the main menu music regardless of `mainMenuMusicPath`. |
 | `mainMenuMusicPath` | string | `""` | Path to an audio file (MP3, WAV) played on the pre-game main menu. Looping. Leave empty to disable. |
 | ~~`soundScrubberEnabled`~~ | boolean | `false` | **Deprecated.** Use `audioFilter: "Warm"` instead. If `true` and `audioFilter` is still `"Default"`, the config loader promotes it to `"Warm"` automatically. |
+| `audioEqBass` | integer | `0` | Bass EQ gain in dB (−12 to +12). Center frequency 100 Hz. 0 = no processing. |
+| `audioEqMid` | integer | `0` | Mid EQ gain in dB (−12 to +12). Center frequency 1 kHz. 0 = no processing. |
+| `audioEqTreble` | integer | `0` | Treble EQ gain in dB (−12 to +12). Center frequency 8 kHz. 0 = no processing. |
 
 ---
 
@@ -218,6 +221,9 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "mainMenuMusicPath": "audio/menu_theme.mp3",
   "volume": 80,
   "audioFilter": "Default",
+  "audioEqBass": 0,
+  "audioEqMid": 0,
+  "audioEqTreble": 0,
   "mainMenuMusicVolume": 100,
   "mainMenuMusicEnabled": true,
   "videoFilter": "PixelPerfect",

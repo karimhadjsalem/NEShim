@@ -13,6 +13,7 @@ NEShim has five independent filter axes, all configurable at runtime via the in-
 | Axis | Config key | Menu location | Description |
 |---|---|---|---|
 | Audio Filter | `audioFilter` | Settings → Sound → Audio Filter | DSP processing applied to the NES mono audio output |
+| Audio EQ | `audioEqBass` / `audioEqMid` / `audioEqTreble` | Settings → Sound → EQ | 3-band peaking equalizer applied after the audio filter |
 | Video Filter | `videoFilter` | Settings → Video → Video Filter | Primary structural transform applied to the NES pixel buffer |
 | Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
 | Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 only) |
@@ -41,6 +42,20 @@ Switching the audio filter takes effect immediately. The new processor's state i
 **Default value:** `"Default"` on Windows. On Steam Deck, the first-run default is `"Saturation"` — see [Steam Deck — Audio default on first run](steamdeck.md#audio-default-on-first-run).
 
 **Adding a new audio filter:** see the [Architecture guide — Adding a new audio processor](architecture.md#adding-a-new-audio-processor).
+
+---
+
+## Audio EQ
+
+A 3-band peaking equalizer applied after the audio processor, available via **Settings → Sound → EQ**. Each band is a Direct Form 1 biquad peaking filter (Q = 0.9) with gain adjustable from −12 dB to +12 dB in 1 dB steps. The EQ is skipped entirely when all three gains are 0 (no processing overhead).
+
+| Band | `config.json` key | Center frequency | Default |
+|---|---|---|---|
+| Bass | `audioEqBass` | 100 Hz | `0` |
+| Mid | `audioEqMid` | 1 kHz | `0` |
+| Treble | `audioEqTreble` | 8 kHz | `0` |
+
+The EQ stacks with the selected Audio Filter — audio flows through the filter first, then through the EQ. All filter + EQ combinations are valid. The Sound screen shows **Flat** when all three bands are at 0, or **Custom** when any band is non-zero.
 
 ---
 
