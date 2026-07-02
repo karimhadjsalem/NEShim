@@ -95,6 +95,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
     private readonly Action<string>                         _onLanguageChanged;
     private readonly Action<int, int, int>                  _onPictureAdjustChanged;
+    private readonly Action<int, int, int>                  _onAudioEqChanged;
 
     // ---- Events ----
     public event Action? NewGameChosen;
@@ -121,6 +122,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                         onLanguageChanged,
         Action<int, int, int>                  onPictureAdjustChanged,
+        Action<int, int, int>                  onAudioEqChanged,
         Bitmap?          bgImage = null)
     {
         _saveStates                = saveStates;
@@ -138,6 +140,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onOverscanModeChanged      = onOverscanModeChanged;
         _onLanguageChanged         = onLanguageChanged;
         _onPictureAdjustChanged    = onPictureAdjustChanged;
+        _onAudioEqChanged          = onAudioEqChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -169,6 +172,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.Video]             = new VideoHandler(this),
             [Screen.Sound]             = new SoundHandler(this),
             [Screen.AudioFilter]       = new AudioFilterHandler(this),
+            [Screen.AudioEq]           = new AudioEqHandler(this),
             [Screen.VideoFilter]       = new VideoFilterHandler(this),
             [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
             [Screen.VideoPicture]      = new VideoPictureHandler(this),
@@ -225,6 +229,12 @@ internal sealed partial class MainMenuScreen : IDisposable
         {
             if (key == Keys.Left)  { AdjustPicture(SelectedIndex, -1); return true; }
             if (key == Keys.Right) { AdjustPicture(SelectedIndex,  1); return true; }
+        }
+
+        if (CurrentScreen == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedIndex))
+        {
+            if (key == Keys.Left)  { AdjustEq(SelectedIndex, -1); return true; }
+            if (key == Keys.Right) { AdjustEq(SelectedIndex,  1); return true; }
         }
 
         switch (key)
@@ -298,6 +308,12 @@ internal sealed partial class MainMenuScreen : IDisposable
             if (nav.Right) { AdjustPicture(SelectedIndex,  1); return; }
         }
 
+        if (CurrentScreen == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedIndex))
+        {
+            if (nav.Left)  { AdjustEq(SelectedIndex, -1); return; }
+            if (nav.Right) { AdjustEq(SelectedIndex,  1); return; }
+        }
+
         if (nav.Up)   NavigateCursor(-1);
         if (nav.Down) NavigateCursor(1);
 
@@ -348,6 +364,31 @@ internal sealed partial class MainMenuScreen : IDisposable
         _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
         _onPictureAdjustChanged(0, 0, 0);
         _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
+    }
+
+    private void AdjustEq(int sliderIndex, int delta)
+    {
+        switch (sliderIndex)
+        {
+            case AudioEqHandler.BassIndex:
+                _config.AudioEqBass = Math.Clamp(_config.AudioEqBass + delta, -12, 12);
+                break;
+            case AudioEqHandler.MidIndex:
+                _config.AudioEqMid = Math.Clamp(_config.AudioEqMid + delta, -12, 12);
+                break;
+            case AudioEqHandler.TrebleIndex:
+                _config.AudioEqTreble = Math.Clamp(_config.AudioEqTreble + delta, -12, 12);
+                break;
+        }
+        _onAudioEqChanged(_config.AudioEqBass, _config.AudioEqMid, _config.AudioEqTreble);
+    }
+
+    internal void ResetEq()
+    {
+        _config.AudioEqBass   = 0;
+        _config.AudioEqMid    = 0;
+        _config.AudioEqTreble = 0;
+        _onAudioEqChanged(0, 0, 0);
     }
 
     internal void ApplyPreset(Rendering.VideoPreset preset)
@@ -419,6 +460,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
+        Screen.AudioEq          => Screen.Sound,
         Screen.VideoFilter       => Screen.Video,
         Screen.VideoMotionEffect => Screen.Video,
         Screen.VideoPicture      => Screen.Video,

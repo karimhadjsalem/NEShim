@@ -100,6 +100,11 @@ public sealed class AppConfig
     // If true and AudioFilter is still "Default", the loader promotes to "Warm".
     public bool SoundScrubberEnabled { get; set; } = false;
 
+    // 3-band peaking EQ gains in dB (-12 to +12). 0 = neutral (no processing).
+    public int AudioEqBass   { get; set; } = 0;
+    public int AudioEqMid    { get; set; } = 0;
+    public int AudioEqTreble { get; set; } = 0;
+
     // Brightness/Contrast/Saturation picture adjustments (-100..100; 0 = neutral).
     // Applied as a D3D11 post-process pass after the structural filter.
     public int VideoBrightness { get; set; } = 0;

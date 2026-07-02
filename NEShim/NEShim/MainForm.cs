@@ -363,6 +363,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         var filterMode = AudioFilterModeParser.Parse(_config!.AudioFilter);
         _audio = new AudioPlayer(_config.AudioBufferFrames, CreateProcessor(filterMode));
         _audio.SetVolume(_config.Volume / 100f);
+        _audio.SetEq(_config.AudioEqBass, _config.AudioEqMid, _config.AudioEqTreble);
         Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, filter={filterMode}, volume={_config.Volume}%");
     }
 
@@ -472,6 +473,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
                     d3dPic.SetPictureAdjust(brightness, contrast, saturation);
                 ConfigLoader.Save(_config!);
+            },
+            onAudioEqChanged: (bass, mid, treble) =>
+            {
+                _audio?.SetEq(bass, mid, treble);
+                ConfigLoader.Save(_config!);
             });
 
         _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
@@ -580,6 +586,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             {
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
                     d3dPic.SetPictureAdjust(brightness, contrast, saturation);
+                ConfigLoader.Save(_config!);
+            },
+            onAudioEqChanged: (bass, mid, treble) =>
+            {
+                _audio?.SetEq(bass, mid, treble);
                 ConfigLoader.Save(_config!);
             });
         _menu.Opened += () => BeginInvoke(() =>

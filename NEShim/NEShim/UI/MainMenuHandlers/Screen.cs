@@ -2,5 +2,5 @@ namespace NEShim.UI;
 
 internal sealed partial class MainMenuScreen
 {
-    public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound, AudioFilter, VideoFilter, VideoMotionEffect, VideoPicture, VideoPresets, Language }
+    public enum Screen { Main, ResumeSlots, Settings, KeyboardBindings, GamepadBindings, Video, Sound, AudioFilter, AudioEq, VideoFilter, VideoMotionEffect, VideoPicture, VideoPresets, Language }
 }

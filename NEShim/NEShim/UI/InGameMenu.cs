@@ -33,6 +33,7 @@ internal sealed partial class InGameMenu
     private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
     private readonly Action<string>                           _onLanguageChanged;
     private readonly Action<int, int, int>                    _onPictureAdjustChanged;
+    private readonly Action<int, int, int>                    _onAudioEqChanged;
 
     private (string Label, string ConfigKey)[]          _bindingActions;
     private (string Label, string ConfigKey)[]          _gamepadBindingActions;
@@ -109,7 +110,8 @@ internal sealed partial class InGameMenu
         Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                          onLanguageChanged,
-        Action<int, int, int>                   onPictureAdjustChanged)
+        Action<int, int, int>                   onPictureAdjustChanged,
+        Action<int, int, int>                   onAudioEqChanged)
     {
         _saveStates                 = saveStates;
         _config                     = config;
@@ -128,6 +130,7 @@ internal sealed partial class InGameMenu
         _onOverscanModeChanged       = onOverscanModeChanged;
         _onLanguageChanged          = onLanguageChanged;
         _onPictureAdjustChanged     = onPictureAdjustChanged;
+        _onAudioEqChanged           = onAudioEqChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -145,6 +148,7 @@ internal sealed partial class InGameMenu
             [Screen.Video]             = new VideoHandler(this),
             [Screen.Sound]             = new SoundHandler(this),
             [Screen.AudioFilter]       = new AudioFilterHandler(this),
+            [Screen.AudioEq]           = new AudioEqHandler(this),
             [Screen.VideoFilter]       = new VideoFilterHandler(this),
             [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
             [Screen.VideoPicture]      = new VideoPictureHandler(this),
@@ -219,6 +223,12 @@ internal sealed partial class InGameMenu
         {
             if (key == Keys.Left)  { AdjustPicture(SelectedItem, -1); return true; }
             if (key == Keys.Right) { AdjustPicture(SelectedItem,  1); return true; }
+        }
+
+        if (Current == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedItem))
+        {
+            if (key == Keys.Left)  { AdjustEq(SelectedItem, -1); return true; }
+            if (key == Keys.Right) { AdjustEq(SelectedItem,  1); return true; }
         }
 
         switch (key)
@@ -296,6 +306,12 @@ internal sealed partial class InGameMenu
             if (nav.Right) { AdjustPicture(SelectedItem,  1); return; }
         }
 
+        if (Current == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedItem))
+        {
+            if (nav.Left)  { AdjustEq(SelectedItem, -1); return; }
+            if (nav.Right) { AdjustEq(SelectedItem,  1); return; }
+        }
+
         if (nav.Up)   MoveCursor(-1);
         if (nav.Down) MoveCursor(1);
 
@@ -348,6 +364,31 @@ internal sealed partial class InGameMenu
         _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
         _onPictureAdjustChanged(0, 0, 0);
         _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
+    }
+
+    private void AdjustEq(int sliderIndex, int delta)
+    {
+        switch (sliderIndex)
+        {
+            case AudioEqHandler.BassIndex:
+                _config.AudioEqBass = Math.Clamp(_config.AudioEqBass + delta, -12, 12);
+                break;
+            case AudioEqHandler.MidIndex:
+                _config.AudioEqMid = Math.Clamp(_config.AudioEqMid + delta, -12, 12);
+                break;
+            case AudioEqHandler.TrebleIndex:
+                _config.AudioEqTreble = Math.Clamp(_config.AudioEqTreble + delta, -12, 12);
+                break;
+        }
+        _onAudioEqChanged(_config.AudioEqBass, _config.AudioEqMid, _config.AudioEqTreble);
+    }
+
+    internal void ResetEq()
+    {
+        _config.AudioEqBass   = 0;
+        _config.AudioEqMid    = 0;
+        _config.AudioEqTreble = 0;
+        _onAudioEqChanged(0, 0, 0);
     }
 
     internal void ApplyPreset(Rendering.VideoPreset preset)
@@ -415,6 +456,7 @@ internal sealed partial class InGameMenu
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
+        Screen.AudioEq          => Screen.Sound,
         Screen.VideoFilter       => Screen.Video,
         Screen.VideoMotionEffect => Screen.Video,
         Screen.VideoPicture      => Screen.Video,

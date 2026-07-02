@@ -88,6 +88,16 @@ internal sealed class LocalizationData
     public string SoundMusicOn  { get; init; } = "Menu Music: On";
     public string SoundMusicOff { get; init; } = "Menu Music: Off";
 
+    // ---- Audio EQ sub-menu ----
+    public string AudioEqLabel   { get; init; } = "EQ";
+    public string AudioEqTitle   { get; init; } = "AUDIO EQ";
+    public string AudioEqBass    { get; init; } = "Bass";
+    public string AudioEqMid     { get; init; } = "Mid";
+    public string AudioEqTreble  { get; init; } = "Treble";
+    public string AudioEqFlat    { get; init; } = "Flat";
+    public string AudioEqCustom  { get; init; } = "Custom";
+    public string AudioEqReset   { get; init; } = "Reset to Default";
+
     // ---- Audio filter mode display names ----
     public string AudioFilterDefault      { get; init; } = "Default";
     public string AudioFilterWarm         { get; init; } = "Warm";

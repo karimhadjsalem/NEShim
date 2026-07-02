@@ -33,6 +33,11 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     // to the NAudio driver thread calling Read().
     private volatile IAudioProcessor _processor;
 
+    // 3-band EQ applied after the processor. Allocated once and reused; gains are
+    // updated via SetEq(). Reads from the NAudio thread are safe: SetGains only
+    // updates float fields, which are atomic on naturally-aligned .NET memory.
+    private readonly AudioEqProcessor _eq = new();
+
     // Master volume in [0, 1]. float reads on naturally-aligned .NET memory are atomic;
     // worst case is one call of Read() using a stale value, which is acceptable.
     private float _volume = 1.0f;
@@ -96,6 +101,12 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _volume = Math.Clamp(volume, 0f, 1f);
     }
 
+    /// <summary>Updates the 3-band EQ gains (dB, −12..+12 each). 0 = neutral.</summary>
+    public void SetEq(int bass, int mid, int treble)
+    {
+        _eq.SetGains(bass, mid, treble);
+    }
+
     /// <summary>Called by the emulation thread after each FrameAdvance.</summary>
     public void Enqueue(short[] samples, int sampleCount)
     {
@@ -144,6 +155,9 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
 
                     var (filtL, filtR) = proc.Process(rawL);
 
+                    if (_eq.IsActive)
+                        (filtL, filtR) = _eq.Process(filtL, filtR);
+
                     short outL = (short)Math.Clamp((int)(filtL * vol), short.MinValue, short.MaxValue);
                     short outR = (short)Math.Clamp((int)(filtR * vol), short.MinValue, short.MaxValue);
 
@@ -182,6 +196,7 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
             // Reset processor state so the first sample after resume starts clean.
             // Without this, a large DC offset in the filter memory would cause a pop.
             _processor.ResetState();
+            _eq.ResetState();
         }
     }
 

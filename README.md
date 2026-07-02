@@ -15,7 +15,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
-- **Audio** — volume control and eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter)
+- **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
 - **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), **picture adjustments** (brightness, contrast, saturation), and four built-in **Video Presets** (Living Room, Arcade Monitor, Sharp, Phosphor) that apply coordinated filter combinations in one step — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
@@ -62,6 +62,8 @@ Full configuration reference and a step-by-step publishing guide are on the proj
 ### Audio filters
 
 Eight audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, and Pop Filter (DMC click reduction). Switching takes effect immediately with no audio pop.
+
+A **3-band EQ** is available via **Settings → Sound → EQ**: Bass (100 Hz), Mid (1 kHz), and Treble (8 kHz), each adjustable from −12 dB to +12 dB. The EQ runs after the active audio filter and is bypassed when all bands are at 0.
 
 ### Video filters
 

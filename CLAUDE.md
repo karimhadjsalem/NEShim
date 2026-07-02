@@ -59,7 +59,7 @@ Key subsystems and their responsibilities:
 | `NEShim.Emulation` | BizHawk bridge (`EmulatorHost`), controller adapter, stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic |
 | `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `IGraphicsScaler` + concrete GDI+ scalers (GDI+ only), `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain); D3D11 subsystems: `Filters/` (structural pixel shaders + two-pass overlay via intermediate RT), `MotionEffects/` (`IMotionEffect` strategy — CPU quad-offset effects implement `GetFrameOffset`; shader-backed effects additionally provide `PixelShaderResourceName` and `WriteShaderParams`, which trigger a dedicated intermediate RT + pixel shader pass in `D3D11Renderer`), `VideoColorFilterMode`, `OverscanMode`, `VideoPreset` (sealed record holding all 7 filter settings for one preset), `VideoPresetRegistry` (static class with 4 named presets + `All[]` array) |
-| `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`) |
+| `NEShim.Audio` | NAudio ring-buffer bridge (`AudioPlayer`); `IAudioProcessor` strategy + 8 concrete processors; `AudioEqProcessor` — 3-band biquad peaking EQ (bass@100 Hz, mid@1 kHz, treble@8 kHz, Q=0.9, ±12 dB) applied after the processor when any gain is non-zero |
 | `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot` |
 | `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), Steam Deck detection (`IsSteamDeck`), D3D11 active flag (`IsD3D11Active`); `MenuScale` — font/layout scale factor (1.0× normal, 1.5× Steam Deck) |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
