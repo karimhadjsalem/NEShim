@@ -22,7 +22,7 @@ NEShim has five independent filter axes, all configurable at runtime via the in-
 
 ## Audio Filter
 
-Seven audio processors ship with NEShim, all operating on the 44.1 kHz mono output of the NES APU. The processor runs before the NAudio ring buffer and produces stereo output.
+Eight audio processors ship with NEShim, all operating on the 44.1 kHz mono output of the NES APU. The processor runs before the NAudio ring buffer and produces stereo output.
 
 | Filter | `audioFilter` value | Signal chain |
 |---|---|---|
@@ -33,6 +33,7 @@ Seven audio processors ship with NEShim, all operating on the 44.1 kHz mono outp
 | Compression | `"Compression"` | Standard NES chain + look-ahead RMS compressor (220-sample window, −6 dBFS threshold, 3:1 ratio, +2 dB makeup). Evens out DPCM channel level spikes. |
 | Bass Boost | `"BassBoost"` | Standard NES chain + additive low-shelf boost at 150 Hz (+4 dB at DC, ≈+2 dB at 150 Hz). For fuller sound on bass-light speakers or headphones. |
 | Saturation | `"Saturation"` | Standard NES chain + tanh soft-clip (drive = 1.5, normalised). Super-linear below full scale (mild mid-level boost) with smooth limiting at peaks. |
+| Pop Filter | `"DmcStabilizer"` | Standard NES chain + slew-rate limiter that softens large DMC (DPCM) sample-to-sample amplitude jumps. DMC samples are 7-bit unsigned values that can jump instantly across the full output range, producing audible pops and clicks. When a consecutive jump exceeds the threshold (~18% of full scale), the delta is blended 50% toward the previous value — a single-sample transition that significantly reduces click amplitude. |
 
 Switching the audio filter takes effect immediately. The new processor's state is reset before it activates to prevent pops from accumulated DC offset.
 
@@ -54,6 +55,7 @@ Controls how the 256×240 NES pixel buffer is scaled and stylised before display
 | CRT Phosphor | `"CrtPhosphor"` | — | D3D11 only | CRT scanlines plus an aperture-grille phosphor mask. Each NES pixel is subdivided into three sub-columns (R/G/B dominant), mimicking the continuous vertical phosphor stripes of an aperture-grille CRT (e.g., Sony Trinitron). Stacks with any color effect. |
 | CRT Screen | `"CrtScreen"` | — | D3D11 only | Full-screen CRT simulation combining three effects in one pass: barrel distortion curves the image to match the convex surface of a CRT tube, per-channel chromatic aberration offsets R and B channel UVs independently so colour fringing appears at screen edges, and a radial vignette darkens the corners. UV wrapping is handled — pixels that fall outside [0,1] after warping are clamped to black, producing clean edge falloff. Stacks with any color effect. |
 | NTSC Composite | `"NtscComposite"` | — | D3D11 only | YIQ colour-space NTSC simulation running entirely on the GPU. A 5-tap chroma Gaussian blurs IQ components while keeping Y (luma) sharp, producing authentic chroma smearing and luma/chroma cross-talk at colour boundaries. Adds an animated analogue noise layer that shifts each frame, recreating the grain shimmer of a real composite signal. Output is 256 pixels wide (standard NES resolution). |
+| Sharp Pixel | `"Xbr"` | — | D3D11 only | Scale2x / EPX edge-preserving upscaler. Each NES texel is conceptually expanded to a 2×2 output block; the colour of each output pixel is chosen by comparing the centre texel to its four cardinal neighbours. Where two neighbours match along an edge, the output sub-pixel takes the neighbour's colour rather than the centre — sharpening diagonal and straight edges at sub-pixel precision while leaving flat regions and true diagonals unchanged. Full-RGB comparison is used (not luminance-only) so that palette entries with equal brightness but different hues are distinguished correctly. Maintains 8:7 pixel aspect ratio. |
 
 **Default value:** `"PixelPerfect"`
 
@@ -82,7 +84,7 @@ The overlay slot accepts a subset of structural filters — those composable on 
 
 **Default value:** `"None"`
 
-**Conflict prevention:** the overlay option menu disables any filter that matches the active primary filter — selecting the same filter in both slots is prevented at the menu level. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
+**Conflict prevention:** the overlay option menu disables any filter that matches the active primary filter, preventing the same filter in both slots. Switching the primary Video Filter to a value that matches the current overlay also automatically resets the overlay to `None`. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
 
 **UV note for overlay shaders:** the intermediate texture holds the upscaled primary frame. Overlay shaders receive UV coordinates spanning 0→1 over the letterbox area and use `nesHeight = 240` for scanline period calculations — the same values as in single-pass mode. Sampling an upscaled intermediate at these UVs gives sub-pixel scanline blending against a higher-resolution source, which generally produces better quality than the equivalent single-pass configuration.
 
@@ -110,6 +112,20 @@ The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mo
 
 ---
 
+## Picture Adjustments
+
+Three independent post-process sliders applied after all structural filter, overlay, and motion effect passes, and before the overlay (menus, HUD). D3D11 only — the values are stored in `config.json` in GDI+ mode but have no visual effect until D3D11 is available. When all three are at their neutral values the pass is skipped entirely with no intermediate render target allocated.
+
+| Adjustment | `config.json` field | Range | Default | Description |
+|---|---|:---:|:---:|---|
+| Brightness | `videoBrightness` | −100 to +100 | `0` | Additive shift applied to linear RGB after color grading. Each unit corresponds to ±0.002 in linear light, so +100 adds +0.2 (roughly a 20% luminance lift). |
+| Contrast | `videoContrast` | −100 to +100 | `0` | Scales RGB around mid-grey (0.5). 0 is neutral (1× scale); +100 doubles the contrast; −100 collapses to flat grey. |
+| Saturation | `videoSaturation` | −100 to +100 | `0` | Blends linearly between full greyscale (−100) and the original colour (0) through to doubled saturation (+100), using BT.601 luma as the desaturated baseline. |
+
+All three are adjustable at runtime via **Settings → Video → Picture** in both the in-game pause menu and the main menu. A Reset option returns all three to their defaults in one step.
+
+---
+
 ## Motion Effect
 
 A per-frame animated effect applied to the NES viewport. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
@@ -125,6 +141,7 @@ Two implementation models exist:
 | CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Horizontal and vertical amplitudes scale independently with viewport width and height respectively, keeping the physical pixel displacement constant across resolutions (calibrated at 1920×1080). |
 | Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude scales inversely with viewport height so the physical pixel displacement remains constant regardless of screen resolution (calibrated at 1080p). |
 | Magnetic Distortion | `"MagneticDistortion"` | Simulates magnetic interference on a CRT by warping UV coordinates in a pixel shader. A sine wave sweeps horizontally across the image each frame — each row is displaced by a different amount, so adjacent rows shift in opposite directions, matching the characteristic non-uniform warp of an external magnetic field deflecting the electron beam unevenly. The wave phase and amplitude evolve slowly over time for an organic feel. Pixels that warp past the horizontal texture boundary render as black, matching the edge roll-off seen on real CRTs. Runs as a shader pass (see above). |
+| Screen Glow | `"PhosphorPersistence"` | Simulates CRT phosphor persistence by temporally accumulating frames. Each output pixel blends the current frame with a faded copy of the previous output (65% retention per frame), producing a soft after-image trail that fades over approximately 10–15 frames. Runs as a shader pass with a ping-pong pair of intermediate render targets (see above). |
 
 **Default value:** `"None"`
 

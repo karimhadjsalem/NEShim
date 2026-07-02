@@ -193,7 +193,7 @@ Handlers are nested private classes and therefore have full access to all privat
 void ResetState();
 ```
 
-The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`. The new processor's state is reset before it takes effect to avoid pops. Seven implementations ship, selected via the `audioFilter` config field and the Audio Filter sub-menu in both the in-game pause menu and the main menu:
+The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`. The new processor's state is reset before it takes effect to avoid pops. Eight implementations ship, selected via the `audioFilter` config field and the Audio Filter sub-menu in both the in-game pause menu and the main menu:
 
 | Class | `audioFilter` value | Description |
 |---|---|---|
@@ -204,6 +204,7 @@ The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`.
 | `CompressionProcessor` | `"Compression"` | Standard NES chain + look-ahead RMS compressor (220-sample window, −6 dBFS threshold, 3:1 ratio, +2 dB makeup). Evens out DPCM channel level spikes. Running sum-of-squares for O(1) RMS; no per-sample buffer traversal. |
 | `BassBoostProcessor` | `"BassBoost"` | Standard NES chain + additive low-shelf LP@150Hz (`β ≈ 0.979`). Adds ~+4 dB at DC, ~+2 dB at 150 Hz; no effect above 1 kHz. For fuller sound on bass-light speakers or headphones. |
 | `TapeSaturationProcessor` | `"Saturation"` | Standard NES chain + tanh soft-clip (`Drive = 1.5`, normalized so 0 dBFS → 1.0). Super-linear below full scale (mid-level signals get a small boost); smooth saturation at peaks. Never clips to digital full-scale. |
+| `DmcStabilizerProcessor` | `"DmcStabilizer"` | Slew-rate limiter applied before the standard NES filter chain. When consecutive sample delta exceeds ~18% of full scale, the jump is blended 50% toward the previous value, significantly reducing audible pops and clicks from DPCM samples. |
 
 ### Main menu music
 
@@ -304,6 +305,10 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
                       ├─ UpdateFilterCbuffer — write structural params + colorMode to b0
                       ├─ DrawSidebars — sidebar quads drawn via passthrough shader
                       ├─ Draw letterboxed NES quad — active structural filter shader
+                      │    (output goes to _pictureAdjustRt instead of backbuffer when
+                      │     any picture adjustment is non-zero)
+                      ├─ DrawPictureAdjust (optional) — reads from _pictureAdjustRt,
+                      │    applies brightness/contrast/saturation, writes to backbuffer
                       ├─ DrawOverlay — GDI+ Bitmap (menus / frozen frame / HUD)
                       │    drawn via passthrough shader, alpha-blended over NES frame
                       └─ SwapChain.Present(syncInterval=1) — vsync on
@@ -317,7 +322,7 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
 
 Two independent filter axes can be combined freely:
 
-- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`. Implemented as DXBC pixel shaders (or sampler-only for `Bilinear`) compiled to `.cso` files and embedded as assembly resources.
+- **Video Filter** (`videoFilter` in config): a structural filter — controls how the NES frame is sampled and stylised. Options: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`, `Xbr` (Sharp Pixel). Implemented as DXBC pixel shaders (or sampler-only for `Bilinear`) compiled to `.cso` files and embedded as assembly resources.
 - **Color Effect** (`videoColorFilter` in config): a color-grade transform applied on top of any structural filter. Options: `None`, `Warm`, `Greyscale`, `NesColorCorrection`, `Cool`, `PhosphorAmber`, `PhosphorGreen`. Not a separate shader — the grade is a cbuffer value consumed by every structural shader via a shared `ColorGrade.hlsli` include.
 
 All pixel shaders use a uniform 4-float constant buffer (`b0`):
@@ -405,7 +410,7 @@ In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `F
 - `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
 - `false` — D3D11 unavailable; GDI+ path is active.
 
-The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains six entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, and `CrtScreen`. `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining four are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
+The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains seven entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`, and `Xbr` (Sharp Pixel). `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining five are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
