@@ -974,7 +974,8 @@ internal class InGameMenuTests
     private void OpenVideoFilterSubMenu(InGameMenu menu)
     {
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);   // Video Filter (index 1)
+        if (NEShim.Platform.PlatformDetector.IsD3D11Active) menu.HandleKey(Keys.Down); // skip Presets(0) → Window(1)
+        menu.HandleKey(Keys.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
         menu.HandleKey(Keys.Return); // → VideoFilter sub-menu
     }
 
@@ -1533,9 +1534,9 @@ internal class InGameMenuTests
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
     }
 
-    // ---- Video screen Overlay cycle (D3D11 mode, index 2) ----
+    // ---- Video screen Overlay cycle (D3D11 mode, index 3) ----
 
-    // In D3D11 mode the Video screen is: Window(0), Filter(1), Overlay(2), Motion(3), Picture(4), Overscan(5), FPS(6), Back(7).
+    // In D3D11 mode the Video screen is: Presets(0), Window(1), Filter(2), Overlay(3), Motion(4), Picture(5), Overscan(6), FPS(7), Back(8).
     private void OpenVideoScreenD3D11(InGameMenu menu)
     {
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
@@ -1543,11 +1544,11 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Video_D3D11_ItemCount_IsEight()
+    public void Video_D3D11_ItemCount_IsNine()
     {
         var menu = CreateMenu();
         OpenVideoScreenD3D11(menu);
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
     [Test]
@@ -1556,8 +1557,9 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(menu);
-        menu.HandleKey(Keys.Down); // Filter (1)
-        menu.HandleKey(Keys.Down); // Overlay (2)
+        menu.HandleKey(Keys.Down); // Window (1)
+        menu.HandleKey(Keys.Down); // Filter (2)
+        menu.HandleKey(Keys.Down); // Overlay (3)
         menu.HandleKey(Keys.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
@@ -1569,6 +1571,7 @@ internal class InGameMenuTests
         _config.VideoFilter        = "CrtScanlines";
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(menu);
+        menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
@@ -1820,7 +1823,7 @@ internal class InGameMenuTests
     private void OpenVideoPictureScreen(InGameMenu menu)
     {
         OpenVideoScreenD3D11(menu);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Picture (index 4)
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Picture (index 5)
         menu.HandleKey(Keys.Return);
     }
 

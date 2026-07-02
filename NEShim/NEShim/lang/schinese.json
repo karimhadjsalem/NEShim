@@ -111,5 +111,11 @@
   "videoResetPicture": "恢复默认",
   "videoMotionEffectMagneticDistortion": "磁场失真",
   "videoMotionEffectPhosphorPersistence": "屏幕余晖",
-  "audioFilterDmcStabilizer": "爆音过滤"
+  "audioFilterDmcStabilizer": "爆音过滤",
+  "videoPresetsLabel": "预设",
+  "videoPresetsTitle": "视频预设",
+  "videoPresetLivingRoom": "客厅",
+  "videoPresetArcade": "街机显示器",
+  "videoPresetSharp": "清晰",
+  "videoPresetPhosphor": "荧光"
 }

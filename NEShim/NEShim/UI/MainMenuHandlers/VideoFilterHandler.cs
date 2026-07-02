@@ -41,6 +41,7 @@ internal sealed partial class MainMenuScreen
             {
                 var mode    = FilterOptions[index];
                 Menu._config.VideoFilter = mode.ToString();
+                Menu.ClearPreset();
                 Menu._onVideoFilterChanged(mode);
                 var overlay = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
                 if (overlay.HasValue && overlay.Value == mode)

@@ -106,6 +106,10 @@ public sealed class AppConfig
     public int VideoContrast   { get; set; } = 0;
     public int VideoSaturation { get; set; } = 0;
 
+    // Name of the last-applied video preset ("None", "LivingRoom", "Arcade", "Sharp", "Phosphor").
+    // Cleared to "None" whenever any individual video setting is changed manually.
+    public string VideoPreset { get; set; } = "None";
+
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
 

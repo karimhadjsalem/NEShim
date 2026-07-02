@@ -172,4 +172,12 @@ internal sealed class LocalizationData
 
     // ---- Controller diagram label (shown above the NES controller illustration on binding screens) ----
     public string NesControllerLabel { get; init; } = "NES Controller";
+
+    // ---- Video presets sub-menu ----
+    public string VideoPresetsLabel       { get; init; } = "Presets";
+    public string VideoPresetsTitle       { get; init; } = "VIDEO PRESETS";
+    public string VideoPresetLivingRoom   { get; init; } = "Living Room";
+    public string VideoPresetArcade       { get; init; } = "Arcade Monitor";
+    public string VideoPresetSharp        { get; init; } = "Sharp";
+    public string VideoPresetPhosphor     { get; init; } = "Phosphor";
 }

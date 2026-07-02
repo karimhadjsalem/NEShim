@@ -172,6 +172,7 @@ internal sealed partial class MainMenuScreen : IDisposable
             [Screen.VideoFilter]       = new VideoFilterHandler(this),
             [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
             [Screen.VideoPicture]      = new VideoPictureHandler(this),
+            [Screen.VideoPresets]      = new VideoPresetsHandler(this),
             [Screen.Language]          = new LanguageHandler(this),
         };
 
@@ -334,17 +335,45 @@ internal sealed partial class MainMenuScreen : IDisposable
                 _config.VideoSaturation = Math.Clamp(_config.VideoSaturation + delta, -100, 100);
                 break;
         }
+        ClearPreset();
         _onPictureAdjustChanged(_config.VideoBrightness, _config.VideoContrast, _config.VideoSaturation);
     }
 
     internal void ResetPicture()
     {
+        ClearPreset();
         _config.VideoBrightness  = 0;
         _config.VideoContrast    = 0;
         _config.VideoSaturation  = 0;
         _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
         _onPictureAdjustChanged(0, 0, 0);
         _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
+    }
+
+    internal void ApplyPreset(Rendering.VideoPreset preset)
+    {
+        _config.VideoFilter        = preset.Filter.ToString();
+        _config.VideoFilterOverlay = preset.Overlay.HasValue ? preset.Overlay.Value.ToString() : "None";
+        _config.VideoColorFilter   = preset.ColorFilter.ToString();
+        _config.VideoMotionEffect  = preset.MotionEffect.ToString();
+        _config.OverscanMode       = preset.Overscan.ToString();
+        _config.VideoBrightness    = preset.Brightness;
+        _config.VideoContrast      = preset.Contrast;
+        _config.VideoSaturation    = preset.Saturation;
+        _config.VideoPreset        = preset.Name;
+
+        _onVideoFilterChanged(preset.Filter);
+        _onVideoFilterOverlayChanged(preset.Overlay);
+        _onVideoColorFilterChanged(preset.ColorFilter);
+        _onVideoMotionEffectChanged(preset.MotionEffect);
+        _onOverscanModeChanged(preset.Overscan);
+        _onPictureAdjustChanged(preset.Brightness, preset.Contrast, preset.Saturation);
+        _onConfigSaved();
+    }
+
+    internal void ClearPreset()
+    {
+        _config.VideoPreset = "None";
     }
 
     private void NavigateCursor(int direction)
@@ -393,6 +422,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Screen.VideoFilter       => Screen.Video,
         Screen.VideoMotionEffect => Screen.Video,
         Screen.VideoPicture      => Screen.Video,
+        Screen.VideoPresets      => Screen.Video,
         Screen.Language          => Screen.Settings,
         _                        => Screen.Main,
     };

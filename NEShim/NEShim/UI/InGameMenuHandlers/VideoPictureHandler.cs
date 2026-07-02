@@ -56,6 +56,7 @@ internal sealed partial class InGameMenu
                     int nextIdx  = (Array.IndexOf(AllColorModes, current) + 1) % AllColorModes.Length;
                     var nextMode = AllColorModes[nextIdx];
                     Menu._config.VideoColorFilter = nextMode.ToString();
+                    Menu.ClearPreset();
                     Menu._onVideoColorFilterChanged(nextMode);
                     break;
                 case ResetIndex:

@@ -111,5 +111,11 @@
   "videoResetPicture": "Redefinir",
   "videoMotionEffectMagneticDistortion": "Distorção magnética",
   "videoMotionEffectPhosphorPersistence": "Brilho da tela",
-  "audioFilterDmcStabilizer": "Filtro de estalo"
+  "audioFilterDmcStabilizer": "Filtro de estalo",
+  "videoPresetsLabel": "Predefinições",
+  "videoPresetsTitle": "PREDEFINIÇÕES DE VÍDEO",
+  "videoPresetLivingRoom": "Sala de estar",
+  "videoPresetArcade": "Monitor Arcade",
+  "videoPresetSharp": "Nítido",
+  "videoPresetPhosphor": "Fósforo"
 }

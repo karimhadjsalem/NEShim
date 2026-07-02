@@ -612,7 +612,8 @@ internal class MainMenuScreenTests
     private static void OpenVideoFilterSubMenu(MainMenuScreen screen)
     {
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);   // Video Filter (index 1)
+        if (NEShim.Platform.PlatformDetector.IsD3D11Active) screen.HandleKey(Keys.Down); // skip Presets(0) → Window(1)
+        screen.HandleKey(Keys.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
         screen.HandleKey(Keys.Return); // → VideoFilter sub-menu
     }
 
@@ -1420,9 +1421,9 @@ internal class MainMenuScreenTests
         Assert.That(screen.ActiveNesButton, Is.Null); // Main screen
     }
 
-    // ---- Video screen Overlay cycle (D3D11 mode, index 2) ----
+    // ---- Video screen Overlay cycle (D3D11 mode, index 3) ----
 
-    // In D3D11 mode the Video screen is: Window(0), Filter(1), Overlay(2), Motion(3), Picture(4), Overscan(5), FPS(6), Back(7).
+    // In D3D11 mode the Video screen is: Presets(0), Window(1), Filter(2), Overlay(3), Motion(4), Picture(5), Overscan(6), FPS(7), Back(8).
     private static void OpenVideoScreenD3D11(MainMenuScreen screen)
     {
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
@@ -1430,11 +1431,11 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void Video_D3D11_ItemCount_IsEight()
+    public void Video_D3D11_ItemCount_IsNine()
     {
         using var screen = CreateScreen();
         OpenVideoScreenD3D11(screen);
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(8));
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
     [Test]
@@ -1443,7 +1444,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
-        Assert.That(screen.GetCurrentItems()[2], Does.Contain("None"));
+        Assert.That(screen.GetCurrentItems()[3], Does.Contain("None"));
     }
 
     [Test]
@@ -1452,8 +1453,9 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
-        screen.HandleKey(Keys.Down); // Filter (1)
-        screen.HandleKey(Keys.Down); // Overlay (2)
+        screen.HandleKey(Keys.Down); // Window (1)
+        screen.HandleKey(Keys.Down); // Filter (2)
+        screen.HandleKey(Keys.Down); // Overlay (3)
         screen.HandleKey(Keys.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
@@ -1465,6 +1467,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
+        screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Return);
@@ -1480,6 +1483,7 @@ internal class MainMenuScreenTests
         OpenVideoScreenD3D11(screen);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
@@ -1490,6 +1494,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilterOverlay = "CrtScreen";
         OpenVideoScreenD3D11(screen);
+        screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Down);
         screen.HandleKey(Keys.Return); // CrtScreen → None
@@ -1508,12 +1513,12 @@ internal class MainMenuScreenTests
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
-    // ---- VideoPicture sub-screen (D3D11 mode, Picture is index 4 in Video) ----
+    // ---- VideoPicture sub-screen (D3D11 mode, Picture is index 5 in Video) ----
 
     private static void OpenVideoPictureScreen(MainMenuScreen screen)
     {
         OpenVideoScreenD3D11(screen);
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // to Picture (index 4)
+        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Picture (index 5)
         screen.HandleKey(Keys.Return);
     }
 

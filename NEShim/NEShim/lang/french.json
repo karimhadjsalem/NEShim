@@ -111,5 +111,11 @@
   "videoResetPicture": "Réinitialiser",
   "videoMotionEffectMagneticDistortion": "Distorsion magnétique",
   "videoMotionEffectPhosphorPersistence": "Lueur d'écran",
-  "audioFilterDmcStabilizer": "Filtre pop"
+  "audioFilterDmcStabilizer": "Filtre pop",
+  "videoPresetsLabel": "Préréglages",
+  "videoPresetsTitle": "PRÉRÉGLAGES VIDÉO",
+  "videoPresetLivingRoom": "Salon",
+  "videoPresetArcade": "Moniteur Arcade",
+  "videoPresetSharp": "Net",
+  "videoPresetPhosphor": "Phosphore"
 }

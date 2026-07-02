@@ -111,5 +111,11 @@
   "videoResetPicture": "Сбросить",
   "videoMotionEffectMagneticDistortion": "Магнитное искажение",
   "videoMotionEffectPhosphorPersistence": "Свечение экрана",
-  "audioFilterDmcStabilizer": "Фильтр щелчков"
+  "audioFilterDmcStabilizer": "Фильтр щелчков",
+  "videoPresetsLabel": "Пресеты",
+  "videoPresetsTitle": "ПРЕДУСТАНОВКИ ВИДЕО",
+  "videoPresetLivingRoom": "Гостиная",
+  "videoPresetArcade": "Аркадный монитор",
+  "videoPresetSharp": "Чёткий",
+  "videoPresetPhosphor": "Фосфор"
 }

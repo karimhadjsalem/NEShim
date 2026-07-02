@@ -16,7 +16,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control and eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter)
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), and **picture adjustments** (brightness, contrast, saturation) — all independently stackable; see [Filters](#filters) below
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), **picture adjustments** (brightness, contrast, saturation), and four built-in **Video Presets** (Living Room, Arcade Monitor, Sharp, Phosphor) that apply coordinated filter combinations in one step — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -108,6 +108,19 @@ Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. A
 | Underscan | Shows all 240 rows but renders at 88% of the window size, centred, with a uniform black border |
 
 Filter and overscan changes take effect immediately while the game is running — no restart needed.
+
+### Video Presets (D3D11 only)
+
+Four built-in presets apply a coordinated combination of filter settings in one step via **Settings → Video → Presets**:
+
+| Preset | Video Filter | Video Overlay | Color Effect | Motion Effect |
+|---|---|---|---|---|
+| Living Room | CRT Screen | CRT Scanlines | NES Colors | CRT Jitter |
+| Arcade Monitor | CRT Phosphor | — | Cool | CRT Jitter |
+| Sharp | Sharp Pixel | — | NES Colors | — |
+| Phosphor | CRT Screen | CRT Phosphor | Phosphor Amber | Screen Glow |
+
+Selecting any individual filter after applying a preset clears the preset name back to None. The active preset name appears inline on the Video settings screen.
 
 **Motion Effects** (D3D11 only) animate the NES viewport each frame. CPU quad-offset effects (CRT Jitter, Scanline Bob) apply a per-frame clip-space displacement with no extra render pass. Shader-backed effects (Magnetic Distortion) render the primary/overlay filter to an intermediate render target and apply a pixel shader warp, adding one render pass when active:
 

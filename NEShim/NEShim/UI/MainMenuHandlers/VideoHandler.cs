@@ -15,7 +15,7 @@ internal sealed partial class MainMenuScreen
         public VideoHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 8 : 5;
+        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 9 : 5;
 
         public override string[] GetItems()
         {
@@ -34,48 +34,53 @@ internal sealed partial class MainMenuScreen
 
             var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
             var currentMotion = VideoMotionEffectModeParser.Parse(Menu._config.VideoMotionEffect);
-            string overlayItem = $"{Menu._localization.VideoOverlayLabel}: {OverlayDisplayName(overlayMode)}";
-            string motionItem  = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
-            string pictureItem = Menu._localization.VideoPictureLabel;
-            return [windowItem, filterItem, overlayItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
+            string overlayItem  = $"{Menu._localization.VideoOverlayLabel}: {OverlayDisplayName(overlayMode)}";
+            string motionItem   = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
+            string pictureItem  = Menu._localization.VideoPictureLabel;
+            string presetsItem  = $"{Menu._localization.VideoPresetsLabel}: {ActivePresetDisplayName()}";
+            return [presetsItem, windowItem, filterItem, overlayItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
         public override void Activate(int index)
         {
-            // In GDI mode Overlay, Motion Effect, and Picture are hidden;
-            // shift indices ≥ 2 to align with the full D3D11 layout.
-            if (!NEShim.Platform.PlatformDetector.IsD3D11Active && index >= 2)
-                index += 3;
+            // In GDI mode Presets, Overlay, Motion Effect, and Picture are hidden;
+            // remap GDI indices to the D3D11 layout (Presets is D3D11-only at index 0).
+            if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
+                index = index >= 2 ? index + 4 : index + 1;
 
             switch (index)
             {
                 case 0:
-                    Menu._onWindowModeToggle(Menu._config.WindowMode != "Fullscreen");
+                    Menu.NavigateTo(Screen.VideoPresets);
                     break;
                 case 1:
-                    Menu.NavigateTo(Screen.VideoFilter);
+                    Menu._onWindowModeToggle(Menu._config.WindowMode != "Fullscreen");
                     break;
                 case 2:
-                    CycleOverlay();
+                    Menu.NavigateTo(Screen.VideoFilter);
                     break;
                 case 3:
-                    Menu.NavigateTo(Screen.VideoMotionEffect);
+                    CycleOverlay();
                     break;
                 case 4:
-                    Menu.NavigateTo(Screen.VideoPicture);
+                    Menu.NavigateTo(Screen.VideoMotionEffect);
                     break;
                 case 5:
+                    Menu.NavigateTo(Screen.VideoPicture);
+                    break;
+                case 6:
                     var currentOverscan = OverscanModeParser.Parse(Menu._config.OverscanMode);
                     int nextIdx         = (Array.IndexOf(OverscanCycle, currentOverscan) + 1) % OverscanCycle.Length;
                     var newOverscan     = OverscanCycle[nextIdx];
                     Menu._config.OverscanMode = newOverscan.ToString();
+                    Menu.ClearPreset();
                     Menu._onOverscanModeChanged(newOverscan);
                     break;
-                case 6:
+                case 7:
                     Menu._config.ShowFps = !Menu._config.ShowFps;
                     Menu._onConfigSaved();
                     break;
-                case 7:
+                case 8:
                     Menu.NavigateTo(Screen.Settings);
                     break;
             }
@@ -95,10 +100,23 @@ internal sealed partial class MainMenuScreen
                 if (!candidate.HasValue || candidate.Value != primary)
                 {
                     Menu._config.VideoFilterOverlay = candidate.HasValue ? candidate.Value.ToString() : "None";
+                    Menu.ClearPreset();
                     Menu._onVideoFilterOverlayChanged(candidate);
                     return;
                 }
             }
+        }
+
+        private string ActivePresetDisplayName()
+        {
+            return Menu._config.VideoPreset switch
+            {
+                "LivingRoom" => Menu._localization.VideoPresetLivingRoom,
+                "Arcade"     => Menu._localization.VideoPresetArcade,
+                "Sharp"      => Menu._localization.VideoPresetSharp,
+                "Phosphor"   => Menu._localization.VideoPresetPhosphor,
+                _            => Menu._localization.VideoColorFilterNone,
+            };
         }
 
         private string FilterDisplayName(VideoFilterMode mode) => mode switch

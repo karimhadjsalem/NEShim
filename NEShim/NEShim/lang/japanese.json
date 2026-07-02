@@ -111,5 +111,11 @@
   "videoResetPicture": "デフォルトに戻す",
   "videoMotionEffectMagneticDistortion": "磁気歪み",
   "videoMotionEffectPhosphorPersistence": "残光",
-  "audioFilterDmcStabilizer": "ポップ除去"
+  "audioFilterDmcStabilizer": "ポップ除去",
+  "videoPresetsLabel": "プリセット",
+  "videoPresetsTitle": "ビデオプリセット",
+  "videoPresetLivingRoom": "リビング",
+  "videoPresetArcade": "アーケードモニター",
+  "videoPresetSharp": "シャープ",
+  "videoPresetPhosphor": "蛍光体"
 }

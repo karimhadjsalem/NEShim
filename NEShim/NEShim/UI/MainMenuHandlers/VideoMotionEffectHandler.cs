@@ -36,6 +36,7 @@ internal sealed partial class MainMenuScreen
             {
                 var mode = AllModes[index];
                 Menu._config.VideoMotionEffect = mode.ToString();
+                Menu.ClearPreset();
                 Menu._onVideoMotionEffectChanged(mode);
             }
             Menu.NavigateTo(Screen.Video);
