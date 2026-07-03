@@ -9,7 +9,7 @@ namespace NEShim.Input;
 /// Maintains keyboard state (updated on UI thread) and polls XInput (on emulation thread).
 /// PollSnapshot() combines both into an InputSnapshot.
 /// </summary>
-internal sealed class InputManager
+internal sealed class InputManager : IInputReader
 {
     private readonly HashSet<Keys> _pressedKeys = new();
     private readonly object _keyLock = new();
