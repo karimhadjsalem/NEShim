@@ -283,4 +283,183 @@ internal class ConfigLoaderTests
         var loaded = ConfigLoader.LoadFrom(_configPath);
         Assert.That(loaded.OverscanMode, Is.EqualTo("Underscan"));
     }
+
+    // ---- Two-file layering ----
+
+    [Test]
+    public void Load_WithNoUserJson_BootstrapsUserJsonFromPublisherConfig()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Volume = 80 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+
+        ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(File.Exists(userPath), Is.True);
+        File.Delete(userPath);
+    }
+
+    [Test]
+    public void Load_WithNoUserJson_ReturnsPublisherValues()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Volume = 80 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume, Is.EqualTo(80));
+        File.Delete(userPath);
+    }
+
+    [Test]
+    public void Load_WithNoUserJson_BootstrappedUserJsonPreservesVolumeAfterPublisherConfigReset()
+    {
+        // Simulates: user had volume=42 in old config.json; Steam update resets config.json to defaults.
+        // First run: no user.json → bootstrap user.json with volume=42.
+        // Second run: config.json now has default volume=100; user.json overrides with 42.
+        var originalPublisher = new AppConfig { WindowTitle = "TestGame", Volume = 42 };
+        ConfigLoader.SaveTo(originalPublisher, _configPath);
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+
+        ConfigLoader.Load(_configPath, userPath); // bootstraps user.json with Volume=42
+
+        var resetPublisher = new AppConfig { WindowTitle = "TestGame" }; // Volume = 100 (default)
+        ConfigLoader.SaveTo(resetPublisher, _configPath);
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume, Is.EqualTo(42));
+        File.Delete(userPath);
+    }
+
+    [Test]
+    public void Load_UserJsonOverridesPublisherUserFields()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Volume = 80 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        var userConfig  = new AppConfig { Volume = 42 };
+        ConfigLoader.SaveUserTo(userConfig, userPath);
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume, Is.EqualTo(42));
+    }
+
+    [Test]
+    public void Load_UserJsonDoesNotOverridePublisherOnlyFields()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", RomPath = "special.nes" };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath    = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        var userAppConfig  = new AppConfig { Volume = 50 };
+        ConfigLoader.SaveUserTo(userAppConfig, userPath);
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.RomPath, Is.EqualTo("special.nes"));
+    }
+
+    [Test]
+    public void Load_PartialUserJson_OnlyOverridesFieldsPresent()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Volume = 80, ShowFps = false };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"volume":55}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume,  Is.EqualTo(55));
+        Assert.That(loaded.ShowFps, Is.False);
+    }
+
+    [Test]
+    public void Load_UserJsonSetsShowFps_TrueOverridesPublisherFalse()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", ShowFps = false };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"showFps":true}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.ShowFps, Is.True);
+    }
+
+    [Test]
+    public void Load_CorruptUserJson_FallsBackToPublisherValues()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Volume = 70 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, "this is not json {{{{");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume, Is.EqualTo(70));
+    }
+
+    [Test]
+    public void SaveUserTo_ThenLoad_RoundTripsVolume()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame" };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath   = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        var savedConfig   = new AppConfig { Volume = 63 };
+        ConfigLoader.SaveUserTo(savedConfig, userPath);
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Volume, Is.EqualTo(63));
+    }
+
+    [Test]
+    public void SaveUserTo_DoesNotWritePublisherOnlyFields()
+    {
+        var config  = new AppConfig { WindowTitle = "TestGame", RomPath = "game.nes", Volume = 75 };
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        ConfigLoader.SaveUserTo(config, userPath);
+
+        string json = File.ReadAllText(userPath);
+
+        Assert.That(json, Does.Not.Contain("RomPath"));
+        Assert.That(json, Does.Not.Contain("WindowTitle"));
+        Assert.That(json, Does.Contain("Volume"));
+    }
+
+    [Test]
+    public void SaveUserTo_CreatesDirectoryIfMissing()
+    {
+        var config    = new AppConfig();
+        string subDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "nested");
+        string userPath = Path.Combine(subDir, "user.json");
+
+        ConfigLoader.SaveUserTo(config, userPath);
+
+        Assert.That(File.Exists(userPath), Is.True);
+        Directory.Delete(Path.GetDirectoryName(userPath)!, recursive: true);
+    }
+
+    [Test]
+    public void Load_UserLanguage_OverridesPublisherLanguage()
+    {
+        var publisher = new AppConfig { WindowTitle = "TestGame", Language = "Auto" };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"language":"french"}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.Language, Is.EqualTo("french"));
+    }
+
 }
