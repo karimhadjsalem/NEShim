@@ -36,7 +36,7 @@ https://karimhadjsalem.github.io/NEShim/
 
 ## Getting started (publishers)
 
-NEShim is configured entirely through `config.json` placed alongside the executable. At minimum, point it at your ROM:
+NEShim uses two configuration files. **`config.json`**, placed alongside the executable, is the publisher configuration layer — set your game-specific settings here. At minimum, point it at your ROM:
 
 ```json
 {
@@ -45,7 +45,7 @@ NEShim is configured entirely through `config.json` placed alongside the executa
 }
 ```
 
-Everything else — save paths, audio settings, input mappings, menu artwork — has sensible defaults and can be left as-is or tuned as needed.
+Everything else — save paths, audio settings, input mappings, menu artwork — has sensible defaults and can be left as-is or tuned as needed. Audio/video/input defaults you set in `config.json` become the player's starting preferences; on first launch they are copied to **`user.json`** in `%APPDATA%\<WindowTitle>\`, where all subsequent in-game menu changes are stored. Steam updates that overwrite `config.json` never affect `user.json`, so player preferences are preserved across your releases automatically.
 
 **Before shipping a release**, work through the [publishing checklist](CLAUDE.md#publishing-checklist):
 - Set `WindowTitle` in `config.json`
@@ -93,7 +93,7 @@ D3D11 mode also supports **Color Effects** that stack on top of any structural f
 | Phosphor Amber | Greyscale converted to the warm orange-yellow of a monochrome amber phosphor display |
 | Phosphor Green | Greyscale converted to the bright green of P1 phosphor used in arcade and early CRT monitors |
 
-If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `config.json`.
+If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `user.json`.
 
 ### Video Overlay (D3D11 only)
 
