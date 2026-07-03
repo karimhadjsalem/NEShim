@@ -81,12 +81,44 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `videoHue` | integer | `0` | Hue rotation applied to all colours using Rodrigues' rotation around the grey axis (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100 (−100 = −π rad ≈ full complementary inversion; +100 = +π rad). 0 = neutral. Configurable via Settings → Video → Picture. |
 | `videoPreset` | string | `"None"` | Name of the last-applied video preset (D3D11 only). `"None"` — no preset active. `"LivingRoom"`, `"Arcade"`, `"Sharp"`, `"Phosphor"` — built-in presets. Written by the Presets sub-menu; cleared to `"None"` automatically whenever any individual video setting is changed manually. See [Filters — Video Presets](filters.md#video-presets). |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
-| `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
-| `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. |
-| `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. |
+| `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. The image is stretched to fill the entire window — design at your target resolution to avoid aspect-ratio distortion. **1920×1080** for 16:9 fullscreen; **1280×800** for Steam Deck fullscreen. See [Main menu background sizing](#main-menu-background-sizing) below. |
+| `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. See [Sidebar image sizing](#sidebar-image-sizing) below. |
+| `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. See [Sidebar image sizing](#sidebar-image-sizing) below. |
 | `mainMenuPosition` | string | `"BottomCenter"` | Position of the menu panel on the main menu screen. Accepted values: `"BottomCenter"`, `"Center"`, `"BottomLeft"`, `"BottomRight"`, `"TopLeft"`, `"TopCenter"`, `"TopRight"`. |
 | `showFps` | boolean | `false` | Displays a live FPS counter in the top-right corner during gameplay. Toggleable in the Video menu. |
 | `noLogo` | boolean | `false` | When `true`, skips the logo splash screen shown at startup. |
+
+### Main menu background sizing
+
+The background image is stretched to fill the entire window with no cropping. If the source image has a different aspect ratio than the window, it will be visibly distorted. Design at the aspect ratio your players will most commonly use:
+
+| Target | Recommended canvas |
+|---|---|
+| 16:9 fullscreen (most PC monitors) | **1920×1080 px** |
+| 16:10 fullscreen (Steam Deck) | **1280×800 px** |
+| Both | Provide a 1920×1080 image — the minor vertical compression on Steam Deck (~11%) is usually imperceptible for background art |
+
+### Sidebar image sizing
+
+Each sidebar bar spans the full window height and is a narrow portrait strip flanking the NES frame. Its pixel width is `(window_width − NES_frame_width) ÷ 2`. The NES frame's display width depends on the active filter's pixel aspect ratio (8:7 for Pixel Perfect and the CRT/NTSC/Sharp filters) and the number of visible scanlines set by `overscanMode`.
+
+With the default **Pixel Perfect (8:7 PAR)** filter on a **16:9 display**:
+
+| Resolution | `overscanMode: "Normal"` (240 rows) | `overscanMode: "Overscan"` (224 rows) |
+|---|---|---|
+| 1280×720 (720p) | ~201×720 px &nbsp; (1:3.6 portrait) | ~170×720 px &nbsp; (1:4.2 portrait) |
+| 1920×1080 (1080p) | ~302×1080 px &nbsp; (1:3.6 portrait) | ~254×1080 px &nbsp; (1:4.3 portrait) |
+| 2560×1440 (1440p) | ~402×1440 px &nbsp; (1:3.6 portrait) | ~339×1440 px &nbsp; (1:4.2 portrait) |
+| 1280×800 (Steam Deck, 16:10) | ~152×800 px &nbsp; (1:5.3 portrait) | ~118×800 px &nbsp; (1:6.8 portrait) |
+
+The aspect ratio is constant across resolutions for a given configuration — only the pixel count scales.
+
+**Design recommendations:**
+
+- Images are cover-scaled (scale uniformly until both dimensions are filled, then crop overflow), so the source pixel count does not need to match the runtime bar exactly — design at the correct aspect ratio and any convenient canvas size.
+- **For 16:9 PC displays with Normal overscan (the default):** target **1:3.6 portrait**. A canvas of **200×720 px**, **302×1080 px**, or **402×1440 px** fills the bar with no cropping.
+- **On Steam Deck (16:10):** bars are narrower relative to their height (~1:5.3 portrait), so 16:9-designed art will have some left and right content cropped at runtime. Keep key visual elements near the centre column of your sidebar art.
+- Sidebar art is always displayed at its original colours — structural filters and Color Effects do not apply to sidebar images.
 
 ---
 
