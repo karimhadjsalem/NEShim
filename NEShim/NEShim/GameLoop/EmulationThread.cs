@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using NEShim.Achievements;
 using NEShim.Audio;
@@ -15,6 +16,7 @@ namespace NEShim.GameLoop;
 /// Runs the NES emulation loop on a dedicated high-priority thread at ~60Hz.
 /// Owns frame timing, pause logic, hotkey dispatch, audio submission, and Steam ticks.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class EmulationThread
 {
     [Flags]
@@ -30,7 +32,7 @@ internal sealed class EmulationThread
 
     private readonly EmulatorHost      _host;
     private readonly AppConfig         _config;
-    private readonly InputManager      _input;
+    private readonly IInputReader      _input;
     private readonly AudioPlayer       _audio;
     private readonly FrameBuffer       _frameBuffer;
     private readonly System.Windows.Forms.Control _uiMarshal;
@@ -51,15 +53,13 @@ internal sealed class EmulationThread
 
     private Thread? _thread;
 
-    // FPS counter
-    private int _frameCount;
-    private long _fpsTimestamp;
+    private readonly FpsTracker _fpsTracker = new(new StopwatchClock());
 
     // Periodic auto-save
     private const int AutoSaveIntervalFrames = 18_000; // ~5 min at 60 fps
     private int _autoSaveFrameCounter;
 
-    public float CurrentFps { get; private set; }
+    public float CurrentFps => _fpsTracker.CurrentFps;
 
     public PauseReasons ActivePauseReasons => (PauseReasons)_pauseReasonBits;
     public bool IsPaused => _pauseReasonBits != 0;
@@ -67,7 +67,7 @@ internal sealed class EmulationThread
     public EmulationThread(
         EmulatorHost        host,
         AppConfig           config,
-        InputManager        input,
+        IInputReader        input,
         AudioPlayer         audio,
         FrameBuffer         frameBuffer,
         System.Windows.Forms.Control uiMarshal,
@@ -180,8 +180,6 @@ internal sealed class EmulationThread
         long spinThreshold = Stopwatch.Frequency / 1000;
         bool timingEnabled = Logger.IsEnabled;
 
-        _fpsTimestamp = Stopwatch.GetTimestamp();
-
         // frameStart tracks the absolute deadline grid. Each frame's target is
         // frameStart + ticksPerFrame; after the wait we advance frameStart to that
         // target so overhead (input poll, hotkeys, etc.) is absorbed within the
@@ -289,14 +287,7 @@ internal sealed class EmulationThread
             }
 
             // 8. FPS tracking
-            _frameCount++;
-            long now = Stopwatch.GetTimestamp();
-            if (now - _fpsTimestamp >= Stopwatch.Frequency)
-            {
-                CurrentFps    = (float)_frameCount * Stopwatch.Frequency / (now - _fpsTimestamp);
-                _frameCount   = 0;
-                _fpsTimestamp = now;
-            }
+            _fpsTracker.Tick();
 
             // 9. Frame timing — coarse sleep then spin
             long target = frameStart + ticksPerFrame;

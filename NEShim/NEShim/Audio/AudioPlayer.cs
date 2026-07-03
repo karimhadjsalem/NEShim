@@ -8,7 +8,7 @@ namespace NEShim.Audio;
 /// Producer: emulation thread calls Enqueue() each frame.
 /// Consumer: NAudio's driver thread calls Read() to pull samples.
 ///
-/// A short[] ring buffer decouples the two threads.
+/// An <see cref="AudioRingBuffer"/> decouples the two threads.
 /// Audio processing (filtering, volume) is delegated to an <see cref="IAudioProcessor"/>
 /// that can be swapped at runtime without stopping the audio device.
 /// When paused, Read() fills with silence.
@@ -18,13 +18,8 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     // 44100 Hz, 16-bit, stereo — matches NES APU output (mono duplicated to stereo)
     public WaveFormat WaveFormat { get; } = new WaveFormat(44100, 16, 2);
 
-    // Ring buffer: capacity = ~8 frames (~5880 stereo samples = 11760 shorts)
-    private readonly short[] _ring;
-    private readonly int _capacity;
-    private int _writePos;
-    private int _readPos;
-    private int _available;
-    private readonly object _ringLock = new();
+    private readonly AudioRingBuffer _ringBuffer;
+    private readonly object          _ringLock = new();
 
     private volatile bool _paused;
     private IWavePlayer? _device;
@@ -32,6 +27,11 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     // Active processor — volatile so swaps from the UI thread are immediately visible
     // to the NAudio driver thread calling Read().
     private volatile IAudioProcessor _processor;
+
+    // 3-band EQ applied after the processor. Allocated once and reused; gains are
+    // updated via SetEq(). Reads from the NAudio thread are safe: SetGains only
+    // updates float fields, which are atomic on naturally-aligned .NET memory.
+    private readonly AudioEqProcessor _eq = new();
 
     // Master volume in [0, 1]. float reads on naturally-aligned .NET memory are atomic;
     // worst case is one call of Read() using a stale value, which is acceptable.
@@ -41,9 +41,8 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
 
     public AudioPlayer(int bufferFrames, IAudioProcessor processor)
     {
-        _capacity  = Math.Max(bufferFrames * 800 * 2, 4096);
-        _ring      = new short[_capacity];
-        _processor = processor;
+        _ringBuffer = new AudioRingBuffer(Math.Max(bufferFrames * 800 * 2, 4096));
+        _processor  = processor;
     }
 
     /// <summary>
@@ -96,6 +95,12 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _volume = Math.Clamp(volume, 0f, 1f);
     }
 
+    /// <summary>Updates the 3-band EQ gains (dB, −12..+12 each). 0 = neutral.</summary>
+    public void SetEq(int bass, int mid, int treble)
+    {
+        _eq.SetGains(bass, mid, treble);
+    }
+
     /// <summary>Called by the emulation thread after each FrameAdvance.</summary>
     public void Enqueue(short[] samples, int sampleCount)
     {
@@ -104,15 +109,7 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         if (stereoSamples > samples.Length) stereoSamples = samples.Length;
 
         lock (_ringLock)
-        {
-            for (int i = 0; i < stereoSamples; i++)
-            {
-                if (_available >= _capacity) break; // Drop oldest if overflow
-                _ring[_writePos] = samples[i];
-                _writePos = (_writePos + 1) % _capacity;
-                _available++;
-            }
-        }
+            _ringBuffer.Enqueue(samples, stereoSamples);
     }
 
     /// <summary>Called by NAudio's driver thread.</summary>
@@ -132,17 +129,12 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
                 // Consume stereo pairs (L, R) from the ring.
                 // NES is mono so L == R in the ring; we read L, discard R,
                 // and let the processor produce the filtered (L, R) output pair.
-                while (i + 1 < shortCount && _available >= 2)
+                while (i + 1 < shortCount && _ringBuffer.TryDequeueMonoL(out short rawL))
                 {
-                    short rawL = _ring[_readPos];
-                    _readPos  = (_readPos + 1) % _capacity;
-                    _available--;
-
-                    // Discard paired R (identical to L for NES mono)
-                    _readPos  = (_readPos + 1) % _capacity;
-                    _available--;
-
                     var (filtL, filtR) = proc.Process(rawL);
+
+                    if (_eq.IsActive)
+                        (filtL, filtR) = _eq.Process(filtL, filtR);
 
                     short outL = (short)Math.Clamp((int)(filtL * vol), short.MinValue, short.MaxValue);
                     short outR = (short)Math.Clamp((int)(filtR * vol), short.MinValue, short.MaxValue);
@@ -176,12 +168,12 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         {
             // Drain buffer so we don't play stale audio on resume
             lock (_ringLock)
-            {
-                _writePos = _readPos = _available = 0;
-            }
+                _ringBuffer.Drain();
+
             // Reset processor state so the first sample after resume starts clean.
             // Without this, a large DC offset in the filter memory would cause a pop.
             _processor.ResetState();
+            _eq.ResetState();
         }
     }
 

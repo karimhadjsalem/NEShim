@@ -38,8 +38,8 @@ public static class VideoColorFilterModeParser
         VideoColorFilterMode.Greyscale          => "Greyscale",
         VideoColorFilterMode.NesColorCorrection => "NES Colors",
         VideoColorFilterMode.Cool               => "Cool",
-        VideoColorFilterMode.PhosphorAmber      => "Phosphor Amber",
-        VideoColorFilterMode.PhosphorGreen      => "Phosphor Green",
+        VideoColorFilterMode.PhosphorAmber      => "Amber Mono",
+        VideoColorFilterMode.PhosphorGreen      => "Green Mono",
         _                                       => mode.ToString(),
     };
 }

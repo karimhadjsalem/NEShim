@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 
 namespace NEShim.Rendering;
@@ -7,6 +8,7 @@ namespace NEShim.Rendering;
 /// swap chain presentation to D3DOverlayHook. Used when D3D11 initialisation fails.
 /// Does not own GamePanel or D3DOverlayHook.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class GdiRenderer : IFrameRenderer
 {
     private readonly GamePanel      _gamePanel;
@@ -63,6 +65,7 @@ internal sealed class GdiRenderer : IFrameRenderer
     // GDI+ path: scene rendering goes through GamePanel.OnPaint; these are no-ops.
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) { }
     public void MarkOverlayDirty() { }
+    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue) { }
 
     public void Dispose() { } // does not own gamePanel or hook
 }

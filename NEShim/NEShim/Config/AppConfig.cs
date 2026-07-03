@@ -100,6 +100,22 @@ public sealed class AppConfig
     // If true and AudioFilter is still "Default", the loader promotes to "Warm".
     public bool SoundScrubberEnabled { get; set; } = false;
 
+    // 3-band peaking EQ gains in dB (-12 to +12). 0 = neutral (no processing).
+    public int AudioEqBass   { get; set; } = 0;
+    public int AudioEqMid    { get; set; } = 0;
+    public int AudioEqTreble { get; set; } = 0;
+
+    // Brightness/Contrast/Saturation/Hue picture adjustments (-100..100; 0 = neutral).
+    // Applied as a D3D11 post-process pass after the structural filter.
+    public int VideoBrightness { get; set; } = 0;
+    public int VideoContrast   { get; set; } = 0;
+    public int VideoSaturation { get; set; } = 0;
+    public int VideoHue        { get; set; } = 0;
+
+    // Name of the last-applied video preset ("None", "LivingRoom", "Arcade", "Sharp", "Phosphor").
+    // Cleared to "None" whenever any individual video setting is changed manually.
+    public string VideoPreset { get; set; } = "None";
+
     // When false, main menu music is silenced regardless of MainMenuMusicPath.
     public bool MainMenuMusicEnabled { get; set; } = true;
 

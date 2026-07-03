@@ -32,6 +32,8 @@ internal sealed partial class InGameMenu
     private readonly Action<Rendering.VideoMotionEffectMode>  _onVideoMotionEffectChanged;
     private readonly Action<Rendering.OverscanMode>           _onOverscanModeChanged;
     private readonly Action<string>                           _onLanguageChanged;
+    private readonly Action<int, int, int, int>                _onPictureAdjustChanged;
+    private readonly Action<int, int, int>                    _onAudioEqChanged;
 
     private (string Label, string ConfigKey)[]          _bindingActions;
     private (string Label, string ConfigKey)[]          _gamepadBindingActions;
@@ -107,7 +109,9 @@ internal sealed partial class InGameMenu
         Action<Rendering.VideoColorFilterMode>  onVideoColorFilterChanged,
         Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
-        Action<string>                          onLanguageChanged)
+        Action<string>                          onLanguageChanged,
+        Action<int, int, int, int>              onPictureAdjustChanged,
+        Action<int, int, int>                   onAudioEqChanged)
     {
         _saveStates                 = saveStates;
         _config                     = config;
@@ -125,6 +129,8 @@ internal sealed partial class InGameMenu
         _onVideoMotionEffectChanged  = onVideoMotionEffectChanged;
         _onOverscanModeChanged       = onOverscanModeChanged;
         _onLanguageChanged          = onLanguageChanged;
+        _onPictureAdjustChanged     = onPictureAdjustChanged;
+        _onAudioEqChanged           = onAudioEqChanged;
 
         _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
@@ -139,14 +145,15 @@ internal sealed partial class InGameMenu
             [Screen.Settings]               = new SettingsHandler(this),
             [Screen.KeyboardBindings]       = new KeyboardBindingsHandler(this),
             [Screen.GamepadBindings]        = new GamepadBindingsHandler(this),
-            [Screen.Video]                  = new VideoHandler(this),
-            [Screen.Sound]                  = new SoundHandler(this),
-            [Screen.AudioFilter]            = new AudioFilterHandler(this),
-            [Screen.VideoFilter]            = new VideoFilterHandler(this),
-            [Screen.VideoOverlay]           = new VideoOverlayHandler(this),
-            [Screen.VideoColorFilter]       = new VideoColorFilterHandler(this),
-            [Screen.VideoMotionEffect]      = new VideoMotionEffectHandler(this),
-            [Screen.Language]               = new LanguageHandler(this),
+            [Screen.Video]             = new VideoHandler(this),
+            [Screen.Sound]             = new SoundHandler(this),
+            [Screen.AudioFilter]       = new AudioFilterHandler(this),
+            [Screen.AudioEq]           = new AudioEqHandler(this),
+            [Screen.VideoFilter]       = new VideoFilterHandler(this),
+            [Screen.VideoMotionEffect] = new VideoMotionEffectHandler(this),
+            [Screen.VideoPicture]      = new VideoPictureHandler(this),
+            [Screen.VideoPresets]      = new VideoPresetsHandler(this),
+            [Screen.Language]          = new LanguageHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
                 () => { _saveStates.LoadFromActiveSlot(); Close(); }),
@@ -210,6 +217,18 @@ internal sealed partial class InGameMenu
         {
             if (key == Keys.Left)  { AdjustVolume(-5); return true; }
             if (key == Keys.Right) { AdjustVolume( 5); return true; }
+        }
+
+        if (Current == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedItem))
+        {
+            if (key == Keys.Left)  { AdjustPicture(SelectedItem, -1); return true; }
+            if (key == Keys.Right) { AdjustPicture(SelectedItem,  1); return true; }
+        }
+
+        if (Current == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedItem))
+        {
+            if (key == Keys.Left)  { AdjustEq(SelectedItem, -1); return true; }
+            if (key == Keys.Right) { AdjustEq(SelectedItem,  1); return true; }
         }
 
         switch (key)
@@ -281,6 +300,18 @@ internal sealed partial class InGameMenu
             if (nav.Right) { AdjustVolume( 5); return; }
         }
 
+        if (Current == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedItem))
+        {
+            if (nav.Left)  { AdjustPicture(SelectedItem, -1); return; }
+            if (nav.Right) { AdjustPicture(SelectedItem,  1); return; }
+        }
+
+        if (Current == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedItem))
+        {
+            if (nav.Left)  { AdjustEq(SelectedItem, -1); return; }
+            if (nav.Right) { AdjustEq(SelectedItem,  1); return; }
+        }
+
         if (nav.Up)   MoveCursor(-1);
         if (nav.Down) MoveCursor(1);
 
@@ -304,6 +335,91 @@ internal sealed partial class InGameMenu
         if (next == _config.Volume) return;
         _config.Volume = next;
         _onVolumeChanged(next);
+    }
+
+    private void AdjustPicture(int sliderIndex, int delta)
+    {
+        switch (sliderIndex)
+        {
+            case VideoPictureHandler.BrightnessIndex:
+                _config.VideoBrightness = Math.Clamp(_config.VideoBrightness + delta, -100, 100);
+                break;
+            case VideoPictureHandler.ContrastIndex:
+                _config.VideoContrast = Math.Clamp(_config.VideoContrast + delta, -100, 100);
+                break;
+            case VideoPictureHandler.SaturationIndex:
+                _config.VideoSaturation = Math.Clamp(_config.VideoSaturation + delta, -100, 100);
+                break;
+            case VideoPictureHandler.HueIndex:
+                _config.VideoHue = Math.Clamp(_config.VideoHue + delta, -100, 100);
+                break;
+        }
+        ClearPreset();
+        _onPictureAdjustChanged(_config.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
+    }
+
+    internal void ResetPicture()
+    {
+        ClearPreset();
+        _config.VideoBrightness  = 0;
+        _config.VideoContrast    = 0;
+        _config.VideoSaturation  = 0;
+        _config.VideoHue         = 0;
+        _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
+        _onPictureAdjustChanged(0, 0, 0, 0);
+        _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
+    }
+
+    private void AdjustEq(int sliderIndex, int delta)
+    {
+        switch (sliderIndex)
+        {
+            case AudioEqHandler.BassIndex:
+                _config.AudioEqBass = Math.Clamp(_config.AudioEqBass + delta, -12, 12);
+                break;
+            case AudioEqHandler.MidIndex:
+                _config.AudioEqMid = Math.Clamp(_config.AudioEqMid + delta, -12, 12);
+                break;
+            case AudioEqHandler.TrebleIndex:
+                _config.AudioEqTreble = Math.Clamp(_config.AudioEqTreble + delta, -12, 12);
+                break;
+        }
+        _onAudioEqChanged(_config.AudioEqBass, _config.AudioEqMid, _config.AudioEqTreble);
+    }
+
+    internal void ResetEq()
+    {
+        _config.AudioEqBass   = 0;
+        _config.AudioEqMid    = 0;
+        _config.AudioEqTreble = 0;
+        _onAudioEqChanged(0, 0, 0);
+    }
+
+    internal void ApplyPreset(Rendering.VideoPreset preset)
+    {
+        _config.VideoFilter        = preset.Filter.ToString();
+        _config.VideoFilterOverlay = preset.Overlay.HasValue ? preset.Overlay.Value.ToString() : "None";
+        _config.VideoColorFilter   = preset.ColorFilter.ToString();
+        _config.VideoMotionEffect  = preset.MotionEffect.ToString();
+        _config.OverscanMode       = preset.Overscan.ToString();
+        _config.VideoBrightness    = preset.Brightness;
+        _config.VideoContrast      = preset.Contrast;
+        _config.VideoSaturation    = preset.Saturation;
+        _config.VideoHue           = preset.Hue;
+        _config.VideoPreset        = preset.Name;
+
+        _onVideoFilterChanged(preset.Filter);
+        _onVideoFilterOverlayChanged(preset.Overlay);
+        _onVideoColorFilterChanged(preset.ColorFilter);
+        _onVideoMotionEffectChanged(preset.MotionEffect);
+        _onOverscanModeChanged(preset.Overscan);
+        _onPictureAdjustChanged(preset.Brightness, preset.Contrast, preset.Saturation, preset.Hue);
+        _onConfigSaved();
+    }
+
+    internal void ClearPreset()
+    {
+        _config.VideoPreset = "None";
     }
 
     private void MoveCursor(int direction)
@@ -345,11 +461,13 @@ internal sealed partial class InGameMenu
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
-        Screen.VideoFilter      => Screen.Video,
-        Screen.VideoOverlay     => Screen.VideoFilter,
-        Screen.VideoColorFilter => Screen.Video,
-        Screen.Language         => Screen.Settings,
-        _                       => Screen.Root,
+        Screen.AudioEq          => Screen.Sound,
+        Screen.VideoFilter       => Screen.Video,
+        Screen.VideoMotionEffect => Screen.Video,
+        Screen.VideoPicture      => Screen.Video,
+        Screen.VideoPresets      => Screen.Video,
+        Screen.Language          => Screen.Settings,
+        _                        => Screen.Root,
     };
 
     // ---- Handler dispatch (public — called by renderer and tests) ----
@@ -395,14 +513,15 @@ internal sealed partial class InGameMenu
 
     private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
     {
-        AudioFilterMode.Default      => _localization.AudioFilterDefault,
-        AudioFilterMode.Warm         => _localization.AudioFilterWarm,
-        AudioFilterMode.PseudoStereo => _localization.AudioFilterPseudoStereo,
-        AudioFilterMode.WarmStereo   => _localization.AudioFilterWarmStereo,
-        AudioFilterMode.Compression  => _localization.AudioFilterCompression,
-        AudioFilterMode.BassBoost    => _localization.AudioFilterBassBoost,
-        AudioFilterMode.Saturation   => _localization.AudioFilterSaturation,
-        _                            => mode.ToString(),
+        AudioFilterMode.Default       => _localization.AudioFilterDefault,
+        AudioFilterMode.Warm          => _localization.AudioFilterWarm,
+        AudioFilterMode.PseudoStereo  => _localization.AudioFilterPseudoStereo,
+        AudioFilterMode.WarmStereo    => _localization.AudioFilterWarmStereo,
+        AudioFilterMode.Compression   => _localization.AudioFilterCompression,
+        AudioFilterMode.BassBoost     => _localization.AudioFilterBassBoost,
+        AudioFilterMode.Saturation    => _localization.AudioFilterSaturation,
+        AudioFilterMode.DmcStabilizer => _localization.AudioFilterDmcStabilizer,
+        _                             => mode.ToString(),
     };
 
 }

@@ -9,6 +9,7 @@ public enum AudioFilterMode
     Compression,
     BassBoost,
     Saturation,
+    DmcStabilizer,
 }
 
 public static class AudioFilterModeParser
@@ -21,7 +22,8 @@ public static class AudioFilterModeParser
         "WarmStereo"   => AudioFilterMode.WarmStereo,
         "Compression"  => AudioFilterMode.Compression,
         "BassBoost"    => AudioFilterMode.BassBoost,
-        "Saturation"   => AudioFilterMode.Saturation,
+        "Saturation"    => AudioFilterMode.Saturation,
+        "DmcStabilizer" => AudioFilterMode.DmcStabilizer,
         _ => throw new ArgumentException($"Unknown audioFilter value: '{value}'"),
     };
 

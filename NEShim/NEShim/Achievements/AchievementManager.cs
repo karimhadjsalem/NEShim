@@ -13,11 +13,11 @@ namespace NEShim.Achievements;
 /// </summary>
 internal sealed class AchievementManager
 {
-    private readonly MemoryDomain?             _domain;
+    private readonly IMemoryReader?                _memoryReader;
     private readonly IReadOnlyList<AchievementDef> _defs;
-    private readonly Func<bool>               _statsReady;
-    private readonly Action<string>           _unlock;
-    private readonly HashSet<string>          _firedThisSession = new(StringComparer.Ordinal);
+    private readonly Func<bool>                    _statsReady;
+    private readonly Action<string>                _unlock;
+    private readonly HashSet<string>               _firedThisSession = new(StringComparer.Ordinal);
 
     private bool _statsWaitLogged;
     private bool _readyLogged;
@@ -28,10 +28,11 @@ internal sealed class AchievementManager
         Func<bool>            statsReady,
         Action<string>        unlock)
     {
-        _domain     = domains[config.MemoryDomain] ?? domains.MainMemory;
-        _defs       = config.Achievements;
-        _statsReady = statsReady;
-        _unlock     = unlock;
+        MemoryDomain? domain = domains[config.MemoryDomain] ?? domains.MainMemory;
+        _memoryReader = domain is not null ? new MemoryDomainAdapter(domain) : null;
+        _defs         = config.Achievements;
+        _statsReady   = statsReady;
+        _unlock       = unlock;
     }
 
     /// <summary>
@@ -39,7 +40,7 @@ internal sealed class AchievementManager
     /// </summary>
     internal void Tick()
     {
-        if (_domain is null) return;
+        if (_memoryReader is null) return;
 
         if (!_statsReady())
         {
@@ -61,10 +62,10 @@ internal sealed class AchievementManager
         {
             if (_firedThisSession.Contains(def.SteamId)) continue;
 
-            long raw   = ReadRaw(_domain, def.Address, def.Bytes, def.BigEndian);
-            long value = def.Encoding == "bcd" ? DecodeBcd(raw, def.Bytes) : raw;
+            long raw   = AchievementEvaluator.ReadRaw(_memoryReader, def.Address, def.Bytes, def.BigEndian);
+            long value = def.Encoding == "bcd" ? AchievementEvaluator.DecodeBcd(raw, def.Bytes) : raw;
 
-            if (Matches(def.Comparison, value, def.Value))
+            if (AchievementEvaluator.Matches(def.Comparison, value, def.Value))
             {
                 _firedThisSession.Add(def.SteamId);
                 _unlock(def.SteamId);
@@ -72,54 +73,10 @@ internal sealed class AchievementManager
         }
     }
 
-    /// <summary>
-    /// Reads <paramref name="byteCount"/> bytes from <paramref name="domain"/> starting at
-    /// <paramref name="address"/> and assembles them into a long.
-    /// When <paramref name="bigEndian"/> is true the first byte is the most significant.
-    /// </summary>
-    private static long ReadRaw(MemoryDomain domain, int address, int byteCount, bool bigEndian)
+    private sealed class MemoryDomainAdapter : IMemoryReader
     {
-        long value = 0;
-        for (int i = 0; i < byteCount; i++)
-        {
-            byte b = domain.PeekByte(address + i);
-            if (bigEndian)
-                value = (value << 8) | b;
-            else
-                value |= (long)b << (i * 8);
-        }
-        return value;
+        private readonly MemoryDomain _domain;
+        internal MemoryDomainAdapter(MemoryDomain domain) => _domain = domain;
+        public byte PeekByte(long address) => _domain.PeekByte(address);
     }
-
-    /// <summary>
-    /// Decodes a big-endian-assembled raw value as BCD.
-    /// Each nibble represents one decimal digit; the most significant nibble of the highest byte
-    /// is the most significant digit.
-    /// Example: raw = 0x123456 (3 bytes) → 123456.
-    /// </summary>
-    private static long DecodeBcd(long bigEndianRaw, int byteCount)
-    {
-        long result     = 0;
-        long multiplier = 1;
-        // Iterate from the least-significant byte (low bits) to the most-significant byte (high bits).
-        for (int i = 0; i < byteCount; i++)
-        {
-            byte b  = (byte)((bigEndianRaw >> (i * 8)) & 0xFF);
-            result += (b & 0x0F) * multiplier              // units digit of this byte
-                    + ((b >> 4) & 0x0F) * multiplier * 10; // tens digit of this byte
-            multiplier *= 100;
-        }
-        return result;
-    }
-
-    private static bool Matches(string comparison, long actual, long threshold) =>
-        comparison switch
-        {
-            "equals"         => actual == threshold,
-            "greaterOrEqual" => actual >= threshold,
-            "greaterThan"    => actual >  threshold,
-            "lessOrEqual"    => actual <= threshold,
-            "lessThan"       => actual <  threshold,
-            _                => false,
-        };
 }

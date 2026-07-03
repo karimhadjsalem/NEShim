@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace NEShim.Rendering;
 /// Tries D3D11 first; falls back to GDI+ if D3D11 initialisation fails.
 /// Also sets <see cref="Platform.PlatformDetector.IsD3D11Active"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static class RendererFactory
 {
     internal static IFrameRenderer Create(

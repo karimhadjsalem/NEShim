@@ -347,4 +347,69 @@ internal class AudioPlayerTests
 
         Assert.That(data[0], Is.EqualTo(refL));
     }
+
+    // ---- SetEq ----
+
+    [Test]
+    public void SetEq_AllZero_OutputUnchangedRelativeToNoEq()
+    {
+        // SetEq(0,0,0) should produce the same output as never calling SetEq.
+        using var withEq    = Create();
+        using var withoutEq = Create();
+
+        withEq.SetEq(0, 0, 0); // no-op
+
+        withEq.Enqueue(new short[]    { 10000, 10000 }, sampleCount: 1);
+        withoutEq.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+
+        short[] eqData    = ShortView(ReadAll(withEq,    shortCount: 2));
+        short[] noEqData  = ShortView(ReadAll(withoutEq, shortCount: 2));
+
+        Assert.That(eqData[0], Is.EqualTo(noEqData[0]));
+    }
+
+    [Test]
+    public void SetEq_NonZeroBass_ChangeOutput()
+    {
+        using var withEq    = Create();
+        using var withoutEq = Create();
+
+        withEq.SetEq(12, 0, 0);
+
+        withEq.Enqueue(new short[]    { 10000, 10000 }, sampleCount: 1);
+        withoutEq.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+
+        short[] eqData   = ShortView(ReadAll(withEq,    shortCount: 2));
+        short[] baseData = ShortView(ReadAll(withoutEq, shortCount: 2));
+
+        Assert.That(eqData[0], Is.Not.EqualTo(baseData[0]));
+    }
+
+    [Test]
+    public void SetEq_SetPausedTrue_ResetsEqState()
+    {
+        // After pause, EQ state should be cleared; output must equal a fresh EQ instance.
+        using var player = Create();
+        player.SetEq(8, 4, -6);
+
+        // Prime EQ state
+        for (int i = 0; i < 20; i++)
+            player.Enqueue(new short[] { 10000, 10000 }, sampleCount: 1);
+        ReadAll(player, shortCount: 40);
+
+        player.SetPaused(true);
+        player.SetPaused(false);
+        player.SetEq(8, 4, -6); // same gains, but fresh state after pause
+
+        player.Enqueue(new short[] { 5000, 5000 }, sampleCount: 1);
+        short[] afterReset = ShortView(ReadAll(player, shortCount: 2));
+
+        // Compare to a brand-new player with the same gains from zero state.
+        using var fresh = Create();
+        fresh.SetEq(8, 4, -6);
+        fresh.Enqueue(new short[] { 5000, 5000 }, sampleCount: 1);
+        short[] freshData = ShortView(ReadAll(fresh, shortCount: 2));
+
+        Assert.That(afterReset[0], Is.EqualTo(freshData[0]));
+    }
 }

@@ -15,8 +15,8 @@ https://karimhadjsalem.github.io/NEShim/
 - **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
-- **Audio** — volume control and seven audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation)
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds five exclusive structural filters (CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, and seven color effects — all independently stackable; see [Filters](#filters) below
+- **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets** (Living Room, Arcade Monitor, Sharp, Phosphor) that apply coordinated filter combinations in one step — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -36,7 +36,7 @@ https://karimhadjsalem.github.io/NEShim/
 
 ## Getting started (publishers)
 
-NEShim is configured entirely through `config.json` placed alongside the executable. At minimum, point it at your ROM:
+NEShim uses two configuration files. **`config.json`**, placed alongside the executable, is the publisher configuration layer — set your game-specific settings here. At minimum, point it at your ROM:
 
 ```json
 {
@@ -45,7 +45,7 @@ NEShim is configured entirely through `config.json` placed alongside the executa
 }
 ```
 
-Everything else — save paths, audio settings, input mappings, menu artwork — has sensible defaults and can be left as-is or tuned as needed.
+Everything else — save paths, audio settings, input mappings, menu artwork — has sensible defaults and can be left as-is or tuned as needed. Audio/video/input defaults you set in `config.json` become the player's starting preferences; on first launch they are copied to **`user.json`** in `%APPDATA%\<WindowTitle>\`, where all subsequent in-game menu changes are stored. Steam updates that overwrite `config.json` never affect `user.json`, so player preferences are preserved across your releases automatically.
 
 **Before shipping a release**, work through the [publishing checklist](CLAUDE.md#publishing-checklist):
 - Set `WindowTitle` in `config.json`
@@ -61,7 +61,9 @@ Full configuration reference and a step-by-step publishing guide are on the proj
 
 ### Audio filters
 
-Seven audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, and Saturation. Switching takes effect immediately with no audio pop.
+Eight audio processors are available via **Settings → Sound → Audio Filter**: Default (standard NES hardware chain), Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, and Pop Filter (DMC click reduction). Switching takes effect immediately with no audio pop.
+
+A **3-band EQ** is available via **Settings → Sound → EQ**: Bass (100 Hz), Mid (1 kHz), and Treble (8 kHz), each adjustable from −12 dB to +12 dB. The EQ runs after the active audio filter and is bypassed when all bands are at 0.
 
 ### Video filters
 
@@ -77,6 +79,7 @@ Each rendering path exposes its own set of structural filters:
 | CRT Phosphor (scanlines + aperture-grille mask) | — | D3D11 only |
 | CRT Screen (barrel distortion + chromatic aberration + vignette) | — | D3D11 only |
 | NTSC Composite | — | D3D11 only |
+| Sharp Pixel (xBRZ edge-preserving upscaler) | — | D3D11 only |
 
 D3D11 mode also supports **Color Effects** that stack on top of any structural filter:
 
@@ -90,13 +93,13 @@ D3D11 mode also supports **Color Effects** that stack on top of any structural f
 | Phosphor Amber | Greyscale converted to the warm orange-yellow of a monochrome amber phosphor display |
 | Phosphor Green | Greyscale converted to the bright green of P1 phosphor used in arcade and early CRT monitors |
 
-If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `config.json`.
+If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `user.json`.
 
 ### Video Overlay (D3D11 only)
 
 A second structural filter pass applied on top of the primary structural filter. When active, `D3D11Renderer` renders the primary filter to an intermediate render target at letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the final swap chain buffer. Color grading is deferred to the second pass so it is applied only once to the combined image.
 
-Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
+Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots; switching the primary filter to one that matches the current overlay automatically resets the overlay to None. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
 
 **Overscan mode** is available in both renderers and controls how the 256×240 NES frame is cropped and scaled:
 
@@ -108,9 +111,39 @@ Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. A
 
 Filter and overscan changes take effect immediately while the game is running — no restart needed.
 
+### Video Presets (D3D11 only)
+
+Four built-in presets apply a coordinated combination of filter settings in one step via **Settings → Video → Presets**:
+
+| Preset | Video Filter | Video Overlay | Color Effect | Motion Effect |
+|---|---|---|---|---|
+| Living Room | CRT Screen | CRT Scanlines | NES Colors | CRT Jitter |
+| Arcade Monitor | CRT Phosphor | — | Cool | CRT Jitter |
+| Sharp | Sharp Pixel | — | NES Colors | — |
+| Phosphor | CRT Screen | CRT Phosphor | Phosphor Amber | Screen Glow |
+
+Selecting any individual filter after applying a preset clears the preset name back to None. The active preset name appears inline on the Video settings screen.
+
+**Motion Effects** (D3D11 only) animate the NES viewport each frame. CPU quad-offset effects (CRT Jitter, Scanline Bob) apply a per-frame clip-space displacement with no extra render pass. Shader-backed effects (Magnetic Distortion) render the primary/overlay filter to an intermediate render target and apply a pixel shader warp, adding one render pass when active:
+
+| Motion Effect | Description |
+|---|---|
+| None | No animation |
+| CRT Jitter | Micro-pixel translation simulating hold instability on an aging CRT |
+| Scanline Bob | 30 Hz vertical oscillation mimicking interlaced scanline wobble |
+| Magnetic Distortion | Per-pixel sine-wave UV warp simulating a magnetic field deflecting the CRT electron beam unevenly |
+
+Motion effects compose with all structural filters, the Video Overlay slot, and color effects.
+
+### Picture Adjustments (D3D11 only)
+
+Four independent sliders available under **Settings → Video → Picture**: **Brightness** (−100 to +100), **Contrast** (−100 to +100), **Saturation** (−100 to +100), and **Hue** (−100 to +100, mapping to −π..+π radians rotation around the grey axis). Applied as a post-process pass after all structural, overlay, and motion effect passes. All four default to 0 (neutral); when all are neutral the pass is skipped entirely with no rendering overhead.
+
 ### Developer note — injectable filter architecture
 
 Structural filters implement `ID3D11Filter` (in `NEShim.Rendering.Filters`) and are compiled as DXBC pixel shaders. All shaders share a uniform 4-float constant buffer: structural params at `[0..2]` (filled by the filter), color mode at `[3]` (filled by the renderer). A shared `ColorGrade.hlsli` include applies the active Color Effect as the final step in every shader, so any structural filter + color effect combination works without shader permutations. The interface also exposes `UseLinearSampler` (default false) — override to true for sampler-only filters like Bilinear, which require no pixel shader. Adding a new structural filter requires implementing `ID3D11Filter`, writing the `.ps.hlsl`, registering in `D3D11FilterFactory`, and adding to `VideoFilterModeParser.D3D11Supported` — no renderer or menu changes needed. Adding a new color effect only requires extending the enum and adding a branch in `ColorGrade.hlsli`.
+
+Motion effects implement `IMotionEffect` (in `NEShim.Rendering.MotionEffects`). CPU quad-offset effects implement only `GetFrameOffset`; shader-backed effects additionally return a `PixelShaderResourceName` and override `WriteShaderParams`, which causes the renderer to allocate an intermediate render target and run the warp as a dedicated pixel shader pass. Adding a new motion effect requires implementing `IMotionEffect`, optionally writing a `.ps.hlsl`, and registering in `MotionEffectFactory` and `VideoMotionEffectModeParser`.
 
 ---
 

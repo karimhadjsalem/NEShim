@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
@@ -13,6 +14,7 @@ using NEShim.UI;
 
 namespace NEShim;
 
+[ExcludeFromCodeCoverage]
 public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget
 {
     // ---- Win32 for WM_ACTIVATEAPP ----
@@ -154,6 +156,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
             d3d.SetMotionEffect(motionMode);
+            d3d.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
             var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
             d3d.SetOverlayFilter(overlayMode.HasValue
                 ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
@@ -362,18 +365,20 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         var filterMode = AudioFilterModeParser.Parse(_config!.AudioFilter);
         _audio = new AudioPlayer(_config.AudioBufferFrames, CreateProcessor(filterMode));
         _audio.SetVolume(_config.Volume / 100f);
+        _audio.SetEq(_config.AudioEqBass, _config.AudioEqMid, _config.AudioEqTreble);
         Logger.Log($"[Init] Audio: buffer={_config.AudioBufferFrames} frames, filter={filterMode}, volume={_config.Volume}%");
     }
 
     private static IAudioProcessor CreateProcessor(AudioFilterMode mode) => mode switch
     {
-        AudioFilterMode.Warm         => new SoundScrubberProcessor(),
-        AudioFilterMode.PseudoStereo => new PseudoStereoProcessor(),
-        AudioFilterMode.WarmStereo   => new WarmStereoProcessor(),
-        AudioFilterMode.Compression  => new CompressionProcessor(),
-        AudioFilterMode.BassBoost    => new BassBoostProcessor(),
-        AudioFilterMode.Saturation   => new TapeSaturationProcessor(),
-        _                            => new NesFilterProcessor(),
+        AudioFilterMode.Warm          => new SoundScrubberProcessor(),
+        AudioFilterMode.PseudoStereo  => new PseudoStereoProcessor(),
+        AudioFilterMode.WarmStereo    => new WarmStereoProcessor(),
+        AudioFilterMode.Compression   => new CompressionProcessor(),
+        AudioFilterMode.BassBoost     => new BassBoostProcessor(),
+        AudioFilterMode.Saturation    => new TapeSaturationProcessor(),
+        AudioFilterMode.DmcStabilizer => new DmcStabilizerProcessor(),
+        _                             => new NesFilterProcessor(),
     };
 
     private LocalizationData InitializeSteamAndLocalization()
@@ -464,7 +469,18 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
+            {
+                if (_renderer is Rendering.D3D11Renderer d3dPic)
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
+                ConfigLoader.Save(_config!);
+            },
+            onAudioEqChanged: (bass, mid, treble) =>
+            {
+                _audio?.SetEq(bass, mid, treble);
+                ConfigLoader.Save(_config!);
+            });
 
         _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
 
@@ -567,7 +583,18 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)));
+            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
+            {
+                if (_renderer is Rendering.D3D11Renderer d3dPic)
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
+                ConfigLoader.Save(_config!);
+            },
+            onAudioEqChanged: (bass, mid, treble) =>
+            {
+                _audio?.SetEq(bass, mid, treble);
+                ConfigLoader.Save(_config!);
+            });
         _menu.Opened += () => BeginInvoke(() =>
         {
             _renderer?.MarkOverlayDirty();

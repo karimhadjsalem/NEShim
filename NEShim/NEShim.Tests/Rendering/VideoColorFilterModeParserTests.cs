@@ -40,8 +40,8 @@ internal class VideoColorFilterModeParserTests
     [TestCase(VideoColorFilterMode.Greyscale,          "Greyscale")]
     [TestCase(VideoColorFilterMode.NesColorCorrection, "NES Colors")]
     [TestCase(VideoColorFilterMode.Cool,               "Cool")]
-    [TestCase(VideoColorFilterMode.PhosphorAmber,      "Phosphor Amber")]
-    [TestCase(VideoColorFilterMode.PhosphorGreen,      "Phosphor Green")]
+    [TestCase(VideoColorFilterMode.PhosphorAmber,      "Amber Mono")]
+    [TestCase(VideoColorFilterMode.PhosphorGreen,      "Green Mono")]
     public void DisplayName_KnownMode_ReturnsExpectedString(VideoColorFilterMode mode, string expected)
     {
         Assert.That(VideoColorFilterModeParser.DisplayName(mode), Is.EqualTo(expected));

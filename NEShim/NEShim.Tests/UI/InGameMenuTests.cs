@@ -34,6 +34,7 @@ internal class InGameMenuTests
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
+        NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
     private InGameMenu CreateMenu(
@@ -64,7 +65,7 @@ internal class InGameMenuTests
             onVideoColorFilterChanged        ?? (_ => { }),
             _ => { },
             onOverscanModeChanged            ?? (_ => { }),
-            _ => { });
+            _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
     }
 
     // Helper: create an empty slot-state file so SlotExists returns true
@@ -563,7 +564,7 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
@@ -597,12 +598,12 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void Sound_GetCurrentItems_ReturnsThreeItems()
+    public void Sound_GetCurrentItems_ReturnsFourItems()
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        // Volume + Audio Filter + Back
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+        // Volume + Audio Filter + EQ + Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(4));
     }
 
     [Test]
@@ -701,7 +702,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        for (int i = 0; i < 2; i++) menu.HandleKey(Keys.Down); // Back is at index 2
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Back is at index 3
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
@@ -740,8 +741,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenAudioFilterScreen(menu);
-        // 7 filter modes + Back
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
+        // 8 filter modes + Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
     [Test]
@@ -814,7 +815,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -825,7 +826,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -836,7 +837,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(menu);
         Assert.That(menu.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -871,7 +872,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { BindNone = "(unset)" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
@@ -973,7 +974,8 @@ internal class InGameMenuTests
     private void OpenVideoFilterSubMenu(InGameMenu menu)
     {
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);   // Video Filter (index 1)
+        if (NEShim.Platform.PlatformDetector.IsD3D11Active) menu.HandleKey(Keys.Down); // skip Presets(0) → Window(1)
+        menu.HandleKey(Keys.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
         menu.HandleKey(Keys.Return); // → VideoFilter sub-menu
     }
 
@@ -1054,6 +1056,51 @@ internal class InGameMenuTests
         for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Back
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoFilter: overlay conflict (D3D11 mode) ----
+    // D3D11Supported order: PixelPerfect(0), Bilinear(1), CrtScanlines(2), CrtPhosphor(3), CrtScreen(4), NtscComposite(5), Xbr(6), Back(7)
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayMatches_ClearsOverlay()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);   // Bilinear (1)
+        menu.HandleKey(Keys.Down);   // CrtScanlines (2)
+        menu.HandleKey(Keys.Return); // select CrtScanlines — matches overlay
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayMatches_FiresOverlayCallback()
+    {
+        NEShim.Rendering.VideoFilterMode? received = null;
+        bool callbackFired = false;
+        var menu = CreateMenu(onVideoFilterOverlayChanged: m => { callbackFired = true; received = m; });
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtScanlines";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // select CrtScanlines
+        Assert.That(callbackFired, Is.True);
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public void VideoFilter_D3D11_SelectFilter_WhenOverlayDiffers_KeepsOverlay()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        _config.VideoFilterOverlay = "CrtPhosphor";
+        OpenVideoFilterSubMenu(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
     // ---- VideoOverlay sub-menu (GDI mode — overlay entry absent) ----
@@ -1487,134 +1534,48 @@ internal class InGameMenuTests
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
     }
 
-    // ---- VideoOverlayHandler ----
+    // ---- Video screen Overlay cycle (D3D11 mode, index 3) ----
 
-    [Test]
-    public void VideoOverlay_NavigateTo_SetsCurrentScreen()
+    // In D3D11 mode the Video screen is: Presets(0), Window(1), Filter(2), Overlay(3), Motion(4), Picture(5), Overscan(6), FPS(7), Back(8).
+    private void OpenVideoScreenD3D11(InGameMenu menu)
     {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoOverlay));
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoScreen(menu);
     }
 
     [Test]
-    public void VideoOverlay_GetTitle_ReturnsOverlayTitle()
+    public void Video_D3D11_ItemCount_IsNine()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO OVERLAY"));
+        OpenVideoScreenD3D11(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
     [Test]
-    public void VideoOverlay_GetCurrentItems_ReturnsFiveItems()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        // None + CrtScanlines + CrtPhosphor + CrtScreen + Back = 5
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
-    }
-
-    [Test]
-    public void VideoOverlay_DefaultNone_HasCheckmark()
+    public void Video_D3D11_OverlayCycle_FromNone_SetsCrtScanlines()
     {
         var menu = CreateMenu();
         _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
-    }
-
-    [Test]
-    public void VideoOverlay_ActiveOverlay_HasCheckmark()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        var items = menu.GetCurrentItems();
-        Assert.That(items[0], Does.StartWith("  "));  // None — no checkmark
-        Assert.That(items[1], Does.StartWith("✓"));   // CrtScanlines
-    }
-
-    [Test]
-    public void VideoOverlay_SelectNone_SetsConfigToNone()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None (index 0)
-        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
-    }
-
-    [Test]
-    public void VideoOverlay_SelectNone_FiresCallback()
-    {
-        NEShim.Rendering.VideoFilterMode? received = new NEShim.Rendering.VideoFilterMode();
-        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
-        _config.VideoFilterOverlay = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None
-        Assert.That(received, Is.Null);
-    }
-
-    [Test]
-    public void VideoOverlay_SelectOverlay_UpdatesConfig()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
+        OpenVideoScreenD3D11(menu);
+        menu.HandleKey(Keys.Down); // Window (1)
+        menu.HandleKey(Keys.Down); // Filter (2)
+        menu.HandleKey(Keys.Down); // Overlay (3)
         menu.HandleKey(Keys.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
 
     [Test]
-    public void VideoOverlay_SelectOverlay_FiresCallback()
+    public void Video_D3D11_OverlayCycle_SkipsPrimaryFilter()
     {
-        NEShim.Rendering.VideoFilterMode? received = null;
-        var menu = CreateMenu(onVideoFilterOverlayChanged: m => received = m);
+        var menu = CreateMenu();
+        _config.VideoFilter        = "CrtScanlines";
         _config.VideoFilterOverlay = "None";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Down);   // CrtScanlines (index 1)
-        menu.HandleKey(Keys.Return);
-        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
-    }
-
-    [Test]
-    public void VideoOverlay_SelectOverlay_NavigatesBackToVideoFilter()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        menu.HandleKey(Keys.Return); // select None
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-    }
-
-    [Test]
-    public void VideoOverlay_Back_NavigatesBackToVideoFilter()
-    {
-        var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Back (index 4)
-        menu.HandleKey(Keys.Return);
-        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
-    }
-
-    [Test]
-    public void VideoOverlay_PrimaryMatchesOverlay_IsDisabled()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilter = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.IsItemEnabled(1), Is.False); // CrtScanlines disabled (matches primary)
-        Assert.That(menu.IsItemEnabled(2), Is.True);  // CrtPhosphor enabled
-    }
-
-    [Test]
-    public void VideoOverlay_NoneAndBack_AlwaysEnabled()
-    {
-        var menu = CreateMenu();
-        _config.VideoFilter = "CrtScanlines";
-        menu.Open(InGameMenu.Screen.VideoOverlay);
-        Assert.That(menu.IsItemEnabled(0), Is.True); // None always enabled
-        Assert.That(menu.IsItemEnabled(4), Is.True); // Back always enabled
+        OpenVideoScreenD3D11(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
+        Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
     // ---- ControllerDisconnectedHandler ----
@@ -1855,5 +1816,676 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         Assert.That(menu.ActiveNesButton, Is.Null); // Root screen
+    }
+
+    // ---- VideoPicture sub-screen (D3D11 mode, Picture is index 4 in Video) ----
+
+    private void OpenVideoPictureScreen(InGameMenu menu)
+    {
+        OpenVideoScreenD3D11(menu);
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Picture (index 5)
+        menu.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoPicture_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoPicture));
+    }
+
+    [Test]
+    public void VideoPicture_GetCurrentItems_ReturnsSevenItems()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(7));
+    }
+
+    [Test]
+    public void VideoPicture_GetTitle_ReturnsPictureTitle()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("PICTURE"));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessSlider_Default_ContainsBlockBarAndZero()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        string[] items = menu.GetCurrentItems();
+        Assert.That(items[1], Does.Contain("0"));
+        Assert.That(items[1], Does.Contain("█"));
+        Assert.That(items[1], Does.Contain("░"));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnBrightness_IncreasesConfigBrightness()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // to Brightness (index 1)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_LeftOnBrightness_DecreasesConfigBrightness()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = 10;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // to Brightness
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(9));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnContrast_IncreasesConfigContrast()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast (index 2)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoContrast, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnSaturation_IncreasesConfigSaturation()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation (index 3)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoSaturation, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_RightOnHue_IncreasesConfigHue()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_LeftOnHue_DecreasesConfigHue()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void VideoPicture_HueAt100_RightDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoHue = 100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(100));
+    }
+
+    [Test]
+    public void VideoPicture_HueAtMinus100_LeftDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoHue = -100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-100));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessAt100_RightDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = 100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(100));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessAtMinus100_LeftDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness = -100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoBrightness, Is.EqualTo(-100));
+    }
+
+    [Test]
+    public void VideoPicture_ColorPreset_Activate_CyclesColorFilter()
+    {
+        var menu = CreateMenu();
+        _config.VideoColorFilter = "None";
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Return); // activate ColorPreset (index 0)
+        Assert.That(_config.VideoColorFilter, Is.Not.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoPicture_Reset_SetsAllValuesToZeroAndColorToNone()
+    {
+        var menu = CreateMenu();
+        _config.VideoBrightness  = 50;
+        _config.VideoContrast    = -30;
+        _config.VideoSaturation  = 25;
+        _config.VideoHue         = 75;
+        _config.VideoColorFilter = "Warm";
+        OpenVideoPictureScreen(menu);
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Reset (index 5)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
+        Assert.That(_config.VideoContrast,    Is.EqualTo(0));
+        Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
+        Assert.That(_config.VideoHue,         Is.EqualTo(0));
+        Assert.That(_config.VideoColorFilter, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoPicture_Back_NavigatesToVideoScreen()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Back (index 6)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoFilter D3D11: Xbr filter ----
+
+    [Test]
+    public void VideoFilter_D3D11_SelectXbr_UpdatesConfig()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoFilterSubMenu(menu);
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Xbr (index 6)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoFilter, Is.EqualTo("Xbr"));
+    }
+
+    // ---- Audio EQ sub-screen ----
+
+    // Helper: navigate to AudioEq screen
+    private static void OpenAudioEqScreen(InGameMenu menu)
+    {
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);   // Sound (index 1)
+        menu.HandleKey(Keys.Return); // enter Sound
+        menu.HandleKey(Keys.Down);   // Audio Filter item (index 1)
+        menu.HandleKey(Keys.Down);   // EQ item (index 2)
+        menu.HandleKey(Keys.Return); // enter AudioEq screen
+    }
+
+    [Test]
+    public void AudioEq_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.AudioEq));
+    }
+
+    [Test]
+    public void AudioEq_GetTitle_ReturnsAudioEqTitle()
+    {
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("AUDIO EQ"));
+    }
+
+    [Test]
+    public void AudioEq_GetCurrentItems_ReturnsFiveItems()
+    {
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        // Bass, Mid, Treble, Reset, Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void AudioEq_BassItem_ShowsCurrentValue()
+    {
+        _config.AudioEqBass = 6;
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("+6"));
+    }
+
+    [Test]
+    public void AudioEq_MidItem_ShowsZeroLabel_WhenZero()
+    {
+        _config.AudioEqMid = 0;
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        Assert.That(menu.GetCurrentItems()[1], Does.Contain("0"));
+    }
+
+    [Test]
+    public void AudioEq_RightKey_OnBass_IncreasesGain()
+    {
+        _config.AudioEqBass = 0;
+        (int bass, int mid, int treble) received = default;
+        var menu = new InGameMenu(
+            _saveStates, _config, new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
+        OpenAudioEqScreen(menu); // SelectedItem = 0 (Bass)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.AudioEqBass, Is.EqualTo(1));
+        Assert.That(received.bass, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void AudioEq_LeftKey_OnMid_DecreasesGain()
+    {
+        _config.AudioEqMid = 3;
+        (int bass, int mid, int treble) received = default;
+        var menu = new InGameMenu(
+            _saveStates, _config, new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
+        OpenAudioEqScreen(menu);
+        menu.HandleKey(Keys.Down); // move to Mid (index 1)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.AudioEqMid, Is.EqualTo(2));
+        Assert.That(received.mid, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void AudioEq_Bass_ClampedAtMinus12()
+    {
+        _config.AudioEqBass = -12;
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.AudioEqBass, Is.EqualTo(-12));
+    }
+
+    [Test]
+    public void AudioEq_Treble_ClampedAtPlus12()
+    {
+        _config.AudioEqTreble = 12;
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        menu.HandleKey(Keys.Down); // Mid
+        menu.HandleKey(Keys.Down); // Treble (index 2)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.AudioEqTreble, Is.EqualTo(12));
+    }
+
+    [Test]
+    public void AudioEq_Reset_SetsAllGainsToZero()
+    {
+        _config.AudioEqBass   = 6;
+        _config.AudioEqMid    = -3;
+        _config.AudioEqTreble = 9;
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Reset (index 3)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.AudioEqBass,   Is.EqualTo(0));
+        Assert.That(_config.AudioEqMid,    Is.EqualTo(0));
+        Assert.That(_config.AudioEqTreble, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void AudioEq_Back_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Back (index 4)
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioEq_Escape_ReturnsToSound()
+    {
+        var menu = CreateMenu();
+        OpenAudioEqScreen(menu);
+        menu.HandleKey(Keys.Escape);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
+    }
+
+    [Test]
+    public void Sound_EqItem_ShowsFlat_WhenAllZero()
+    {
+        _config.AudioEqBass   = 0;
+        _config.AudioEqMid    = 0;
+        _config.AudioEqTreble = 0;
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetCurrentItems()[2], Does.Contain("Flat"));
+    }
+
+    [Test]
+    public void Sound_EqItem_ShowsCustom_WhenAnyNonZero()
+    {
+        _config.AudioEqBass = 3;
+        var menu = CreateMenu();
+        OpenSoundScreen(menu);
+        Assert.That(menu.GetCurrentItems()[2], Does.Contain("Custom"));
+    }
+
+    // ---- Language sub-screen ----
+
+    // Helper: navigate to Language screen (index 4 in Settings)
+    private static void OpenLanguageScreen(InGameMenu menu)
+    {
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Language (index 4)
+        menu.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void Language_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Language));
+    }
+
+    [Test]
+    public void Language_GetTitle_ReturnsLanguageTitle()
+    {
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("LANGUAGE"));
+    }
+
+    [Test]
+    public void Language_GetCurrentItems_HasAutoAtIndex0()
+    {
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("Auto"));
+    }
+
+    [Test]
+    public void Language_SelectAuto_SetsConfigLanguageToAuto()
+    {
+        _config.Language = "english";
+        bool callbackFired = false;
+        var menu = new InGameMenu(
+            _saveStates, _config, new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            lang => { callbackFired = true; },
+            (_, _, _, _) => { }, (_, _, _) => { });
+        OpenLanguageScreen(menu);
+        menu.HandleKey(Keys.Return); // select Auto (index 0)
+        Assert.That(_config.Language, Is.EqualTo("Auto"));
+        Assert.That(callbackFired, Is.True);
+    }
+
+    [Test]
+    public void Language_SelectSpecificLanguage_UpdatesConfig()
+    {
+        _config.Language = "Auto";
+        var menu = new InGameMenu(
+            _saveStates, _config, new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            _ => { },
+            (_, _, _, _) => { }, (_, _, _) => { });
+        OpenLanguageScreen(menu);
+        menu.HandleKey(Keys.Down); // move to first language (index 1 = English)
+        menu.HandleKey(Keys.Return);
+        // Config should be set to the code of the first language in the registry
+        Assert.That(_config.Language, Is.Not.EqualTo("Auto"));
+    }
+
+    [Test]
+    public void Language_Auto_HasCheckmark_WhenConfigIsAuto()
+    {
+        _config.Language = "Auto";
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void Language_Auto_NoCheckmark_WhenConfigIsExplicit()
+    {
+        _config.Language = "english";
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.Not.StartWith("✓"));
+    }
+
+    [Test]
+    public void Language_Back_ReturnsToSettings()
+    {
+        var menu = CreateMenu();
+        OpenLanguageScreen(menu);
+        // Back is the last item
+        int backIndex = menu.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    // ---- VideoMotionEffect sub-screen (D3D11 only) ----
+
+    // Helper: navigate to VideoMotionEffect screen in D3D11 mode
+    // D3D11 Video layout: [0=Presets, 1=Window, 2=VideoFilter, 3=Overlay, 4=MotionEffect, 5=Picture, 6=Overscan, 7=FPS, 8=Back]
+    private void OpenVideoMotionEffectScreen(InGameMenu menu)
+    {
+        OpenVideoScreen(menu);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to MotionEffect (index 4)
+        menu.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoMotionEffect));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_GetTitle_ReturnsMotionEffectTitle()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("MOTION EFFECT"));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_GetCurrentItems_ContainsAllModes()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        var allModes = NEShim.Rendering.VideoMotionEffectModeParser.AllModes;
+        // Items = one per mode + Back
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(allModes.Length + 1));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_ActiveMode_HasCheckmark()
+    {
+        _config.VideoMotionEffect = "None";
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓")); // None is index 0
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_SelectMode_UpdatesConfig()
+    {
+        _config.VideoMotionEffect = "None";
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        menu.HandleKey(Keys.Down); // CrtJitter (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoMotionEffect, Is.EqualTo("CrtJitter"));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_SelectMode_FiresCallback()
+    {
+        NEShim.Rendering.VideoMotionEffectMode? received = null;
+        var menu = new InGameMenu(
+            _saveStates, _config, new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
+            (_, _, _, _) => { }, (_, _, _) => { });
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        menu.HandleKey(Keys.Down); // CrtJitter
+        menu.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoMotionEffectMode.CrtJitter));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_Back_ReturnsToVideo()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoMotionEffectScreen(menu);
+        int backIndex = menu.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    // ---- VideoPresets sub-screen (D3D11 only) ----
+
+    // D3D11 Video: Presets is at index 0
+    private void OpenVideoPresetsScreen(InGameMenu menu)
+    {
+        OpenVideoScreen(menu);
+        // Already at index 0 (VideoPresets)
+        menu.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_NavigateTo_SetsCurrentScreen()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoPresets));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_GetTitle_ReturnsPresetsTitle()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        Assert.That(menu.GetTitle(), Is.EqualTo("VIDEO PRESETS"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_GetCurrentItems_HasNonePlusAllPresetsAndBack()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        // None(0) + 4 presets(1-4) + Back(5)
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_None_HasCheckmark_WhenNoActivePreset()
+    {
+        _config.VideoPreset = "None";
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        Assert.That(menu.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_SelectPreset_AppliesAllFields()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        menu.HandleKey(Keys.Down); // LivingRoom (index 1)
+        menu.HandleKey(Keys.Return);
+        Assert.That(_config.VideoPreset,      Is.EqualTo("LivingRoom"));
+        Assert.That(_config.VideoFilter,      Is.EqualTo("CrtScreen"));
+        Assert.That(menu.Current,             Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_SelectNone_ClearsPreset()
+    {
+        _config.VideoPreset = "Arcade";
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        menu.HandleKey(Keys.Return); // None (index 0)
+        Assert.That(_config.VideoPreset, Is.EqualTo("None"));
+        Assert.That(menu.Current,        Is.EqualTo(InGameMenu.Screen.Video));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_ActivePreset_HasCheckmark()
+    {
+        _config.VideoPreset = "Arcade";
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        // Arcade is index 2 (None=0, LivingRoom=1, Arcade=2)
+        Assert.That(menu.GetCurrentItems()[2], Does.StartWith("✓"));
+        Assert.That(menu.GetCurrentItems()[0], Does.Not.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_Back_ReturnsToVideo()
+    {
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPresetsScreen(menu);
+        int backIndex = menu.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 }

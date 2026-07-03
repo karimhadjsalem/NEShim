@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -13,12 +14,13 @@ namespace NEShim.Rendering;
 /// <summary>
 /// Renders NES frames directly to the D3D11 swap chain using a fullscreen passthrough quad.
 /// Handles letterbox aspect ratio, sidebar images, and GDI+-sourced overlay textures
-/// (FPS counter, toasts, achievement notifications).
+/// (FPS counter, toasts, and achievement notifications).
 ///
 /// Owned objects: NES texture, SRV, RTV, vertex buffer, shaders, input layout, sampler,
 /// blend state, overlay texture + bitmap, sidebar textures.
 /// NOT owned: device and swap chain — those belong to <see cref="D3DOverlayHook"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class D3D11Renderer : IFrameRenderer
 {
     // Not owned — created and disposed by D3DOverlayHook.
@@ -27,7 +29,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly ID3D11DeviceContext _context;
 
     // Owned D3D11 resources — all disposed in Dispose().
-    private ID3D11Texture2D          _nesTexture   = null!;
+    private ID3D11Texture2D          _nesTexture     = null!;
     private ID3D11ShaderResourceView _nesTextureView = null!;
     private readonly ID3D11Buffer             _vertexBuffer;
     private readonly ID3D11VertexShader       _vertexShader;
@@ -51,7 +53,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private ID3D11RenderTargetView _renderTargetView;
 
     // Viewport-sized overlay texture + GDI+ bitmap — recreated on Resize.
-    // Used for FPS counter, toasts, and achievement notifications.
     private ID3D11Texture2D?          _overlayTexture;
     private ID3D11ShaderResourceView? _overlaySrv;
     private Bitmap?                   _overlayBitmap;
@@ -71,26 +72,34 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private int _viewportWidth;
     private int _viewportHeight;
 
-    private Filters.ID3D11Filter        _activeFilter      = new Filters.PixelPerfectD3D11Filter();
+    private Filters.ID3D11Filter        _activeFilter       = new Filters.PixelPerfectD3D11Filter();
     private Filters.ID3D11Filter?       _activeOverlay;
     private ID3D11PixelShader?          _activeOverlayPixelShader;
-    private OverscanMode                _overscanMode      = OverscanMode.Overscan;
-    private VideoColorFilterMode        _activeColorMode   = VideoColorFilterMode.None;
+    private OverscanMode                _overscanMode       = OverscanMode.Overscan;
+    private VideoColorFilterMode        _activeColorMode    = VideoColorFilterMode.None;
     private MotionEffects.IMotionEffect _activeMotionEffect = new MotionEffects.NoneMotionEffect();
+    private ID3D11PixelShader?          _motionEffectPixelShader;
     private int                         _drawFrameCount;
 
-    // Intermediate render target for two-pass overlay rendering.
-    private ID3D11Texture2D?          _intermediateTexture;
-    private ID3D11RenderTargetView?   _intermediateRtv;
-    private ID3D11ShaderResourceView? _intermediateTextureView;
-    private int                       _intermediateWidth;
-    private int                       _intermediateHeight;
+    // Intermediate render targets — each groups a D3D11 texture, RTV, SRV, and pixel
+    // dimensions into a single object so the three sub-resources always move together.
+    private readonly IntermediateRenderTarget _overlayRt        = new();
+    private readonly IntermediateRenderTarget _motionEffectRt   = new();
+    private readonly IntermediateRenderTarget _temporalRtA      = new();
+    private readonly IntermediateRenderTarget _temporalRtB      = new();
+    private          bool                     _temporalUseA     = true;
+    private readonly IntermediateRenderTarget _pictureAdjustRt  = new();
+    private          ID3D11PixelShader?       _pictureAdjustPixelShader;
+    private          float                    _brightness        = 0f;
+    private          float                    _contrast          = 1f;
+    private          float                    _saturation        = 1f;
+    private          float                    _hue               = 0f;
 
-    // Pixel dimensions of the letterbox rect — updated in UpdateLetterboxRect, used by RecreateIntermediateTarget.
+    // Pixel dimensions of the letterbox rect — updated in UpdateLetterboxRect.
     private int _letterboxPixelW;
     private int _letterboxPixelH;
 
-    private const float UnderscanScale = 0.88f;
+    // UnderscanScale is defined in LetterboxGeometry.
 
     // Active NES content size as reported by the emulator. Updated in UploadFrame.
     private int _contentWidth;
@@ -178,9 +187,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // DXVK on Proton compiles these DXBC bytecodes to SPIR-V at first launch
         // and caches them in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
         // The passthrough shaders are trivially simple, so first-launch compile is near-instant.
-        _vertexShader           = device.CreateVertexShader(vsBytes);
-        _passthroughPixelShader = device.CreatePixelShader(psBytes);
-        _activePixelShader      = _passthroughPixelShader;
+        _vertexShader              = device.CreateVertexShader(vsBytes);
+        _passthroughPixelShader    = device.CreatePixelShader(psBytes);
+        _activePixelShader         = _passthroughPixelShader;
+        _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.PictureAdjust.ps.cso");
 
         // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
         // Always present — every pixel shader reads from b0.
@@ -318,8 +328,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public void UpdateFpsOverlay(bool show, float fps)
     {
-        _showFps    = show;
-        _currentFps = fps;
+        _showFps      = show;
+        _currentFps   = fps;
         _overlayDirty = true;
     }
 
@@ -364,15 +374,32 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public void SetMotionEffect(VideoMotionEffectMode mode)
     {
-        _activeMotionEffect = MotionEffects.MotionEffectFactory.Create(mode);
+        _activeMotionEffect      = MotionEffects.MotionEffectFactory.Create(mode);
+        _motionEffectPixelShader = _activeMotionEffect.PixelShaderResourceName is { } r
+            ? ResolvePixelShader(r)
+            : null;
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
+        SyncMotionEffectRt();
+    }
+
+    /// <summary>
+    /// Updates the brightness, contrast, saturation, and hue post-process pass.
+    /// Values are on a -100..100 scale; 0 = neutral.
+    /// </summary>
+    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
+    {
+        _brightness = brightness * 0.002f;
+        _contrast   = 1f + contrast   * 0.01f;
+        _saturation = 1f + saturation * 0.01f;
+        _hue        = hue * (float)Math.PI / 100f; // -100..100 → -π..+π rad
+        SyncPictureAdjustRt();
     }
 
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
     {
         _activeOverlay            = overlay;
         _activeOverlayPixelShader = overlay is not null ? ResolvePixelShader(overlay) : null;
-        RecreateIntermediateTarget();
+        SyncOverlayRt();
     }
 
     /// <inheritdoc/>
@@ -396,6 +423,13 @@ internal sealed class D3D11Renderer : IFrameRenderer
         UpdateOverscanUV();
         UpdateLetterboxRect();
     }
+
+    // Routes NES content draws to the picture adjust RT when B/C/S are non-default.
+    private ID3D11RenderTargetView CurrentFinalTarget =>
+        _pictureAdjustRt.IsReady ? _pictureAdjustRt.Rtv! : _renderTargetView;
+
+    private bool IsPictureAdjustActive =>
+        _brightness != 0f || _contrast != 1f || _saturation != 1f || _hue != 0f;
 
     /// <summary>
     /// Recreates size-dependent D3D11 resources after a window resize or mode change.
@@ -425,8 +459,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _viewportHeight   = Math.Max(height, 1);
 
         CreateOverlayResources();
-        UpdateLetterboxRect();
-        RecreateIntermediateTarget();
+        UpdateLetterboxRect();  // -> SyncMotionEffectRt (which calls SyncTemporalRts) at new letterbox dimensions
+        SyncOverlayRt();        // overlay RT also needs to reflect new letterbox dimensions
+        SyncPictureAdjustRt();  // picture adjust RT matches viewport size
     }
 
     public void Dispose()
@@ -434,7 +469,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _isDisposed = true;
         Logger.Log("[D3D11Renderer] Disposed.");
         DisposeOverlayResources();
-        DisposeIntermediateTarget();
+        _overlayRt.Dispose();
+        _motionEffectRt.Dispose();
+        _temporalRtA.Dispose();
+        _temporalRtB.Dispose();
+        _pictureAdjustRt.Dispose();
         DisposeSidebarResources();
         _alphaBlendState.Dispose();
         _scissorRasterizerState.Dispose();
@@ -461,57 +500,155 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _activeOverlay?.NotifyFrame(_drawFrameCount);
         _drawFrameCount++;
 
-        if (_activeOverlay is not null && _intermediateTextureView is not null)
-            DrawTwoPass(vsync);
+        if (_activeOverlay is not null && _overlayRt.IsReady)
+            DrawTwoPass();
         else
-            DrawSinglePass(vsync);
-    }
+            DrawSinglePass();
 
-    private void DrawSinglePass(bool vsync)
-    {
-        _context.OMSetRenderTargets(_renderTargetView);
-        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
-        SetupPipelineState();
-        UpdateFilterCbuffer();
-        if (_hasSidebars) DrawSidebars();
-        DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
-                    0f, _nesV0, 1f, _nesV1);
-        _context.RSSetState(null);
+        DrawPictureAdjust();
         DrawOverlay();
         PresentAndCheckResult(vsync);
     }
 
-    private void DrawTwoPass(bool vsync)
+    private void DrawSinglePass()
     {
-        // Pass 1: primary filter → intermediate RT (full quad, no jitter, colorMode=0).
-        _context.OMSetRenderTargets(_intermediateRtv!);
-        _context.RSSetViewport(0, 0, _intermediateWidth, _intermediateHeight);
-        _context.ClearRenderTargetView(_intermediateRtv!, new Color4(0f, 0f, 0f, 1f));
+        if (_motionEffectRt.IsReady)
+        {
+            // Sub-pass A: structural filter → motion effect intermediate, colorMode deferred.
+            DrawStructuralFilterToTarget(_motionEffectRt);
+
+            // Sub-pass B: motion effect (or temporal blend) → final target.
+            if (_temporalRtA.IsReady)
+                DrawTemporalMotionEffect();
+            else
+                DrawMotionEffectToBackbuffer();
+        }
+        else
+        {
+            var finalTarget = CurrentFinalTarget;
+            _context.OMSetRenderTargets(finalTarget);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
+            SetupPipelineState();
+            if (_hasSidebars) DrawSidebars();
+            UpdateFilterCbuffer();
+            DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
+                        0f, _nesV0, 1f, _nesV1);
+        }
+        _context.RSSetState(null);
+    }
+
+    private void DrawTwoPass()
+    {
+        // Pass 1: primary filter → overlay intermediate, colorMode deferred.
+        DrawStructuralFilterToTarget(_overlayRt);
+
+        if (_motionEffectRt.IsReady)
+        {
+            // Pass 2: overlay filter → motion effect intermediate, colorMode deferred.
+            _context.OMSetRenderTargets(_motionEffectRt.Rtv!);
+            _context.RSSetViewport(0, 0, _motionEffectRt.Width, _motionEffectRt.Height);
+            _context.ClearRenderTargetView(_motionEffectRt.Rtv!, new Color4(0f, 0f, 0f, 1f));
+            UpdateOverlayCbuffer(colorModeOverride: 0f);
+            _context.PSSetShader(_activeOverlayPixelShader!);
+            _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+            _context.PSSetShaderResource(0, _overlayRt.Srv!);
+            WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, 0f, 1f, 1f);
+            _context.Draw(6, 0);
+
+            // Pass 3: motion effect (or temporal blend) → final target.
+            if (_temporalRtA.IsReady)
+                DrawTemporalMotionEffect();
+            else
+                DrawMotionEffectToBackbuffer();
+        }
+        else
+        {
+            // Pass 2: overlay filter → final target, reading from overlay intermediate.
+            var finalTarget = CurrentFinalTarget;
+            _context.OMSetRenderTargets(finalTarget);
+            _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+            _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
+            if (_hasSidebars) DrawSidebars();
+            UpdateOverlayCbuffer();
+            _context.PSSetShader(_activeOverlayPixelShader!);
+            _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+            DrawNesQuad(_overlayRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
+                        0f, 0f, 1f, 1f);
+        }
+
+        _context.RSSetState(null);
+        _context.PSSetShaderResource(0, _nesTextureView);
+    }
+
+    // Renders the NES texture through the structural filter (colorMode deferred to 0)
+    // into the given intermediate render target. Both DrawSinglePass and DrawTwoPass
+    // use this as their first sub-pass.
+    private void DrawStructuralFilterToTarget(IntermediateRenderTarget target)
+    {
+        _context.OMSetRenderTargets(target.Rtv!);
+        _context.RSSetViewport(0, 0, target.Width, target.Height);
+        _context.ClearRenderTargetView(target.Rtv!, new Color4(0f, 0f, 0f, 1f));
         SetupPipelineState();
         UpdateFilterCbuffer(colorModeOverride: 0f);
         _context.PSSetShaderResource(0, _nesTextureView);
         WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
+    }
 
-        // Pass 2: overlay filter → backbuffer, reading from intermediate.
-        _context.OMSetRenderTargets(_renderTargetView);
+    // Renders from the motion effect intermediate RT through the ME pixel shader to the
+    // final target. Sidebars are drawn first so they appear behind the NES viewport.
+    private void DrawMotionEffectToBackbuffer()
+    {
+        var finalTarget = CurrentFinalTarget;
+        _context.OMSetRenderTargets(finalTarget);
         _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0f, 0f, 0f, 1f));
-        UpdateOverlayCbuffer();
+        _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
         if (_hasSidebars) DrawSidebars();
-        _context.PSSetShader(_activeOverlayPixelShader!);
-        _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
-        DrawNesQuad(_intermediateTextureView!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
-                    0f, 0f, 1f, 1f);
-        _context.RSSetState(null);
-        _context.PSSetShaderResource(0, _nesTextureView);
-        DrawOverlay();
-        PresentAndCheckResult(vsync);
+        _context.PSSetShader(_motionEffectPixelShader);
+        _context.PSSetSampler(0, _linearSamplerState);
+        var jitter = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
+        WriteMotionEffectCbuffer();
+        DrawNesQuad(_motionEffectRt.Srv!, jitter, 0f, 0f, 1f, 1f);
+    }
+
+    // Temporal phosphor blend: reads current frame (t0) + history (t1) → write RT,
+    // then blits the result to the final target with sidebars. Flips the ping-pong each call.
+    private void DrawTemporalMotionEffect()
+    {
+        var historyRt = _temporalUseA ? _temporalRtA : _temporalRtB;
+        var writeRt   = _temporalUseA ? _temporalRtB : _temporalRtA;
+
+        // Blend pass: current (_motionEffectRt = t0) + history (t1) → writeRt
+        _context.OMSetRenderTargets(writeRt.Rtv!);
+        _context.RSSetViewport(0, 0, writeRt.Width, writeRt.Height);
+        _context.ClearRenderTargetView(writeRt.Rtv!, new Color4(0f, 0f, 0f, 0f));
+        _context.PSSetShader(_motionEffectPixelShader);
+        _context.PSSetSampler(0, _activeMotionEffect.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
+        _context.PSSetShaderResource(0, _motionEffectRt.Srv!);
+        _context.PSSetShaderResource(1, historyRt.Srv!);
+        WriteMotionEffectCbuffer();
+        WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, 0f, 1f, 1f);
+        _context.Draw(6, 0);
+        _context.PSSetShaderResource(1, null!); // unbind history SRV slot at D3D11 interop boundary
+
+        // Blit to final target (colorMode=0; already applied in blend pass)
+        var finalTarget = CurrentFinalTarget;
+        _context.OMSetRenderTargets(finalTarget);
+        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+        _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
+        if (_hasSidebars) DrawSidebars();
+        _context.PSSetShader(_passthroughPixelShader);
+        _context.PSSetSampler(0, _linearSamplerState);
+        UpdateFilterCbuffer(colorModeOverride: 0f);
+        DrawNesQuad(writeRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount), 0f, 0f, 1f, 1f);
+        _context.PSSetShader(_activePixelShader);
+
+        _temporalUseA = !_temporalUseA;
     }
 
     private void DrawNesQuad(ID3D11ShaderResourceView srv, (float dx, float dy) jitter,
-                              float u0, float v0, float u1, float v1)
+                             float u0, float v0, float u1, float v1)
     {
         int scissorL = (int)((_nesX0 + 1f) * 0.5f * _viewportWidth);
         int scissorR = (int)((_nesX1 + 1f) * 0.5f * _viewportWidth);
@@ -554,15 +691,23 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private unsafe void UpdateFilterCbuffer(float? colorModeOverride = null)
     {
         Span<float> p = stackalloc float[4];
-        _activeFilter.WriteBaseParams(p, _contentWidth, _contentHeight);
+        _activeFilter.WriteBaseParams(p, _contentWidth, _nesHeight);
         p[3] = colorModeOverride ?? (float)_activeColorMode;
         WriteCbufferParams(p);
     }
 
-    private unsafe void UpdateOverlayCbuffer()
+    private unsafe void UpdateOverlayCbuffer(float? colorModeOverride = null)
     {
         Span<float> p = stackalloc float[4];
-        _activeOverlay!.WriteBaseParams(p, _contentWidth, _contentHeight);
+        _activeOverlay!.WriteBaseParams(p, _contentWidth, _nesHeight);
+        p[3] = colorModeOverride ?? (float)_activeColorMode;
+        WriteCbufferParams(p);
+    }
+
+    private unsafe void WriteMotionEffectCbuffer()
+    {
+        Span<float> p = stackalloc float[4];
+        _activeMotionEffect.WriteShaderParams(p, _contentWidth, _contentHeight);
         p[3] = (float)_activeColorMode;
         WriteCbufferParams(p);
     }
@@ -583,9 +728,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawSidebars()
     {
-        // Sidebar artwork should not have structural filters (scanlines, NTSC) applied.
-        // Use the passthrough shader so color grade still applies but geometry is unaffected.
+        // Sidebar artwork: no structural filter, no color grade.
+        // Callers must re-update the cbuffer after this returns.
         _context.PSSetShader(_passthroughPixelShader);
+        UpdateFilterCbuffer(colorModeOverride: 0f);
 
         float sidebarPixelW = (_nesX0 + 1f) / 2f * _viewportWidth;
 
@@ -754,36 +900,78 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _overlayBitmap?.Dispose();  _overlayBitmap  = null;
     }
 
-    private void RecreateIntermediateTarget()
-    {
-        DisposeIntermediateTarget();
-        if (_activeOverlay is null || _letterboxPixelW <= 0 || _letterboxPixelH <= 0)
-            return;
+    // ---- Intermediate render target management -----------------------------------------
 
-        _intermediateWidth  = _letterboxPixelW;
-        _intermediateHeight = _letterboxPixelH;
-        _intermediateTexture = _device.CreateTexture2D(new Texture2DDescription
-        {
-            Width             = (uint)_intermediateWidth,
-            Height            = (uint)_intermediateHeight,
-            MipLevels         = 1,
-            ArraySize         = 1,
-            Format            = Format.B8G8R8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage             = ResourceUsage.Default,
-            BindFlags         = BindFlags.RenderTarget | BindFlags.ShaderResource,
-        });
-        _intermediateRtv         = _device.CreateRenderTargetView(_intermediateTexture);
-        _intermediateTextureView = _device.CreateShaderResourceView(_intermediateTexture);
-        Logger.Log($"[D3D11Renderer] Intermediate RT created ({_intermediateWidth}×{_intermediateHeight}) for two-pass overlay.");
+    private void SyncOverlayRt()
+    {
+        bool changed = _overlayRt.Sync(_device,
+            _activeOverlay is not null ? _letterboxPixelW : 0,
+            _activeOverlay is not null ? _letterboxPixelH : 0);
+        if (changed && _overlayRt.IsReady)
+            Logger.Log($"[D3D11Renderer] Intermediate RT created ({_overlayRt.Width}×{_overlayRt.Height}) for two-pass overlay.");
     }
 
-    private void DisposeIntermediateTarget()
+    private void SyncMotionEffectRt()
     {
-        _intermediateTextureView?.Dispose(); _intermediateTextureView = null;
-        _intermediateRtv?.Dispose();         _intermediateRtv = null;
-        _intermediateTexture?.Dispose();     _intermediateTexture = null;
-        _intermediateWidth = _intermediateHeight = 0;
+        bool changed = _motionEffectRt.Sync(_device,
+            _motionEffectPixelShader is not null ? _letterboxPixelW : 0,
+            _motionEffectPixelShader is not null ? _letterboxPixelH : 0);
+        if (changed && _motionEffectRt.IsReady)
+            Logger.Log($"[D3D11Renderer] Motion effect intermediate RT created ({_motionEffectRt.Width}×{_motionEffectRt.Height}).");
+        SyncTemporalRts();
+    }
+
+    private void SyncTemporalRts()
+    {
+        bool needsTemporal = _activeMotionEffect.NeedsTemporalBuffer && _motionEffectPixelShader is not null;
+        int w = needsTemporal ? _letterboxPixelW : 0;
+        int h = needsTemporal ? _letterboxPixelH : 0;
+
+        bool changedA = _temporalRtA.Sync(_device, w, h);
+        bool changedB = _temporalRtB.Sync(_device, w, h);
+
+        if ((changedA || changedB) && _temporalRtA.IsReady)
+        {
+            _context.ClearRenderTargetView(_temporalRtA.Rtv!, new Color4(0f, 0f, 0f, 0f));
+            _context.ClearRenderTargetView(_temporalRtB.Rtv!, new Color4(0f, 0f, 0f, 0f));
+            _temporalUseA = true;
+            Logger.Log($"[D3D11Renderer] Temporal RTs created ({_temporalRtA.Width}×{_temporalRtA.Height}) for phosphor persistence.");
+        }
+    }
+
+    private void SyncPictureAdjustRt()
+    {
+        bool changed = _pictureAdjustRt.Sync(_device,
+            IsPictureAdjustActive ? _viewportWidth : 0,
+            IsPictureAdjustActive ? _viewportHeight : 0);
+        if (changed && _pictureAdjustRt.IsReady)
+            Logger.Log($"[D3D11Renderer] Picture adjust RT created ({_pictureAdjustRt.Width}×{_pictureAdjustRt.Height}).");
+    }
+
+    // Applies brightness/contrast/saturation/hue to the picture adjust RT and blits to _renderTargetView.
+    // No-op when IsPictureAdjustActive is false (_pictureAdjustRt.IsReady is also false in that case).
+    private void DrawPictureAdjust()
+    {
+        if (!_pictureAdjustRt.IsReady) return;
+
+        Span<float> p = stackalloc float[4];
+        p[0] = _brightness;
+        p[1] = _contrast;
+        p[2] = _saturation;
+        p[3] = _hue;
+        WriteCbufferParams(p);
+
+        _context.OMSetRenderTargets(_renderTargetView);
+        _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
+        _context.PSSetShader(_pictureAdjustPixelShader);
+        _context.PSSetSampler(0, _linearSamplerState);
+        _context.PSSetShaderResource(0, _pictureAdjustRt.Srv!);
+        WriteQuadToVB(-1f, 1f, 1f, -1f);
+        _context.Draw(6, 0);
+
+        // Restore filter cbuffer so DrawOverlay sees the correct colorMode.
+        _context.PSSetShader(_activePixelShader);
+        UpdateFilterCbuffer();
     }
 
     private void DisposeSidebarResources()
@@ -814,7 +1002,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             BindFlags         = BindFlags.ShaderResource,
             CPUAccessFlags    = CpuAccessFlags.Write,
         });
-        _nesTextureView = _device.CreateShaderResourceView(_nesTexture);
+        _nesTextureView  = _device.CreateShaderResourceView(_nesTexture);
         _nesTextureWidth = width;
     }
 
@@ -859,39 +1047,19 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         // Use _activeFilter.PixelAspectRatio so filters that alter perceived pixel width
         // (e.g. NtscComposite at 8/7 PAR) are handled without touching this method.
-        float displayAspect = _contentWidth * _activeFilter.PixelAspectRatio / _displayHeight;
-        float windowAspect  = (float)_viewportWidth / _viewportHeight;
+        var r = LetterboxGeometry.Compute(
+            _contentWidth, _displayHeight, _activeFilter.PixelAspectRatio,
+            _viewportWidth, _viewportHeight,
+            _overscanMode == OverscanMode.Underscan);
 
-        float destW, destH;
-        if (windowAspect > displayAspect)
-        {
-            destH = _viewportHeight;
-            destW = destH * displayAspect;
-        }
-        else
-        {
-            destW = _viewportWidth;
-            destH = destW / displayAspect;
-        }
-
-        if (_overscanMode == OverscanMode.Underscan)
-        {
-            destW *= UnderscanScale;
-            destH *= UnderscanScale;
-        }
-
-        float destX = (_viewportWidth  - destW) / 2f;
-        float destY = (_viewportHeight - destH) / 2f;
-
-        // D3D clip space: x ∈ [-1,1], y=+1 at top, y=-1 at bottom.
-        _nesX0 = (destX / _viewportWidth)           * 2f - 1f;  // left edge
-        _nesX1 = ((destX + destW) / _viewportWidth) * 2f - 1f;  // right edge
-        _nesY0 = 1f - (destY / _viewportHeight) * 2f;           // top edge
-        _nesY1 = 1f - ((destY + destH) / _viewportHeight) * 2f; // bottom edge
-
-        _letterboxPixelW = Math.Max(1, (int)destW);
-        _letterboxPixelH = Math.Max(1, (int)destH);
+        _nesX0 = r.X0;
+        _nesX1 = r.X1;
+        _nesY0 = r.Y0;
+        _nesY1 = r.Y1;
+        _letterboxPixelW = r.PixelW;
+        _letterboxPixelH = r.PixelH;
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
+        SyncMotionEffectRt();
     }
 
     /// <summary>
@@ -941,8 +1109,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // ---- Shader loading ----------------------------------------------------------------
 
     private ID3D11PixelShader ResolvePixelShader(Filters.ID3D11Filter filter)
+        => ResolvePixelShader(filter.PixelShaderResourceName);
+
+    private ID3D11PixelShader ResolvePixelShader(string? resourceName)
     {
-        string? resourceName = filter.PixelShaderResourceName;
         if (resourceName is null)
             return _passthroughPixelShader;
 
@@ -965,5 +1135,65 @@ internal sealed class D3D11Renderer : IFrameRenderer
         using var ms = new MemoryStream();
         stream.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    // ---- IntermediateRenderTarget ------------------------------------------------------
+
+    // Groups a D3D11 texture, RTV, and SRV that always move together, along with the
+    // pixel dimensions used to configure the viewport when rendering into this target.
+    // Sync() keeps the RT in sync with the current letterbox size; it disposes without
+    // recreating when called with zero dimensions (overlay or motion effect not active).
+    private sealed class IntermediateRenderTarget : IDisposable
+    {
+        private ID3D11Texture2D?          _texture;
+        private ID3D11RenderTargetView?   _rtv;
+        private ID3D11ShaderResourceView? _srv;
+
+        public int Width  { get; private set; }
+        public int Height { get; private set; }
+
+        public ID3D11RenderTargetView?   Rtv     => _rtv;
+        public ID3D11ShaderResourceView? Srv     => _srv;
+        public bool                      IsReady => _rtv is not null;
+
+        // Returns true when the RT was newly created or disposed; false when unchanged.
+        public bool Sync(ID3D11Device device, int width, int height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                bool wasReady = IsReady;
+                Dispose();
+                return wasReady;
+            }
+            if (_texture is not null && width == Width && height == Height)
+                return false;
+
+            Dispose();
+            Width  = width;
+            Height = height;
+            _texture = device.CreateTexture2D(new Texture2DDescription
+            {
+                Width             = (uint)Width,
+                Height            = (uint)Height,
+                MipLevels         = 1,
+                ArraySize         = 1,
+                Format            = Format.B8G8R8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage             = ResourceUsage.Default,
+                BindFlags         = BindFlags.RenderTarget | BindFlags.ShaderResource,
+            });
+            _rtv = device.CreateRenderTargetView(_texture);
+            _srv = device.CreateShaderResourceView(_texture);
+            return true;
+        }
+
+        public void Dispose()
+        {
+            _srv?.Dispose();     _srv     = null;
+            _rtv?.Dispose();     _rtv     = null;
+            _texture?.Dispose(); _texture = null;
+            Width  = 0;
+            Height = 0;
+        }
     }
 }

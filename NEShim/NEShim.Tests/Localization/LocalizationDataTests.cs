@@ -34,10 +34,10 @@ internal class LocalizationDataTests
     }
 
     [Test]
-    public void DefaultInstance_SoundVolume_ContainsFormatPlaceholder()
+    public void DefaultInstance_SoundVolume_IsEnglishLabel()
     {
         var data = new LocalizationData();
-        Assert.That(data.SoundVolume, Does.Contain("{0}"));
+        Assert.That(data.SoundVolume, Is.EqualTo("Volume"));
     }
 
     [Test]
@@ -146,17 +146,17 @@ internal class LocalizationDataTests
     }
 
     [Test]
-    public void DefaultInstance_VideoColorFilterLabel_IsEnglish()
+    public void DefaultInstance_VideoOverlayLabel_IsEnglish()
     {
         var data = new LocalizationData();
-        Assert.That(data.VideoColorFilterLabel, Is.EqualTo("Color Effect"));
+        Assert.That(data.VideoOverlayLabel, Is.EqualTo("Overlay"));
     }
 
     [Test]
-    public void DefaultInstance_VideoColorFilterTitle_IsEnglish()
+    public void DefaultInstance_VideoColorPresetLabel_IsEnglish()
     {
         var data = new LocalizationData();
-        Assert.That(data.VideoColorFilterTitle, Is.EqualTo("COLOR EFFECT"));
+        Assert.That(data.VideoColorPresetLabel, Is.EqualTo("Color"));
     }
 
     [Test]
@@ -283,5 +283,82 @@ internal class LocalizationDataTests
     {
         var data = new LocalizationData();
         Assert.That(data.LanguageAuto, Is.EqualTo("Auto"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoFilterXbr_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoFilterXbr, Is.EqualTo("Sharp Pixel"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoPictureLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPictureLabel, Is.EqualTo("Picture"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoPictureTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPictureTitle, Is.EqualTo("PICTURE"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoBrightnessLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoBrightnessLabel, Is.EqualTo("Brightness"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoContrastLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoContrastLabel, Is.EqualTo("Contrast"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoSaturationLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoSaturationLabel, Is.EqualTo("Saturation"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoHueLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoHueLabel, Is.EqualTo("Hue"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoResetPicture_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoResetPicture, Is.EqualTo("Reset to Default"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoMotionEffectMagneticDistortion_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoMotionEffectMagneticDistortion, Is.EqualTo("Magnetic Distortion"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoMotionEffectPhosphorPersistence_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoMotionEffectPhosphorPersistence, Is.EqualTo("Screen Glow"));
+    }
+
+    [Test]
+    public void DefaultInstance_AudioFilterDmcStabilizer_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.AudioFilterDmcStabilizer, Is.EqualTo("Pop Filter"));
     }
 }

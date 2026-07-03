@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 
@@ -23,9 +24,11 @@ namespace NEShim.Audio;
 /// Thread safety: fade ticks run on a timer thread; all public methods are safe to
 /// call from the UI thread at any time.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class MainMenuMusic : IDisposable
 {
-    private AudioFileReader?      _reader;
+    private AudioFileReader?        _reader;
+    private AudioFileReaderSource? _readerSource;
     private LoopingSampleProvider? _looper;
     private WasapiOut?            _output;
     private System.Timers.Timer?  _fadeTimer;
@@ -50,8 +53,9 @@ internal sealed class MainMenuMusic : IDisposable
     {
         try
         {
-            _reader  = new AudioFileReader(filePath) { Volume = 0f };
-            _looper  = new LoopingSampleProvider(_reader);
+            _reader       = new AudioFileReader(filePath) { Volume = 0f };
+            _readerSource = new AudioFileReaderSource(_reader);
+            _looper       = new LoopingSampleProvider(_readerSource);
             _output  = new WasapiOut(AudioClientShareMode.Shared, 200);
             _output.Init(_looper);
 
@@ -202,46 +206,12 @@ internal sealed class MainMenuMusic : IDisposable
         _output?.Dispose();
         _output = null;
 
-        // _looper holds no resources — _reader is the owner
-        _looper = null;
+        // _looper and _readerSource hold no resources — _reader is the owner
+        _looper       = null;
+        _readerSource = null;
 
         _reader?.Dispose();
         _reader = null;
     }
 
-    // ---- Inner type ----
-
-    /// <summary>
-    /// Wraps an <see cref="AudioFileReader"/> and loops it infinitely by seeking
-    /// back to the start each time the source is exhausted.  Looping at the sample
-    /// level avoids calling Play() from a WaveOut callback thread.
-    /// </summary>
-    private sealed class LoopingSampleProvider : ISampleProvider
-    {
-        private readonly AudioFileReader _source;
-
-        public WaveFormat WaveFormat => _source.WaveFormat;
-
-        public LoopingSampleProvider(AudioFileReader source) => _source = source;
-
-        public int Read(float[] buffer, int offset, int count)
-        {
-            int totalRead = 0;
-            while (totalRead < count)
-            {
-                int read = _source.Read(buffer, offset + totalRead, count - totalRead);
-                if (read > 0)
-                {
-                    totalRead += read;
-                }
-                else
-                {
-                    // End of file — seek to start and loop
-                    if (_source.Length == 0) break; // guard against empty file
-                    _source.Position = 0;
-                }
-            }
-            return totalRead;
-        }
-    }
 }

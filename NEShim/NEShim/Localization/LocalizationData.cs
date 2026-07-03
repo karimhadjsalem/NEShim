@@ -36,33 +36,45 @@ internal sealed class LocalizationData
     public string VideoFpsOff           { get; init; } = "FPS Overlay: Off";
 
     // ---- Video filter sub-menu ----
-    public string VideoFilterTitle           { get; init; } = "VIDEO FILTER";
-    public string VideoFilterOverlayLabel    { get; init; } = "Video Overlay";
-    public string VideoFilterOverlayTitle    { get; init; } = "VIDEO OVERLAY";
+    public string VideoFilterTitle         { get; init; } = "VIDEO FILTER";
     public string VideoFilterSmooth        { get; init; } = "Smooth";
     public string VideoFilterPixelPerfect  { get; init; } = "Pixel Perfect";
     public string VideoFilterCrtScanlines  { get; init; } = "CRT Scanlines";
     public string VideoFilterCrtPhosphor   { get; init; } = "CRT Phosphor";
     public string VideoFilterNtscComposite { get; init; } = "NTSC Composite";
     public string VideoFilterCrtScreen     { get; init; } = "CRT Screen";
+    public string VideoFilterXbr           { get; init; } = "Sharp Pixel";
 
-    // ---- Color effect sub-menu ----
-    public string VideoColorFilterLabel    { get; init; } = "Color Effect";
-    public string VideoColorFilterTitle    { get; init; } = "COLOR EFFECT";
-    public string VideoColorFilterNone     { get; init; } = "None";
-    public string VideoColorFilterWarm     { get; init; } = "Warm";
+    // ---- Overlay (cycle item on Video screen) ----
+    public string VideoOverlayLabel { get; init; } = "Overlay";
+
+    // ---- Color preset and color effect names (used in Picture screen) ----
+    public string VideoColorPresetLabel     { get; init; } = "Color";
+    public string VideoColorFilterNone      { get; init; } = "None";
+    public string VideoColorFilterWarm      { get; init; } = "Warm";
     public string VideoColorFilterGreyscale { get; init; } = "Greyscale";
     public string VideoColorFilterNesColors { get; init; } = "NES Colors";
     public string VideoColorFilterCool          { get; init; } = "Cool";
-    public string VideoColorFilterPhosphorAmber { get; init; } = "Phosphor Amber";
-    public string VideoColorFilterPhosphorGreen { get; init; } = "Phosphor Green";
+    public string VideoColorFilterPhosphorAmber { get; init; } = "Amber Mono";
+    public string VideoColorFilterPhosphorGreen { get; init; } = "Green Mono";
 
     // ---- Motion effect sub-menu ----
     public string VideoMotionEffectLabel    { get; init; } = "Motion";
     public string VideoMotionEffectTitle    { get; init; } = "MOTION EFFECT";
     public string VideoMotionEffectNone     { get; init; } = "None";
-    public string VideoMotionEffectCrtJitter  { get; init; } = "CRT Jitter";
-    public string VideoMotionEffectScanlineBob { get; init; } = "Scanline Bob";
+    public string VideoMotionEffectCrtJitter           { get; init; } = "CRT Jitter";
+    public string VideoMotionEffectScanlineBob         { get; init; } = "Scanline Flicker";
+    public string VideoMotionEffectMagneticDistortion  { get; init; } = "Magnetic Distortion";
+    public string VideoMotionEffectPhosphorPersistence { get; init; } = "Screen Glow";
+
+    // ---- Picture sub-menu ----
+    public string VideoPictureLabel    { get; init; } = "Picture";
+    public string VideoPictureTitle    { get; init; } = "PICTURE";
+    public string VideoBrightnessLabel { get; init; } = "Brightness";
+    public string VideoContrastLabel   { get; init; } = "Contrast";
+    public string VideoSaturationLabel { get; init; } = "Saturation";
+    public string VideoHueLabel        { get; init; } = "Hue";
+    public string VideoResetPicture    { get; init; } = "Reset to Default";
 
     // ---- Overscan mode display names ----
     public string OverscanOverscan  { get; init; } = "Overscan";
@@ -70,13 +82,22 @@ internal sealed class LocalizationData
     public string OverscanUnderscan { get; init; } = "Underscan";
 
     // ---- Shared sound items ----
-    /// <summary>Format string — {0} is the volume value (0–100).</summary>
-    public string SoundVolume      { get; init; } = "◀  Volume: {0}  ▶";
+    public string SoundVolume      { get; init; } = "Volume";
     public string AudioFilterLabel { get; init; } = "Audio Filter";
     public string AudioFilterTitle { get; init; } = "AUDIO FILTER";
     /// <summary>Main menu only — not shown in the in-game pause menu.</summary>
     public string SoundMusicOn  { get; init; } = "Menu Music: On";
     public string SoundMusicOff { get; init; } = "Menu Music: Off";
+
+    // ---- Audio EQ sub-menu ----
+    public string AudioEqLabel   { get; init; } = "EQ";
+    public string AudioEqTitle   { get; init; } = "AUDIO EQ";
+    public string AudioEqBass    { get; init; } = "Bass";
+    public string AudioEqMid     { get; init; } = "Mid";
+    public string AudioEqTreble  { get; init; } = "Treble";
+    public string AudioEqFlat    { get; init; } = "Flat";
+    public string AudioEqCustom  { get; init; } = "Custom";
+    public string AudioEqReset   { get; init; } = "Reset to Default";
 
     // ---- Audio filter mode display names ----
     public string AudioFilterDefault      { get; init; } = "Default";
@@ -84,8 +105,9 @@ internal sealed class LocalizationData
     public string AudioFilterPseudoStereo { get; init; } = "Pseudo Stereo";
     public string AudioFilterWarmStereo   { get; init; } = "Warm Stereo";
     public string AudioFilterCompression  { get; init; } = "Compression";
-    public string AudioFilterBassBoost    { get; init; } = "Bass Boost";
+    public string AudioFilterBassBoost     { get; init; } = "Bass Boost";
     public string AudioFilterSaturation   { get; init; } = "Saturation";
+    public string AudioFilterDmcStabilizer { get; init; } = "Pop Filter";
 
     // ---- Shared rebind screen titles ----
     /// <summary>Format string — {0} is the uppercase binding label, e.g. "UP".</summary>
@@ -161,4 +183,12 @@ internal sealed class LocalizationData
 
     // ---- Controller diagram label (shown above the NES controller illustration on binding screens) ----
     public string NesControllerLabel { get; init; } = "NES Controller";
+
+    // ---- Video presets sub-menu ----
+    public string VideoPresetsLabel       { get; init; } = "Presets";
+    public string VideoPresetsTitle       { get; init; } = "VIDEO PRESETS";
+    public string VideoPresetLivingRoom   { get; init; } = "Living Room";
+    public string VideoPresetArcade       { get; init; } = "Arcade Monitor";
+    public string VideoPresetSharp        { get; init; } = "Sharp";
+    public string VideoPresetPhosphor     { get; init; } = "Phosphor";
 }

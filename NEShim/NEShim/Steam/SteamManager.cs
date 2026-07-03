@@ -18,13 +18,12 @@ internal static class SteamManager
     private static Action<bool>? _onOverlayToggle; // bool = isActive
 
     private static volatile bool _statsReady;
-    private static volatile bool _pendingStoreStats;
 
     // StoreStats is rate-limited by Steam; retrying faster than once per minute
-    // can itself cause failures. _storeRetryCountdown is UI-thread-only (only
-    // read/written from Tick(), which runs on the Steam timer on the UI thread).
-    private static int  _storeRetryCountdown;
-    private const  int  StoreRetryIntervalTicks = 360; // ~6s at 60Hz — well within Steam's rate limit
+    // can itself cause failures. The policy is UI-thread-only (only read/written
+    // from Tick(), which runs on the Steam timer on the UI thread).
+    private const int StoreRetryIntervalTicks = 360; // ~6s at 60Hz — well within Steam's rate limit
+    private static readonly StoreStatsRetryPolicy _storeRetryPolicy = new(StoreRetryIntervalTicks);
 
     public static bool IsAvailable     { get; private set; }
     public static bool IsOverlayActive { get; private set; }
@@ -122,15 +121,12 @@ internal static class SteamManager
 
     private static void RetryPendingStore()
     {
-        if (!_pendingStoreStats) return;
-        if (_storeRetryCountdown > 0) { _storeRetryCountdown--; return; }
-
-        bool stored = SteamUserStats.StoreStats();
-        Logger.Log($"[Steam] StoreStats retry — result: {stored}.");
-        if (stored)
-            _pendingStoreStats = false;
-        else
-            _storeRetryCountdown = StoreRetryIntervalTicks;
+        _storeRetryPolicy.Tick(() =>
+        {
+            bool result = SteamUserStats.StoreStats();
+            Logger.Log($"[Steam] StoreStats retry — result: {result}.");
+            return result;
+        });
     }
 
     /// <summary>
@@ -173,8 +169,7 @@ internal static class SteamManager
         Logger.Log($"[Steam] Achievement '{id}' — SetAchievement={set}, StoreStats={stored}.");
         if (!stored)
         {
-            _pendingStoreStats    = true;
-            _storeRetryCountdown  = StoreRetryIntervalTicks;
+            _storeRetryPolicy.Schedule();
             Logger.Log("[Steam] StoreStats returned false — will retry from Tick() after backoff.");
         }
         return true;
@@ -220,6 +215,6 @@ internal static class SteamManager
         // k_EResultOK: clean store. k_EResultInvalidParam: server rejected a stat and sent
         // back corrected values — not expected for achievements, but stop retrying either way.
         if (callback.m_eResult == EResult.k_EResultOK || callback.m_eResult == EResult.k_EResultInvalidParam)
-            _pendingStoreStats = false;
+            _storeRetryPolicy.Cancel();
     }
 }

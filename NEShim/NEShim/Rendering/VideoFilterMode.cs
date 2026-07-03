@@ -9,6 +9,7 @@ public enum VideoFilterMode
     CrtPhosphor,
     NtscComposite,
     CrtScreen,
+    Xbr,
 }
 
 public static class VideoFilterModeParser
@@ -16,7 +17,7 @@ public static class VideoFilterModeParser
     // Filters available in each rendering mode. Order defines the menu cycle sequence (most likely used first).
     public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear];
     public static readonly VideoFilterMode[] D3D11Supported =
-        [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite];
+        [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite, VideoFilterMode.Xbr];
 
     // Overlay-eligible filters — work as a second pass on an already-scaled frame.
     // Order defines the VideoOverlay sub-menu sequence (most useful first).
@@ -40,6 +41,7 @@ public static class VideoFilterModeParser
         "CrtPhosphor"      => VideoFilterMode.CrtPhosphor,
         "NtscComposite"    => VideoFilterMode.NtscComposite,
         "CrtScreen"        => VideoFilterMode.CrtScreen,
+        "Xbr"              => VideoFilterMode.Xbr,
         _ => throw new ArgumentException($"Unknown videoFilter value: '{value}'"),
     };
 
@@ -51,6 +53,7 @@ public static class VideoFilterModeParser
         VideoFilterMode.CrtPhosphor   => "CRT Phosphor",
         VideoFilterMode.NtscComposite => "NTSC Composite",
         VideoFilterMode.CrtScreen     => "CRT Screen",
+        VideoFilterMode.Xbr           => "Sharp Pixel",
         _                             => mode.ToString(),
     };
 }
