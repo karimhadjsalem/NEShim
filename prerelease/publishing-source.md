@@ -232,12 +232,14 @@ Verify all definitions are listed as `[sealed]` in the output. Never edit `achie
 
 All artwork paths in `config.json` are relative to the executable directory.
 
-| Config field | Purpose | Notes |
+| Config field | Purpose | Recommended size |
 |---|---|---|
-| `mainMenuBackgroundPath` | Full-screen background on the pre-game menu | Any common image format. Stretched/filled to the window size. |
-| `sidebarLeftPath` | Image in the left letterbox bar during gameplay | Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, overflow cropped. |
-| `sidebarRightPath` | Image in the right letterbox bar during gameplay | Same rules as left sidebar. |
-| `mainMenuMusicPath` | Looping audio for the pre-game menu | MP3 or WAV recommended. Plays with fade-in/fade-out transitions. |
+| `mainMenuBackgroundPath` | Full-screen background on the pre-game menu | **1920×1080 px** (16:9). Stretched to fill the window — aspect-ratio distortion occurs if source doesn't match the window. |
+| `sidebarLeftPath` | Image in the left letterbox bar during gameplay | **~302×1080 px at 1080p** (1:3.6 portrait). Cover-scaled; see sizing note below. |
+| `sidebarRightPath` | Image in the right letterbox bar during gameplay | Same as left sidebar. |
+| `mainMenuMusicPath` | Looping audio for the pre-game menu | MP3 or WAV. Plays with fade-in/fade-out transitions. |
+
+**Sidebar image sizing:** Each sidebar bar spans the full window height and is a narrow portrait strip. With the default Pixel Perfect (8:7 PAR) filter on a 16:9 display, each bar is approximately **~201×720 px at 720p**, **~302×1080 px at 1080p**, and **~402×1440 px at 1440p** (all `overscanMode: "Normal"`, 240 rows). On Steam Deck (16:10 at 1280×800) bars are narrower — approximately **~152×800 px**. The bars are about 10–16 px narrower in Overscan mode (224 rows). Images are cover-scaled, so exact pixel counts don't need to match; design at an aspect ratio of roughly **1:3.6 portrait** for 16:9 displays. On Steam Deck the bars are narrower relative to their height (~1:5.3), so keep key art near the centre column of your image. Sidebar art always renders at its original colours — Color Effects do not apply to it.
 
 ---
 
