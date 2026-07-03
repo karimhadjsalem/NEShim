@@ -8,7 +8,7 @@ description: "Audio filters and video filters — what each one does, when it's 
 
 # Filters
 
-NEShim has five independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
+NEShim has eight independent filter axes, all configurable at runtime via the in-game pause menu and the main menu under **Settings**. Each persists to `config.json`.
 
 | Axis | Config key | Menu location | Description |
 |---|---|---|---|
@@ -18,6 +18,7 @@ NEShim has five independent filter axes, all configurable at runtime via the in-
 | Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
 | Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 only) |
 | Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 only) |
+| Picture Adjustments | `videoBrightness` / `videoContrast` / `videoSaturation` / `videoHue` | Settings → Video → Picture | Post-process brightness, contrast, saturation, and hue sliders applied after all other video passes (D3D11 only) |
 | Video Presets | `videoPreset` | Settings → Video → Presets | Coordinated preset bundles that apply multiple filter settings in one step (D3D11 only) |
 
 ---
@@ -130,15 +131,16 @@ The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mo
 
 ## Picture Adjustments
 
-Three independent post-process sliders applied after all structural filter, overlay, and motion effect passes, and before the overlay (menus, HUD). D3D11 only — the values are stored in `config.json` in GDI+ mode but have no visual effect until D3D11 is available. When all three are at their neutral values the pass is skipped entirely with no intermediate render target allocated.
+Four independent post-process sliders applied after all structural filter, overlay, and motion effect passes, and before the overlay (menus, HUD). D3D11 only — the values are stored in `config.json` in GDI+ mode but have no visual effect until D3D11 is available. When all four are at their neutral values the pass is skipped entirely with no intermediate render target allocated.
 
 | Adjustment | `config.json` field | Range | Default | Description |
 |---|---|:---:|:---:|---|
 | Brightness | `videoBrightness` | −100 to +100 | `0` | Additive shift applied to linear RGB after color grading. Each unit corresponds to ±0.002 in linear light, so +100 adds +0.2 (roughly a 20% luminance lift). |
 | Contrast | `videoContrast` | −100 to +100 | `0` | Scales RGB around mid-grey (0.5). 0 is neutral (1× scale); +100 doubles the contrast; −100 collapses to flat grey. |
 | Saturation | `videoSaturation` | −100 to +100 | `0` | Blends linearly between full greyscale (−100) and the original colour (0) through to doubled saturation (+100), using BT.601 luma as the desaturated baseline. |
+| Hue | `videoHue` | −100 to +100 | `0` | Rotates all colours around the achromatic (grey) axis using Rodrigues' rotation formula. −100 maps to −π radians (≈ full 180° shift, inverting complementary colour pairs); +100 maps to +π radians (same endpoint from the other direction); 0 is neutral. |
 
-All three are adjustable at runtime via **Settings → Video → Picture** in both the in-game pause menu and the main menu. A Reset option returns all three to their defaults in one step.
+All four are adjustable at runtime via **Settings → Video → Picture** in both the in-game pause menu and the main menu. A Reset option returns all four to their defaults in one step.
 
 ---
 
@@ -176,7 +178,7 @@ Four built-in presets each apply a coordinated combination of filter settings �
 | Sharp | `"Sharp"` | Sharp Pixel | None | NES Colors | None |
 | Phosphor | `"Phosphor"` | CRT Screen | CRT Phosphor | Phosphor Amber | Screen Glow |
 
-All presets use Normal overscan and neutral picture adjustments (0 brightness, 0 contrast, 0 saturation).
+All presets use Normal overscan and neutral picture adjustments (0 brightness, 0 contrast, 0 saturation, 0 hue).
 
 The active preset name is shown inline on the Video settings screen next to the Presets entry. Selecting "None" from the Presets sub-menu clears the preset without changing any filter settings. **Changing any individual setting after applying a preset automatically resets `videoPreset` to `"None"`** — the preset name is a label, not a constraint; manual changes take full effect immediately.
 

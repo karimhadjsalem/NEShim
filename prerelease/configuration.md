@@ -78,6 +78,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `videoBrightness` | integer | `0` | Additive brightness post-process applied after all structural filter passes (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
 | `videoContrast` | integer | `0` | Contrast post-process scaling RGB around mid-grey (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral (1× scale). Configurable via Settings → Video → Picture. |
 | `videoSaturation` | integer | `0` | Saturation post-process blending between greyscale (−100) and boosted colour (+100) (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
+| `videoHue` | integer | `0` | Hue rotation applied to all colours using Rodrigues' rotation around the grey axis (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100 (−100 = −π rad ≈ full complementary inversion; +100 = +π rad). 0 = neutral. Configurable via Settings → Video → Picture. |
 | `videoPreset` | string | `"None"` | Name of the last-applied video preset (D3D11 only). `"None"` — no preset active. `"LivingRoom"`, `"Arcade"`, `"Sharp"`, `"Phosphor"` — built-in presets. Written by the Presets sub-menu; cleared to `"None"` automatically whenever any individual video setting is changed manually. See [Filters — Video Presets](filters.md#video-presets). |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. |
@@ -233,6 +234,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. The
   "videoBrightness": 0,
   "videoContrast": 0,
   "videoSaturation": 0,
+  "videoHue": 0,
   "videoPreset": "None",
   "overscanMode": "Normal",
   "mainMenuPosition": "BottomCenter",
