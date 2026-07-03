@@ -75,7 +75,7 @@ NEShim reads and writes save files to the local filesystem only. Cloud sync is h
 | `saves\*` | Manual save states (`slot0.state` … `slot7.state`), slot metadata (`.meta`), and the auto-save (`autosave.state`) |
 | `game.srm` | Battery-backed RAM — the cartridge save for games like Zelda and Metroid |
 
-Do **not** sync `config.json`. Settings like `windowMode` and `volume` are machine-specific; syncing them will overwrite a player's preferences on every machine they use.
+**Do not sync `config.json`** — it is the publisher configuration layer and should remain as shipped. Player preferences (volume, video filter, input bindings, language, etc.) are stored in `user.json` under `%APPDATA%\<WindowTitle>\` (or the equivalent Proton path on Steam Deck). That directory is outside the Steam install tree, so Steam never touches it during updates or cloud sync — no Auto-Cloud rule is needed for it.
 
 ### Steamworks dashboard setup
 
@@ -256,7 +256,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. No 
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
 - [ ] `steam_api64.dll` copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory and included in your Steam depot
-- [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded)
+- [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded — player preferences live in AppData `user.json`, which Steam cannot touch)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
