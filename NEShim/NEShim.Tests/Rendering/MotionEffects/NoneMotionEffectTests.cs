@@ -28,4 +28,38 @@ internal class NoneMotionEffectTests
         Assert.That(dx, Is.EqualTo(0f));
         Assert.That(dy, Is.EqualTo(0f));
     }
+
+    // ---- IMotionEffect default interface methods (via NoneMotionEffect, which overrides none of them) ----
+
+    [Test]
+    public void PixelShaderResourceName_Default_IsNull()
+    {
+        IMotionEffect effect = _effect;
+        Assert.That(effect.PixelShaderResourceName, Is.Null);
+    }
+
+    [Test]
+    public void UseLinearSampler_Default_IsFalse()
+    {
+        IMotionEffect effect = _effect;
+        Assert.That(effect.UseLinearSampler, Is.False);
+    }
+
+    [Test]
+    public void WriteShaderParams_Default_LeavesBufferUnchanged()
+    {
+        IMotionEffect effect = _effect;
+        float[] buf = { 1f, 2f, 3f };
+        effect.WriteShaderParams(buf.AsSpan(), 256, 240);
+        Assert.That(buf[0], Is.EqualTo(1f));
+        Assert.That(buf[1], Is.EqualTo(2f));
+        Assert.That(buf[2], Is.EqualTo(3f));
+    }
+
+    [Test]
+    public void NotifyLayout_Default_DoesNotThrow()
+    {
+        IMotionEffect effect = _effect;
+        Assert.That(() => effect.NotifyLayout(1920, 1080, 810), Throws.Nothing);
+    }
 }

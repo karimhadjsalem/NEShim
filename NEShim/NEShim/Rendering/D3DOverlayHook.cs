@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -17,6 +18,7 @@ namespace NEShim.Rendering;
 /// <para>If D3D11 is unavailable, initialization silently fails and all methods
 /// become no-ops; the game continues without overlay support.</para>
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class D3DOverlayHook : IDisposable
 {
     private ID3D11Device?   _device;

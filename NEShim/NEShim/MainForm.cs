@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
@@ -13,6 +14,7 @@ using NEShim.UI;
 
 namespace NEShim;
 
+[ExcludeFromCodeCoverage]
 public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget
 {
     // ---- Win32 for WM_ACTIVATEAPP ----

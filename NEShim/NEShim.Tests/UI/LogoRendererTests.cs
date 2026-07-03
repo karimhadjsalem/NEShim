@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 using NEShim.UI;
 
 namespace NEShim.Tests.UI;
@@ -75,5 +76,34 @@ internal class LogoRendererTests
         float imageAspect = (float)image.Width / image.Height;
         float rectAspect  = (float)rect.Width  / rect.Height;
         Assert.That(rectAspect, Is.EqualTo(imageAspect).Within(0.01f));
+    }
+
+    // ---- Draw smoke tests ----
+
+    [Test]
+    public void Draw_FullAlpha_DoesNotThrow()
+    {
+        using var logo   = new Bitmap(256, 128, PixelFormat.Format32bppArgb);
+        using var canvas = new Bitmap(1920, 1080, PixelFormat.Format32bppArgb);
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => LogoRenderer.Draw(g, FullHdBounds, logo, 1.0f), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_ZeroAlpha_DoesNotThrow()
+    {
+        using var logo   = new Bitmap(256, 128, PixelFormat.Format32bppArgb);
+        using var canvas = new Bitmap(1920, 1080, PixelFormat.Format32bppArgb);
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => LogoRenderer.Draw(g, FullHdBounds, logo, 0.0f), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_HalfAlpha_DoesNotThrow()
+    {
+        using var logo   = new Bitmap(256, 128, PixelFormat.Format32bppArgb);
+        using var canvas = new Bitmap(1280, 720, PixelFormat.Format32bppArgb);
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => LogoRenderer.Draw(g, HdBounds, logo, 0.5f), Throws.Nothing);
     }
 }

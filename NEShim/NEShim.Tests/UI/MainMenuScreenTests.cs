@@ -1672,4 +1672,378 @@ internal class MainMenuScreenTests
         screen.HandleKey(Keys.Return);
         Assert.That(_config.VideoFilter, Is.EqualTo("Xbr"));
     }
+
+    // ---- Audio EQ sub-screen ----
+
+    private static void OpenAudioEqScreen(MainMenuScreen screen)
+    {
+        OpenSoundScreen(screen);
+        screen.HandleKey(Keys.Down);   // Audio Filter item (index 1)
+        screen.HandleKey(Keys.Down);   // EQ item (index 2)
+        screen.HandleKey(Keys.Return); // enter AudioEq screen
+    }
+
+    [Test]
+    public void AudioEq_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.AudioEq));
+    }
+
+    [Test]
+    public void AudioEq_GetTitle_ReturnsAudioEqTitle()
+    {
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("AUDIO EQ"));
+    }
+
+    [Test]
+    public void AudioEq_GetCurrentItems_ReturnsFiveItems()
+    {
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void AudioEq_BassItem_ShowsCurrentValue()
+    {
+        _config.AudioEqBass = 9;
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("+9"));
+    }
+
+    [Test]
+    public void AudioEq_RightKey_OnBass_IncreasesGain()
+    {
+        _config.AudioEqBass = 0;
+        (int bass, int mid, int treble) received = default;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+        OpenAudioEqScreen(screen); // SelectedItem = 0 (Bass)
+        screen.HandleKey(Keys.Right);
+        Assert.That(_config.AudioEqBass, Is.EqualTo(1));
+        Assert.That(received.bass, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void AudioEq_LeftKey_OnTreble_DecreasesGain()
+    {
+        _config.AudioEqTreble = 6;
+        (int bass, int mid, int treble) received = default;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+        OpenAudioEqScreen(screen);
+        screen.HandleKey(Keys.Down); // Mid
+        screen.HandleKey(Keys.Down); // Treble (index 2)
+        screen.HandleKey(Keys.Left);
+        Assert.That(_config.AudioEqTreble, Is.EqualTo(5));
+        Assert.That(received.treble, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void AudioEq_Reset_SetsAllGainsToZero()
+    {
+        _config.AudioEqBass   = 4;
+        _config.AudioEqMid    = -2;
+        _config.AudioEqTreble = 8;
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // to Reset (index 3)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.AudioEqBass,   Is.EqualTo(0));
+        Assert.That(_config.AudioEqMid,    Is.EqualTo(0));
+        Assert.That(_config.AudioEqTreble, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void AudioEq_Back_ReturnsToSound()
+    {
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // to Back (index 4)
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+    }
+
+    [Test]
+    public void AudioEq_Escape_ReturnsToSound()
+    {
+        using var screen = CreateScreen();
+        OpenAudioEqScreen(screen);
+        screen.HandleKey(Keys.Escape);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+    }
+
+    [Test]
+    public void Sound_EqItem_ShowsFlat_WhenAllZero()
+    {
+        _config.AudioEqBass = _config.AudioEqMid = _config.AudioEqTreble = 0;
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        Assert.That(screen.GetCurrentItems()[2], Does.Contain("Flat"));
+    }
+
+    [Test]
+    public void Sound_EqItem_ShowsCustom_WhenAnyNonZero()
+    {
+        _config.AudioEqTreble = -6;
+        using var screen = CreateScreen();
+        OpenSoundScreen(screen);
+        Assert.That(screen.GetCurrentItems()[2], Does.Contain("Custom"));
+    }
+
+    // ---- Language sub-screen ----
+
+    private static void OpenLanguageScreen(MainMenuScreen screen)
+    {
+        screen.HandleKey(Keys.Down);   // Settings (index 2)
+        screen.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // Language (index 4)
+        screen.HandleKey(Keys.Return); // enter Language
+    }
+
+    [Test]
+    public void Language_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenLanguageScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Language));
+    }
+
+    [Test]
+    public void Language_GetTitle_ReturnsLanguageTitle()
+    {
+        using var screen = CreateScreen();
+        OpenLanguageScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("LANGUAGE"));
+    }
+
+    [Test]
+    public void Language_GetCurrentItems_HasAutoAtIndex0()
+    {
+        using var screen = CreateScreen();
+        OpenLanguageScreen(screen);
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("Auto"));
+    }
+
+    [Test]
+    public void Language_SelectAuto_SetsConfigLanguageToAuto()
+    {
+        _config.Language = "english";
+        bool callbackFired = false;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            lang => { callbackFired = true; },
+            (_, _, _) => { }, (_, _, _) => { });
+        OpenLanguageScreen(screen);
+        screen.HandleKey(Keys.Return); // select Auto (index 0)
+        Assert.That(_config.Language, Is.EqualTo("Auto"));
+        Assert.That(callbackFired, Is.True);
+    }
+
+    [Test]
+    public void Language_SelectSpecificLanguage_UpdatesConfig()
+    {
+        _config.Language = "Auto";
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { },
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
+            _ => { },
+            (_, _, _) => { }, (_, _, _) => { });
+        OpenLanguageScreen(screen);
+        screen.HandleKey(Keys.Down); // first language (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.Language, Is.Not.EqualTo("Auto"));
+    }
+
+    [Test]
+    public void Language_Auto_HasCheckmark_WhenConfigIsAuto()
+    {
+        _config.Language = "Auto";
+        using var screen = CreateScreen();
+        OpenLanguageScreen(screen);
+        Assert.That(screen.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void Language_Back_ReturnsToSettings()
+    {
+        using var screen = CreateScreen();
+        OpenLanguageScreen(screen);
+        int backIndex = screen.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
+    // ---- VideoMotionEffect sub-screen (D3D11 only) ----
+
+    private static void OpenVideoMotionEffectScreen(MainMenuScreen screen)
+    {
+        OpenVideoScreenD3D11(screen);
+        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // MotionEffect (index 4)
+        screen.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenVideoMotionEffectScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoMotionEffect));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_GetTitle_ReturnsMotionEffectTitle()
+    {
+        using var screen = CreateScreen();
+        OpenVideoMotionEffectScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("MOTION EFFECT"));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_GetCurrentItems_ContainsAllModes()
+    {
+        using var screen = CreateScreen();
+        OpenVideoMotionEffectScreen(screen);
+        var allModes = NEShim.Rendering.VideoMotionEffectModeParser.AllModes;
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(allModes.Length + 1));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_SelectMode_UpdatesConfig()
+    {
+        _config.VideoMotionEffect = "None";
+        using var screen = CreateScreen();
+        OpenVideoMotionEffectScreen(screen);
+        screen.HandleKey(Keys.Down); // CrtJitter (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.VideoMotionEffect, Is.EqualTo("CrtJitter"));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_SelectMode_FiresCallback()
+    {
+        NEShim.Rendering.VideoMotionEffectMode? received = null;
+        using var screen = new MainMenuScreen(
+            _saveStates, _config, new LocalizationData(), null,
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { },
+            _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
+            (_, _, _) => { }, (_, _, _) => { });
+        OpenVideoMotionEffectScreen(screen);
+        screen.HandleKey(Keys.Down); // CrtJitter
+        screen.HandleKey(Keys.Return);
+        Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoMotionEffectMode.CrtJitter));
+    }
+
+    [Test]
+    public void VideoMotionEffect_D3D11_Back_ReturnsToVideo()
+    {
+        using var screen = CreateScreen();
+        OpenVideoMotionEffectScreen(screen);
+        int backIndex = screen.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
+
+    // ---- VideoPresets sub-screen (D3D11 only) ----
+
+    private static void OpenVideoPresetsScreen(MainMenuScreen screen)
+    {
+        OpenVideoScreenD3D11(screen);
+        // Presets is at index 0 — already selected
+        screen.HandleKey(Keys.Return);
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_NavigateTo_SetsCurrentScreen()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoPresets));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_GetTitle_ReturnsPresetsTitle()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        Assert.That(screen.GetTitle(), Is.EqualTo("VIDEO PRESETS"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_GetCurrentItems_HasNonePlusAllPresetsAndBack()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_None_HasCheckmark_WhenNoActivePreset()
+    {
+        _config.VideoPreset = "None";
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        Assert.That(screen.GetCurrentItems()[0], Does.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_SelectPreset_AppliesAllFields()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        screen.HandleKey(Keys.Down); // LivingRoom (index 1)
+        screen.HandleKey(Keys.Return);
+        Assert.That(_config.VideoPreset, Is.EqualTo("LivingRoom"));
+        Assert.That(_config.VideoFilter, Is.EqualTo("CrtScreen"));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_SelectNone_ClearsPreset()
+    {
+        _config.VideoPreset = "Sharp";
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        screen.HandleKey(Keys.Return); // None (index 0)
+        Assert.That(_config.VideoPreset, Is.EqualTo("None"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_ActivePreset_HasCheckmark()
+    {
+        _config.VideoPreset = "Sharp";
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        // None(0), LivingRoom(1), Arcade(2), Sharp(3)
+        Assert.That(screen.GetCurrentItems()[3], Does.StartWith("✓"));
+        Assert.That(screen.GetCurrentItems()[0], Does.Not.StartWith("✓"));
+    }
+
+    [Test]
+    public void VideoPresets_D3D11_Back_ReturnsToVideo()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPresetsScreen(screen);
+        int backIndex = screen.GetCurrentItems().Length - 1;
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
+        screen.HandleKey(Keys.Return);
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+    }
 }

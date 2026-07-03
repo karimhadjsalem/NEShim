@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -19,6 +20,7 @@ namespace NEShim.Rendering;
 /// blend state, overlay texture + bitmap, sidebar textures.
 /// NOT owned: device and swap chain — those belong to <see cref="D3DOverlayHook"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class D3D11Renderer : IFrameRenderer
 {
     // Not owned — created and disposed by D3DOverlayHook.
@@ -96,7 +98,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private int _letterboxPixelW;
     private int _letterboxPixelH;
 
-    private const float UnderscanScale = 0.88f;
+    // UnderscanScale is defined in LetterboxGeometry.
 
     // Active NES content size as reported by the emulator. Updated in UploadFrame.
     private int _contentWidth;
@@ -1042,38 +1044,17 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         // Use _activeFilter.PixelAspectRatio so filters that alter perceived pixel width
         // (e.g. NtscComposite at 8/7 PAR) are handled without touching this method.
-        float displayAspect = _contentWidth * _activeFilter.PixelAspectRatio / _displayHeight;
-        float windowAspect  = (float)_viewportWidth / _viewportHeight;
+        var r = LetterboxGeometry.Compute(
+            _contentWidth, _displayHeight, _activeFilter.PixelAspectRatio,
+            _viewportWidth, _viewportHeight,
+            _overscanMode == OverscanMode.Underscan);
 
-        float destW, destH;
-        if (windowAspect > displayAspect)
-        {
-            destH = _viewportHeight;
-            destW = destH * displayAspect;
-        }
-        else
-        {
-            destW = _viewportWidth;
-            destH = destW / displayAspect;
-        }
-
-        if (_overscanMode == OverscanMode.Underscan)
-        {
-            destW *= UnderscanScale;
-            destH *= UnderscanScale;
-        }
-
-        float destX = (_viewportWidth  - destW) / 2f;
-        float destY = (_viewportHeight - destH) / 2f;
-
-        // D3D clip space: x ∈ [-1,1], y=+1 at top, y=-1 at bottom.
-        _nesX0 = (destX / _viewportWidth)           * 2f - 1f;  // left edge
-        _nesX1 = ((destX + destW) / _viewportWidth) * 2f - 1f;  // right edge
-        _nesY0 = 1f - (destY / _viewportHeight) * 2f;           // top edge
-        _nesY1 = 1f - ((destY + destH) / _viewportHeight) * 2f; // bottom edge
-
-        _letterboxPixelW = Math.Max(1, (int)destW);
-        _letterboxPixelH = Math.Max(1, (int)destH);
+        _nesX0 = r.X0;
+        _nesX1 = r.X1;
+        _nesY0 = r.Y0;
+        _nesY1 = r.Y1;
+        _letterboxPixelW = r.PixelW;
+        _letterboxPixelH = r.PixelH;
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _letterboxPixelH);
         SyncMotionEffectRt();
     }

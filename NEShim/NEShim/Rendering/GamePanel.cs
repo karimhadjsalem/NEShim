@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -13,6 +14,7 @@ namespace NEShim.Rendering;
 /// GDI+ fallback mode. In D3D11 mode this panel is permanently hidden; all rendering
 /// including menus goes through the D3D11 swap chain overlay.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class GamePanel : Panel
 {
     private readonly FrameBuffer _frameBuffer;

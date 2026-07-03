@@ -318,4 +318,47 @@ internal class MenuRendererTests
         Assert.That(menu.IsGamepadRebinding, Is.True);
         Assert.That(MenuRenderer.HitTestItem(new Point(320, 200), Bounds640x480, menu), Is.EqualTo(-1));
     }
+
+    [Test]
+    public void Draw_ControllerDisconnected_DoesNotThrow()
+    {
+        var menu = new InGameMenu(
+            _saveStates, _config,
+            new LocalizationData(),
+            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_LanguageScreen_WithIcons_DoesNotThrow()
+    {
+        var menu = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // → Settings
+        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // → Language (index 4)
+        menu.HandleKey(Keys.Return); // Language screen (has flag icons)
+        using var canvas = MakeCanvas();
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, Bounds640x480, menu), Throws.Nothing);
+    }
+
+    [Test]
+    public void Draw_GamepadBindings_WithWideCanvas_ShowsController()
+    {
+        // Width > MinWidthForCtrl triggers the controller diagram column
+        var wideBounds = new Rectangle(0, 0, 1280, 720);
+        var menu       = CreateOpenMenu();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Return); // GamepadBindings
+        using var canvas = new Bitmap(1280, 720, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g      = Graphics.FromImage(canvas);
+        Assert.That(() => MenuRenderer.Draw(g, wideBounds, menu), Throws.Nothing);
+    }
 }

@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using BizHawk.Emulation.Common;
 
 namespace NEShim.Emulation;
 
+[ExcludeFromCodeCoverage]
 internal sealed class NeshimFileProvider : ICoreFileProvider
 {
     // NEShim does not support FDS (requires BIOS) or libretro cores.

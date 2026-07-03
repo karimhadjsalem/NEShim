@@ -154,4 +154,53 @@ internal class LocalizationLoaderTests
 
         Assert.That(data.BindNone, Is.EqualTo("(rien)"));
     }
+
+    [Test]
+    public void LoadFrom_AudioEqKeys_PopulatedFromJson()
+    {
+        string path = Path.Combine(_tempDir, "eq.json");
+        File.WriteAllText(path,
+            """{ "audioEqLabel": "EQ_TEST", "audioEqTitle": "TITLE_TEST", "audioEqBass": "BASS_TEST", "audioEqFlat": "FLAT_TEST" }""",
+            Encoding.UTF8);
+
+        var data = LocalizationLoader.LoadFrom(path);
+
+        Assert.That(data.AudioEqLabel, Is.EqualTo("EQ_TEST"));
+        Assert.That(data.AudioEqTitle, Is.EqualTo("TITLE_TEST"));
+        Assert.That(data.AudioEqBass,  Is.EqualTo("BASS_TEST"));
+        Assert.That(data.AudioEqFlat,  Is.EqualTo("FLAT_TEST"));
+    }
+
+    [Test]
+    public void Load_WhenEnglishRequested_ButFileNotFound_ReturnsDefault()
+    {
+        // When "english" is requested and english.json does not exist, the loader
+        // must return the built-in defaults rather than trying a second fallback.
+        var data = LocalizationLoader.Load(_tempDir, "english");
+
+        Assert.That(data.FontFamily,    Is.EqualTo("Segoe UI"));
+        Assert.That(data.MainMenuTitle, Is.EqualTo("MAIN MENU"));
+    }
+
+    [Test]
+    public void Load_WhenNonEnglishAndNoEnglishFallback_ReturnsDefault()
+    {
+        // Neither the requested language file nor english.json exist — must return defaults.
+        var data = LocalizationLoader.Load(_tempDir, "french");
+
+        Assert.That(data.FontFamily,    Is.EqualTo("Segoe UI"));
+        Assert.That(data.MainMenuTitle, Is.EqualTo("MAIN MENU"));
+    }
+
+    [Test]
+    public void LoadFrom_CorruptJson_ReturnsDefaultInstance()
+    {
+        string path = Path.Combine(_tempDir, "corrupt.json");
+        File.WriteAllText(path, "{ this is not valid JSON !!!", Encoding.UTF8);
+
+        var data = LocalizationLoader.LoadFrom(path);
+
+        Assert.That(data.FontFamily,    Is.EqualTo("Segoe UI"));
+        Assert.That(data.MainMenuTitle, Is.EqualTo("MAIN MENU"));
+    }
 }

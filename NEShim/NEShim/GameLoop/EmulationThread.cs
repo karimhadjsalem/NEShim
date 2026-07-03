@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using NEShim.Achievements;
 using NEShim.Audio;
@@ -15,6 +16,7 @@ namespace NEShim.GameLoop;
 /// Runs the NES emulation loop on a dedicated high-priority thread at ~60Hz.
 /// Owns frame timing, pause logic, hotkey dispatch, audio submission, and Steam ticks.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class EmulationThread
 {
     [Flags]

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using BizHawk.Common;
 using BizHawk.Emulation.Common;
@@ -9,6 +10,7 @@ namespace NEShim.Emulation;
 /// <summary>
 /// Owns the NES emulator instance and exposes its services.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal sealed class EmulatorHost : IDisposable
 {
     private readonly NES _nes;

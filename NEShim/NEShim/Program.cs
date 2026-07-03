@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using BizHawk.Common;
 using Steamworks;
 
 namespace NEShim;
 
+[ExcludeFromCodeCoverage]
 static class Program
 {
     [STAThread]
