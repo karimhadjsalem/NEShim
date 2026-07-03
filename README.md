@@ -16,7 +16,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
-- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), **picture adjustments** (brightness, contrast, saturation), and four built-in **Video Presets** (Living Room, Arcade Monitor, Sharp, Phosphor) that apply coordinated filter combinations in one step — all independently stackable; see [Filters](#filters) below
+- **Graphics** — dual rendering paths: D3D11 (primary) and GDI+ (fallback). D3D11 adds six structural filters (Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), a **Video Overlay** slot for stacking a second structural filter as a two-pass effect, six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets** (Living Room, Arcade Monitor, Sharp, Phosphor) that apply coordinated filter combinations in one step — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and XInput gamepad support with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck** — runs on Steam Deck via Proton with no configuration changes required
@@ -137,7 +137,7 @@ Motion effects compose with all structural filters, the Video Overlay slot, and 
 
 ### Picture Adjustments (D3D11 only)
 
-Three independent sliders available under **Settings → Video → Picture**: **Brightness** (−100 to +100), **Contrast** (−100 to +100), and **Saturation** (−100 to +100). Applied as a post-process pass after all structural, overlay, and motion effect passes. All three default to 0 (neutral); when all are neutral the pass is skipped entirely with no rendering overhead.
+Four independent sliders available under **Settings → Video → Picture**: **Brightness** (−100 to +100), **Contrast** (−100 to +100), **Saturation** (−100 to +100), and **Hue** (−100 to +100, mapping to −π..+π radians rotation around the grey axis). Applied as a post-process pass after all structural, overlay, and motion effect passes. All four default to 0 (neutral); when all are neutral the pass is skipped entirely with no rendering overhead.
 
 ### Developer note — injectable filter architecture
 
