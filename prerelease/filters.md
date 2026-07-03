@@ -247,7 +247,7 @@ The `colorMode` integer encodes all seven grades at fixed positions in the HLSL 
 
 `Passthrough.ps.cso` applies only the color grade, with no structural effect. It is bound in place of the active structural shader for two draw calls each frame:
 
-- **Sidebar quads** — so letterbox bar artwork is not distorted by scanlines or NTSC simulation.
+- **Sidebar quads** — so letterbox bar artwork is not distorted by scanlines or NTSC simulation. Color effects are also suppressed here (`colorMode=0`), so sidebar art is always displayed in its original colours regardless of the active Color Effect.
 - **Overlay quad** — so the GDI+-rendered overlay (menus, frozen frame background, HUD elements) is not affected by structural filters. The color grade still applies via `colorMode`, keeping the overlay tonally consistent with the NES frame.
 
 ### DXVK / Proton
