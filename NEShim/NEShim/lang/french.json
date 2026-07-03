@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "Luminosité",
   "videoContrastLabel": "Contraste",
   "videoSaturationLabel": "Saturation",
+  "videoHueLabel": "Teinte",
   "videoResetPicture": "Réinitialiser",
   "videoMotionEffectMagneticDistortion": "Distorsion magnétique",
   "videoMotionEffectPhosphorPersistence": "Lueur d'écran",

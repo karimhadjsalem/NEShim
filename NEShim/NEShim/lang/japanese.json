@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "明るさ",
   "videoContrastLabel": "コントラスト",
   "videoSaturationLabel": "彩度",
+  "videoHueLabel": "色相",
   "videoResetPicture": "デフォルトに戻す",
   "videoMotionEffectMagneticDistortion": "磁気歪み",
   "videoMotionEffectPhosphorPersistence": "残光",

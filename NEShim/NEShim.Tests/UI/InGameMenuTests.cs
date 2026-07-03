@@ -65,7 +65,7 @@ internal class InGameMenuTests
             onVideoColorFilterChanged        ?? (_ => { }),
             _ => { },
             onOverscanModeChanged            ?? (_ => { }),
-            _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
     }
 
     // Helper: create an empty slot-state file so SlotExists returns true
@@ -564,7 +564,7 @@ internal class InGameMenuTests
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
-            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
@@ -815,7 +815,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -826,7 +826,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -837,7 +837,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(menu);
         Assert.That(menu.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -872,7 +872,7 @@ internal class InGameMenuTests
         var loc = new LocalizationData { BindNone = "(unset)" };
         var menu = new InGameMenu(_saveStates, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
-            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return); // Settings
@@ -1836,11 +1836,11 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void VideoPicture_GetCurrentItems_ReturnsSixItems()
+    public void VideoPicture_GetCurrentItems_ReturnsSevenItems()
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(6));
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(7));
     }
 
     [Test]
@@ -1907,6 +1907,60 @@ internal class InGameMenuTests
     }
 
     [Test]
+    public void VideoPicture_RightOnHue_IncreasesConfigHue()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_LeftOnHue_DecreasesConfigHue()
+    {
+        var menu = CreateMenu();
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void VideoPicture_HueAt100_RightDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoHue = 100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(100));
+    }
+
+    [Test]
+    public void VideoPicture_HueAtMinus100_LeftDoesNotExceed()
+    {
+        var menu = CreateMenu();
+        _config.VideoHue = -100;
+        OpenVideoPictureScreen(menu);
+        menu.HandleKey(Keys.Down); // Brightness
+        menu.HandleKey(Keys.Down); // Contrast
+        menu.HandleKey(Keys.Down); // Saturation
+        menu.HandleKey(Keys.Down); // Hue (index 4)
+        menu.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-100));
+    }
+
+    [Test]
     public void VideoPicture_BrightnessAt100_RightDoesNotExceed()
     {
         var menu = CreateMenu();
@@ -1945,13 +1999,15 @@ internal class InGameMenuTests
         _config.VideoBrightness  = 50;
         _config.VideoContrast    = -30;
         _config.VideoSaturation  = 25;
+        _config.VideoHue         = 75;
         _config.VideoColorFilter = "Warm";
         OpenVideoPictureScreen(menu);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Reset (index 4)
+        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Reset (index 5)
         menu.HandleKey(Keys.Return);
         Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
         Assert.That(_config.VideoContrast,    Is.EqualTo(0));
         Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
+        Assert.That(_config.VideoHue,         Is.EqualTo(0));
         Assert.That(_config.VideoColorFilter, Is.EqualTo("None"));
     }
 
@@ -1960,7 +2016,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Back (index 5)
+        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Back (index 6)
         menu.HandleKey(Keys.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
@@ -2045,7 +2101,7 @@ internal class InGameMenuTests
             _saveStates, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
-            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(menu); // SelectedItem = 0 (Bass)
         menu.HandleKey(Keys.Right);
         Assert.That(_config.AudioEqBass, Is.EqualTo(1));
@@ -2061,7 +2117,7 @@ internal class InGameMenuTests
             _saveStates, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
-            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(menu);
         menu.HandleKey(Keys.Down); // move to Mid (index 1)
         menu.HandleKey(Keys.Left);
@@ -2191,7 +2247,7 @@ internal class InGameMenuTests
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             lang => { callbackFired = true; },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(menu);
         menu.HandleKey(Keys.Return); // select Auto (index 0)
         Assert.That(_config.Language, Is.EqualTo("Auto"));
@@ -2207,7 +2263,7 @@ internal class InGameMenuTests
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             _ => { },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(menu);
         menu.HandleKey(Keys.Down); // move to first language (index 1 = English)
         menu.HandleKey(Keys.Return);
@@ -2316,7 +2372,7 @@ internal class InGameMenuTests
             _saveStates, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoMotionEffectScreen(menu);
         menu.HandleKey(Keys.Down); // CrtJitter

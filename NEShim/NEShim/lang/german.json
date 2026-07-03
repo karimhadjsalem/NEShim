@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "Helligkeit",
   "videoContrastLabel": "Kontrast",
   "videoSaturationLabel": "Sättigung",
+  "videoHueLabel": "Farbton",
   "videoResetPicture": "Zurücksetzen",
   "videoMotionEffectMagneticDistortion": "Magnetstörung",
   "videoMotionEffectPhosphorPersistence": "Bildschirmleuchten",

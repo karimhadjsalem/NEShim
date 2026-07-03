@@ -65,7 +65,7 @@ internal sealed class GdiRenderer : IFrameRenderer
     // GDI+ path: scene rendering goes through GamePanel.OnPaint; these are no-ops.
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) { }
     public void MarkOverlayDirty() { }
-    public void SetPictureAdjust(int brightness, int contrast, int saturation) { }
+    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue) { }
 
     public void Dispose() { } // does not own gamePanel or hook
 }

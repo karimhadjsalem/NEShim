@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "밝기",
   "videoContrastLabel": "대비",
   "videoSaturationLabel": "채도",
+  "videoHueLabel": "색조",
   "videoResetPicture": "기본값으로 초기화",
   "videoMotionEffectMagneticDistortion": "자기 왜곡",
   "videoMotionEffectPhosphorPersistence": "화면 잔광",

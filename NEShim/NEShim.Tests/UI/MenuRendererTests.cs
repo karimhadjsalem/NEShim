@@ -54,7 +54,7 @@ internal class MenuRendererTests
         var menu = new InGameMenu(
             _saveStates, _config,
             new LocalizationData(),
-            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
         return menu;
     }
@@ -325,7 +325,7 @@ internal class MenuRendererTests
         var menu = new InGameMenu(
             _saveStates, _config,
             new LocalizationData(),
-            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open(InGameMenu.Screen.ControllerDisconnected);
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);

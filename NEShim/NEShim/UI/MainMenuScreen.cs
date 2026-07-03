@@ -94,7 +94,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     private readonly Action<Rendering.VideoMotionEffectMode> _onVideoMotionEffectChanged;
     private readonly Action<Rendering.OverscanMode>         _onOverscanModeChanged;
     private readonly Action<string>                         _onLanguageChanged;
-    private readonly Action<int, int, int>                  _onPictureAdjustChanged;
+    private readonly Action<int, int, int, int>              _onPictureAdjustChanged;
     private readonly Action<int, int, int>                  _onAudioEqChanged;
 
     // ---- Events ----
@@ -121,7 +121,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<Rendering.VideoMotionEffectMode> onVideoMotionEffectChanged,
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                         onLanguageChanged,
-        Action<int, int, int>                  onPictureAdjustChanged,
+        Action<int, int, int, int>             onPictureAdjustChanged,
         Action<int, int, int>                  onAudioEqChanged,
         Bitmap?          bgImage = null)
     {
@@ -350,9 +350,12 @@ internal sealed partial class MainMenuScreen : IDisposable
             case VideoPictureHandler.SaturationIndex:
                 _config.VideoSaturation = Math.Clamp(_config.VideoSaturation + delta, -100, 100);
                 break;
+            case VideoPictureHandler.HueIndex:
+                _config.VideoHue = Math.Clamp(_config.VideoHue + delta, -100, 100);
+                break;
         }
         ClearPreset();
-        _onPictureAdjustChanged(_config.VideoBrightness, _config.VideoContrast, _config.VideoSaturation);
+        _onPictureAdjustChanged(_config.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
     }
 
     internal void ResetPicture()
@@ -361,8 +364,9 @@ internal sealed partial class MainMenuScreen : IDisposable
         _config.VideoBrightness  = 0;
         _config.VideoContrast    = 0;
         _config.VideoSaturation  = 0;
+        _config.VideoHue         = 0;
         _config.VideoColorFilter = Rendering.VideoColorFilterMode.None.ToString();
-        _onPictureAdjustChanged(0, 0, 0);
+        _onPictureAdjustChanged(0, 0, 0, 0);
         _onVideoColorFilterChanged(Rendering.VideoColorFilterMode.None);
     }
 
@@ -401,6 +405,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _config.VideoBrightness    = preset.Brightness;
         _config.VideoContrast      = preset.Contrast;
         _config.VideoSaturation    = preset.Saturation;
+        _config.VideoHue           = preset.Hue;
         _config.VideoPreset        = preset.Name;
 
         _onVideoFilterChanged(preset.Filter);
@@ -408,7 +413,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onVideoColorFilterChanged(preset.ColorFilter);
         _onVideoMotionEffectChanged(preset.MotionEffect);
         _onOverscanModeChanged(preset.Overscan);
-        _onPictureAdjustChanged(preset.Brightness, preset.Contrast, preset.Saturation);
+        _onPictureAdjustChanged(preset.Brightness, preset.Contrast, preset.Saturation, preset.Hue);
         _onConfigSaved();
     }
 

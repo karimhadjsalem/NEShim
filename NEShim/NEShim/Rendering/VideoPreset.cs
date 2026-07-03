@@ -9,7 +9,8 @@ internal sealed record VideoPreset(
     OverscanMode          Overscan,
     int                   Brightness,
     int                   Contrast,
-    int                   Saturation);
+    int                   Saturation,
+    int                   Hue);
 
 internal static class VideoPresetRegistry
 {
@@ -20,7 +21,7 @@ internal static class VideoPresetRegistry
         ColorFilter: VideoColorFilterMode.NesColorCorrection,
         MotionEffect: VideoMotionEffectMode.CrtJitter,
         Overscan:    OverscanMode.Normal,
-        Brightness: 0, Contrast: 0, Saturation: 0);
+        Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
 
     public static readonly VideoPreset Arcade = new(
         Name:        "Arcade",
@@ -29,7 +30,7 @@ internal static class VideoPresetRegistry
         ColorFilter: VideoColorFilterMode.Cool,
         MotionEffect: VideoMotionEffectMode.CrtJitter,
         Overscan:    OverscanMode.Normal,
-        Brightness: 0, Contrast: 0, Saturation: 0);
+        Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
 
     public static readonly VideoPreset Sharp = new(
         Name:        "Sharp",
@@ -38,7 +39,7 @@ internal static class VideoPresetRegistry
         ColorFilter: VideoColorFilterMode.NesColorCorrection,
         MotionEffect: VideoMotionEffectMode.None,
         Overscan:    OverscanMode.Normal,
-        Brightness: 0, Contrast: 0, Saturation: 0);
+        Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
 
     public static readonly VideoPreset Phosphor = new(
         Name:        "Phosphor",
@@ -47,7 +48,7 @@ internal static class VideoPresetRegistry
         ColorFilter: VideoColorFilterMode.PhosphorAmber,
         MotionEffect: VideoMotionEffectMode.PhosphorPersistence,
         Overscan:    OverscanMode.Normal,
-        Brightness: 0, Contrast: 0, Saturation: 0);
+        Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
 
     public static readonly VideoPreset[] All = [LivingRoom, Arcade, Sharp, Phosphor];
 }

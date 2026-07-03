@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "Brillo",
   "videoContrastLabel": "Contraste",
   "videoSaturationLabel": "Saturación",
+  "videoHueLabel": "Tono",
   "videoResetPicture": "Restablecer",
   "videoMotionEffectMagneticDistortion": "Distorsión magnética",
   "videoMotionEffectPhosphorPersistence": "Resplandor de pantalla",

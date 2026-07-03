@@ -156,7 +156,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
             d3d.SetMotionEffect(motionMode);
-            d3d.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation);
+            d3d.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
             var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
             d3d.SetOverlayFilter(overlayMode.HasValue
                 ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
@@ -470,10 +470,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 ConfigLoader.Save(_config);
             },
             onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
-            onPictureAdjustChanged: (brightness, contrast, saturation) =>
+            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
-                    d3dPic.SetPictureAdjust(brightness, contrast, saturation);
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
                 ConfigLoader.Save(_config!);
             },
             onAudioEqChanged: (bass, mid, treble) =>
@@ -584,10 +584,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 ConfigLoader.Save(_config);
             },
             onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
-            onPictureAdjustChanged: (brightness, contrast, saturation) =>
+            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
-                    d3dPic.SetPictureAdjust(brightness, contrast, saturation);
+                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
                 ConfigLoader.Save(_config!);
             },
             onAudioEqChanged: (bass, mid, treble) =>

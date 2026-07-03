@@ -108,7 +108,8 @@ internal class VideoPresetRegistryTests
             VideoPresetRegistry.LivingRoom.Overscan,
             VideoPresetRegistry.LivingRoom.Brightness,
             VideoPresetRegistry.LivingRoom.Contrast,
-            VideoPresetRegistry.LivingRoom.Saturation);
+            VideoPresetRegistry.LivingRoom.Saturation,
+            VideoPresetRegistry.LivingRoom.Hue);
         Assert.That(copy, Is.EqualTo(VideoPresetRegistry.LivingRoom));
     }
 

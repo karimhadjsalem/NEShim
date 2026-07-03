@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "亮度",
   "videoContrastLabel": "对比度",
   "videoSaturationLabel": "饱和度",
+  "videoHueLabel": "色调",
   "videoResetPicture": "恢复默认",
   "videoMotionEffectMagneticDistortion": "磁场失真",
   "videoMotionEffectPhosphorPersistence": "屏幕余晖",

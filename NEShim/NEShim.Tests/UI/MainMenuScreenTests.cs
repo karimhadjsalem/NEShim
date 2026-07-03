@@ -57,7 +57,7 @@ internal class MainMenuScreenTests
             onVideoColorFilterChanged        ?? (_ => { }),
             _ => { },
             onOverscanModeChanged            ?? (_ => { }),
-            _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
     private void CreateSlotFile(int slot) =>
         File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
@@ -281,7 +281,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
         screen.HandleKey(Keys.Left);
@@ -297,7 +297,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right);
@@ -313,7 +313,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Down);   // index 1 = Audio Filter item
@@ -333,7 +333,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
         for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // Music is at index 3
@@ -420,7 +420,7 @@ internal class MainMenuScreenTests
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { },
-            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
         screen.HandleKey(Keys.Down);   // Warm
         screen.HandleKey(Keys.Return);
@@ -462,7 +462,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetTitle(), Is.EqualTo("FILT CUSTOM"));
     }
@@ -472,7 +472,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("TestDefault"));
     }
@@ -482,7 +482,7 @@ internal class MainMenuScreenTests
     {
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         Assert.That(screen.GetCurrentItems()[1], Does.Contain("TestLabel"));
     }
@@ -515,7 +515,7 @@ internal class MainMenuScreenTests
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         var loc = new LocalizationData { BindNone = "(unset)" };
         using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         screen.HandleKey(Keys.Down);   // Settings
         screen.HandleKey(Keys.Return); // enter Settings
         screen.HandleKey(Keys.Down);   // skip Video (index 0)
@@ -1221,7 +1221,7 @@ internal class MainMenuScreenTests
         _config.WindowMode = "Windowed";
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
         Assert.That(received, Is.True); // Windowed → Fullscreen (toggled to true)
@@ -1278,7 +1278,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Left); // already at 0 — no change
         Assert.That(_config.Volume, Is.EqualTo(0));
@@ -1292,7 +1292,7 @@ internal class MainMenuScreenTests
         int received = 999;
         using var screen = new MainMenuScreen(
             _saveStates, _config, new LocalizationData(), null,
-            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _) => { }, (_, _, _) => { });
+            _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right); // already at 100 — no change
         Assert.That(_config.Volume, Is.EqualTo(100));
@@ -1531,11 +1531,11 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void VideoPicture_GetCurrentItems_ReturnsSixItems()
+    public void VideoPicture_GetCurrentItems_ReturnsSevenItems()
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(6));
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(7));
     }
 
     [Test]
@@ -1602,6 +1602,60 @@ internal class MainMenuScreenTests
     }
 
     [Test]
+    public void VideoPicture_RightOnHue_IncreasesConfigHue()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPictureScreen(screen);
+        screen.HandleKey(Keys.Down); // Brightness
+        screen.HandleKey(Keys.Down); // Contrast
+        screen.HandleKey(Keys.Down); // Saturation
+        screen.HandleKey(Keys.Down); // Hue (index 4)
+        screen.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void VideoPicture_LeftOnHue_DecreasesConfigHue()
+    {
+        using var screen = CreateScreen();
+        OpenVideoPictureScreen(screen);
+        screen.HandleKey(Keys.Down); // Brightness
+        screen.HandleKey(Keys.Down); // Contrast
+        screen.HandleKey(Keys.Down); // Saturation
+        screen.HandleKey(Keys.Down); // Hue (index 4)
+        screen.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void VideoPicture_HueAt100_RightDoesNotExceed()
+    {
+        using var screen = CreateScreen();
+        _config.VideoHue = 100;
+        OpenVideoPictureScreen(screen);
+        screen.HandleKey(Keys.Down); // Brightness
+        screen.HandleKey(Keys.Down); // Contrast
+        screen.HandleKey(Keys.Down); // Saturation
+        screen.HandleKey(Keys.Down); // Hue (index 4)
+        screen.HandleKey(Keys.Right);
+        Assert.That(_config.VideoHue, Is.EqualTo(100));
+    }
+
+    [Test]
+    public void VideoPicture_HueAtMinus100_LeftDoesNotExceed()
+    {
+        using var screen = CreateScreen();
+        _config.VideoHue = -100;
+        OpenVideoPictureScreen(screen);
+        screen.HandleKey(Keys.Down); // Brightness
+        screen.HandleKey(Keys.Down); // Contrast
+        screen.HandleKey(Keys.Down); // Saturation
+        screen.HandleKey(Keys.Down); // Hue (index 4)
+        screen.HandleKey(Keys.Left);
+        Assert.That(_config.VideoHue, Is.EqualTo(-100));
+    }
+
+    [Test]
     public void VideoPicture_BrightnessAt100_RightDoesNotExceed()
     {
         using var screen = CreateScreen();
@@ -1640,13 +1694,15 @@ internal class MainMenuScreenTests
         _config.VideoBrightness  = 50;
         _config.VideoContrast    = -30;
         _config.VideoSaturation  = 25;
+        _config.VideoHue         = 75;
         _config.VideoColorFilter = "Warm";
         OpenVideoPictureScreen(screen);
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // to Reset (index 4)
+        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Reset (index 5)
         screen.HandleKey(Keys.Return);
         Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
         Assert.That(_config.VideoContrast,    Is.EqualTo(0));
         Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
+        Assert.That(_config.VideoHue,         Is.EqualTo(0));
         Assert.That(_config.VideoColorFilter, Is.EqualTo("None"));
     }
 
@@ -1655,7 +1711,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Back (index 5)
+        for (int i = 0; i < 6; i++) screen.HandleKey(Keys.Down); // to Back (index 6)
         screen.HandleKey(Keys.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
@@ -1725,7 +1781,7 @@ internal class MainMenuScreenTests
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
-            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(screen); // SelectedItem = 0 (Bass)
         screen.HandleKey(Keys.Right);
         Assert.That(_config.AudioEqBass, Is.EqualTo(1));
@@ -1741,7 +1797,7 @@ internal class MainMenuScreenTests
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
-            (_, _, _) => { }, (b, m, t) => received = (b, m, t));
+            (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(screen);
         screen.HandleKey(Keys.Down); // Mid
         screen.HandleKey(Keys.Down); // Treble (index 2)
@@ -1846,7 +1902,7 @@ internal class MainMenuScreenTests
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             lang => { callbackFired = true; },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(screen);
         screen.HandleKey(Keys.Return); // select Auto (index 0)
         Assert.That(_config.Language, Is.EqualTo("Auto"));
@@ -1862,7 +1918,7 @@ internal class MainMenuScreenTests
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             _ => { },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(screen);
         screen.HandleKey(Keys.Down); // first language (index 1)
         screen.HandleKey(Keys.Return);
@@ -1943,7 +1999,7 @@ internal class MainMenuScreenTests
             _saveStates, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
-            (_, _, _) => { }, (_, _, _) => { });
+            (_, _, _, _) => { }, (_, _, _) => { });
         OpenVideoMotionEffectScreen(screen);
         screen.HandleKey(Keys.Down); // CrtJitter
         screen.HandleKey(Keys.Return);

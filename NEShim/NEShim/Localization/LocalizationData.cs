@@ -73,6 +73,7 @@ internal sealed class LocalizationData
     public string VideoBrightnessLabel { get; init; } = "Brightness";
     public string VideoContrastLabel   { get; init; } = "Contrast";
     public string VideoSaturationLabel { get; init; } = "Saturation";
+    public string VideoHueLabel        { get; init; } = "Hue";
     public string VideoResetPicture    { get; init; } = "Reset to Default";
 
     // ---- Overscan mode display names ----

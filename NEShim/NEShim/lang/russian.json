@@ -108,6 +108,7 @@
   "videoBrightnessLabel": "Яркость",
   "videoContrastLabel": "Контраст",
   "videoSaturationLabel": "Насыщенность",
+  "videoHueLabel": "Оттенок",
   "videoResetPicture": "Сбросить",
   "videoMotionEffectMagneticDistortion": "Магнитное искажение",
   "videoMotionEffectPhosphorPersistence": "Свечение экрана",

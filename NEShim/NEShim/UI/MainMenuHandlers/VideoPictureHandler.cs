@@ -12,10 +12,11 @@ internal sealed partial class MainMenuScreen
         public const int BrightnessIndex  = 1;
         public const int ContrastIndex    = 2;
         public const int SaturationIndex  = 3;
-        public const int ResetIndex       = 4;
-        // Back is index 5.
+        public const int HueIndex         = 4;
+        public const int ResetIndex       = 5;
+        // Back is index 6.
 
-        public static bool IsSliderIndex(int index) => index >= BrightnessIndex && index <= SaturationIndex;
+        public static bool IsSliderIndex(int index) => index >= BrightnessIndex && index <= HueIndex;
 
         private const int BarWidth = 20;
 
@@ -31,7 +32,7 @@ internal sealed partial class MainMenuScreen
         public VideoPictureHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoPictureTitle;
-        public override int    ItemCount => 6;
+        public override int    ItemCount => 7;
 
         public override string[] GetItems()
         {
@@ -42,6 +43,7 @@ internal sealed partial class MainMenuScreen
                 PictureSlider(Menu._localization.VideoBrightnessLabel, Menu._config.VideoBrightness),
                 PictureSlider(Menu._localization.VideoContrastLabel,   Menu._config.VideoContrast),
                 PictureSlider(Menu._localization.VideoSaturationLabel, Menu._config.VideoSaturation),
+                PictureSlider(Menu._localization.VideoHueLabel,        Menu._config.VideoHue),
                 Menu._localization.VideoResetPicture,
                 Menu._localization.Back,
             ];
@@ -62,10 +64,10 @@ internal sealed partial class MainMenuScreen
                 case ResetIndex:
                     Menu.ResetPicture();
                     break;
-                case 5:
+                case 6:
                     Menu.NavigateTo(Screen.Video);
                     break;
-                // Slider indices (1–3): activation is a no-op; use left/right to adjust.
+                // Slider indices (1–4): activation is a no-op; use left/right to adjust.
             }
         }
 

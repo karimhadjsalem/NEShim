@@ -328,6 +328,13 @@ internal class LocalizationDataTests
     }
 
     [Test]
+    public void DefaultInstance_VideoHueLabel_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoHueLabel, Is.EqualTo("Hue"));
+    }
+
+    [Test]
     public void DefaultInstance_VideoResetPicture_IsEnglish()
     {
         var data = new LocalizationData();

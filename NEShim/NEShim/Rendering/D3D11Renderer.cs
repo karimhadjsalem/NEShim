@@ -93,6 +93,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private          float                    _brightness        = 0f;
     private          float                    _contrast          = 1f;
     private          float                    _saturation        = 1f;
+    private          float                    _hue               = 0f;
 
     // Pixel dimensions of the letterbox rect — updated in UpdateLetterboxRect.
     private int _letterboxPixelW;
@@ -382,14 +383,15 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     /// <summary>
-    /// Updates the brightness, contrast, and saturation post-process pass.
+    /// Updates the brightness, contrast, saturation, and hue post-process pass.
     /// Values are on a -100..100 scale; 0 = neutral.
     /// </summary>
-    public void SetPictureAdjust(int brightness, int contrast, int saturation)
+    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
     {
         _brightness = brightness * 0.002f;
         _contrast   = 1f + contrast   * 0.01f;
         _saturation = 1f + saturation * 0.01f;
+        _hue        = hue * (float)Math.PI / 100f; // -100..100 → -π..+π rad
         SyncPictureAdjustRt();
     }
 
@@ -427,7 +429,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _pictureAdjustRt.IsReady ? _pictureAdjustRt.Rtv! : _renderTargetView;
 
     private bool IsPictureAdjustActive =>
-        _brightness != 0f || _contrast != 1f || _saturation != 1f;
+        _brightness != 0f || _contrast != 1f || _saturation != 1f || _hue != 0f;
 
     /// <summary>
     /// Recreates size-dependent D3D11 resources after a window resize or mode change.
@@ -945,7 +947,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             Logger.Log($"[D3D11Renderer] Picture adjust RT created ({_pictureAdjustRt.Width}×{_pictureAdjustRt.Height}).");
     }
 
-    // Applies brightness/contrast/saturation to the picture adjust RT and blits to _renderTargetView.
+    // Applies brightness/contrast/saturation/hue to the picture adjust RT and blits to _renderTargetView.
     // No-op when IsPictureAdjustActive is false (_pictureAdjustRt.IsReady is also false in that case).
     private void DrawPictureAdjust()
     {
@@ -955,7 +957,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         p[0] = _brightness;
         p[1] = _contrast;
         p[2] = _saturation;
-        p[3] = 0f;
+        p[3] = _hue;
         WriteCbufferParams(p);
 
         _context.OMSetRenderTargets(_renderTargetView);

@@ -105,11 +105,12 @@ public sealed class AppConfig
     public int AudioEqMid    { get; set; } = 0;
     public int AudioEqTreble { get; set; } = 0;
 
-    // Brightness/Contrast/Saturation picture adjustments (-100..100; 0 = neutral).
+    // Brightness/Contrast/Saturation/Hue picture adjustments (-100..100; 0 = neutral).
     // Applied as a D3D11 post-process pass after the structural filter.
     public int VideoBrightness { get; set; } = 0;
     public int VideoContrast   { get; set; } = 0;
     public int VideoSaturation { get; set; } = 0;
+    public int VideoHue        { get; set; } = 0;
 
     // Name of the last-applied video preset ("None", "LivingRoom", "Arcade", "Sharp", "Phosphor").
     // Cleared to "None" whenever any individual video setting is changed manually.
