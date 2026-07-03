@@ -530,8 +530,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
             _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
             SetupPipelineState();
-            UpdateFilterCbuffer();
             if (_hasSidebars) DrawSidebars();
+            UpdateFilterCbuffer();
             DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
                         0f, _nesV0, 1f, _nesV1);
         }
@@ -569,8 +569,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.OMSetRenderTargets(finalTarget);
             _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
             _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
-            UpdateOverlayCbuffer();
             if (_hasSidebars) DrawSidebars();
+            UpdateOverlayCbuffer();
             _context.PSSetShader(_activeOverlayPixelShader!);
             _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
             DrawNesQuad(_overlayRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
@@ -604,7 +604,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.OMSetRenderTargets(finalTarget);
         _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
         _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
-        if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
+        if (_hasSidebars) DrawSidebars();
         _context.PSSetShader(_motionEffectPixelShader);
         _context.PSSetSampler(0, _linearSamplerState);
         var jitter = _activeMotionEffect.GetFrameOffset(_drawFrameCount);
@@ -637,7 +637,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.OMSetRenderTargets(finalTarget);
         _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
         _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
-        if (_hasSidebars) { UpdateFilterCbuffer(); DrawSidebars(); }
+        if (_hasSidebars) DrawSidebars();
         _context.PSSetShader(_passthroughPixelShader);
         _context.PSSetSampler(0, _linearSamplerState);
         UpdateFilterCbuffer(colorModeOverride: 0f);
@@ -728,9 +728,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void DrawSidebars()
     {
-        // Sidebar artwork should not have structural filters (scanlines, NTSC) applied.
-        // Use the passthrough shader so color grade still applies but geometry is unaffected.
+        // Sidebar artwork: no structural filter, no color grade.
+        // Callers must re-update the cbuffer after this returns.
         _context.PSSetShader(_passthroughPixelShader);
+        UpdateFilterCbuffer(colorModeOverride: 0f);
 
         float sidebarPixelW = (_nesX0 + 1f) / 2f * _viewportWidth;
 
