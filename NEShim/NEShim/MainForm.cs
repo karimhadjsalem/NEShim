@@ -22,7 +22,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     // ---- Core components ----
     private AppConfig?        _config;
-    private EmulatorHost?     _host;
+    private IEmulationCore?       _host;
     private InputManager?     _input;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
@@ -291,7 +291,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
         Logger.Log($"[Init] ROM found: {romPath}.");
 
-        _host = EmulatorHost.Load(romPath, _config);
+        byte[] rom = File.ReadAllBytes(romPath);
+        _host = new BizHawkEmulationCore(_config!);
+        _host.LoadRom(rom, Path.GetFileNameWithoutExtension(romPath));
         Logger.Log($"[Init] Emulator core loaded — ROM hash: {_host.RomHash}.");
 
         if (_host.MemoryDomains is null)
@@ -326,7 +328,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void InitializeSaveSystems()
     {
-        _saveRam = new SaveRamManager((BizHawk.Emulation.Common.ISaveRam)_host!.SaveRam,
+        _saveRam = new SaveRamManager(_host!,
             Path.IsPathRooted(_config!.SaveRamPath)
                 ? _config.SaveRamPath
                 : Path.Combine(AppContext.BaseDirectory, _config.SaveRamPath));
@@ -335,7 +337,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         string stateDir = Path.IsPathRooted(_config.SaveStateDirectory)
             ? _config.SaveStateDirectory
             : Path.Combine(AppContext.BaseDirectory, _config.SaveStateDirectory);
-        _saveStates = new SaveStateManager(_host.States, stateDir);
+        _saveStates = new SaveStateManager(((BizHawkEmulationCore)_host!).States, stateDir);
         _saveStates.ActiveSlot = _config.ActiveSlot;
         Logger.Log($"[Init] Save state directory: {stateDir} (active slot: {_config.ActiveSlot + 1})");
     }

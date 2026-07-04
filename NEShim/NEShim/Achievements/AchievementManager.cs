@@ -1,4 +1,4 @@
-using BizHawk.Emulation.Common;
+using NEShim.Emulation;
 
 namespace NEShim.Achievements;
 
@@ -13,7 +13,7 @@ namespace NEShim.Achievements;
 /// </summary>
 internal sealed class AchievementManager
 {
-    private readonly IMemoryReader?                _memoryReader;
+    private readonly IMemoryDomain?                _memoryReader;
     private readonly IReadOnlyList<AchievementDef> _defs;
     private readonly Func<bool>                    _statsReady;
     private readonly Action<string>                _unlock;
@@ -23,13 +23,14 @@ internal sealed class AchievementManager
     private bool _readyLogged;
 
     internal AchievementManager(
-        IMemoryDomains        domains,
-        GameAchievementConfig config,
-        Func<bool>            statsReady,
-        Action<string>        unlock)
+        IReadOnlyDictionary<string, IMemoryDomain>? domains,
+        GameAchievementConfig                        config,
+        Func<bool>                                   statsReady,
+        Action<string>                               unlock)
     {
-        MemoryDomain? domain = domains[config.MemoryDomain] ?? domains.MainMemory;
-        _memoryReader = domain is not null ? new MemoryDomainAdapter(domain) : null;
+        IMemoryDomain? domain = null;
+        domains?.TryGetValue(config.MemoryDomain, out domain);
+        _memoryReader = domain;
         _defs         = config.Achievements;
         _statsReady   = statsReady;
         _unlock       = unlock;
@@ -71,12 +72,5 @@ internal sealed class AchievementManager
                 _unlock(def.SteamId);
             }
         }
-    }
-
-    private sealed class MemoryDomainAdapter : IMemoryReader
-    {
-        private readonly MemoryDomain _domain;
-        internal MemoryDomainAdapter(MemoryDomain domain) => _domain = domain;
-        public byte PeekByte(long address) => _domain.PeekByte(address);
     }
 }

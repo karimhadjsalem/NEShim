@@ -30,7 +30,7 @@ internal sealed class EmulationThread
         DeviceLost = 16,  // D3D11 device was lost; cleared after successful reinitialisation
     }
 
-    private readonly EmulatorHost      _host;
+    private readonly IEmulationCore    _core;
     private readonly AppConfig         _config;
     private readonly IInputReader      _input;
     private readonly AudioPlayer       _audio;
@@ -65,7 +65,7 @@ internal sealed class EmulationThread
     public bool IsPaused => _pauseReasonBits != 0;
 
     public EmulationThread(
-        EmulatorHost        host,
+        IEmulationCore      host,
         AppConfig           config,
         IInputReader        input,
         AudioPlayer         audio,
@@ -80,7 +80,7 @@ internal sealed class EmulationThread
         Action?             onInGameMenuOpened  = null,
         Action?             onInGameMenuClosed  = null)
     {
-        _host                = host;
+        _core                = host;
         _config              = config;
         _input               = input;
         _audio               = audio;
@@ -176,7 +176,7 @@ internal sealed class EmulationThread
     private void Loop()
     {
         long ticksPerFrame = (long)((double)Stopwatch.Frequency
-            * _host.VsyncDenominator / _host.VsyncNumerator);
+            * _core.VsyncDenominator / _core.VsyncNumerator);
         long spinThreshold = Stopwatch.Frequency / 1000;
         bool timingEnabled = Logger.IsEnabled;
 
@@ -194,7 +194,6 @@ internal sealed class EmulationThread
 
             // 1. Poll input
             var snapshot = _input.PollSnapshot(_config);
-            _host.Controller.Update(snapshot);
 
             // 2. Handle edge-triggered hotkeys
             HandleHotkeys();
@@ -233,8 +232,8 @@ internal sealed class EmulationThread
 
             long tAfterInput = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
-            // 4. Emulate one frame
-            _host.RunFrame();
+            // 4. Emulate one frame — input, FrameAdvance, video, and audio are bundled
+            var frame = _core.RunFrame(snapshot);
             long tAfterRunFrame = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
             // 4a. Check achievement triggers against the post-frame memory state
@@ -248,8 +247,7 @@ internal sealed class EmulationThread
             }
 
             // 5. Copy video to front buffer.
-            var videoBuffer = _host.Video.GetVideoBuffer();
-            _frameBuffer.WriteBack(videoBuffer, _host.Video.BufferWidth, _host.Video.BufferHeight);
+            _frameBuffer.WriteBack(frame.VideoBuffer, frame.BufferWidth, frame.BufferHeight);
             _frameBuffer.Swap();
             long tAfterVideo = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -268,21 +266,19 @@ internal sealed class EmulationThread
             });
 
             // 7. Submit audio
-            _host.Sound.GetSamplesSync(out short[] samples, out int nsamp);
-            _audio.Enqueue(samples, nsamp);
+            _audio.Enqueue(frame.AudioSamples, frame.SampleCount);
 
             if (timingEnabled)
             {
-                long tAfterAudio = Stopwatch.GetTimestamp();
-                long workTicks   = tAfterAudio - t0;
+                long tAfterSubmit = Stopwatch.GetTimestamp();
+                long workTicks    = tAfterSubmit - t0;
                 if (workTicks > SlowFrameThresholdTicks)
                 {
-                    double ms      = workTicks                        * 1000.0 / Stopwatch.Frequency;
-                    double inputMs = (tAfterInput   - t0)            * 1000.0 / Stopwatch.Frequency;
-                    double runMs   = (tAfterRunFrame - tAfterInput)   * 1000.0 / Stopwatch.Frequency;
-                    double videoMs = (tAfterVideo    - tAfterRunFrame)* 1000.0 / Stopwatch.Frequency;
-                    double audioMs = (tAfterAudio    - tAfterVideo)   * 1000.0 / Stopwatch.Frequency;
-                    Logger.Log($"[Timing] Slow frame {ms:F2}ms — input={inputMs:F2} runFrame={runMs:F2} video={videoMs:F2} audio={audioMs:F2}");
+                    double ms      = workTicks                         * 1000.0 / Stopwatch.Frequency;
+                    double inputMs = (tAfterInput    - t0)             * 1000.0 / Stopwatch.Frequency;
+                    double runMs   = (tAfterRunFrame  - tAfterInput)   * 1000.0 / Stopwatch.Frequency;
+                    double videoMs = (tAfterVideo     - tAfterRunFrame) * 1000.0 / Stopwatch.Frequency;
+                    Logger.Log($"[Timing] Slow frame {ms:F2}ms — input={inputMs:F2} runFrame={runMs:F2} video={videoMs:F2}");
                 }
             }
 
@@ -315,7 +311,7 @@ internal sealed class EmulationThread
     public void ResetGame()
     {
         Logger.Log("[Emulation] Game reset requested.");
-        _host.Reset();
+        _core.Reset();
     }
 
     /// <summary>
