@@ -1,7 +1,5 @@
 using System.Drawing;
-using System.IO;
 using System.Windows.Forms;
-using BizHawk.Emulation.Common;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
@@ -15,25 +13,20 @@ namespace NEShim.Tests.UI;
 [TestFixture]
 internal class InGameMenuTests
 {
-    private string           _tempDir      = null!;
-    private IStatable        _mockStatable = null!;
-    private SaveStateManager _saveStates   = null!;
-    private AppConfig        _config       = null!;
+    private ISaveManager _saves  = null!;
+    private AppConfig    _config = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = Substitute.For<IStatable>();
-        _saveStates   = new SaveStateManager(_mockStatable, _tempDir);
-        _config       = new AppConfig();
+        _saves  = Substitute.For<ISaveManager>();
+        _saves.SlotCount.Returns(8);
+        _config = new AppConfig();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
         NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
@@ -50,7 +43,7 @@ internal class InGameMenuTests
         Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null)
     {
         return new InGameMenu(
-            _saveStates,
+            _saves,
             _config,
             new LocalizationData(),
             onExitToDesktop                  ?? (() => { }),
@@ -67,10 +60,6 @@ internal class InGameMenuTests
             onOverscanModeChanged            ?? (_ => { }),
             _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
     }
-
-    // Helper: create an empty slot-state file so SlotExists returns true
-    private void CreateSlotFile(int slot) =>
-        File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
 
     // ---- Open / Close ----
 
@@ -172,7 +161,7 @@ internal class InGameMenuTests
     [Test]
     public void HandleKey_Return_OnLoadGame_NavigatesToConfirmLoad_WithDefaultYes()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Load Game (index 4): 0→1→2→3→4 (enabled because slot exists)
@@ -186,7 +175,7 @@ internal class InGameMenuTests
     [Test]
     public void ConfirmLoad_Yes_LoadsAndClosesMenu()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
@@ -199,7 +188,7 @@ internal class InGameMenuTests
     [Test]
     public void ConfirmLoad_No_ReturnsToRoot_WithoutLoading()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
@@ -318,7 +307,7 @@ internal class InGameMenuTests
     [Test]
     public void IsItemEnabled_LoadGame_ReturnsTrue_WhenActiveSlotHasSave()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         Assert.That(menu.IsItemEnabled(4), Is.True);
@@ -421,7 +410,7 @@ internal class InGameMenuTests
         menu.HandleKey(Keys.Down);
         menu.HandleKey(Keys.Return);
 
-        Assert.That(_saveStates.ActiveSlot, Is.EqualTo(2));
+        _saves.Received().ActiveSlot = 2;
         Assert.That(_config.ActiveSlot,     Is.EqualTo(2));
         Assert.That(menu.Current,           Is.EqualTo(InGameMenu.Screen.Root));
     }
@@ -560,7 +549,7 @@ internal class InGameMenuTests
         // Wire a custom toggle capture
         bool receivedFullscreen = false;
         var menuWithToggle = new InGameMenu(
-            _saveStates, _config,
+            _saves, _config,
             new LocalizationData(),
             () => { }, () => { }, () => { },
             fs => receivedFullscreen = fs,
@@ -813,7 +802,7 @@ internal class InGameMenuTests
     public void AudioFilter_GetTitle_UsesLocalizedTitle()
     {
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
-        var menu = new InGameMenu(_saveStates, _config, loc,
+        var menu = new InGameMenu(_saves, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
@@ -824,7 +813,7 @@ internal class InGameMenuTests
     public void AudioFilter_GetCurrentItems_UsesLocalizedDefaultName()
     {
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
-        var menu = new InGameMenu(_saveStates, _config, loc,
+        var menu = new InGameMenu(_saves, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(menu);
@@ -835,7 +824,7 @@ internal class InGameMenuTests
     public void Sound_AudioFilterItem_UsesLocalizedLabel()
     {
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
-        var menu = new InGameMenu(_saveStates, _config, loc,
+        var menu = new InGameMenu(_saves, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(menu);
@@ -870,7 +859,7 @@ internal class InGameMenuTests
     {
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         var loc = new LocalizationData { BindNone = "(unset)" };
-        var menu = new InGameMenu(_saveStates, _config, loc,
+        var menu = new InGameMenu(_saves, _config, loc,
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
@@ -1423,6 +1412,30 @@ internal class InGameMenuTests
         Assert.That(menu.IsOpen, Is.False);
     }
 
+    [Test]
+    public void HandleKey_Return_OnSaveGame_CallsSaveToActiveSlot()
+    {
+        var menu = CreateMenu();
+        menu.Open();
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down);
+        menu.HandleKey(Keys.Down); // index 3 (Save Game)
+        menu.HandleKey(Keys.Return);
+        _saves.Received(1).SaveToActiveSlot();
+    }
+
+    [Test]
+    public void ConfirmLoad_WhenYesConfirmed_CallsLoadFromActiveSlot()
+    {
+        _saves.SlotExists(0).Returns(true);
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
+        menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
+        menu.HandleKey(Keys.Return);   // confirm Yes
+        _saves.Received(1).LoadFromActiveSlot();
+    }
+
     // ---- HandleGamepadButtonPress when not rebinding ----
 
     [Test]
@@ -1526,7 +1539,7 @@ internal class InGameMenuTests
     [Test]
     public void GetTitle_ConfirmLoad_ReturnsLoadGame()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
@@ -1611,7 +1624,7 @@ internal class InGameMenuTests
     [Test]
     public void GetCurrentItems_ConfirmLoad_ReturnsTwoItems()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
@@ -2098,7 +2111,7 @@ internal class InGameMenuTests
         _config.AudioEqBass = 0;
         (int bass, int mid, int treble) received = default;
         var menu = new InGameMenu(
-            _saveStates, _config, new LocalizationData(),
+            _saves, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
@@ -2114,7 +2127,7 @@ internal class InGameMenuTests
         _config.AudioEqMid = 3;
         (int bass, int mid, int treble) received = default;
         var menu = new InGameMenu(
-            _saveStates, _config, new LocalizationData(),
+            _saves, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
@@ -2243,7 +2256,7 @@ internal class InGameMenuTests
         _config.Language = "english";
         bool callbackFired = false;
         var menu = new InGameMenu(
-            _saveStates, _config, new LocalizationData(),
+            _saves, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             lang => { callbackFired = true; },
@@ -2259,7 +2272,7 @@ internal class InGameMenuTests
     {
         _config.Language = "Auto";
         var menu = new InGameMenu(
-            _saveStates, _config, new LocalizationData(),
+            _saves, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             _ => { },
@@ -2369,7 +2382,7 @@ internal class InGameMenuTests
     {
         NEShim.Rendering.VideoMotionEffectMode? received = null;
         var menu = new InGameMenu(
-            _saveStates, _config, new LocalizationData(),
+            _saves, _config, new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
             (_, _, _, _) => { }, (_, _, _) => { });

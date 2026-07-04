@@ -37,7 +37,7 @@ internal sealed class EmulationThread
     private readonly FrameBuffer       _frameBuffer;
     private readonly System.Windows.Forms.Control _uiMarshal;
     private readonly IMenuInputTarget  _menuInput;
-    private readonly SaveStateManager  _saveStates;
+    private readonly ISaveManager       _saveStates;
     private readonly InGameMenu        _menu;
     private readonly AchievementManager? _achievements;
     private readonly Action?            _afterFramePresented;
@@ -72,7 +72,7 @@ internal sealed class EmulationThread
         FrameBuffer         frameBuffer,
         System.Windows.Forms.Control uiMarshal,
         IMenuInputTarget    menuInput,
-        SaveStateManager    saveStates,
+        ISaveManager        saveStates,
         InGameMenu          menu,
         IFrameRenderer      renderer,
         AchievementManager? achievements        = null,

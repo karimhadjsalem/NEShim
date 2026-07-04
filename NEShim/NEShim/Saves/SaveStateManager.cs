@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text.Json;
-using BizHawk.Emulation.Common;
+using NEShim.Emulation;
 
 namespace NEShim.Saves;
 
@@ -11,14 +11,14 @@ internal sealed class SaveStateManager
 {
     public const int SlotCount = 8;
 
-    private readonly IStatable _statable;
-    private readonly string _directory;
+    private readonly IEmulationCore _core;
+    private readonly string         _directory;
 
     public int ActiveSlot { get; set; } = 0;
 
-    public SaveStateManager(IStatable statable, string saveDirectory)
+    public SaveStateManager(IEmulationCore core, string saveDirectory)
     {
-        _statable  = statable;
+        _core      = core;
         _directory = saveDirectory;
         Directory.CreateDirectory(_directory);
     }
@@ -35,8 +35,7 @@ internal sealed class SaveStateManager
     {
         Directory.CreateDirectory(_directory);
         using var fs = File.OpenWrite(StatePath(slot));
-        using var bw = new BinaryWriter(fs);
-        _statable.SaveStateBinary(bw);
+        _core.SaveState(fs);
 
         var meta = new SlotMeta { Timestamp = DateTime.UtcNow };
         File.WriteAllText(MetaPath(slot), JsonSerializer.Serialize(meta));
@@ -51,8 +50,7 @@ internal sealed class SaveStateManager
         {
             Directory.CreateDirectory(_directory);
             using var fs = File.OpenWrite(AutoStatePath());
-            using var bw = new BinaryWriter(fs);
-            _statable.SaveStateBinary(bw);
+            _core.SaveState(fs);
             Logger.Log($"[SaveState] Auto-save written → {AutoStatePath()}");
         }
         catch (Exception ex) { Logger.Log($"[SaveState] Auto-save failed: {ex.Message}"); }
@@ -72,8 +70,7 @@ internal sealed class SaveStateManager
         try
         {
             using var fs = File.OpenRead(path);
-            using var br = new BinaryReader(fs);
-            _statable.LoadStateBinary(br);
+            _core.LoadState(fs);
             Logger.Log($"[SaveState] Loaded slot {slot + 1} ← {path}");
             return true;
         }
@@ -98,8 +95,7 @@ internal sealed class SaveStateManager
         try
         {
             using var fs = File.OpenRead(path);
-            using var br = new BinaryReader(fs);
-            _statable.LoadStateBinary(br);
+            _core.LoadState(fs);
             Logger.Log($"[SaveState] Auto-load restored ← {path}");
             return true;
         }

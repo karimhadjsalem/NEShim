@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Text;
 using BizHawk.Common;
 using BizHawk.Emulation.Common;
 using BizHawk.Emulation.Cores.Nintendo.NES;
@@ -16,12 +18,12 @@ internal sealed class BizHawkEmulationCore : IEmulationCore, IDisposable
 {
     private readonly AppConfig _config;
 
-    private NES          _nes         = null!;
-    private IVideoProvider _video     = null!;
-    private ISoundProvider _sound     = null!;
+    private NES            _nes        = null!;
+    private IVideoProvider _video      = null!;
+    private ISoundProvider _sound      = null!;
     private NesController  _controller = null!;
+    private IStatable      _statable   = null!;
 
-    public IStatable                               States        { get; private set; } = null!;
     public IReadOnlyDictionary<string, IMemoryDomain>? MemoryDomains { get; private set; }
 
     public string RomHash          { get; private set; } = string.Empty;
@@ -87,7 +89,7 @@ internal sealed class BizHawkEmulationCore : IEmulationCore, IDisposable
                       ?? throw new InvalidOperationException("IVideoProvider not registered by NES core.");
         _sound      = nes.ServiceProvider.GetService<ISoundProvider>()
                       ?? throw new InvalidOperationException("ISoundProvider not registered by NES core.");
-        States      = nes.ServiceProvider.GetService<IStatable>()
+        _statable   = nes.ServiceProvider.GetService<IStatable>()
                       ?? throw new InvalidOperationException("IStatable not registered by NES core.");
         _controller = new NesController(nes.ControllerDefinition);
         RomHash     = hash;
@@ -119,6 +121,18 @@ internal sealed class BizHawkEmulationCore : IEmulationCore, IDisposable
 
         return new FrameData(videoBuffer, _video.BufferWidth, _video.BufferHeight,
                              audioSamples, sampleCount);
+    }
+
+    public void SaveState(Stream destination)
+    {
+        using var writer = new BinaryWriter(destination, Encoding.UTF8, leaveOpen: true);
+        _statable.SaveStateBinary(writer);
+    }
+
+    public void LoadState(Stream source)
+    {
+        using var reader = new BinaryReader(source, Encoding.UTF8, leaveOpen: true);
+        _statable.LoadStateBinary(reader);
     }
 
     public byte[]? GetSaveRam() => ((ISaveRam)_nes).CloneSaveRam();

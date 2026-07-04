@@ -1,5 +1,5 @@
 using System.IO;
-using BizHawk.Emulation.Common;
+using NEShim.Emulation;
 using NEShim.Saves;
 using NSubstitute;
 
@@ -12,16 +12,18 @@ namespace NEShim.Tests.Integration;
 [TestFixture]
 internal class SaveStateManagerTests
 {
-    private string           _tempDir      = null!;
-    private IStatable        _mockStatable = null!;
-    private SaveStateManager _manager      = null!;
+    private string           _tempDir     = null!;
+    private IEmulationCore   _mockCore    = null!;
+    private SaveStateManager _manager     = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = Substitute.For<IStatable>();
-        _manager      = new SaveStateManager(_mockStatable, _tempDir);
+        _tempDir  = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        _mockCore = Substitute.For<IEmulationCore>();
+        _mockCore.When(c => c.SaveState(Arg.Any<Stream>()))
+                 .Do(ci => ci.Arg<Stream>().Write(new byte[] { 1, 2, 3 }));
+        _manager  = new SaveStateManager(_mockCore, _tempDir);
     }
 
     [TearDown]
@@ -29,6 +31,7 @@ internal class SaveStateManagerTests
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
+        _mockCore.Dispose();
     }
 
     // ---- Constructor ----
@@ -62,10 +65,10 @@ internal class SaveStateManagerTests
     // ---- SaveSlot ----
 
     [Test]
-    public void SaveSlot_CallsSaveStateBinary()
+    public void SaveSlot_CallsSaveState()
     {
         _manager.SaveSlot(0);
-        _mockStatable.Received(1).SaveStateBinary(Arg.Any<BinaryWriter>());
+        _mockCore.Received(1).SaveState(Arg.Any<Stream>());
     }
 
     [Test]
@@ -120,10 +123,10 @@ internal class SaveStateManagerTests
     }
 
     [Test]
-    public void LoadSlot_WhenNoFile_DoesNotCallLoadStateBinary()
+    public void LoadSlot_WhenNoFile_DoesNotCallLoadState()
     {
         _manager.LoadSlot(0);
-        _mockStatable.DidNotReceive().LoadStateBinary(Arg.Any<BinaryReader>());
+        _mockCore.DidNotReceive().LoadState(Arg.Any<Stream>());
     }
 
     [Test]
@@ -134,11 +137,11 @@ internal class SaveStateManagerTests
     }
 
     [Test]
-    public void LoadSlot_WhenFileExists_CallsLoadStateBinary()
+    public void LoadSlot_WhenFileExists_CallsLoadState()
     {
         _manager.SaveSlot(0);
         _manager.LoadSlot(0);
-        _mockStatable.Received(1).LoadStateBinary(Arg.Any<BinaryReader>());
+        _mockCore.Received(1).LoadState(Arg.Any<Stream>());
     }
 
     [Test]
@@ -147,7 +150,7 @@ internal class SaveStateManagerTests
         _manager.ActiveSlot = 2;
         _manager.SaveSlot(2);
         _manager.LoadFromActiveSlot();
-        _mockStatable.Received(1).LoadStateBinary(Arg.Any<BinaryReader>());
+        _mockCore.Received(1).LoadState(Arg.Any<Stream>());
     }
 
     // ---- AutoSave / AutoLoad ----
@@ -167,10 +170,10 @@ internal class SaveStateManagerTests
     }
 
     [Test]
-    public void AutoSave_CallsSaveStateBinary()
+    public void AutoSave_CallsSaveState()
     {
         _manager.AutoSave();
-        _mockStatable.Received(1).SaveStateBinary(Arg.Any<BinaryWriter>());
+        _mockCore.Received(1).SaveState(Arg.Any<Stream>());
     }
 
     [Test]
@@ -180,10 +183,10 @@ internal class SaveStateManagerTests
     }
 
     [Test]
-    public void AutoLoad_WhenNoFile_DoesNotCallLoadStateBinary()
+    public void AutoLoad_WhenNoFile_DoesNotCallLoadState()
     {
         _manager.AutoLoad();
-        _mockStatable.DidNotReceive().LoadStateBinary(Arg.Any<BinaryReader>());
+        _mockCore.DidNotReceive().LoadState(Arg.Any<Stream>());
     }
 
     [Test]
@@ -194,20 +197,20 @@ internal class SaveStateManagerTests
     }
 
     [Test]
-    public void AutoLoad_WhenFileExists_CallsLoadStateBinary()
+    public void AutoLoad_WhenFileExists_CallsLoadState()
     {
         _manager.AutoSave();
         _manager.AutoLoad();
-        _mockStatable.Received(1).LoadStateBinary(Arg.Any<BinaryReader>());
+        _mockCore.Received(1).LoadState(Arg.Any<Stream>());
     }
 
     [Test]
-    public void AutoSave_WhenSaveStateBinaryThrows_DoesNotPropagateException()
+    public void AutoSave_WhenSaveStateThrows_DoesNotPropagateException()
     {
-        var throwingStatable = Substitute.For<IStatable>();
-        throwingStatable.When(s => s.SaveStateBinary(Arg.Any<BinaryWriter>()))
-                        .Do(_ => throw new IOException("Disk full"));
-        var manager = new SaveStateManager(throwingStatable, _tempDir);
+        var throwingCore = Substitute.For<IEmulationCore>();
+        throwingCore.When(c => c.SaveState(Arg.Any<Stream>()))
+                    .Do(_ => throw new IOException("Disk full"));
+        var manager = new SaveStateManager(throwingCore, _tempDir);
 
         Assert.That(() => manager.AutoSave(), Throws.Nothing);
     }

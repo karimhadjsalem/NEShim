@@ -26,8 +26,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private InputManager?     _input;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
-    private SaveStateManager? _saveStates;
-    private SaveRamManager?   _saveRam;
+    private ISaveManager?     _saves;
     private FrameBuffer?      _frameBuffer;
     private GamePanel?        _gamePanel;
     private MainMenuScreen?   _mainMenuScreen;
@@ -328,17 +327,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void InitializeSaveSystems()
     {
-        _saveRam = new SaveRamManager(_host!,
-            Path.IsPathRooted(_config!.SaveRamPath)
-                ? _config.SaveRamPath
-                : Path.Combine(AppContext.BaseDirectory, _config.SaveRamPath));
-        _saveRam.LoadFromDisk();
+        string sramPath = Path.IsPathRooted(_config!.SaveRamPath)
+            ? _config.SaveRamPath
+            : Path.Combine(AppContext.BaseDirectory, _config.SaveRamPath);
 
         string stateDir = Path.IsPathRooted(_config.SaveStateDirectory)
             ? _config.SaveStateDirectory
             : Path.Combine(AppContext.BaseDirectory, _config.SaveStateDirectory);
-        _saveStates = new SaveStateManager(((BizHawkEmulationCore)_host!).States, stateDir);
-        _saveStates.ActiveSlot = _config.ActiveSlot;
+
+        _saves = new SaveManager(_host!, stateDir, sramPath, _config.ActiveSlot);
+        _saves.Startup();
         Logger.Log($"[Init] Save state directory: {stateDir} (active slot: {_config.ActiveSlot + 1})");
     }
 
@@ -406,7 +404,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeMainMenu(LocalizationData localization)
     {
         _mainMenuScreen = new MainMenuScreen(
-            saveStates:          _saveStates!,
+            saveStates:          _saves!,
             config:              _config!,
             localization:        localization,
             bgImagePath:         _preloadedMenuBackground is null ? _config!.MainMenuBackgroundPath : null,
@@ -535,7 +533,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeInGameMenu(LocalizationData localization)
     {
         _menu = new InGameMenu(
-            saveStates:          _saveStates!,
+            saveStates:          _saves!,
             config:              _config!,
             localization:        localization,
             onExitToDesktop:     () => BeginInvoke(Application.Exit),
@@ -619,7 +617,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             _host!, _config!, _input!, _audio!, _frameBuffer!,
             this,   // Control for BeginInvoke (MainForm is a Control)
             this,   // IMenuInputTarget (MainForm implements it)
-            _saveStates!, _menu!,
+            _saves!, _menu!,
             _renderer!,
             achievements,
             // Dispatch Steam callbacks immediately after each Present. On Steam Deck,
@@ -866,19 +864,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         try
         {
             if (_gameHasStarted)
-            {
-                _saveStates?.AutoSave();
-                _saveRam?.SaveToDisk();
-            }
+                _saves?.AutoSave();
             else
-            {
-                Logger.Log("[Shutdown] Game was never started — skipping auto-save and SRM write.");
-            }
+                Logger.Log("[Shutdown] Game was never started — skipping auto-save.");
+
+            _saves?.Shutdown();
 
             if (_config is not null)
             {
-                if (_saveStates is not null)
-                    _config.ActiveSlot = _saveStates.ActiveSlot;
+                if (_saves is not null)
+                    _config.ActiveSlot = _saves.ActiveSlot;
                 ConfigLoader.Save(_config);
             }
         }

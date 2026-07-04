@@ -75,12 +75,12 @@ internal sealed partial class MainMenuScreen : IDisposable
     public string MenuPosition => _config.MainMenuPosition;
 
     public bool CanResume => _saveStates.HasAutoSave
-        || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
+        || Enumerable.Range(0, _saveStates.SlotCount).Any(_saveStates.SlotExists);
 
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
     public LocalizationData Localization => _localization;
 
-    private readonly SaveStateManager _saveStates;
+    private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
     private          LocalizationData _localization;
     private readonly Action<bool>     _onWindowModeToggle;
@@ -106,7 +106,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     // ---- Constructor ----
 
     public MainMenuScreen(
-        SaveStateManager saveStates,
+        ISaveManager saveStates,
         AppConfig        config,
         LocalizationData localization,
         string?          bgImagePath,
@@ -483,7 +483,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         if (_saveStates.HasAutoSave)
             list.Add(new(_localization.SlotAutoSave, () => _saveStates.AutoLoad()));
 
-        for (int i = 0; i < SaveStateManager.SlotCount; i++)
+        for (int i = 0; i < _saveStates.SlotCount; i++)
         {
             if (_saveStates.SlotExists(i))
             {

@@ -2,7 +2,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
-using BizHawk.Emulation.Common;
 using NEShim.Config;
 using NEShim.Saves;
 using NEShim.Localization;
@@ -18,18 +17,18 @@ namespace NEShim.Tests.UI;
 [TestFixture]
 internal class MainMenuRendererTests
 {
-    private string           _tempDir      = null!;
-    private IStatable        _mockStatable = null!;
-    private SaveStateManager _saveStates   = null!;
-    private AppConfig        _config       = null!;
+    private string       _tempDir = null!;
+    private ISaveManager _saves   = null!;
+    private AppConfig    _config  = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = Substitute.For<IStatable>();
-        _saveStates   = new SaveStateManager(_mockStatable, _tempDir);
-        _config       = new AppConfig(); // default MainMenuPosition = "BottomCenter"
+        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDir);
+        _saves  = Substitute.For<ISaveManager>();
+        _saves.SlotCount.Returns(8);
+        _config = new AppConfig(); // default MainMenuPosition = "BottomCenter"
     }
 
     [TearDown]
@@ -40,7 +39,7 @@ internal class MainMenuRendererTests
     }
 
     private MainMenuScreen CreateMenu() =>
-        new(_saveStates, _config, new LocalizationData(), null,
+        new(_saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
     // ---- GetMainPanelRect — position variants ----
@@ -261,7 +260,7 @@ internal class MainMenuRendererTests
     [Test]
     public void HitTestItem_DisabledResumeBecomesEnabled_WhenSlotExists()
     {
-        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        _saves.SlotExists(0).Returns(true);
         using var menu = CreateMenu();
 
         // Resume Game (item 1) is now enabled
@@ -286,7 +285,7 @@ internal class MainMenuRendererTests
     public void Draw_MainScreen_WithResumeEnabled_DoesNotThrow()
     {
         // Make Resume Game enabled so the selected item can reach it
-        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        _saves.SlotExists(0).Returns(true);
         using var menu   = CreateMenu();
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
@@ -359,8 +358,8 @@ internal class MainMenuRendererTests
     [Test]
     public void Draw_ResumeSlots_DoesNotThrow()
     {
-        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
-        File.WriteAllBytes(Path.Combine(_tempDir, "autosave.state"), Array.Empty<byte>());
+        _saves.SlotExists(0).Returns(true);
+        _saves.HasAutoSave.Returns(true);
         using var menu = CreateMenu();
         menu.HandleKey(Keys.Down);    // Resume (now enabled)
         menu.HandleKey(Keys.Return);  // → ResumeSlots
@@ -409,7 +408,7 @@ internal class MainMenuRendererTests
         using (var bmp = new Bitmap(200, 100, PixelFormat.Format32bppArgb))
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
-        using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
+        using var menu   = new MainMenuScreen(_saves, _config, new LocalizationData(), imgPath,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
@@ -424,7 +423,7 @@ internal class MainMenuRendererTests
         using (var bmp = new Bitmap(100, 200, PixelFormat.Format32bppArgb))
             bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
 
-        using var menu   = new MainMenuScreen(_saveStates, _config, new LocalizationData(), imgPath,
+        using var menu   = new MainMenuScreen(_saves, _config, new LocalizationData(), imgPath,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);

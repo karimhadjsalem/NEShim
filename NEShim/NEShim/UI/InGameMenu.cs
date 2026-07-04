@@ -16,7 +16,7 @@ namespace NEShim.UI;
 /// </summary>
 internal sealed partial class InGameMenu
 {
-    private readonly SaveStateManager _saveStates;
+    private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
     private          LocalizationData _localization;
     private readonly Action           _onExitToDesktop;
@@ -94,7 +94,7 @@ internal sealed partial class InGameMenu
     // ---- Constructor ----
 
     public InGameMenu(
-        SaveStateManager saveStates,
+        ISaveManager saveStates,
         AppConfig        config,
         LocalizationData localization,
         Action           onExitToDesktop,

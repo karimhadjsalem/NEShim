@@ -1,8 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.IO;
 using System.Windows.Forms;
-using BizHawk.Emulation.Common;
 using NEShim.Config;
 using NEShim.Saves;
 using NEShim.Localization;
@@ -12,17 +10,14 @@ using NSubstitute;
 namespace NEShim.Tests.UI;
 
 /// <summary>
-/// Unit tests for MenuRenderer.HitTestItem.
-/// Uses real InGameMenu instances (concrete class, not mockable) with a temp-dir
-/// SaveStateManager and no-op callbacks — no file I/O beyond directory creation.
+/// Unit tests for MenuRenderer.HitTestItem and Draw smoke paths.
+/// Uses real InGameMenu instances with a mocked ISaveManager — no file I/O.
 /// </summary>
 [TestFixture]
 internal class MenuRendererTests
 {
-    private string           _tempDir      = null!;
-    private IStatable        _mockStatable = null!;
-    private SaveStateManager _saveStates   = null!;
-    private AppConfig        _config       = null!;
+    private ISaveManager _saves  = null!;
+    private AppConfig    _config = null!;
 
     // A 640×480 bounds used for all panel-geometry calculations below.
     // Root screen, 8 items, no warning row:
@@ -36,23 +31,15 @@ internal class MenuRendererTests
     [SetUp]
     public void SetUp()
     {
-        _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = Substitute.For<IStatable>();
-        _saveStates   = new SaveStateManager(_mockStatable, _tempDir);
-        _config       = new AppConfig();
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        _saves  = Substitute.For<ISaveManager>();
+        _saves.SlotCount.Returns(8);
+        _config = new AppConfig();
     }
 
     private InGameMenu CreateOpenMenu()
     {
         var menu = new InGameMenu(
-            _saveStates, _config,
+            _saves, _config,
             new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
@@ -183,7 +170,7 @@ internal class MenuRendererTests
     public void Draw_RootScreen_WithSlotSave_DoesNotThrow()
     {
         // Slot 0 exists → Load Game is enabled and renders differently
-        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateOpenMenu();
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
@@ -278,7 +265,7 @@ internal class MenuRendererTests
     [Test]
     public void Draw_ConfirmLoadScreen_DoesNotThrow()
     {
-        File.WriteAllBytes(Path.Combine(_tempDir, "slot0.state"), Array.Empty<byte>());
+        _saves.SlotExists(0).Returns(true);
         var menu = CreateOpenMenu();
         for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
         menu.HandleKey(Keys.Return); // → ConfirmLoad
@@ -323,7 +310,7 @@ internal class MenuRendererTests
     public void Draw_ControllerDisconnected_DoesNotThrow()
     {
         var menu = new InGameMenu(
-            _saveStates, _config,
+            _saves, _config,
             new LocalizationData(),
             () => { }, () => { }, () => { }, _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open(InGameMenu.Screen.ControllerDisconnected);

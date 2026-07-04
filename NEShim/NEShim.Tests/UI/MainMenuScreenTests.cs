@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
-using BizHawk.Emulation.Common;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
@@ -15,25 +14,20 @@ namespace NEShim.Tests.UI;
 [TestFixture]
 internal class MainMenuScreenTests
 {
-    private string           _tempDir      = null!;
-    private IStatable        _mockStatable = null!;
-    private SaveStateManager _saveStates   = null!;
-    private AppConfig        _config       = null!;
+    private ISaveManager _saves  = null!;
+    private AppConfig    _config = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir      = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        _mockStatable = Substitute.For<IStatable>();
-        _saveStates   = new SaveStateManager(_mockStatable, _tempDir);
-        _config       = new AppConfig();
+        _saves  = Substitute.For<ISaveManager>();
+        _saves.SlotCount.Returns(8);
+        _config = new AppConfig();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
         NEShim.Platform.PlatformDetector.SetD3D11Active(false);
     }
 
@@ -46,7 +40,7 @@ internal class MainMenuScreenTests
         Action<NEShim.Rendering.VideoFilterMode?>?         onVideoFilterOverlayChanged      = null,
         Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged        = null,
         Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null) =>
-        new(_saveStates, _config, new LocalizationData(), null,
+        new(_saves, _config, new LocalizationData(), null,
             _ => { },
             () => { },
             onVolumeChanged                  ?? (_ => { }),
@@ -58,12 +52,6 @@ internal class MainMenuScreenTests
             _ => { },
             onOverscanModeChanged            ?? (_ => { }),
             _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
-
-    private void CreateSlotFile(int slot) =>
-        File.WriteAllBytes(Path.Combine(_tempDir, $"slot{slot}.state"), Array.Empty<byte>());
-
-    private void CreateAutoSaveFile() =>
-        File.WriteAllBytes(Path.Combine(_tempDir, "autosave.state"), Array.Empty<byte>());
 
     // ---- CanResume ----
 
@@ -77,7 +65,7 @@ internal class MainMenuScreenTests
     [Test]
     public void CanResume_ReturnsTrue_WhenSlotSaveExists()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         Assert.That(screen.CanResume, Is.True);
     }
@@ -85,7 +73,7 @@ internal class MainMenuScreenTests
     [Test]
     public void CanResume_ReturnsTrue_WhenAutoSaveExists()
     {
-        CreateAutoSaveFile();
+        _saves.HasAutoSave.Returns(true);
         using var screen = CreateScreen();
         Assert.That(screen.CanResume, Is.True);
     }
@@ -103,7 +91,7 @@ internal class MainMenuScreenTests
     [Test]
     public void IsItemEnabled_Resume_ReturnsTrue_WhenSaveExists()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         Assert.That(screen.IsItemEnabled(1), Is.True);
     }
@@ -132,7 +120,7 @@ internal class MainMenuScreenTests
         Assert.That(screen.CanResume, Is.False);
 
         // Simulate save being created during play
-        CreateSlotFile(2);
+        _saves.SlotExists(2).Returns(true);
 
         screen.Show();
         Assert.That(screen.CanResume, Is.True);
@@ -161,7 +149,7 @@ internal class MainMenuScreenTests
     [Test]
     public void HandleKey_Down_DoesNotSkipResume_WhenSaveExists()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down);
         Assert.That(screen.SelectedIndex, Is.EqualTo(1)); // Resume is enabled
@@ -207,7 +195,7 @@ internal class MainMenuScreenTests
     [Test]
     public void HandleKey_Return_OnResume_NavigatesToResumeSlots_WhenSaveExists()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down);   // SelectedIndex → 1 (Resume, now enabled)
         screen.HandleKey(Keys.Return);
@@ -279,7 +267,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { Volume = 60 };
         int received = -1;
         using var screen = new MainMenuScreen(
-            _saveStates, config, new LocalizationData(), null,
+            _saves, config, new LocalizationData(), null,
             _ => { }, () => { },
             v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
@@ -295,7 +283,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { Volume = 60 };
         int received = -1;
         using var screen = new MainMenuScreen(
-            _saveStates, config, new LocalizationData(), null,
+            _saves, config, new LocalizationData(), null,
             _ => { }, () => { },
             v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
@@ -311,7 +299,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { AudioFilter = "Default" };
         AudioFilterMode? received = null;
         using var screen = new MainMenuScreen(
-            _saveStates, config, new LocalizationData(), null,
+            _saves, config, new LocalizationData(), null,
             _ => { }, () => { },
             _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
@@ -331,7 +319,7 @@ internal class MainMenuScreenTests
         var config = new AppConfig { MainMenuMusicEnabled = true };
         bool received = true;
         using var screen = new MainMenuScreen(
-            _saveStates, config, new LocalizationData(), null,
+            _saves, config, new LocalizationData(), null,
             _ => { }, () => { },
             _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
@@ -418,7 +406,7 @@ internal class MainMenuScreenTests
     {
         AudioFilterMode? received = null;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { },
             _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
@@ -461,7 +449,7 @@ internal class MainMenuScreenTests
     public void AudioFilter_GetTitle_UsesLocalizedTitle()
     {
         var loc = new LocalizationData { AudioFilterTitle = "FILT CUSTOM" };
-        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+        using var screen = new MainMenuScreen(_saves, _config, loc, null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetTitle(), Is.EqualTo("FILT CUSTOM"));
@@ -471,7 +459,7 @@ internal class MainMenuScreenTests
     public void AudioFilter_GetCurrentItems_UsesLocalizedDefaultName()
     {
         var loc = new LocalizationData { AudioFilterDefault = "TestDefault" };
-        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+        using var screen = new MainMenuScreen(_saves, _config, loc, null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("TestDefault"));
@@ -481,7 +469,7 @@ internal class MainMenuScreenTests
     public void Sound_AudioFilterItem_UsesLocalizedLabel()
     {
         var loc = new LocalizationData { AudioFilterLabel = "TestLabel" };
-        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+        using var screen = new MainMenuScreen(_saves, _config, loc, null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         Assert.That(screen.GetCurrentItems()[1], Does.Contain("TestLabel"));
@@ -514,7 +502,7 @@ internal class MainMenuScreenTests
     {
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         var loc = new LocalizationData { BindNone = "(unset)" };
-        using var screen = new MainMenuScreen(_saveStates, _config, loc, null,
+        using var screen = new MainMenuScreen(_saves, _config, loc, null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         screen.HandleKey(Keys.Down);   // Settings
         screen.HandleKey(Keys.Return); // enter Settings
@@ -1093,7 +1081,7 @@ internal class MainMenuScreenTests
     [Test]
     public void GetTitle_ResumeSlots_ReturnsLoadGame()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down);    // Resume (enabled)
         screen.HandleKey(Keys.Return);
@@ -1105,7 +1093,7 @@ internal class MainMenuScreenTests
     [Test]
     public void ResumeSlots_Back_ReturnsToMain()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         screen.HandleKey(Keys.Down);    // Resume
         screen.HandleKey(Keys.Return);  // → ResumeSlots
@@ -1121,7 +1109,7 @@ internal class MainMenuScreenTests
     [Test]
     public void ResumeSlots_LoadSlot_FiresResumeChosenAndHidesScreen()
     {
-        CreateSlotFile(0);
+        _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
         bool fired = false;
         screen.ResumeChosen += () => fired = true;
@@ -1132,6 +1120,28 @@ internal class MainMenuScreenTests
 
         Assert.That(fired,            Is.True);
         Assert.That(screen.IsVisible, Is.False);
+    }
+
+    [Test]
+    public void ResumeSlots_WhenAutoSaveSelected_CallsAutoLoad()
+    {
+        _saves.HasAutoSave.Returns(true);
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Resume (enabled — autosave exists)
+        screen.HandleKey(Keys.Return);  // → ResumeSlots; autosave is index 0
+        screen.HandleKey(Keys.Return);  // activate autosave
+        _saves.Received(1).AutoLoad();
+    }
+
+    [Test]
+    public void ResumeSlots_WhenSlotSelected_CallsLoadSlot()
+    {
+        _saves.SlotExists(2).Returns(true);
+        using var screen = CreateScreen();
+        screen.HandleKey(Keys.Down);    // Resume (enabled — slot 2 exists)
+        screen.HandleKey(Keys.Return);  // → ResumeSlots; slot 2 is the only slot (index 0)
+        screen.HandleKey(Keys.Return);  // activate slot 2
+        _saves.Received(1).LoadSlot(2);
     }
 
     // ---- GamepadBindings ----
@@ -1220,7 +1230,7 @@ internal class MainMenuScreenTests
         bool received = false;
         _config.WindowMode = "Windowed";
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenVideoScreen(screen);
         screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
@@ -1277,7 +1287,7 @@ internal class MainMenuScreenTests
         _config.Volume = 0;
         int received = 999;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Left); // already at 0 — no change
@@ -1291,7 +1301,7 @@ internal class MainMenuScreenTests
         _config.Volume = 100;
         int received = 999;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
         screen.HandleKey(Keys.Right); // already at 100 — no change
@@ -1778,7 +1788,7 @@ internal class MainMenuScreenTests
         _config.AudioEqBass = 0;
         (int bass, int mid, int treble) received = default;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
@@ -1794,7 +1804,7 @@ internal class MainMenuScreenTests
         _config.AudioEqTreble = 6;
         (int bass, int mid, int treble) received = default;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
@@ -1898,7 +1908,7 @@ internal class MainMenuScreenTests
         _config.Language = "english";
         bool callbackFired = false;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             lang => { callbackFired = true; },
@@ -1914,7 +1924,7 @@ internal class MainMenuScreenTests
     {
         _config.Language = "Auto";
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             _ => { },
@@ -1996,7 +2006,7 @@ internal class MainMenuScreenTests
     {
         NEShim.Rendering.VideoMotionEffectMode? received = null;
         using var screen = new MainMenuScreen(
-            _saveStates, _config, new LocalizationData(), null,
+            _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { },
             _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
             (_, _, _, _) => { }, (_, _, _) => { });
