@@ -18,12 +18,12 @@ namespace NEShim.Rendering;
 ///
 /// Owned objects: NES texture, SRV, RTV, vertex buffer, shaders, input layout, sampler,
 /// blend state, overlay texture + bitmap, sidebar textures.
-/// NOT owned: device and swap chain — those belong to <see cref="D3DOverlayHook"/>.
+/// NOT owned: device and swap chain — those belong to <see cref="SteamOverlayRenderer"/>.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal sealed class D3D11Renderer : IFrameRenderer
 {
-    // Not owned — created and disposed by D3DOverlayHook.
+    // Not owned — created and disposed by SteamOverlayRenderer.
     private readonly ID3D11Device        _device;
     private readonly IDXGISwapChain      _swapChain;
     private readonly ID3D11DeviceContext _context;

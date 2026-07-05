@@ -39,12 +39,12 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     // on the UI thread via this timer rather than from the emulation thread.
     private System.Windows.Forms.Timer? _steamTimer;
 
-    // ---- D3D11 overlay hook ----
-    // A minimal swap chain on the main window HWND. Steam's GameOverlayRenderer64.dll
-    // hooks IDXGISwapChain::Present to enable the overlay and render its UI into the
-    // swap chain buffer. In D3D11 mode, GamePanel is hidden during gameplay so the swap
-    // chain surface is visible. GamePanel is shown only for menus and overlays.
-    private Rendering.D3DOverlayHook?  _d3dHook;
+    // ---- Overlay renderer ----
+    // Created by OverlayRendererFactory. Provides a minimal D3D11 swap chain on the main
+    // window HWND when D3D11 is available; falls back to NullOverlayRenderer when GDI+ is
+    // forced. Steam's GameOverlayRenderer64.dll hooks IDXGISwapChain::Present to enable the
+    // overlay. In D3D11 mode, GamePanel is hidden during gameplay so the swap chain is visible.
+    private Rendering.IOverlayRenderer? _overlayRenderer;
 
     // ---- Renderer (strategy) ----
     // Always non-null after InitializeWindowAndD3DHook completes.
@@ -115,11 +115,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeWindowAndD3DHook()
     {
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
-        _d3dHook = new Rendering.D3DOverlayHook();
-        _d3dHook.Initialize(Handle, Width, Height);
-        Logger.Log($"[Init] D3D overlay hook initialised ({Width}×{Height}).");
-
-        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, Handle, Width, Height);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -173,13 +170,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
         _renderer?.Dispose();
         _renderer = null;
-        _d3dHook?.Dispose();
-        _d3dHook = null;
+        _overlayRenderer?.Dispose();
+        _overlayRenderer = null;
 
-        _d3dHook = new Rendering.D3DOverlayHook();
-        _d3dHook.Initialize(Handle, Width, Height);
-
-        _renderer = Rendering.RendererFactory.Create(_d3dHook, _gamePanel!, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, Handle, Width, Height);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -886,8 +881,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _preloadedMenuBackground?.Dispose();
         _preloadedMusic?.Dispose();
         _steamTimer?.Dispose();
-        _renderer?.Dispose(); // must be before _d3dHook — renderer does not own device/swap chain
-        _d3dHook?.Dispose();
+        _renderer?.Dispose(); // must be before _overlayRenderer — renderer does not own device/swap chain
+        _overlayRenderer?.Dispose();
         _sidebarLeft?.Dispose();
         _sidebarRight?.Dispose();
         _mainMenuMusic?.Dispose();

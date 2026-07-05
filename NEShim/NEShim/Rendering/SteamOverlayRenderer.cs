@@ -19,23 +19,23 @@ namespace NEShim.Rendering;
 /// become no-ops; the game continues without overlay support.</para>
 /// </summary>
 [ExcludeFromCodeCoverage]
-internal sealed class D3DOverlayHook : IDisposable
+internal sealed class SteamOverlayRenderer : IOverlayRenderer
 {
     private ID3D11Device?   _device;
     private IDXGISwapChain? _swapChain;
     private bool            _presentFailureLogged;
 
     /// <summary>
-    /// The D3D11 device created by this hook. Shared with <see cref="D3D11Renderer"/>.
+    /// The D3D11 device created by this renderer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed.
     /// </summary>
-    internal ID3D11Device? Device => _device;
+    public ID3D11Device? Device => _device;
 
     /// <summary>
-    /// The DXGI swap chain created by this hook. Shared with <see cref="D3D11Renderer"/>.
+    /// The DXGI swap chain created by this renderer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed.
     /// </summary>
-    internal IDXGISwapChain? SwapChain => _swapChain;
+    public IDXGISwapChain? SwapChain => _swapChain;
 
     /// <summary>
     /// Creates the D3D11 device and swap chain bound to <paramref name="hwnd"/>.
@@ -55,14 +55,14 @@ internal sealed class D3DOverlayHook : IDisposable
 
             if (result.Failure || _device is null)
             {
-                Logger.Log($"[D3DOverlayHook] D3D11CreateDevice failed (HRESULT 0x{result.Code:X8}). Steam overlay will not work.");
+                Logger.Log($"[SteamOverlayRenderer] D3D11CreateDevice failed (HRESULT 0x{result.Code:X8}). Steam overlay will not work.");
                 return;
             }
 
             using var dxgiDevice = _device.QueryInterface<IDXGIDevice>();
             using var adapter    = dxgiDevice.GetAdapter();
 
-            Logger.Log($"[D3DOverlayHook] Adapter: {adapter.Description.Description} (vendor 0x{adapter.Description.VendorId:X4}, device 0x{adapter.Description.DeviceId:X4}), feature level {_device.FeatureLevel}.");
+            Logger.Log($"[SteamOverlayRenderer] Adapter: {adapter.Description.Description} (vendor 0x{adapter.Description.VendorId:X4}, device 0x{adapter.Description.DeviceId:X4}), feature level {_device.FeatureLevel}.");
 
             using var factory    = adapter.GetParent<IDXGIFactory>();
 
@@ -87,11 +87,11 @@ internal sealed class D3DOverlayHook : IDisposable
 
             // Prevent DXGI from hijacking Alt+Enter — window mode is managed by MainForm.
             factory.MakeWindowAssociation(hwnd, WindowAssociationFlags.IgnoreAltEnter);
-            Logger.Log($"[D3DOverlayHook] Swap chain created ({width}×{height}). Steam overlay hook is active.");
+            Logger.Log($"[SteamOverlayRenderer] Swap chain created ({width}×{height}). Steam overlay hook is active.");
         }
         catch (Exception ex)
         {
-            Logger.Log($"[D3DOverlayHook] Init failed: {ex.Message}. Steam overlay will not work.");
+            Logger.Log($"[SteamOverlayRenderer] Init failed: {ex.Message}. Steam overlay will not work.");
             _device?.Dispose();
             _device    = null;
             _swapChain = null;
@@ -111,7 +111,7 @@ internal sealed class D3DOverlayHook : IDisposable
             if (!_presentFailureLogged)
             {
                 _presentFailureLogged = true;
-                Logger.Log($"[D3DOverlayHook] Present failed: {ex.Message}. Steam overlay may stop working.");
+                Logger.Log($"[SteamOverlayRenderer] Present failed: {ex.Message}. Steam overlay may stop working.");
             }
         }
     }
@@ -136,7 +136,7 @@ internal sealed class D3DOverlayHook : IDisposable
         }
         catch (Exception ex)
         {
-            Logger.Log($"[D3DOverlayHook] Resize failed: {ex.Message}.");
+            Logger.Log($"[SteamOverlayRenderer] Resize failed: {ex.Message}.");
         }
     }
 

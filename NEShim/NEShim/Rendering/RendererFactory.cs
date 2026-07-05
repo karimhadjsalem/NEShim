@@ -11,11 +11,11 @@ namespace NEShim.Rendering;
 internal static class RendererFactory
 {
     internal static IFrameRenderer Create(
-        D3DOverlayHook hook,
-        GamePanel      gamePanel,
-        int            nesWidth,
-        int            nesHeight,
-        string         forceRenderer = "auto")
+        IOverlayRenderer overlayRenderer,
+        GamePanel        gamePanel,
+        int              nesWidth,
+        int              nesHeight,
+        string           forceRenderer = "auto")
     {
         bool skipD3D11 = forceRenderer.Equals("gdi", StringComparison.OrdinalIgnoreCase);
 
@@ -23,11 +23,11 @@ internal static class RendererFactory
         {
             Logger.Log("[Renderer] GDI+ forced via forceRenderer config.");
         }
-        else if (hook.Device is not null && hook.SwapChain is not null)
+        else if (overlayRenderer.Device is not null && overlayRenderer.SwapChain is not null)
         {
             try
             {
-                var renderer = new D3D11Renderer(hook.Device, hook.SwapChain, nesWidth, nesHeight);
+                var renderer = new D3D11Renderer(overlayRenderer.Device, overlayRenderer.SwapChain, nesWidth, nesHeight);
                 Platform.PlatformDetector.SetD3D11Active(true);
                 Logger.Log("[Renderer] D3D11 active — video filters supported.");
                 return renderer;
@@ -40,6 +40,6 @@ internal static class RendererFactory
 
         Platform.PlatformDetector.SetD3D11Active(false);
         Logger.Log("[Renderer] GDI+ active. Video filters unavailable.");
-        return new GdiRenderer(gamePanel, hook);
+        return new GdiRenderer(gamePanel, overlayRenderer);
     }
 }
