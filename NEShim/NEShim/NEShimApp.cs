@@ -73,6 +73,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 "NEShim — Startup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
+        _renderer?.MarkOverlayDirty();
+        _renderer?.Tick(vsync: false);
+        _sdlHost.Show();
         _sdlHost.RunLoop(OnIdle);
         Shutdown();
     }
@@ -740,6 +743,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void Shutdown()
     {
+        _sdlHost.Hide();
         Logger.Log("[Shutdown] RunLoop exited — stopping emulation thread.");
         _emulationThread?.Stop();
 

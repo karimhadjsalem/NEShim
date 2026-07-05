@@ -38,7 +38,7 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events))
             throw new InvalidOperationException($"SDL_Init failed: {SDL.GetError()}");
 
-        _window = SDL.CreateWindow(title, width, height, SDL.WindowFlags.Resizable);
+        _window = SDL.CreateWindow(title, width, height, SDL.WindowFlags.Resizable | SDL.WindowFlags.Hidden);
         if (_window == IntPtr.Zero)
             throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL.GetError()}");
 
@@ -71,6 +71,8 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         }
     }
 
+    public void Show()       => SDL.ShowWindow(_window);
+    public void Hide()       => SDL.HideWindow(_window);
     public void HideCursor() => SDL.HideCursor();
 
     public void RequestQuit() => _quit = true;
