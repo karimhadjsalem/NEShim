@@ -2,8 +2,7 @@ namespace NEShim.Platform;
 
 /// <summary>
 /// Abstracts what the host window must provide to the rendering and input subsystems.
-/// Implemented by <see cref="MainForm"/> for the WinForms host;
-/// a future <c>SDL3WindowHost</c> class will provide an alternative implementation.
+/// Implemented by <see cref="SDL3WindowHost"/>.
 /// </summary>
 internal interface IWindowHost
 {

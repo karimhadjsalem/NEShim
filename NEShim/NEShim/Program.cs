@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using BizHawk.Common;
+using NEShim.Platform;
 using Steamworks;
 
 namespace NEShim;
@@ -11,35 +12,27 @@ static class Program
     [STAThread]
     static void Main()
     {
-        // Catch unhandled exceptions on both the UI thread and background threads,
-        // write a local crash.log, and show a dialog pointing to it.
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        Application.ThreadException += (_, e) => HandleCrash(e.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             HandleCrash(e.ExceptionObject as Exception);
 
-        // If the app was not launched through Steam, RestartAppIfNecessary()
-        // relaunches it via Steam so the overlay DLL is injected correctly.
-        // Must be called before SteamAPI.Init().
         var appIdPath = Path.Combine(AppContext.BaseDirectory, "steam_appid.txt");
         if (File.Exists(appIdPath) &&
             uint.TryParse(File.ReadAllText(appIdPath).Trim(), out uint appId) &&
             appId != 0)
         {
             if (SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
-                return; // Steam is relaunching us — exit this instance
+                return;
         }
 
-        // Set Windows multimedia timer resolution to 1ms so that Thread.Sleep(1)
-        // actually sleeps ~1ms. Without this, Windows 11's Dynamic Timer Resolution
-        // can make Sleep(1) sleep 15-25ms, breaking the 60Hz emulation loop entirely.
         Win32Imports.timeBeginPeriod(1);
-
         try
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            using var sdlHost = new SDL3WindowHost("NEShim", 1024, 672);
+            new NEShimApp(sdlHost).Run();
+        }
+        catch (Exception ex)
+        {
+            HandleCrash(ex);
         }
         finally
         {
@@ -66,7 +59,7 @@ static class Program
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
-        catch { /* swallow — already crashing */ }
+        catch { }
         finally { Environment.Exit(1); }
     }
 }

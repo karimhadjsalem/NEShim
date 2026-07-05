@@ -12,7 +12,7 @@ internal static class RendererFactory
 {
     internal static IFrameRenderer Create(
         IOverlayRenderer overlayRenderer,
-        GamePanel        gamePanel,
+        GamePanel?       gamePanel,
         int              nesWidth,
         int              nesHeight,
         string           forceRenderer = "auto")
@@ -37,6 +37,10 @@ internal static class RendererFactory
                 Logger.Log($"[Renderer] D3D11 init failed: {ex.Message} — falling back to GDI+.");
             }
         }
+
+        if (gamePanel is null)
+            throw new InvalidOperationException(
+                "D3D11 initialisation failed; GDI+ fallback unavailable (no GamePanel in SDL3 mode).");
 
         Platform.PlatformDetector.SetD3D11Active(false);
         Logger.Log("[Renderer] GDI+ active. Video filters unavailable.");

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using NEShim.Achievements;
 using NEShim.Audio;
@@ -15,80 +16,53 @@ using NEShim.UI;
 namespace NEShim;
 
 [ExcludeFromCodeCoverage]
-public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget, Platform.IWindowHost
+internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTarget
 {
-    // ---- Win32 for WM_ACTIVATEAPP ----
-    private const int WM_ACTIVATEAPP = 0x001C;
-
     // ---- Core components ----
     private AppConfig?        _config;
-    private IEmulationCore?       _host;
+    private IEmulationCore?   _host;
     private IInputReader?     _input;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;
     private FrameBuffer?      _frameBuffer;
-    private GamePanel?        _gamePanel;
     private MainMenuScreen?   _mainMenuScreen;
     private InGameMenu?       _menu;
     private EmulationThread?  _emulationThread;
 
-    // ---- Steam ----
-    // Steam callbacks (RunCallbacks) must be dispatched on the same thread that
-    // called SteamAPI.Init(). We initialise on the UI thread, so we also tick
-    // on the UI thread via this timer rather than from the emulation thread.
-    private System.Windows.Forms.Timer? _steamTimer;
-
-    // ---- Overlay renderer ----
-    // Created by OverlayRendererFactory. Provides a minimal D3D11 swap chain on the main
-    // window HWND when D3D11 is available; falls back to NullOverlayRenderer when GDI+ is
-    // forced. Steam's GameOverlayRenderer64.dll hooks IDXGISwapChain::Present to enable the
-    // overlay. In D3D11 mode, GamePanel is hidden during gameplay so the swap chain is visible.
+    // ---- Overlay renderer / frame renderer ----
     private Rendering.IOverlayRenderer? _overlayRenderer;
+    private Rendering.IFrameRenderer?   _renderer;
 
-    // ---- Renderer (strategy) ----
-    // Always non-null after InitializeWindowAndD3DHook completes.
-    // RendererFactory selects D3D11Renderer or GdiRenderer based on available hardware.
-    private Rendering.IFrameRenderer?  _renderer;
-
-    // Sidebar bitmaps owned by MainForm — passed to the renderer on creation and after device loss recovery.
     private Bitmap? _sidebarLeft;
     private Bitmap? _sidebarRight;
 
-    private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
-
     // ---- Logo splash screen ----
-    private Action?                      _skipLogo;
-    private LogoScreen?                  _logoScreen;
-    private System.Windows.Forms.Timer? _logoTimer;
+    private LogoScreen?           _logoScreen;
+    private Task?                 _preloadTask;
+    private Bitmap?               _preloadedMenuBackground;
+    private MainMenuMusic?        _preloadedMusic;
+    private AchievementManager?   _pendingAchievements;
 
-    // ---- Assets preloaded during logo display ----
-    private Task?          _preloadTask;
-    private Bitmap?        _preloadedMenuBackground;
-    private MainMenuMusic? _preloadedMusic;
+    // ---- Steam tick ----
+    private readonly Stopwatch _steamStopwatch = Stopwatch.StartNew();
+    private const int SteamCallbackIntervalMs = 16;
 
     private bool _isFullscreen = true;
     private bool _gameHasStarted;
 
-    // ---- IWindowHost event backing fields ----------------------------------------
-    private event Action<int, int>? _resized;
-    private event Action<bool>?     _focusChanged;
+    private readonly SDL3WindowHost _sdlHost;
+    private readonly Action<Action> _marshalToMainThread;
 
-    public MainForm()
+    public NEShimApp(SDL3WindowHost sdlHost)
     {
-        InitializeComponent();
-
-        using var stream = typeof(MainForm).Assembly.GetManifestResourceStream("NEShim.icon.ico");
-        if (stream is not null)
-            Icon = new Icon(stream);
-
-        Load += OnFormLoad;
-        FormClosing += OnFormClosing;
+        _sdlHost             = sdlHost;
+        _marshalToMainThread = sdlHost.MarshalToMainThread;
     }
 
-    private void OnFormLoad(object? sender, EventArgs e)
+    public void Run()
     {
-        Cursor.Hide();
+        _sdlHost.HideCursor();
         try
         {
             InitializeEmulator();
@@ -97,8 +71,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         {
             MessageBox.Show($"Failed to start emulator:\n\n{ex.Message}",
                 "NEShim — Startup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            Application.Exit();
+            return;
         }
+        _sdlHost.RunLoop(OnIdle);
+        Shutdown();
     }
 
     private void InitializeEmulator()
@@ -119,24 +95,23 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeWindowAndD3DHook()
     {
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, this);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, null, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
 
         ApplyRenderingOptions();
 
-        // IFrameRenderer.Resize handles swap chain resize (D3D11) or hook resize (GDI+).
-        _resized += (w, h) => _renderer?.Resize(w, h);
+        _sdlHost.Resized += (w, h) => _renderer?.Resize(w, h);
     }
 
     private void ApplyRenderingOptions()
     {
-        var mode        = Rendering.VideoFilterModeParser.Parse(_config!.VideoFilter);
-        var overscan    = Rendering.OverscanModeParser.Parse(_config.OverscanMode);
-        var colorMode   = Rendering.VideoColorFilterModeParser.Parse(_config.VideoColorFilter);
-        var motionMode  = Rendering.VideoMotionEffectModeParser.Parse(_config.VideoMotionEffect);
+        var mode      = Rendering.VideoFilterModeParser.Parse(_config!.VideoFilter);
+        var overscan  = Rendering.OverscanModeParser.Parse(_config.OverscanMode);
+        var colorMode = Rendering.VideoColorFilterModeParser.Parse(_config.VideoColorFilter);
+        var motionMode= Rendering.VideoMotionEffectModeParser.Parse(_config.VideoMotionEffect);
 
         var supported = Platform.PlatformDetector.IsD3D11Active
             ? Rendering.VideoFilterModeParser.D3D11Supported
@@ -168,7 +143,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void OnD3DDeviceLost(object? sender, EventArgs e)
     {
-        // Device loss fires from Tick (DrawAndPresent) on the UI thread — already on UI thread.
         Logger.Log("[Renderer] Recovering from device loss — pausing emulation and reinitialising.");
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.DeviceLost, true);
 
@@ -177,15 +151,13 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _overlayRenderer?.Dispose();
         _overlayRenderer = null;
 
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, this);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, null, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
         ApplyRenderingOptions();
 
-        // Update EmulationThread's renderer reference while emulation is still paused.
-        // EmulationThread.UpdateRenderer is safe here — ManualResetEventSlim provides the barrier.
         _emulationThread?.UpdateRenderer(_renderer);
 
         Logger.Log($"[Renderer] Reinitialised — ownsFrameSurface={_renderer.OwnsFrameSurface}. Resuming emulation.");
@@ -194,6 +166,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void ShowLogo(AchievementManager? achievements)
     {
+        _pendingAchievements = achievements;
         using var stream = typeof(UI.LogoScreen).Assembly
             .GetManifestResourceStream("NEShim.logos.neshim-logo-splash.png");
         if (stream is null)
@@ -203,37 +176,40 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             return;
         }
         _logoScreen = new UI.LogoScreen(new System.Drawing.Bitmap(stream));
-        _gamePanel!.SetLogoScreen(_logoScreen);
-        _logoTimer = new System.Windows.Forms.Timer { Interval = 33 };
+        _preloadTask = Task.Run(PreloadAssets);
+    }
 
-        _skipLogo = () =>
+    private void SkipLogo()
+    {
+        _logoScreen?.Dispose();
+        _logoScreen = null;
+        FinishInitialization(_pendingAchievements);
+        _pendingAchievements = null;
+    }
+
+    private void OnIdle()
+    {
+        if (_steamStopwatch.ElapsedMilliseconds >= SteamCallbackIntervalMs)
         {
-            _logoTimer?.Stop();
-            _logoTimer?.Dispose();
-            _logoTimer = null;
-            FinishInitialization(achievements);
-        };
+            SteamManager.Tick();
+            if (_emulationThread is null || _emulationThread.IsPaused)
+                _renderer?.Tick(vsync: false);
+            _steamStopwatch.Restart();
+        }
 
-        _logoTimer.Tick += (_, _) =>
+        if (_logoScreen is not null)
         {
             _renderer?.MarkOverlayDirty();
-            _gamePanel?.Invalidate();
             if (_input!.PollAnyControllerButton())
             {
-                _skipLogo?.Invoke();
+                SkipLogo();
                 return;
             }
-            if (_logoScreen?.IsComplete != true) return;
-            _logoTimer!.Stop();
-            _logoTimer.Dispose();
-            _logoTimer = null;
-            if (_renderer?.OwnsFrameSurface != true)
-                _gamePanel?.Refresh(); // GDI+ only — synchronous repaint for the alpha=0 final frame
-            FinishInitialization(achievements);
-        };
-
-        _logoTimer.Start();
-        _preloadTask = Task.Run(PreloadAssets);
+            if (_logoScreen.IsComplete)
+            {
+                SkipLogo();
+            }
+        }
     }
 
     private void PreloadAssets()
@@ -261,8 +237,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void FinishInitialization(AchievementManager? achievements)
     {
-        _skipLogo = null;
-        _gamePanel!.SetLogoScreen(null);
         _logoScreen?.Dispose();
         _logoScreen = null;
         _preloadTask?.Wait();
@@ -276,7 +250,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeConfig()
     {
         _config = ConfigLoader.Load();
-        this.Text = _config.WindowTitle;
+        _sdlHost.SetTitle(_config.WindowTitle);
 
         if (_config.EnableLogging)
             Logger.Enable();
@@ -313,12 +287,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             return null;
         }
 
-        // Marshal achievement unlocks to the UI thread — all Steam API calls must be on
-        // the same thread that called SteamAPI.Init().
         var achievements = new AchievementManager(
             _host.MemoryDomains, achConfig,
             () => SteamManager.StatsReady,
-            id => BeginInvoke(() =>
+            id => _marshalToMainThread(() =>
             {
                 if (SteamManager.UnlockAchievement(id))
                 {
@@ -348,21 +320,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeRendering()
     {
         _frameBuffer  = new FrameBuffer();
-        _gamePanel    = new GamePanel(_frameBuffer) { Dock = DockStyle.Fill };
         _sidebarLeft  = LoadSidebarBitmap(_config!.SidebarLeftPath);
         _sidebarRight = LoadSidebarBitmap(_config.SidebarRightPath);
-        Controls.Add(_gamePanel);
     }
 
     private void InitializeInput()
     {
         _input = new InputManager();
-        // KeyPreview = true (set in InitializeComponent) ensures these MainForm handlers
-        // fire for all keys regardless of which child control has focus. This also handles
-        // emulation input when GamePanel is hidden (D3D11 gameplay mode).
-        KeyDown += (_, e) => _input.OnKeyDown(e.KeyCode);
-        KeyUp   += (_, e) => _input.OnKeyUp(e.KeyCode);
-        KeyDown += OnFormKeyDown;
+        _sdlHost.KeyDown += key => _input.OnKeyDown(key);
+        _sdlHost.KeyUp   += key => _input.OnKeyUp(key);
+        _sdlHost.KeyDown += OnKeyDown;
     }
 
     private void InitializeAudio()
@@ -396,8 +363,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _mainMenuMusic?.Pause();
             else
                 _mainMenuMusic?.Resume();
-            UpdateGamePanelVisibility();
-            Logger.Log($"[Steam] GamePanel.Visible is now {_gamePanel?.Visible}.");
         });
         if (PlatformDetector.IsWine)
             Logger.Log("[Platform] Wine/Proton detected.");
@@ -414,8 +379,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             localization:        localization,
             bgImagePath:         _preloadedMenuBackground is null ? _config!.MainMenuBackgroundPath : null,
             bgImage:             _preloadedMenuBackground,
-            onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:       () => { /* config flushed to disk on exit */ },
+            onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
+            onConfigSaved:       () => { },
             onVolumeChanged:     vol =>
             {
                 _audio?.SetVolume(vol / 100f);
@@ -474,7 +439,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
@@ -487,36 +452,29 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 ConfigLoader.Save(_config!);
             });
 
-        _preloadedMenuBackground = null; // ownership transferred to MainMenuScreen
+        _preloadedMenuBackground = null;
 
-        _mainMenuScreen.NewGameChosen += () => BeginInvoke(() =>
+        _mainMenuScreen.NewGameChosen += () => _marshalToMainThread(() =>
         {
             _gameHasStarted = true;
             _mainMenuMusic?.FadeOut();
             SteamManager.ActivateGameplaySet();
             _emulationThread?.DismissMainMenu();
             _renderer?.MarkOverlayDirty();
-            _gamePanel?.Invalidate();
-            UpdateGamePanelVisibility();
         });
-        _mainMenuScreen.ResumeChosen += () => BeginInvoke(() =>
+        _mainMenuScreen.ResumeChosen += () => _marshalToMainThread(() =>
         {
             _gameHasStarted = true;
-            // Save was already loaded by MainMenuScreen while thread was blocked.
             _mainMenuMusic?.FadeOut();
             SteamManager.ActivateGameplaySet();
             _emulationThread?.DismissMainMenu();
             _renderer?.MarkOverlayDirty();
-            _gamePanel?.Invalidate();
-            UpdateGamePanelVisibility();
         });
-        _mainMenuScreen.ExitChosen += () => BeginInvoke(() =>
+        _mainMenuScreen.ExitChosen += () => _marshalToMainThread(() =>
         {
             _mainMenuMusic?.Stop();
-            Application.Exit();
+            _sdlHost.RequestQuit();
         });
-
-        _gamePanel!.SetMainMenu(_mainMenuScreen);
 
         if (_config!.MainMenuMusicEnabled)
         {
@@ -541,11 +499,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             saveStates:          _saves!,
             config:              _config!,
             localization:        localization,
-            onExitToDesktop:     () => BeginInvoke(Application.Exit),
+            onExitToDesktop:     () => _marshalToMainThread(_sdlHost.RequestQuit),
             onResetGame:         () => _emulationThread?.ResetGame(),
-            onReturnToMainMenu:  () => BeginInvoke(ReturnToMainMenu),
-            onWindowModeToggle:  fullscreen => BeginInvoke(() => SetWindowMode(fullscreen)),
-            onConfigSaved:       () => { /* config flushed to disk on exit */ },
+            onReturnToMainMenu:  () => _marshalToMainThread(ReturnToMainMenu),
+            onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
+            onConfigSaved:       () => { },
             onVolumeChanged:     vol =>
             {
                 _audio?.SetVolume(vol / 100f);
@@ -588,7 +546,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.SetOverscanMode(overscan);
                 ConfigLoader.Save(_config);
             },
-            onLanguageChanged: lang => BeginInvoke(() => OnLanguageChanged(lang)),
+            onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 if (_renderer is Rendering.D3D11Renderer d3dPic)
@@ -600,78 +558,42 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _audio?.SetEq(bass, mid, treble);
                 ConfigLoader.Save(_config!);
             });
-        _menu.Opened += () => BeginInvoke(() =>
-        {
-            _renderer?.MarkOverlayDirty();
-            _gamePanel?.Invalidate();
-            UpdateGamePanelVisibility();
-        });
-        _menu.Closed += () => BeginInvoke(() =>
-        {
-            _renderer?.MarkOverlayDirty();
-            _gamePanel?.Invalidate();
-            UpdateGamePanelVisibility();
-        });
 
-        _gamePanel!.SetMenu(_menu);
+        _menu.Opened += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
+        _menu.Closed += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
     }
 
     private void InitializeEmulationStartup(AchievementManager? achievements)
     {
         _emulationThread = new EmulationThread(
             _host!, _config!, _input!, _audio!, _frameBuffer!,
-            action => BeginInvoke(action),  // UI thread marshal delegate
-            this,   // IMenuInputTarget (MainForm implements it)
+            _marshalToMainThread,
+            this,
             _saves!, _menu!,
             _renderer!,
             achievements,
-            // Dispatch Steam callbacks immediately after each Present. On Steam Deck,
-            // Gamescope can block vkQueuePresentKHR while its overlay is showing, which
-            // starves WM_TIMER and prevents _steamTimer from calling RunCallbacks().
-            // Calling it here ensures GameOverlayActivated_t fires as soon as
-            // Present unblocks, so SetPauseReason(Overlay) runs before the next frame.
             afterFramePresented: SteamManager.RunCallbacksAfterPresent,
             onInGameMenuOpened:  SteamManager.ActivateMenuSet,
             onInGameMenuClosed:  SteamManager.ActivateGameplaySet);
 
-        // Steam callbacks must be ticked on the same thread as SteamAPI.Init() (UI thread).
-        // During gameplay, Present is driven by the UploadFrame BeginInvoke in EmulationThread
-        // so it fires immediately after each frame is ready (tight coupling, no clock drift).
-        // The timer drives Present only when the emulation loop is paused, keeping the Steam
-        // overlay hook alive without a running emulation loop to supply BeginInvoke calls.
-        _steamTimer = new System.Windows.Forms.Timer { Interval = SteamCallbackIntervalMs };
-        _steamTimer.Tick += (_, _) =>
-        {
-            SteamManager.Tick();
-            if (_emulationThread?.IsPaused == true)
-                _renderer?.Tick(vsync: false);
-        };
-        _steamTimer.Start();
-
-        _focusChanged += active =>
+        _sdlHost.FocusChanged += active =>
             _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.FocusLost, !active);
 
         _audio!.Start(_config!.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
-        Focus(); // MainForm handles all keys via KeyPreview; focus the form directly
         _emulationThread.Start();
         Logger.Log("[Init] Startup complete — showing main menu.");
 
         _renderer?.MarkOverlayDirty();
-        _gamePanel?.Invalidate();
     }
 
     private void ReturnToMainMenu()
     {
-        // Pause emulation under the MainMenu reason before showing the screen,
-        // so the emulation thread blocks before the next frame is emulated.
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
         SteamManager.ActivateMenuSet();
         _mainMenuScreen?.Show();
         _mainMenuMusic?.FadeIn();
         _renderer?.MarkOverlayDirty();
-        _gamePanel?.Invalidate();
-        UpdateGamePanelVisibility();
     }
 
     private static Bitmap? LoadSidebarBitmap(string path)
@@ -687,17 +609,14 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     {
         string path = config.MainMenuMusicPath;
         if (string.IsNullOrWhiteSpace(path)) return null;
-
         string? resolved = MainMenuScreen.ResolveAssetPath(path);
         if (resolved == null) return null;
-
         try   { return new MainMenuMusic(resolved); }
-        catch { return null; /* bad file or audio device issue — degrade gracefully */ }
+        catch { return null; }
     }
 
     private string ResolveLanguage()
     {
-        // Explicit config takes priority — user's in-menu choice overrides Steam and OS.
         if (_config is not null
             && !string.IsNullOrEmpty(_config.Language)
             && !_config.Language.Equals("Auto", StringComparison.OrdinalIgnoreCase))
@@ -706,7 +625,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             return _config.Language;
         }
 
-        // Auto mode: Steam → OS culture → English.
         var resolver = new Localization.ChainedLanguageResolver([
             new Localization.SteamLanguageResolver(),
             new Localization.CultureInfoLanguageResolver(),
@@ -740,84 +658,44 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void SetWindowMode(bool fullscreen)
     {
         _isFullscreen = fullscreen;
-        if (fullscreen)
-        {
-            WindowState     = FormWindowState.Normal;
-            FormBorderStyle = FormBorderStyle.None;
-            TopMost         = true;
-            var screenBounds = Screen.FromHandle(Handle).Bounds;
-            SetBounds(screenBounds.X, screenBounds.Y, screenBounds.Width, screenBounds.Height);
-        }
-        else
-        {
-            TopMost         = false;
-            WindowState     = FormWindowState.Normal;
-            FormBorderStyle = FormBorderStyle.Sizable;
-            ClientSize      = new Size(1024, 672); // wider than NES display aspect to leave room for sidebars
-            CenterToScreen();
-        }
+        _sdlHost.SetFullscreen(fullscreen);
         _config!.WindowMode = fullscreen ? "Fullscreen" : "Windowed";
         Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
     }
 
-    /// <summary>
-    /// In D3D11 mode, keeps GamePanel permanently hidden — all rendering including menus
-    /// goes through the swap chain. Steam's overlay hooks IDXGISwapChain::Present and
-    /// composites itself directly into the swap chain buffer; a visible GDI child window
-    /// (GamePanel) would sit above the swap chain in DWM's Z-order and cover the overlay.
-    /// No-op in GDI+ fallback mode (GamePanel always visible).
-    /// </summary>
-    private void UpdateGamePanelVisibility()
+    private void OnKeyDown(Keys key)
     {
-        if (_gamePanel is null || _renderer?.OwnsFrameSurface != true) return;
-        _gamePanel.Visible = false;
-        Logger.Log("[Renderer] GamePanel.Visible=False (D3D11 mode).");
-    }
-
-    private void OnFormKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (_skipLogo is not null)
+        if (_logoScreen is not null)
         {
-            _skipLogo();
-            e.Handled = true;
+            SkipLogo();
             return;
         }
 
-        // Pre-game main menu has priority
         if (_mainMenuScreen?.IsVisible == true)
         {
-            if (_mainMenuScreen.HandleKey(e.KeyCode))
+            if (_mainMenuScreen.HandleKey(key))
             {
-                e.Handled = true;
                 _renderer?.MarkOverlayDirty();
-                _gamePanel?.Invalidate();
                 return;
             }
         }
 
         if (_menu is null || _emulationThread is null) return;
 
-        // Pass navigation keys to in-game menu when open
         if (_menu.IsOpen)
         {
-            if (_menu.HandleKey(e.KeyCode))
+            if (_menu.HandleKey(key))
             {
-                e.Handled = true;
                 _renderer?.MarkOverlayDirty();
-                _gamePanel?.Invalidate();
                 return;
             }
         }
 
-        // F11 window toggle — handled on UI thread
-        if (e.KeyCode == Keys.F11)
-        {
+        if (key == Keys.F11)
             SetWindowMode(!_isFullscreen);
-            e.Handled = true;
-        }
     }
 
-    // ---- IMenuSceneProvider / IMenuInputTarget ------------------------------------
+    // ---- IMenuSceneProvider --------------------------------------------------
 
     Action<Graphics, Rectangle>? Rendering.IMenuSceneProvider.GetActiveScenePainter()
     {
@@ -833,6 +711,8 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         return null;
     }
 
+    // ---- IMenuInputTarget ----------------------------------------------------
+
     bool UI.IMenuInputTarget.IsWaitingForGamepadButton
         => _mainMenuScreen?.IsGamepadRebinding == true || _menu?.IsGamepadRebinding == true;
 
@@ -841,10 +721,6 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         if (_mainMenuScreen?.IsVisible == true) _mainMenuScreen.HandleGamepadNav(nav);
         else if (_menu?.IsOpen == true)         _menu.HandleGamepadNav(nav);
         _renderer?.MarkOverlayDirty();
-        _gamePanel?.Invalidate();
-        // Render immediately rather than waiting for the next steam timer tick.
-        // On Wine/Proton, WM_TIMER can fire 20-30ms late; presenting here drops
-        // the visual response latency from "up to one timer interval" to near zero.
         if (_emulationThread?.IsPaused == true)
             _renderer?.Tick(vsync: false);
     }
@@ -856,43 +732,17 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             : _menu?.HandleGamepadButtonPress(buttonName);
         if (toast is not null) _renderer?.ShowToast(toast);
         _renderer?.MarkOverlayDirty();
-        _gamePanel?.Invalidate();
         if (_emulationThread?.IsPaused == true)
             _renderer?.Tick(vsync: false);
     }
 
-    // ---- Platform.IWindowHost ----------------------------------------------------
+    // ---- Shutdown ------------------------------------------------------------
 
-    IntPtr Platform.IWindowHost.Handle       => Handle;
-    int    Platform.IWindowHost.ClientWidth  => ClientSize.Width;
-    int    Platform.IWindowHost.ClientHeight => ClientSize.Height;
-
-    event Action<int, int>? Platform.IWindowHost.Resized
+    private void Shutdown()
     {
-        add    => _resized    += value;
-        remove => _resized    -= value;
-    }
-
-    event Action<bool>? Platform.IWindowHost.FocusChanged
-    {
-        add    => _focusChanged += value;
-        remove => _focusChanged -= value;
-    }
-
-    protected override void OnResize(EventArgs e)
-    {
-        base.OnResize(e);
-        _resized?.Invoke(ClientSize.Width, ClientSize.Height);
-    }
-
-    // ---- Form lifecycle -----------------------------------------------------------
-
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
-    {
-        Logger.Log("[Shutdown] Form closing — stopping emulation thread.");
+        Logger.Log("[Shutdown] RunLoop exited — stopping emulation thread.");
         _emulationThread?.Stop();
 
-        // Persist state — only auto-save if the game was actually running
         try
         {
             if (_gameHasStarted)
@@ -911,14 +761,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         }
         catch (Exception ex) { Logger.Log($"[Shutdown] Persist error: {ex.Message}"); }
 
-        // Dispose resources
         Logger.Log("[Shutdown] Disposing resources.");
-        _logoTimer?.Dispose();
         _logoScreen?.Dispose();
         _preloadedMenuBackground?.Dispose();
         _preloadedMusic?.Dispose();
-        _steamTimer?.Dispose();
-        _renderer?.Dispose(); // must be before _overlayRenderer — renderer does not own device/swap chain
+        _renderer?.Dispose();
         _overlayRenderer?.Dispose();
         _sidebarLeft?.Dispose();
         _sidebarRight?.Dispose();
@@ -928,15 +775,5 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _host?.Dispose();
         SteamManager.Shutdown();
         Logger.Log("[Shutdown] Done.");
-    }
-
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == WM_ACTIVATEAPP)
-        {
-            bool active = m.WParam != IntPtr.Zero;
-            _focusChanged?.Invoke(active);
-        }
-        base.WndProc(ref m);
     }
 }
