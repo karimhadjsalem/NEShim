@@ -15,7 +15,7 @@ using NEShim.UI;
 namespace NEShim;
 
 [ExcludeFromCodeCoverage]
-public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget
+public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInputTarget, Platform.IWindowHost
 {
     // ---- Win32 for WM_ACTIVATEAPP ----
     private const int WM_ACTIVATEAPP = 0x001C;
@@ -70,6 +70,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private bool _isFullscreen = true;
     private bool _gameHasStarted;
 
+    // ---- IWindowHost event backing fields ----------------------------------------
+    private event Action<int, int>? _resized;
+    private event Action<bool>?     _focusChanged;
+
     public MainForm()
     {
         InitializeComponent();
@@ -115,7 +119,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeWindowAndD3DHook()
     {
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, Handle, Width, Height);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, this);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
@@ -124,7 +128,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         ApplyRenderingOptions();
 
         // IFrameRenderer.Resize handles swap chain resize (D3D11) or hook resize (GDI+).
-        Resize += (_, _) => _renderer?.Resize(Width, Height);
+        _resized += (w, h) => _renderer?.Resize(w, h);
     }
 
     private void ApplyRenderingOptions()
@@ -173,7 +177,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _overlayRenderer?.Dispose();
         _overlayRenderer = null;
 
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, Handle, Width, Height);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, this);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, _gamePanel!, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
@@ -616,7 +620,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     {
         _emulationThread = new EmulationThread(
             _host!, _config!, _input!, _audio!, _frameBuffer!,
-            this,   // Control for BeginInvoke (MainForm is a Control)
+            action => BeginInvoke(action),  // UI thread marshal delegate
             this,   // IMenuInputTarget (MainForm implements it)
             _saves!, _menu!,
             _renderer!,
@@ -643,6 +647,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
                 _renderer?.Tick(vsync: false);
         };
         _steamTimer.Start();
+
+        _focusChanged += active =>
+            _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.FocusLost, !active);
 
         _audio!.Start(_config!.AudioDevice);
         _emulationThread.SetPauseReason(EmulationThread.PauseReasons.MainMenu, true);
@@ -854,6 +861,30 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
             _renderer?.Tick(vsync: false);
     }
 
+    // ---- Platform.IWindowHost ----------------------------------------------------
+
+    IntPtr Platform.IWindowHost.Handle       => Handle;
+    int    Platform.IWindowHost.ClientWidth  => ClientSize.Width;
+    int    Platform.IWindowHost.ClientHeight => ClientSize.Height;
+
+    event Action<int, int>? Platform.IWindowHost.Resized
+    {
+        add    => _resized    += value;
+        remove => _resized    -= value;
+    }
+
+    event Action<bool>? Platform.IWindowHost.FocusChanged
+    {
+        add    => _focusChanged += value;
+        remove => _focusChanged -= value;
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        _resized?.Invoke(ClientSize.Width, ClientSize.Height);
+    }
+
     // ---- Form lifecycle -----------------------------------------------------------
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -901,10 +932,10 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WM_ACTIVATEAPP && _emulationThread is not null)
+        if (m.Msg == WM_ACTIVATEAPP)
         {
             bool active = m.WParam != IntPtr.Zero;
-            _emulationThread.SetPauseReason(EmulationThread.PauseReasons.FocusLost, !active);
+            _focusChanged?.Invoke(active);
         }
         base.WndProc(ref m);
     }

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Windows.Forms;
 using NEShim.Config;
 using NEShim.GameLoop;
 using NEShim.Input;
@@ -17,7 +16,8 @@ internal class InputProcessorTests
     private IMenuInputTarget _menuInput  = null!;
     private ISaveManager    _saves       = null!;
     private AppConfig       _config      = null!;
-    private Control         _control     = null!;
+    // Synchronous inline marshal — adequate for unit tests where no UI thread exists
+    private static readonly Action<Action> SyncMarshal = a => a();
 
     [SetUp]
     public void SetUp()
@@ -27,13 +27,6 @@ internal class InputProcessorTests
         _saves     = Substitute.For<ISaveManager>();
         _saves.SlotCount.Returns(8);
         _config    = new AppConfig();
-        _control   = new Panel();
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        _control.Dispose();
     }
 
     private InGameMenu CreateMenu() =>
@@ -43,7 +36,7 @@ internal class InputProcessorTests
             _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
     private InputProcessor CreateProcessor(InGameMenu menu) =>
-        new(_input, menu, _menuInput, _control);
+        new(_input, menu, _menuInput, SyncMarshal);
 
     // ---- Poll ----
 

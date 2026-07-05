@@ -13,7 +13,7 @@ internal sealed class InputProcessor
     private readonly IInputReader _input;
     private readonly InGameMenu _menu;
     private readonly IMenuInputTarget _menuInput;
-    private readonly System.Windows.Forms.Control _uiMarshal;
+    private readonly Action<Action> _marshalToUiThread;
 
     private bool _justDismissedDisconnectScreen;
     private bool _prevIsWaitingForGamepadButton;
@@ -28,12 +28,12 @@ internal sealed class InputProcessor
         IInputReader input,
         InGameMenu menu,
         IMenuInputTarget menuInput,
-        System.Windows.Forms.Control uiMarshal)
+        Action<Action> marshalToUiThread)
     {
         _input = input;
         _menu = menu;
         _menuInput = menuInput;
-        _uiMarshal = uiMarshal;
+        _marshalToUiThread = marshalToUiThread;
     }
 
     /// <summary>Polls all input sources and returns the frame snapshot.</summary>
@@ -83,7 +83,7 @@ internal sealed class InputProcessor
             // in the menu when IsUsingNativeActions() is true.
             string? btn = _input.PollAnyGamepadButtonPressed();
             if (btn != null)
-                _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadButtonPress(btn));
+                _marshalToUiThread(() => _menuInput.HandleGamepadButtonPress(btn));
         }
         else
         {
@@ -94,7 +94,7 @@ internal sealed class InputProcessor
 
             var nav = _input.PollMenuNav(config);
             if (nav.Any)
-                _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadNav(nav));
+                _marshalToUiThread(() => _menuInput.HandleGamepadNav(nav));
         }
 
         _prevIsWaitingForGamepadButton = isWaiting;

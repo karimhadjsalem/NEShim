@@ -1,3 +1,5 @@
+using NEShim.Platform;
+
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace NEShim.Rendering;
 /// </summary>
 internal static class OverlayRendererFactory
 {
-    internal static IOverlayRenderer Create(string forceRenderer, IntPtr hwnd, int width, int height)
+    internal static IOverlayRenderer Create(string forceRenderer, IWindowHost windowHost)
     {
         if (forceRenderer.Equals("gdi", StringComparison.OrdinalIgnoreCase))
         {
@@ -16,8 +18,8 @@ internal static class OverlayRendererFactory
         }
 
         var steamRenderer = new SteamOverlayRenderer();
-        steamRenderer.Initialize(hwnd, width, height);
-        Logger.Log($"[Init] D3D overlay hook initialised ({width}×{height}).");
+        steamRenderer.Initialize(windowHost.Handle, windowHost.ClientWidth, windowHost.ClientHeight);
+        Logger.Log($"[Init] D3D overlay hook initialised ({windowHost.ClientWidth}×{windowHost.ClientHeight}).");
         return steamRenderer;
     }
 }

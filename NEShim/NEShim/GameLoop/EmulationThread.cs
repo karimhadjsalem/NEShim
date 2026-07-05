@@ -36,7 +36,7 @@ internal sealed class EmulationThread
     private readonly AudioPlayer        _audio;
     private readonly ISaveManager       _saveStates;
     private readonly InGameMenu         _menu;
-    private readonly System.Windows.Forms.Control _uiMarshal;
+    private readonly Action<Action>          _marshalToUiThread;
     private readonly Action?            _afterFramePresented;
     private readonly Action?            _onInGameMenuOpened;
     private readonly Action?            _onInGameMenuClosed;
@@ -62,7 +62,7 @@ internal sealed class EmulationThread
         IInputReader        input,
         AudioPlayer         audio,
         FrameBuffer         frameBuffer,
-        System.Windows.Forms.Control uiMarshal,
+        Action<Action>          marshalToUiThread,
         IMenuInputTarget    menuInput,
         ISaveManager        saveStates,
         InGameMenu          menu,
@@ -78,13 +78,13 @@ internal sealed class EmulationThread
         _audio               = audio;
         _saveStates          = saveStates;
         _menu                = menu;
-        _uiMarshal           = uiMarshal;
+        _marshalToUiThread   = marshalToUiThread;
         _afterFramePresented = afterFramePresented;
         _onInGameMenuOpened  = onInGameMenuOpened;
         _onInGameMenuClosed  = onInGameMenuClosed;
 
-        _inputProcessor    = new InputProcessor(input, menu, menuInput, uiMarshal);
-        _renderCoordinator = new RenderCoordinator(frameBuffer, renderer, action => uiMarshal.BeginInvoke(action));
+        _inputProcessor    = new InputProcessor(input, menu, menuInput, marshalToUiThread);
+        _renderCoordinator = new RenderCoordinator(frameBuffer, renderer, marshalToUiThread);
         _framePipeline     = new FramePipeline(host, audio, new AchievementProcessor(achievements),
                                                _renderCoordinator, saveStates);
 
@@ -93,13 +93,13 @@ internal sealed class EmulationThread
             _saveStates.AutoSave();
             SetPauseReason(PauseReasons.Menu, true);
             if (_onInGameMenuOpened != null)
-                _uiMarshal.BeginInvoke(_onInGameMenuOpened);
+                _marshalToUiThread(_onInGameMenuOpened);
         };
         _menu.Closed += () =>
         {
             SetPauseReason(PauseReasons.Menu, false);
             if (_onInGameMenuClosed != null)
-                _uiMarshal.BeginInvoke(_onInGameMenuClosed);
+                _marshalToUiThread(_onInGameMenuClosed);
         };
 
         _input.HotkeyFired         += HandleHotkeyAction;
