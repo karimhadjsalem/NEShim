@@ -18,9 +18,12 @@ namespace NEShim.Input.Sources;
 /// in the same frame because it refreshes the internal _controllerBuf that
 /// IsUsingNativeActions reads.
 /// </summary>
-internal sealed class SteamInputSource : IInputSource, IMenuNavSource
+internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButtonSource
 {
-    private bool _lastAvailable;
+    private bool   _lastAvailable;
+    private bool   _prevNative;
+    private string _lastLoggedActions = "";
+    private bool   _prevAnyActive;
 
     public bool IsAvailable => _lastAvailable;
 
@@ -39,15 +42,46 @@ internal sealed class SteamInputSource : IInputSource, IMenuNavSource
                    && Steam.SteamInputManager.IsUsingNativeActions();
         _lastAvailable = native;
 
+        if (native != _prevNative)
+        {
+            if (native)
+                Logger.Log($"[Steam] Controller switched to native actions. Connected={Steam.SteamInputManager.HasConnectedController}");
+            else
+                Logger.Log($"[Steam] Controller switched to XInput passthrough. Connected={Steam.SteamInputManager.HasConnectedController}");
+            _prevNative = native;
+        }
+
         // When the controller is in XInput-passthrough mode, Steam reports no native
         // action origins and XInput handles all button input. Return empty to prevent
         // double-reporting the same press through both paths.
         if (!native)
             return new HashSet<string>();
 
+        if (Logger.IsEnabled)
+        {
+            // Log active Steam actions on change so the user can see what the action set
+            // is reporting (useful for diagnosing missing analog stick mappings).
+            string sorted = string.Join(",", actions.OrderBy(x => x));
+            if (sorted != _lastLoggedActions)
+            {
+                Logger.Log($"[Steam] Active actions ({actions.Count}): {(actions.Count > 0 ? sorted : "none")}");
+                _lastLoggedActions = sorted;
+            }
+        }
+
         return actions;
     }
 
     public MenuNavInput GetMenuNav(AppConfig config)
         => Steam.SteamInputManager.GetMenuNav();
+
+    // ── IAnyButtonSource ───────────────────────────────────────────────────────
+
+    public bool AnyJustPressed()
+    {
+        bool anyNow = Steam.SteamInputManager.AnyMenuActionActive();
+        bool result = anyNow && !_prevAnyActive;
+        _prevAnyActive = anyNow;
+        return result;
+    }
 }

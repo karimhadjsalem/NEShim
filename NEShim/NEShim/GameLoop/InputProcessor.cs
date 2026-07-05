@@ -16,6 +16,7 @@ internal sealed class InputProcessor
     private readonly System.Windows.Forms.Control _uiMarshal;
 
     private bool _justDismissedDisconnectScreen;
+    private bool _prevIsWaitingForGamepadButton;
 
     /// <summary>
     /// True for the frame on which the controller-disconnect overlay was dismissed.
@@ -68,8 +69,15 @@ internal sealed class InputProcessor
     /// </summary>
     public void PollPausedMenuInput(AppConfig config)
     {
-        if (_menuInput.IsWaitingForGamepadButton)
+        bool isWaiting = _menuInput.IsWaitingForGamepadButton;
+
+        if (isWaiting)
         {
+            // Entering binding mode: seed _prevBindingPad so the button used to confirm the
+            // slot selection (A) is already "seen" and won't fire as the new binding.
+            if (!_prevIsWaitingForGamepadButton)
+                _input.FlushBindingEdges();
+
             // Rebind is always XInput-only. Native Steam controllers remap via
             // Steam's controller configurator; their binding rows are read-only
             // in the menu when IsUsingNativeActions() is true.
@@ -79,9 +87,16 @@ internal sealed class InputProcessor
         }
         else
         {
+            // Exiting binding mode: advance nav edge state past the button just used for
+            // binding so it doesn't fire a navigation action (e.g. B → back) on the next frame.
+            if (_prevIsWaitingForGamepadButton)
+                _input.PollMenuNav(config);
+
             var nav = _input.PollMenuNav(config);
             if (nav.Any)
                 _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadNav(nav));
         }
+
+        _prevIsWaitingForGamepadButton = isWaiting;
     }
 }

@@ -291,6 +291,22 @@ internal static class SteamInputManager
         return nav;
     }
 
+    /// <summary>
+    /// Returns true if any menu-set button is currently held on the first connected controller.
+    /// Raw state only — no edge detection. Used by <see cref="NEShim.Input.Sources.SteamInputSource"/>
+    /// to implement <see cref="NEShim.Input.IAnyButtonSource"/> with its own edge state.
+    /// </summary>
+    public static bool AnyMenuActionActive()
+    {
+        if (!IsAvailable) return false;
+        int count = RefreshControllers();
+        if (count == 0) return false;
+        var h = _controllerBuf[0];
+        return Digital(h, _hMenuUp)    || Digital(h, _hMenuDown)  ||
+               Digital(h, _hMenuLeft)  || Digital(h, _hMenuRight) ||
+               Digital(h, _hMenuConfirm) || Digital(h, _hMenuBack);
+    }
+
     private static int RefreshControllers()
     {
         _connectedCount = SteamInput.GetConnectedControllers(_controllerBuf);

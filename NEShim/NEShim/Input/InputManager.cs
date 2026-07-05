@@ -25,11 +25,10 @@ internal sealed class InputManager : IInputReader
     private readonly HashSet<Keys> _prevHotkeyKeys = new();
     private XInputHelper.GamepadState _prevHotkeyPad;
 
-    // Separate edge state for PollAnyGamepadButtonPressed (binding UI)
-    private XInputHelper.GamepadState _prevBindingPad;
-
     // Controller disconnect tracking
     private bool _wasControllerConnected;
+    private bool _prevLoggedXInput;
+    private bool _prevLoggedSteam;
 
     // ── IoC events ─────────────────────────────────────────────────────────────
 
@@ -89,6 +88,15 @@ internal sealed class InputManager : IInputReader
         if (_wasControllerConnected && !controllerNow)
             GamepadDisconnected?.Invoke();
         _wasControllerConnected = controllerNow;
+
+        bool xInputNow = _xInputSource.IsAvailable;
+        bool steamNow  = _steamSource.IsAvailable;
+        if (xInputNow != _prevLoggedXInput || steamNow != _prevLoggedSteam)
+        {
+            Logger.Log($"[Input] Source: XInput={xInputNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
+            _prevLoggedXInput = xInputNow;
+            _prevLoggedSteam  = steamNow;
+        }
 
         return new InputSnapshot(builder.ToImmutable());
     }
@@ -174,29 +182,22 @@ internal sealed class InputManager : IInputReader
                (curr.DPadLeft      && !prev.DPadLeft)      || (curr.DPadRight     && !prev.DPadRight);
     }
 
+    public bool PollAnyControllerButton()
+    {
+        bool any = false;
+        if (_xInputSource is IAnyButtonSource xa) any |= xa.AnyJustPressed();
+        if (_steamSource  is IAnyButtonSource sa) any |= sa.AnyJustPressed();
+        return any;
+    }
+
+    public void FlushBindingEdges()
+    {
+        if (_xInputSource is IBindingSource b) b.FlushEdges();
+    }
+
     public string? PollAnyGamepadButtonPressed()
     {
-        var pad  = XInputHelper.GetState(0);
-        var prev = _prevBindingPad;
-
-        if (!pad.Connected) { _prevBindingPad = default; return null; }
-        _prevBindingPad = pad;
-
-        if (pad.A             && !prev.A)             return "A";
-        if (pad.B             && !prev.B)             return "B";
-        if (pad.X             && !prev.X)             return "X";
-        if (pad.Y             && !prev.Y)             return "Y";
-        if (pad.Start         && !prev.Start)         return "Start";
-        if (pad.Back          && !prev.Back)          return "Back";
-        if (pad.LeftShoulder  && !prev.LeftShoulder)  return "LeftShoulder";
-        if (pad.RightShoulder && !prev.RightShoulder) return "RightShoulder";
-        if (pad.LeftThumb     && !prev.LeftThumb)     return "LeftThumb";
-        if (pad.RightThumb    && !prev.RightThumb)    return "RightThumb";
-        if (pad.DPadUp        && !prev.DPadUp)        return "DPadUp";
-        if (pad.DPadDown      && !prev.DPadDown)      return "DPadDown";
-        if (pad.DPadLeft      && !prev.DPadLeft)      return "DPadLeft";
-        if (pad.DPadRight     && !prev.DPadRight)     return "DPadRight";
-
+        if (_xInputSource is IBindingSource b) return b.PollAnyButtonPressed();
         return null;
     }
 }

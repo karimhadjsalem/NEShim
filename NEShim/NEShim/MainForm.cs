@@ -233,6 +233,11 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     {
         _renderer?.MarkOverlayDirty();
         _gamePanel?.Invalidate();
+        if (_input!.PollAnyControllerButton())
+        {
+            SkipLogo();
+            return;
+        }
         if (_logoScreen?.IsComplete != true) return;
         _logoTimer!.Stop();
         _logoTimer.Dispose();
