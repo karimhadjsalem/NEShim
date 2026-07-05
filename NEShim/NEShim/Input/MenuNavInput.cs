@@ -14,4 +14,14 @@ internal readonly struct MenuNavInput
     public bool Back    { get; init; }
 
     public bool Any => Up || Down || Left || Right || Confirm || Back;
+
+    public static MenuNavInput Union(MenuNavInput a, MenuNavInput b) => new()
+    {
+        Up      = a.Up      || b.Up,
+        Down    = a.Down    || b.Down,
+        Left    = a.Left    || b.Left,
+        Right   = a.Right   || b.Right,
+        Confirm = a.Confirm || b.Confirm,
+        Back    = a.Back    || b.Back,
+    };
 }

@@ -23,7 +23,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     // ---- Core components ----
     private AppConfig?        _config;
     private IEmulationCore?       _host;
-    private InputManager?     _input;
+    private IInputReader?     _input;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;

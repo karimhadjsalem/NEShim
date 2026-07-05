@@ -53,6 +53,10 @@ internal sealed class EmulationThread
 
     private Thread? _thread;
 
+    // Set for one frame when the controller-disconnect overlay is dismissed by user input,
+    // so HandleMenuToggle ignores any simultaneous Esc/Start press that frame.
+    private bool _justDismissedDisconnectScreen;
+
     private readonly FpsTracker _fpsTracker = new(new StopwatchClock());
 
     // Periodic auto-save
@@ -108,6 +112,10 @@ internal sealed class EmulationThread
             if (_onInGameMenuClosed != null)
                 _uiMarshal.BeginInvoke(_onInGameMenuClosed);
         };
+
+        _input.HotkeyFired       += HandleHotkeyAction;
+        _input.MenuToggleRequested += HandleMenuToggle;
+        _input.GamepadDisconnected += HandleGamepadDisconnected;
     }
 
     /// <summary>
@@ -194,12 +202,26 @@ internal sealed class EmulationThread
 
             // 1. Poll input
             var snapshot = _input.PollSnapshot(_config);
+            // (GamepadDisconnected event may fire here → HandleGamepadDisconnected opens overlay)
 
-            // 2. Handle edge-triggered hotkeys
-            HandleHotkeys();
-            _input.AdvanceHotkeyState();
+            // 2. Dismiss disconnect overlay on any input — must run before AdvanceHotkeyState
+            // so IsAnyInputJustPressed uses the previous frame's edge state.
+            _justDismissedDisconnectScreen = false;
+            if ((_pauseReasonBits & (int)PauseReasons.MainMenu) == 0
+                && _menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected)
+            {
+                if (_input.IsAnyInputJustPressed())
+                {
+                    Logger.Log("[Emulation] Input received — dismissing disconnect screen.");
+                    _menu.Close();
+                    _justDismissedDisconnectScreen = true;
+                }
+            }
 
-            // 3. Pause check — block here while paused, polling gamepad for menu input
+            // 3. Detect edge-triggered hotkeys; events fire into HandleHotkeyAction / HandleMenuToggle
+            _input.AdvanceHotkeyState(_config);
+
+            // 4. Pause check — block here while paused, polling gamepad for menu input
             // (Steam callbacks are ticked on the UI thread via MainForm._steamTimer)
             if (IsPaused)
             {
@@ -232,7 +254,7 @@ internal sealed class EmulationThread
 
             long tAfterInput = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
-            // 4. Emulate one frame — input, FrameAdvance, video, and audio are bundled
+            // 5. Emulate one frame — input, FrameAdvance, video, and audio are bundled
             var frame = _core.RunFrame(snapshot);
             long tAfterRunFrame = timingEnabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -325,93 +347,81 @@ internal sealed class EmulationThread
         SetPauseReason(PauseReasons.MainMenu, false);
     }
 
-    private void HandleHotkeys()
+    // ── Input event handlers (subscribed in constructor) ───────────────────────
+
+    private void HandleGamepadDisconnected()
     {
-        // Don't process in-game hotkeys while the pre-game main menu is visible
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
+        if (_menu.IsOpen) return;
 
-        // Open disconnect screen when controller is lost.
-        // Opened event wired in constructor fires MarkOverlayDirty + Invalidate via MainForm.
-        if (_input.ConsumeGamepadDisconnect() && !_menu.IsOpen)
-        {
-            Logger.Log("[Emulation] Controller disconnected — opening disconnect screen.");
-            _menu.Open(InGameMenu.Screen.ControllerDisconnected);
-            return;
-        }
+        Logger.Log("[Emulation] Controller disconnected — opening disconnect screen.");
+        _menu.Open(InGameMenu.Screen.ControllerDisconnected);
+    }
 
-        // Dismiss disconnect screen on any button or key press.
-        // Closed event wired in constructor fires MarkOverlayDirty + Invalidate via MainForm.
-        if (_menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected)
+    private void HandleMenuToggle()
+    {
+        if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
+        // If the disconnect overlay was dismissed this frame by user input, suppress
+        // the simultaneous toggle so pressing Esc/Start doesn't immediately open the menu.
+        if (_justDismissedDisconnectScreen) return;
+        if (_menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected) return;
+
+        if (_menu.IsOpen)
         {
-            if (_input.IsAnyInputJustPressed())
+            // Don't close while rebinding — the Start press will be surfaced as a
+            // "reserved" toast by PollAnyGamepadButtonPressed instead.
+            if (!_menu.IsGamepadRebinding)
             {
-                Logger.Log("[Emulation] Input received — dismissing disconnect screen.");
+                Logger.Log("[Emulation] Hotkey: in-game menu closed.");
                 _menu.Close();
             }
-            return;
         }
-
-        // Open/close menu — Escape (system-reserved), the configured gamepad hotkey
-        // (left bumper by default), or Start (unless overrideStartBindingProtection is on)
-        bool openMenuPressed = _input.IsEscJustPressed()
-            || _input.IsGamepadHotkeyJustPressed("OpenMenu", _config)
-            || (!_config.OverrideStartBindingProtection && _input.IsGamepadStartJustPressed());
-        if (openMenuPressed)
+        else
         {
-            if (_menu.IsOpen)
-            {
-                // Don't close while rebinding — the Start press will be picked up by
-                // PollAnyGamepadButtonPressed and surfaced as a "reserved" toast instead.
-                if (!_menu.IsGamepadRebinding)
-                {
-                    Logger.Log("[Emulation] Hotkey: in-game menu closed.");
-                    _menu.Close();
-                }
-            }
-            else
-            {
-                Logger.Log("[Emulation] Hotkey: in-game menu opened.");
-                _menu.Open();
-            }
-            return; // Skip other hotkeys if menu just toggled
+            Logger.Log("[Emulation] Hotkey: in-game menu opened.");
+            _menu.Open();
         }
+    }
 
-        if (_menu.IsOpen) return; // Menu consumes other hotkeys
+    private void HandleHotkeyAction(string action)
+    {
+        if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
+        if (_menu.IsOpen) return; // Menu consumes all hotkeys
 
-        // Save/load active slot
-        if (_input.IsHotkeyJustPressed("SaveActiveSlot", _config))
+        switch (action)
         {
-            Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
-            _saveStates.SaveToActiveSlot();
-            _uiMarshal.BeginInvoke(() =>
-                _renderer.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
-        }
-
-        if (_input.IsHotkeyJustPressed("LoadActiveSlot", _config))
-        {
-            Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
-            bool loaded = _saveStates.LoadFromActiveSlot();
-            _uiMarshal.BeginInvoke(() =>
-                _renderer.ShowToast(loaded
-                    ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
-                    : $"Slot {_saveStates.ActiveSlot + 1} — Empty"));
-        }
-
-        // Slot selection F1–F8
-        for (int i = 0; i < 8; i++)
-        {
-            string action = $"SelectSlot{i + 1}";
-            if (_input.IsHotkeyJustPressed(action, _config))
-            {
-                Logger.Log($"[Emulation] Hotkey: select slot {i + 1}.");
-                _saveStates.ActiveSlot = _config.ActiveSlot = i;
-                int slot = i; // capture
+            case "SaveActiveSlot":
+                Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
+                _saveStates.SaveToActiveSlot();
                 _uiMarshal.BeginInvoke(() =>
-                    _renderer.ShowToast($"Slot {slot + 1} Selected"));
+                    _renderer.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
                 break;
-            }
-        }
 
-        // Window mode toggle handled by MainForm via F11
+            case "LoadActiveSlot":
+                Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
+                bool loaded = _saveStates.LoadFromActiveSlot();
+                _uiMarshal.BeginInvoke(() =>
+                    _renderer.ShowToast(loaded
+                        ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
+                        : $"Slot {_saveStates.ActiveSlot + 1} — Empty"));
+                break;
+
+            default:
+                // Slot selection: SelectSlot1 … SelectSlot8
+                for (int i = 0; i < 8; i++)
+                {
+                    if (action == $"SelectSlot{i + 1}")
+                    {
+                        Logger.Log($"[Emulation] Hotkey: select slot {i + 1}.");
+                        _saveStates.ActiveSlot = _config.ActiveSlot = i;
+                        int slot = i;
+                        _uiMarshal.BeginInvoke(() =>
+                            _renderer.ShowToast($"Slot {slot + 1} Selected"));
+                        break;
+                    }
+                }
+                break;
+        }
+        // Window mode toggle handled by MainForm via F11 key event
     }
 }
