@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NEShim.Achievements;
-using NEShim.SealAchievements;
 
 // ── Usage ────────────────────────────────────────────────────────────────────
 //   seal-achievements --gen-keypair

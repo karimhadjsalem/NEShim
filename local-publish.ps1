@@ -22,13 +22,14 @@ $outBase = Join-Path $root "publish\v$Version"
 $outGame = Join-Path $outBase "NEShim"
 $outTool = Join-Path $outBase "SealAchievements"
 
-$gameCsproj = Join-Path $root "NEShim\NEShim\NEShim.csproj"
-$toolCsproj = Join-Path $root "NEShim\NEShim.SealAchievements\NEShim.SealAchievements.csproj"
+$gameCsproj   = Join-Path $root "NEShim\NEShim\NEShim.csproj"
+$toolCsproj   = Join-Path $root "NEShim\NEShim.SealAchievements\NEShim.SealAchievements.csproj"
+$toolUiCsproj = Join-Path $root "NEShim\NEShim.SealAchievementsUI\NEShim.SealAchievementsUI.csproj"
 
 Write-Host ""
 Write-Host "NEShim v$Version — local publish"
-Write-Host "  Game:   $outGame"
-Write-Host "  Sealer: $outTool"
+Write-Host "  Game:      $outGame"
+Write-Host "  Sealer:    $outTool (CLI + UI)"
 Write-Host ""
 
 # ── Game ─────────────────────────────────────────────────────────────────────
@@ -60,6 +61,22 @@ dotnet publish $toolCsproj `
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Sealer publish failed (exit $LASTEXITCODE)."
+    exit $LASTEXITCODE
+}
+
+# ── Sealer UI ────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "Publishing seal-achievements-ui..."
+dotnet publish $toolUiCsproj `
+    -c Release `
+    -r win-x64 `
+    --self-contained true `
+    -p:Version=$Version `
+    -p:DebugType=none `
+    -o $outTool
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Sealer UI publish failed (exit $LASTEXITCODE)."
     exit $LASTEXITCODE
 }
 

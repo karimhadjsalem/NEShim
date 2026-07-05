@@ -1,20 +1,18 @@
-using NEShim.Achievements;
-
-namespace NEShim.SealAchievements;
+namespace NEShim.Achievements;
 
 /// <summary>
 /// Verifies ECDSA-P256 signatures on every <see cref="AchievementDef"/> in a config dictionary.
 /// I/O-free — operates entirely on the in-memory data structure so it can be unit tested.
 /// </summary>
-internal static class ValidationService
+public static class ValidationService
 {
-    internal readonly record struct ValidationResult(int Valid, int Failed);
+    public readonly record struct ValidationResult(int Valid, int Failed);
 
     /// <summary>
     /// Verifies the signature of every achievement definition in <paramref name="configs"/>
     /// against <paramref name="publicKeyBase64"/> and invokes <paramref name="onResult"/> for each.
     /// </summary>
-    internal static ValidationResult Validate(
+    public static ValidationResult Validate(
         Dictionary<string, GameAchievementConfig> configs,
         string publicKeyBase64,
         Action<string, bool> onResult)

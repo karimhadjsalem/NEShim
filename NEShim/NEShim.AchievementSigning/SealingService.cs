@@ -1,14 +1,12 @@
-using NEShim.Achievements;
-
-namespace NEShim.SealAchievements;
+namespace NEShim.Achievements;
 
 /// <summary>
 /// Stamps ECDSA-P256 signatures onto every <see cref="AchievementDef"/> in a config dictionary.
 /// I/O-free — operates entirely on the in-memory data structure so it can be unit tested.
 /// </summary>
-internal static class SealingService
+public static class SealingService
 {
-    internal readonly record struct SealResult(int Sealed, int Skipped);
+    public readonly record struct SealResult(int Sealed, int Skipped);
 
     /// <summary>
     /// Iterates every achievement definition in <paramref name="configs"/>, computes its
@@ -16,7 +14,7 @@ internal static class SealingService
     /// <see cref="AchievementDef.Sig"/>.
     /// Definitions with a null or whitespace <see cref="AchievementDef.SteamId"/> are skipped.
     /// </summary>
-    internal static SealResult Seal(
+    public static SealResult Seal(
         Dictionary<string, GameAchievementConfig> configs,
         string privateKeyBase64)
     {

@@ -1,5 +1,4 @@
 using NEShim.Achievements;
-using NEShim.SealAchievements;
 
 namespace NEShim.Tests.SealAchievements;
 
