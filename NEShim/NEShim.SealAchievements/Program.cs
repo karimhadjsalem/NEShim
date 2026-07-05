@@ -9,15 +9,143 @@ using NEShim.SealAchievements;
 //   seal-achievements --key-file <private_key_file> [path/to/achievements.json]
 //   seal-achievements --key <base64_private_key>    [path/to/achievements.json]
 //   seal-achievements --key-env <ENV_VAR>           [path/to/achievements.json]
+//   seal-achievements --validate [--pub-key <base64>] [path/to/package/dir]
 //
 // --gen-keypair  generates a new ECDSA-P256 keypair and exits.
 //                Embed the public key in AchievementSigner.EmbeddedPublicKeyBase64 (source build)
 //                or set achievementPublicKey in config.json (pre-built release).
 //                Store the private key outside source control.
 //
-// --key          path to a file containing the base64-encoded private key.
+// --key-file     path to a file containing the base64-encoded private key.
 // --key-env      name of an environment variable holding the base64-encoded private key.
+//
+// --validate     verifies all achievement signatures in a package directory (defaults to cwd).
+//                Public key resolution (same precedence as the game at runtime):
+//                  1. --pub-key <base64>  explicit override
+//                  2. AchievementSigner.EmbeddedPublicKeyBase64  baked into the compiled tool
+//                  3. achievementPublicKey in config.json in the package directory
 // ─────────────────────────────────────────────────────────────────────────────
+
+if (args.Length >= 1 && args[0] == "--validate")
+{
+    // ── Resolve optional --pub-key override ──────────────────────────────────
+    string? explicitKey = null;
+    int validateArgOffset = 1;
+    if (args.Length >= 3 && args[1] == "--pub-key")
+    {
+        explicitKey = args[2];
+        validateArgOffset = 3;
+    }
+
+    // ── Resolve package directory ────────────────────────────────────────────
+    string dir = args.Length > validateArgOffset
+        ? args[validateArgOffset]
+        : Directory.GetCurrentDirectory();
+
+    if (!Directory.Exists(dir))
+    {
+        Console.Error.WriteLine($"Directory not found: {dir}");
+        return 1;
+    }
+
+    // ── Resolve public key (three-step precedence) ───────────────────────────
+    string? publicKey = null;
+
+    if (!string.IsNullOrEmpty(explicitKey))
+    {
+        publicKey = explicitKey;
+    }
+    else if (!string.IsNullOrEmpty(AchievementSigner.EmbeddedPublicKeyBase64))
+    {
+        publicKey = AchievementSigner.EmbeddedPublicKeyBase64;
+        Console.WriteLine("Using public key embedded in tool binary.");
+    }
+    else
+    {
+        string configPath = Path.Combine(dir, "config.json");
+        if (!File.Exists(configPath))
+        {
+            Console.Error.WriteLine($"config.json not found in {dir}");
+            Console.Error.WriteLine("Provide a public key with --pub-key or ensure config.json contains achievementPublicKey.");
+            return 1;
+        }
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            publicKey = doc.RootElement.TryGetProperty("achievementPublicKey", out var el)
+                ? el.GetString()
+                : null;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to read config.json: {ex.Message}");
+            return 1;
+        }
+
+        if (string.IsNullOrEmpty(publicKey))
+        {
+            Console.Error.WriteLine("achievementPublicKey is not set in config.json.");
+            Console.Error.WriteLine("Provide a public key with --pub-key or set achievementPublicKey in config.json.");
+            return 1;
+        }
+    }
+
+    // ── Load achievements.json ───────────────────────────────────────────────
+    string achievementsPath = Path.Combine(dir, "achievements.json");
+    if (!File.Exists(achievementsPath))
+    {
+        Console.Error.WriteLine($"achievements.json not found in {dir}");
+        return 1;
+    }
+
+    var validateOptions = new JsonSerializerOptions
+    {
+        WriteIndented               = true,
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition      = JsonIgnoreCondition.Never,
+    };
+
+    Dictionary<string, GameAchievementConfig>? validateConfigs;
+    try
+    {
+        validateConfigs = JsonSerializer.Deserialize<Dictionary<string, GameAchievementConfig>>(
+            File.ReadAllText(achievementsPath), validateOptions);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to parse achievements.json: {ex.Message}");
+        return 1;
+    }
+
+    if (validateConfigs is null || validateConfigs.Count == 0)
+    {
+        Console.Error.WriteLine("No entries found in achievements.json.");
+        return 1;
+    }
+
+    // ── Validate ─────────────────────────────────────────────────────────────
+    int totalValid = 0, totalFailed = 0;
+    foreach (var (romHash, config) in validateConfigs)
+    {
+        Console.WriteLine($"\nROM {romHash[..Math.Min(12, romHash.Length)]}…  ({config.Achievements.Count} achievement(s))");
+
+        var romResult = ValidationService.Validate(
+            new Dictionary<string, GameAchievementConfig> { [romHash] = config },
+            publicKey!,
+            (steamId, ok) => Console.WriteLine(ok
+                ? $"  [OK]   {steamId}"
+                : $"  [FAIL] {steamId} — missing or invalid signature"));
+
+        totalValid  += romResult.Valid;
+        totalFailed += romResult.Failed;
+    }
+
+    Console.WriteLine(totalFailed == 0
+        ? $"\nResult: {totalValid}/{totalValid + totalFailed} valid — All OK."
+        : $"\nResult: {totalValid}/{totalValid + totalFailed} valid — {totalFailed} FAILED.");
+
+    return totalFailed > 0 ? 1 : 0;
+}
 
 if (args.Length == 1 && args[0] == "--gen-keypair")
 {
