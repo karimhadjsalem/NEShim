@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
-using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Emulation;
@@ -14,7 +13,8 @@ namespace NEShim.GameLoop;
 
 /// <summary>
 /// Runs the NES emulation loop on a dedicated high-priority thread at ~60Hz.
-/// Owns frame timing, pause logic, hotkey dispatch, audio submission, and Steam ticks.
+/// Owns thread lifecycle, pause state, and frame timing; delegates per-frame work
+/// to <see cref="FramePipeline"/>, <see cref="InputProcessor"/>, and <see cref="RenderCoordinator"/>.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal sealed class EmulationThread
@@ -30,22 +30,20 @@ internal sealed class EmulationThread
         DeviceLost = 16,  // D3D11 device was lost; cleared after successful reinitialisation
     }
 
-    private readonly IEmulationCore    _core;
-    private readonly AppConfig         _config;
-    private readonly IInputReader      _input;
-    private readonly AudioPlayer       _audio;
-    private readonly FrameBuffer       _frameBuffer;
-    private readonly System.Windows.Forms.Control _uiMarshal;
-    private readonly IMenuInputTarget  _menuInput;
+    private readonly IEmulationCore     _core;
+    private readonly AppConfig          _config;
+    private readonly IInputReader       _input;
+    private readonly AudioPlayer        _audio;
     private readonly ISaveManager       _saveStates;
-    private readonly InGameMenu        _menu;
-    private readonly AchievementManager? _achievements;
+    private readonly InGameMenu         _menu;
+    private readonly System.Windows.Forms.Control _uiMarshal;
     private readonly Action?            _afterFramePresented;
     private readonly Action?            _onInGameMenuOpened;
     private readonly Action?            _onInGameMenuClosed;
-    // Written on the UI thread only while the emulation thread is blocked on DeviceLost pause;
-    // ManualResetEventSlim.Set() provides the memory barrier that makes the write visible on resume.
-    private IFrameRenderer             _renderer;
+
+    private readonly InputProcessor     _inputProcessor;
+    private readonly RenderCoordinator  _renderCoordinator;
+    private readonly FramePipeline      _framePipeline;
 
     private readonly ManualResetEventSlim _resumeEvent = new(initialState: true);
     private volatile int _pauseReasonBits = 0;
@@ -53,17 +51,7 @@ internal sealed class EmulationThread
 
     private Thread? _thread;
 
-    // Set for one frame when the controller-disconnect overlay is dismissed by user input,
-    // so HandleMenuToggle ignores any simultaneous Esc/Start press that frame.
-    private bool _justDismissedDisconnectScreen;
-
-    private readonly FpsTracker _fpsTracker = new(new StopwatchClock());
-
-    // Periodic auto-save
-    private const int AutoSaveIntervalFrames = 18_000; // ~5 min at 60 fps
-    private int _autoSaveFrameCounter;
-
-    public float CurrentFps => _fpsTracker.CurrentFps;
+    public float CurrentFps => _framePipeline.CurrentFps;
 
     public PauseReasons ActivePauseReasons => (PauseReasons)_pauseReasonBits;
     public bool IsPaused => _pauseReasonBits != 0;
@@ -79,7 +67,7 @@ internal sealed class EmulationThread
         ISaveManager        saveStates,
         InGameMenu          menu,
         IFrameRenderer      renderer,
-        AchievementManager? achievements        = null,
+        Achievements.AchievementManager? achievements        = null,
         Action?             afterFramePresented = null,
         Action?             onInGameMenuOpened  = null,
         Action?             onInGameMenuClosed  = null)
@@ -88,16 +76,17 @@ internal sealed class EmulationThread
         _config              = config;
         _input               = input;
         _audio               = audio;
-        _frameBuffer         = frameBuffer;
-        _uiMarshal           = uiMarshal;
-        _menuInput           = menuInput;
         _saveStates          = saveStates;
         _menu                = menu;
-        _renderer            = renderer;
-        _achievements        = achievements;
+        _uiMarshal           = uiMarshal;
         _afterFramePresented = afterFramePresented;
         _onInGameMenuOpened  = onInGameMenuOpened;
         _onInGameMenuClosed  = onInGameMenuClosed;
+
+        _inputProcessor    = new InputProcessor(input, menu, menuInput, uiMarshal);
+        _renderCoordinator = new RenderCoordinator(frameBuffer, renderer, action => uiMarshal.BeginInvoke(action));
+        _framePipeline     = new FramePipeline(host, audio, new AchievementProcessor(achievements),
+                                               _renderCoordinator, saveStates);
 
         _menu.Opened += () =>
         {
@@ -113,7 +102,7 @@ internal sealed class EmulationThread
                 _uiMarshal.BeginInvoke(_onInGameMenuClosed);
         };
 
-        _input.HotkeyFired       += HandleHotkeyAction;
+        _input.HotkeyFired         += HandleHotkeyAction;
         _input.MenuToggleRequested += HandleMenuToggle;
         _input.GamepadDisconnected += HandleGamepadDisconnected;
     }
@@ -123,7 +112,7 @@ internal sealed class EmulationThread
     /// Must only be called on the UI thread while the emulation thread is blocked on
     /// <see cref="PauseReasons.DeviceLost"/> — the ManualResetEventSlim barrier guarantees visibility.
     /// </summary>
-    internal void UpdateRenderer(IFrameRenderer renderer) => _renderer = renderer;
+    internal void UpdateRenderer(IFrameRenderer renderer) => _renderCoordinator.UpdateRenderer(renderer);
 
     public void SetPauseReason(PauseReasons reason, bool active)
     {
@@ -178,15 +167,11 @@ internal sealed class EmulationThread
         Logger.Log("[Emulation] Thread stopped.");
     }
 
-    // Threshold above which a frame's work time is logged (14 ms leaves 2.67 ms of slack at 60 Hz).
-    private static readonly long SlowFrameThresholdTicks = Stopwatch.Frequency * 14 / 1000;
-
     private void Loop()
     {
         long ticksPerFrame = (long)((double)Stopwatch.Frequency
             * _core.VsyncDenominator / _core.VsyncNumerator);
         long spinThreshold = Stopwatch.Frequency / 1000;
-        bool timingEnabled = Logger.IsEnabled;
 
         // frameStart tracks the absolute deadline grid. Each frame's target is
         // frameStart + ticksPerFrame; after the wait we advance frameStart to that
@@ -198,49 +183,23 @@ internal sealed class EmulationThread
 
         while (!_stopRequested)
         {
-            long t0 = timingEnabled ? Stopwatch.GetTimestamp() : 0;
-
             // 1. Poll input
-            var snapshot = _input.PollSnapshot(_config);
+            var snapshot = _inputProcessor.Poll(_config);
             // (GamepadDisconnected event may fire here → HandleGamepadDisconnected opens overlay)
 
-            // 2. Dismiss disconnect overlay on any input — must run before AdvanceHotkeyState
+            // 2. Dismiss disconnect overlay on any input — must run before AdvanceHotkeys
             // so IsAnyInputJustPressed uses the previous frame's edge state.
-            _justDismissedDisconnectScreen = false;
-            if ((_pauseReasonBits & (int)PauseReasons.MainMenu) == 0
-                && _menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected)
-            {
-                if (_input.IsAnyInputJustPressed())
-                {
-                    Logger.Log("[Emulation] Input received — dismissing disconnect screen.");
-                    _menu.Close();
-                    _justDismissedDisconnectScreen = true;
-                }
-            }
+            bool isMainMenuActive = (_pauseReasonBits & (int)PauseReasons.MainMenu) != 0;
+            _inputProcessor.TryDismissDisconnectScreen(isMainMenuActive);
 
             // 3. Detect edge-triggered hotkeys; events fire into HandleHotkeyAction / HandleMenuToggle
-            _input.AdvanceHotkeyState(_config);
+            _inputProcessor.AdvanceHotkeys(_config);
 
             // 4. Pause check — block here while paused, polling gamepad for menu input
             // (Steam callbacks are ticked on the UI thread via MainForm._steamTimer)
             if (IsPaused)
             {
-                if (_menuInput.IsWaitingForGamepadButton)
-                {
-                    // Rebind is always XInput-only. Native Steam controllers remap via
-                    // Steam's controller configurator; their binding rows are read-only
-                    // in the menu when IsUsingNativeActions() is true.
-                    string? btn = _input.PollAnyGamepadButtonPressed();
-                    if (btn != null)
-                        _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadButtonPress(btn));
-                }
-                else
-                {
-                    // Normal menu navigation
-                    var nav = _input.PollMenuNav(_config);
-                    if (nav.Any)
-                        _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadNav(nav));
-                }
+                _inputProcessor.PollPausedMenuInput(_config);
 
                 // Wait up to 16ms (~60fps menu poll). Returns early if unpaused or stopped.
                 _resumeEvent.Wait(16);
@@ -252,72 +211,18 @@ internal sealed class EmulationThread
                 continue;
             }
 
-            long tAfterInput = timingEnabled ? Stopwatch.GetTimestamp() : 0;
+            // 5. Run one frame through the pipeline: core, achievements, auto-save, render, audio
+            _framePipeline.RunFrame(snapshot, _config, _afterFramePresented);
 
-            // 5. Emulate one frame — input, FrameAdvance, video, and audio are bundled
-            var frame = _core.RunFrame(snapshot);
-            long tAfterRunFrame = timingEnabled ? Stopwatch.GetTimestamp() : 0;
-
-            // 4a. Check achievement triggers against the post-frame memory state
-            _achievements?.Tick();
-
-            // 4b. Periodic auto-save (~5 min)
-            if (++_autoSaveFrameCounter >= AutoSaveIntervalFrames)
-            {
-                _autoSaveFrameCounter = 0;
-                _saveStates.AutoSave();
-            }
-
-            // 5. Copy video to front buffer.
-            _frameBuffer.WriteBack(frame.VideoBuffer, frame.BufferWidth, frame.BufferHeight);
-            _frameBuffer.Swap();
-            long tAfterVideo = timingEnabled ? Stopwatch.GetTimestamp() : 0;
-
-            // 6. Push FPS state then queue frame upload + present on the UI thread (non-blocking).
-            // Upload and present are batched in one BeginInvoke so Present fires immediately after
-            // the texture is ready, keeping frame delivery tightly coupled to emulation timing.
-            // The steamTimer drives Present only when the emulation loop is paused.
-            _renderer.UpdateFpsOverlay(_config.ShowFps, CurrentFps);
-            int fw = _frameBuffer.Width;
-            int fh = _frameBuffer.Height;
-            _uiMarshal.BeginInvoke(() =>
-            {
-                _renderer.UploadFrame(_frameBuffer.FrontBuffer, fw, fh);
-                _renderer.Tick(vsync: true);
-                _afterFramePresented?.Invoke();
-            });
-
-            // 7. Submit audio
-            _audio.Enqueue(frame.AudioSamples, frame.SampleCount);
-
-            if (timingEnabled)
-            {
-                long tAfterSubmit = Stopwatch.GetTimestamp();
-                long workTicks    = tAfterSubmit - t0;
-                if (workTicks > SlowFrameThresholdTicks)
-                {
-                    double ms      = workTicks                         * 1000.0 / Stopwatch.Frequency;
-                    double inputMs = (tAfterInput    - t0)             * 1000.0 / Stopwatch.Frequency;
-                    double runMs   = (tAfterRunFrame  - tAfterInput)   * 1000.0 / Stopwatch.Frequency;
-                    double videoMs = (tAfterVideo     - tAfterRunFrame) * 1000.0 / Stopwatch.Frequency;
-                    Logger.Log($"[Timing] Slow frame {ms:F2}ms — input={inputMs:F2} runFrame={runMs:F2} video={videoMs:F2}");
-                }
-            }
-
-            // 8. FPS tracking
-            _fpsTracker.Tick();
-
-            // 9. Frame timing — coarse sleep then spin
+            // 6. Frame timing — coarse sleep then spin
             long target = frameStart + ticksPerFrame;
             long remaining = target - Stopwatch.GetTimestamp();
             if (remaining > spinThreshold * 2)
             {
-                // Sleep for the bulk of the frame (1ms at a time)
                 long sleepUntil = target - spinThreshold;
                 while (Stopwatch.GetTimestamp() < sleepUntil)
                     Thread.Sleep(1);
             }
-            // Spin for the last ~1ms for precision
             while (Stopwatch.GetTimestamp() < target)
                 Thread.SpinWait(10);
 
@@ -363,7 +268,7 @@ internal sealed class EmulationThread
         if ((_pauseReasonBits & (int)PauseReasons.MainMenu) != 0) return;
         // If the disconnect overlay was dismissed this frame by user input, suppress
         // the simultaneous toggle so pressing Esc/Start doesn't immediately open the menu.
-        if (_justDismissedDisconnectScreen) return;
+        if (_inputProcessor.JustDismissedDisconnectScreen) return;
         if (_menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected) return;
 
         if (_menu.IsOpen)
@@ -393,17 +298,15 @@ internal sealed class EmulationThread
             case "SaveActiveSlot":
                 Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
                 _saveStates.SaveToActiveSlot();
-                _uiMarshal.BeginInvoke(() =>
-                    _renderer.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}"));
+                _renderCoordinator.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}");
                 break;
 
             case "LoadActiveSlot":
                 Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
                 bool loaded = _saveStates.LoadFromActiveSlot();
-                _uiMarshal.BeginInvoke(() =>
-                    _renderer.ShowToast(loaded
-                        ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
-                        : $"Slot {_saveStates.ActiveSlot + 1} — Empty"));
+                _renderCoordinator.ShowToast(loaded
+                    ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
+                    : $"Slot {_saveStates.ActiveSlot + 1} — Empty");
                 break;
 
             default:
@@ -415,8 +318,7 @@ internal sealed class EmulationThread
                         Logger.Log($"[Emulation] Hotkey: select slot {i + 1}.");
                         _saveStates.ActiveSlot = _config.ActiveSlot = i;
                         int slot = i;
-                        _uiMarshal.BeginInvoke(() =>
-                            _renderer.ShowToast($"Slot {slot + 1} Selected"));
+                        _renderCoordinator.ShowToast($"Slot {slot + 1} Selected");
                         break;
                     }
                 }

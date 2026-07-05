@@ -1,0 +1,87 @@
+using NEShim.Config;
+using NEShim.Input;
+using NEShim.UI;
+
+namespace NEShim.GameLoop;
+
+/// <summary>
+/// Handles all per-frame input work: snapshot polling, disconnect-screen dismissal,
+/// hotkey edge advancement, and paused-state gamepad dispatch.
+/// </summary>
+internal sealed class InputProcessor
+{
+    private readonly IInputReader _input;
+    private readonly InGameMenu _menu;
+    private readonly IMenuInputTarget _menuInput;
+    private readonly System.Windows.Forms.Control _uiMarshal;
+
+    private bool _justDismissedDisconnectScreen;
+
+    /// <summary>
+    /// True for the frame on which the controller-disconnect overlay was dismissed.
+    /// Read by <see cref="EmulationThread.HandleMenuToggle"/> to suppress a simultaneous Esc/Start press.
+    /// </summary>
+    public bool JustDismissedDisconnectScreen => _justDismissedDisconnectScreen;
+
+    public InputProcessor(
+        IInputReader input,
+        InGameMenu menu,
+        IMenuInputTarget menuInput,
+        System.Windows.Forms.Control uiMarshal)
+    {
+        _input = input;
+        _menu = menu;
+        _menuInput = menuInput;
+        _uiMarshal = uiMarshal;
+    }
+
+    /// <summary>Polls all input sources and returns the frame snapshot.</summary>
+    public InputSnapshot Poll(AppConfig config) => _input.PollSnapshot(config);
+
+    /// <summary>
+    /// Dismisses the controller-disconnect screen on any input.
+    /// Must be called before <see cref="AdvanceHotkeys"/> so <c>IsAnyInputJustPressed</c>
+    /// uses the previous frame's edge state.
+    /// </summary>
+    /// <returns>True if the screen was dismissed this frame.</returns>
+    public bool TryDismissDisconnectScreen(bool isMainMenuActive)
+    {
+        _justDismissedDisconnectScreen = false;
+        if (!isMainMenuActive
+            && _menu.IsOpen
+            && _menu.Current == InGameMenu.Screen.ControllerDisconnected
+            && _input.IsAnyInputJustPressed())
+        {
+            Logger.Log("[Emulation] Input received — dismissing disconnect screen.");
+            _menu.Close();
+            _justDismissedDisconnectScreen = true;
+        }
+        return _justDismissedDisconnectScreen;
+    }
+
+    /// <summary>Advances hotkey edge state, firing events on <see cref="IInputReader"/>.</summary>
+    public void AdvanceHotkeys(AppConfig config) => _input.AdvanceHotkeyState(config);
+
+    /// <summary>
+    /// Polls gamepad input while the emulation loop is paused, dispatching navigation
+    /// or button-rebind presses to the active menu on the UI thread.
+    /// </summary>
+    public void PollPausedMenuInput(AppConfig config)
+    {
+        if (_menuInput.IsWaitingForGamepadButton)
+        {
+            // Rebind is always XInput-only. Native Steam controllers remap via
+            // Steam's controller configurator; their binding rows are read-only
+            // in the menu when IsUsingNativeActions() is true.
+            string? btn = _input.PollAnyGamepadButtonPressed();
+            if (btn != null)
+                _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadButtonPress(btn));
+        }
+        else
+        {
+            var nav = _input.PollMenuNav(config);
+            if (nav.Any)
+                _uiMarshal.BeginInvoke(() => _menuInput.HandleGamepadNav(nav));
+        }
+    }
+}
