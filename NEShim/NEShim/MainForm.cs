@@ -58,7 +58,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private const int SteamCallbackIntervalMs = 16; // ~60 ticks/s
 
     // ---- Logo splash screen ----
-    private AchievementManager?         _pendingAchievements;
+    private Action?                      _skipLogo;
     private LogoScreen?                  _logoScreen;
     private System.Windows.Forms.Timer? _logoTimer;
 
@@ -100,16 +100,16 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
     private void InitializeEmulator()
     {
         InitializeConfig();
-        _pendingAchievements = InitializeEmulatorCore();
+        var achievements = InitializeEmulatorCore();
         InitializeSaveSystems();
         InitializeRendering();
         InitializeInput();
         InitializeAudio();
         InitializeWindowAndD3DHook();
         if (_config!.NoLogo)
-            FinishInitialization();
+            FinishInitialization(achievements);
         else
-            ShowLogo();
+            ShowLogo(achievements);
     }
 
     private void InitializeWindowAndD3DHook()
@@ -188,20 +188,46 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.DeviceLost, false);
     }
 
-    private void ShowLogo()
+    private void ShowLogo(AchievementManager? achievements)
     {
         using var stream = typeof(UI.LogoScreen).Assembly
             .GetManifestResourceStream("NEShim.logos.neshim-logo-splash.png");
         if (stream is null)
         {
             Logger.Log("[Logo] Embedded resource not found — skipping splash screen.");
-            FinishInitialization();
+            FinishInitialization(achievements);
             return;
         }
         _logoScreen = new UI.LogoScreen(new System.Drawing.Bitmap(stream));
         _gamePanel!.SetLogoScreen(_logoScreen);
         _logoTimer = new System.Windows.Forms.Timer { Interval = 33 };
-        _logoTimer.Tick += OnLogoTick;
+
+        _skipLogo = () =>
+        {
+            _logoTimer?.Stop();
+            _logoTimer?.Dispose();
+            _logoTimer = null;
+            FinishInitialization(achievements);
+        };
+
+        _logoTimer.Tick += (_, _) =>
+        {
+            _renderer?.MarkOverlayDirty();
+            _gamePanel?.Invalidate();
+            if (_input!.PollAnyControllerButton())
+            {
+                _skipLogo?.Invoke();
+                return;
+            }
+            if (_logoScreen?.IsComplete != true) return;
+            _logoTimer!.Stop();
+            _logoTimer.Dispose();
+            _logoTimer = null;
+            if (_renderer?.OwnsFrameSurface != true)
+                _gamePanel?.Refresh(); // GDI+ only — synchronous repaint for the alpha=0 final frame
+            FinishInitialization(achievements);
+        };
+
         _logoTimer.Start();
         _preloadTask = Task.Run(PreloadAssets);
     }
@@ -229,34 +255,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         }
     }
 
-    private void OnLogoTick(object? sender, EventArgs e)
+    private void FinishInitialization(AchievementManager? achievements)
     {
-        _renderer?.MarkOverlayDirty();
-        _gamePanel?.Invalidate();
-        if (_input!.PollAnyControllerButton())
-        {
-            SkipLogo();
-            return;
-        }
-        if (_logoScreen?.IsComplete != true) return;
-        _logoTimer!.Stop();
-        _logoTimer.Dispose();
-        _logoTimer = null;
-        if (_renderer?.OwnsFrameSurface != true)
-            _gamePanel?.Refresh(); // GDI+ only — synchronous repaint for the alpha=0 final frame
-        FinishInitialization();
-    }
-
-    private void SkipLogo()
-    {
-        _logoTimer?.Stop();
-        _logoTimer?.Dispose();
-        _logoTimer = null;
-        FinishInitialization();
-    }
-
-    private void FinishInitialization()
-    {
+        _skipLogo = null;
         _gamePanel!.SetLogoScreen(null);
         _logoScreen?.Dispose();
         _logoScreen = null;
@@ -265,7 +266,7 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
         var localization = InitializeSteamAndLocalization();
         InitializeMainMenu(localization);
         InitializeInGameMenu(localization);
-        InitializeEmulationStartup(_pendingAchievements);
+        InitializeEmulationStartup(achievements);
     }
 
     private void InitializeConfig()
@@ -768,9 +769,9 @@ public partial class MainForm : Form, Rendering.IMenuSceneProvider, UI.IMenuInpu
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_logoScreen is not null)
+        if (_skipLogo is not null)
         {
-            SkipLogo();
+            _skipLogo();
             e.Handled = true;
             return;
         }
