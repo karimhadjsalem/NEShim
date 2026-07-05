@@ -148,4 +148,93 @@ internal class InputProcessorTests
 
         Assert.That(processor.JustDismissedDisconnectScreen, Is.False);
     }
+
+    // ---- PollPausedMenuInput ----
+    // These tests were unwritable before the Control→Action<Action> refactor because
+    // BeginInvoke requires a live WinForms message pump. SyncMarshal runs the delegate
+    // immediately, so dispatched calls are visible to NSubstitute.
+
+    [Test]
+    public void PollPausedMenuInput_WhenNotWaiting_AndNavPresent_DispatchesNavToMenuInput()
+    {
+        var nav = new MenuNavInput { Down = true };
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(nav);
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received(1).HandleGamepadNav(nav);
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenNotWaiting_AndNoNav_DoesNotDispatchNav()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.DidNotReceive().HandleGamepadNav(Arg.Any<MenuNavInput>());
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenWaiting_AndButtonPressed_DispatchesButtonToMenuInput()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _input.PollAnyGamepadButtonPressed().Returns("A");
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received(1).HandleGamepadButtonPress("A");
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenWaiting_AndNoButton_DoesNotDispatchButton()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _input.PollAnyGamepadButtonPressed().Returns((string?)null);
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.DidNotReceive().HandleGamepadButtonPress(Arg.Any<string>());
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenEnteringBindingMode_FlushesBindingEdges()
+    {
+        // First call: not waiting — sets _prevIsWaitingForGamepadButton = false
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        var processor = CreateProcessor(CreateMenu());
+        processor.PollPausedMenuInput(_config);
+
+        // Second call: now waiting — false→true transition must flush
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _input.PollAnyGamepadButtonPressed().Returns((string?)null);
+        processor.PollPausedMenuInput(_config);
+
+        _input.Received(1).FlushBindingEdges();
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenExitingBindingMode_AdvancesNavEdgeStateBeforeRealPoll()
+    {
+        // First call: waiting — sets _prevIsWaitingForGamepadButton = true
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _input.PollAnyGamepadButtonPressed().Returns((string?)null);
+        var processor = CreateProcessor(CreateMenu());
+        processor.PollPausedMenuInput(_config);
+
+        // Second call: not waiting — true→false transition triggers one throwaway
+        // PollMenuNav to advance edge state, then a second real nav poll
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        processor.PollPausedMenuInput(_config);
+
+        _input.Received(2).PollMenuNav(_config);
+    }
 }
