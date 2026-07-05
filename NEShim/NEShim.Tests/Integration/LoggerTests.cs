@@ -22,7 +22,7 @@ internal class LoggerTests
     [TearDown]
     public void TearDown()
     {
-        Logger.Reset(_logFile); // ensure _enabled is false before next test
+        Logger.Reset(_logFile); // flush and disable before next test
         if (File.Exists(_logFile)) File.Delete(_logFile);
     }
 
@@ -52,6 +52,7 @@ internal class LoggerTests
     public void Enable_CreatesLogFile()
     {
         Logger.Enable();
+        Logger.Instance.Dispose();
 
         Assert.That(File.Exists(_logFile), Is.True);
     }
@@ -60,6 +61,7 @@ internal class LoggerTests
     public void Enable_WritesSessionHeader()
     {
         Logger.Enable();
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         Assert.That(content, Does.Contain("NEShim session started"));
@@ -71,6 +73,7 @@ internal class LoggerTests
         string expectedDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
         Logger.Enable();
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         Assert.That(content, Does.Contain(expectedDate));
@@ -82,8 +85,8 @@ internal class LoggerTests
     public void Log_AfterEnable_WritesLineToFile()
     {
         Logger.Enable();
-
         Logger.Log("hello world");
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         Assert.That(content, Does.Contain("hello world"));
@@ -93,8 +96,8 @@ internal class LoggerTests
     public void Log_AfterEnable_PrefixesLineWithTimestamp()
     {
         Logger.Enable();
-
         Logger.Log("timestamped");
+        Logger.Instance.Dispose();
 
         string[] lines = File.ReadAllLines(_logFile);
         // Skip the header line written by Enable(); check the Log() line.
@@ -108,8 +111,8 @@ internal class LoggerTests
     {
         const string message = "exact message content 123";
         Logger.Enable();
-
         Logger.Log(message);
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         Assert.That(content, Does.Contain(message));
@@ -119,10 +122,10 @@ internal class LoggerTests
     public void Log_MultipleCalls_AllLinesAppendedInOrder()
     {
         Logger.Enable();
-
         Logger.Log("first");
         Logger.Log("second");
         Logger.Log("third");
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         int posFirst  = content.IndexOf("first",  StringComparison.Ordinal);
@@ -139,6 +142,7 @@ internal class LoggerTests
     {
         Logger.Enable();
         Logger.Log("line");
+        Logger.Instance.Dispose();
 
         string content = File.ReadAllText(_logFile);
         // Every line (including the header) must end with a newline.
@@ -154,7 +158,8 @@ internal class LoggerTests
     public void Enable_CalledTwice_WritesTwoHeaders()
     {
         Logger.Enable();
-        Logger.Enable();
+        Logger.Enable(); // flushes first session internally, starts second
+        Logger.Instance.Dispose(); // drain second session
 
         string content = File.ReadAllText(_logFile);
         int count = Regex.Matches(content, "NEShim session started").Count;
@@ -195,6 +200,7 @@ internal class LoggerTests
             Logger.Reset(newPath);
             Logger.Enable();
             Logger.Log("redirected");
+            Logger.Instance.Dispose();
 
             Assert.That(File.Exists(newPath), Is.True);
             Assert.That(File.ReadAllText(newPath), Does.Contain("redirected"));

@@ -1,57 +1,89 @@
+using System.Collections.Concurrent;
+
 namespace NEShim;
 
 /// <summary>
 /// Appends timestamped lines to <c>neshim.log</c> in the application directory.
-/// Logging is disabled by default; call <see cref="Enable"/> once after config is loaded
-/// to activate it. Thread-safe. Failures are silently swallowed so logging never crashes the game.
+/// Logging is disabled by default; call <see cref="Enable"/> once after config is loaded.
+/// <see cref="Log"/> never blocks the caller — lines are enqueued and drained by a dedicated
+/// background thread. Dispose <see cref="Instance"/> at shutdown to flush all pending lines.
 /// </summary>
-internal static class Logger
+internal sealed class Logger : IDisposable
 {
-    private static string        _path    =
-        Path.Combine(AppContext.BaseDirectory, "neshim.log");
+    public static readonly Logger Instance = new();
 
-    private static readonly object _lock = new();
-    private static volatile bool   _enabled;
+    private string _path = Path.Combine(AppContext.BaseDirectory, "neshim.log");
+    private volatile bool              _enabled;
+    private BlockingCollection<string>? _queue;
+    private Thread?                    _writerThread;
 
-    /// <summary>
-    /// Resets logger state and redirects output to <paramref name="pathOverride"/>.
-    /// For use in tests only — not called in production code.
-    /// </summary>
-    internal static void Reset(string pathOverride)
+    private Logger()
     {
-        lock (_lock)
-        {
-            _enabled = false;
-            _path    = pathOverride;
-        }
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Dispose();
     }
 
-    /// <summary>
-    /// Activates logging and writes a session-start header to the log file.
-    /// Call once, immediately after the config is loaded, when <c>EnableLogging</c> is true.
-    /// </summary>
-    public static bool IsEnabled => _enabled;
+    // ---- Static convenience API — all existing call sites are unchanged ----
 
-    public static void Enable()
+    public static bool IsEnabled           => Instance._enabled;
+    public static void Enable()            => Instance.EnableCore();
+    public static void Log(string message) => Instance.LogCore(message);
+
+    /// <summary>For use in tests only — not called in production code.</summary>
+    internal static void Reset(string pathOverride) => Instance.ResetCore(pathOverride);
+
+    // ---- IDisposable ----
+
+    /// <summary>
+    /// Drains all queued lines to disk and stops the background writer thread.
+    /// After Dispose, <see cref="Enable"/> may be called again to start a new session.
+    /// No-op if logging was never enabled.
+    /// </summary>
+    public void Dispose() => FlushCore();
+
+    // ---- Private instance implementation ----
+
+    private void EnableCore()
     {
+        if (_enabled) FlushCore(); // re-enable: drain the running session first
+
+        _queue        = new BlockingCollection<string>();
+        _writerThread = new Thread(WriteLoop) { IsBackground = true, Name = "LogWriter" };
+        _writerThread.Start();
         _enabled = true;
-        Log($"=== NEShim session started {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC ===");
+        LogCore($"=== NEShim session started {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC ===");
     }
 
-    /// <summary>
-    /// Writes a single line to the log file, prefixed with a UTC timestamp.
-    /// No-op when logging has not been enabled via <see cref="Enable"/>.
-    /// </summary>
-    public static void Log(string message)
+    private void LogCore(string message)
     {
         if (!_enabled) return;
-
         string line = $"{DateTime.UtcNow:HH:mm:ss.fff} {message}";
-        try
-        {
-            lock (_lock)
-                File.AppendAllText(_path, line + Environment.NewLine);
-        }
+        try { _queue?.TryAdd(line); }
         catch { }
+    }
+
+    private void FlushCore()
+    {
+        if (!_enabled) return;
+        _enabled = false;
+        try { _queue?.CompleteAdding(); } catch { }
+        _writerThread?.Join(2000);
+    }
+
+    private void ResetCore(string pathOverride)
+    {
+        FlushCore();
+        _queue        = null;
+        _writerThread = null;
+        _path         = pathOverride;
+    }
+
+    private void WriteLoop()
+    {
+        if (_queue is null) return;
+        foreach (string line in _queue.GetConsumingEnumerable())
+        {
+            try { File.AppendAllText(_path, line + Environment.NewLine); }
+            catch { }
+        }
     }
 }
