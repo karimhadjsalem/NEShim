@@ -1,6 +1,6 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.IO;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
@@ -103,8 +103,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         // Navigate away from Main
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // enter Settings (Down skips disabled Resume → lands on Settings)
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings (Down skips disabled Resume → lands on Settings)
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
         screen.Show();
@@ -132,8 +132,8 @@ internal class MainMenuScreenTests
     public void HandleKey_WhenNotVisible_ReturnsFalse()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Return); // select New Game → sets IsVisible = false
-        bool consumed = screen.HandleKey(Keys.Down);
+        screen.HandleKey(SDL.Keycode.Return); // select New Game → sets IsVisible = false
+        bool consumed = screen.HandleKey(SDL.Keycode.Down);
         Assert.That(consumed, Is.False);
     }
 
@@ -142,7 +142,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         // From index 0 (New Game), Down should skip index 1 (Resume, disabled) → land on 2 (Settings)
-        screen.HandleKey(Keys.Down);
+        screen.HandleKey(SDL.Keycode.Down);
         Assert.That(screen.SelectedIndex, Is.EqualTo(2));
     }
 
@@ -151,7 +151,7 @@ internal class MainMenuScreenTests
     {
         _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
+        screen.HandleKey(SDL.Keycode.Down);
         Assert.That(screen.SelectedIndex, Is.EqualTo(1)); // Resume is enabled
     }
 
@@ -161,7 +161,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         bool fired = false;
         screen.ExitChosen += () => fired = true;
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(fired, Is.False);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
@@ -170,11 +170,11 @@ internal class MainMenuScreenTests
     public void HandleKey_Escape_OnSettingsScreen_ReturnsToMain()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // skip to Settings (index 2)
-        screen.HandleKey(Keys.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // skip to Settings (index 2)
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
 
@@ -187,7 +187,7 @@ internal class MainMenuScreenTests
         bool fired = false;
         screen.NewGameChosen += () => fired = true;
         // SelectedIndex starts at 0 (New Game)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(fired,            Is.True);
         Assert.That(screen.IsVisible, Is.False);
     }
@@ -197,8 +197,8 @@ internal class MainMenuScreenTests
     {
         _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // SelectedIndex → 1 (Resume, now enabled)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // SelectedIndex → 1 (Resume, now enabled)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.ResumeSlots));
     }
 
@@ -206,8 +206,8 @@ internal class MainMenuScreenTests
     public void HandleKey_Return_OnSettings_NavigatesToSettingsScreen()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // skip to Settings
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // skip to Settings
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -217,8 +217,8 @@ internal class MainMenuScreenTests
     public void Settings_GetCurrentItems_HasFiveItems_WithVideoSubmenuAndBack()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down); // Settings
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
         string[] items = screen.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(6)); // Video, Sound, Keyboard Controls, Gamepad Controls, Language, ← Back
         Assert.That(items[0], Is.EqualTo("Video"));
@@ -230,10 +230,10 @@ internal class MainMenuScreenTests
     // Helper: navigate to Settings → Sound
     private static void OpenSoundScreen(MainMenuScreen screen)
     {
-        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // to Sound (index 1)
-        screen.HandleKey(Keys.Return); // enter Sound
+        screen.HandleKey(SDL.Keycode.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // to Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // enter Sound
     }
 
     [Test]
@@ -272,7 +272,7 @@ internal class MainMenuScreenTests
             v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);          // SelectedIndex = 0 (Volume)
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(config.Volume, Is.EqualTo(55));
         Assert.That(received, Is.EqualTo(55));
     }
@@ -288,7 +288,7 @@ internal class MainMenuScreenTests
             v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(config.Volume, Is.EqualTo(65));
         Assert.That(received, Is.EqualTo(65));
     }
@@ -304,10 +304,10 @@ internal class MainMenuScreenTests
             _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Down);   // index 1 = Audio Filter item
-        screen.HandleKey(Keys.Return); // enter AudioFilter sub-screen
-        screen.HandleKey(Keys.Down);   // index 1 = Warm
-        screen.HandleKey(Keys.Return); // select Warm → returns to Sound
+        screen.HandleKey(SDL.Keycode.Down);   // index 1 = Audio Filter item
+        screen.HandleKey(SDL.Keycode.Return); // enter AudioFilter sub-screen
+        screen.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
+        screen.HandleKey(SDL.Keycode.Return); // select Warm → returns to Sound
 
         Assert.That(config.AudioFilter, Is.EqualTo("Warm"));
         Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
@@ -324,8 +324,8 @@ internal class MainMenuScreenTests
             _ => { }, _ => { }, on => received = on, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
 
         OpenSoundScreen(screen);
-        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // Music is at index 3
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) screen.HandleKey(SDL.Keycode.Down); // Music is at index 3
+        screen.HandleKey(SDL.Keycode.Return);
 
         Assert.That(config.MainMenuMusicEnabled, Is.False);
         Assert.That(received, Is.False);
@@ -336,8 +336,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // Back is at index 4
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // Back is at index 4
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -345,12 +345,12 @@ internal class MainMenuScreenTests
 
     private static void OpenAudioFilterScreen(MainMenuScreen screen)
     {
-        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // Sound (index 1)
-        screen.HandleKey(Keys.Return);                             // enter Sound
-        screen.HandleKey(Keys.Down);                              // Audio Filter item (index 1)
-        screen.HandleKey(Keys.Return);                            // enter AudioFilter screen
+        screen.HandleKey(SDL.Keycode.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);                             // enter Sound
+        screen.HandleKey(SDL.Keycode.Down);                              // Audio Filter item (index 1)
+        screen.HandleKey(SDL.Keycode.Return);                            // enter AudioFilter screen
     }
 
     [Test]
@@ -395,8 +395,8 @@ internal class MainMenuScreenTests
         _config.AudioFilter = "Default";
         using var screen = CreateScreen();
         OpenAudioFilterScreen(screen);
-        screen.HandleKey(Keys.Down);   // index 1 = Warm
-        screen.HandleKey(Keys.Return); // select Warm
+        screen.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
+        screen.HandleKey(SDL.Keycode.Return); // select Warm
         Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
@@ -410,8 +410,8 @@ internal class MainMenuScreenTests
             _ => { }, () => { },
             _ => { }, mode => received = mode, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenAudioFilterScreen(screen);
-        screen.HandleKey(Keys.Down);   // Warm
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // Warm
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
@@ -420,8 +420,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioFilterScreen(screen);
-        for (int i = 0; i < 7; i++) screen.HandleKey(Keys.Down); // Back is at index 7
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 7; i++) screen.HandleKey(SDL.Keycode.Down); // Back is at index 7
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
 
@@ -430,7 +430,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioFilterScreen(screen);
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
 
@@ -439,7 +439,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -489,11 +489,11 @@ internal class MainMenuScreenTests
     {
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // Settings
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // skip Video (index 0)
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
@@ -504,11 +504,11 @@ internal class MainMenuScreenTests
         var loc = new LocalizationData { BindNone = "(unset)" };
         using var screen = new MainMenuScreen(_saves, _config, loc, null,
             _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
-        screen.HandleKey(Keys.Down);   // Settings
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // skip Video (index 0)
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("(unset)"));
     }
 
@@ -517,12 +517,12 @@ internal class MainMenuScreenTests
     {
         _config.InputMappings["P1 Up"] = new InputBinding("W", null);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // Settings
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return); // GamepadBindings
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return); // GamepadBindings
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
@@ -530,9 +530,9 @@ internal class MainMenuScreenTests
 
     private static void OpenVideoScreen(MainMenuScreen screen)
     {
-        screen.HandleKey(Keys.Down);   // Settings (index 2, Resume disabled)
-        screen.HandleKey(Keys.Return); // enter Settings
-        screen.HandleKey(Keys.Return); // enter Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // Settings (index 2, Resume disabled)
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Return); // enter Video (index 0)
     }
 
     [Test]
@@ -573,11 +573,11 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // ← Back (index 4 in GDI mode)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);   // ← Back (index 4 in GDI mode)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -587,10 +587,10 @@ internal class MainMenuScreenTests
         NEShim.Rendering.VideoFilterMode? received = null;
         using var screen = CreateScreen(onVideoFilterChanged: mode => received = mode);
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);   // Video Filter (index 1)
-        screen.HandleKey(Keys.Return); // → VideoFilter sub-menu
+        screen.HandleKey(SDL.Keycode.Down);   // Video Filter (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // → VideoFilter sub-menu
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
-        screen.HandleKey(Keys.Return); // select first filter (index 0)
+        screen.HandleKey(SDL.Keycode.Return); // select first filter (index 0)
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
         Assert.That(received, Is.Not.Null);
     }
@@ -600,9 +600,9 @@ internal class MainMenuScreenTests
     private static void OpenVideoFilterSubMenu(MainMenuScreen screen)
     {
         OpenVideoScreen(screen);
-        if (NEShim.Platform.PlatformDetector.IsD3D11Active) screen.HandleKey(Keys.Down); // skip Presets(0) → Window(1)
-        screen.HandleKey(Keys.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
-        screen.HandleKey(Keys.Return); // → VideoFilter sub-menu
+        if (NEShim.Platform.PlatformDetector.IsD3D11Active) screen.HandleKey(SDL.Keycode.Down); // skip Presets(0) → Window(1)
+        screen.HandleKey(SDL.Keycode.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
+        screen.HandleKey(SDL.Keycode.Return); // → VideoFilter sub-menu
     }
 
     [Test]
@@ -646,8 +646,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
-        screen.HandleKey(Keys.Return); // select Bilinear
+        screen.HandleKey(SDL.Keycode.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -658,8 +658,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);   // move to Bilinear (index 1)
-        screen.HandleKey(Keys.Return); // select Bilinear
+        screen.HandleKey(SDL.Keycode.Down);   // move to Bilinear (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 
@@ -668,7 +668,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Return); // select any filter
+        screen.HandleKey(SDL.Keycode.Return); // select any filter
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 
@@ -678,8 +678,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
         var itemCount = screen.GetCurrentItems().Length;
-        for (int i = 0; i < itemCount - 1; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // Back
+        for (int i = 0; i < itemCount - 1; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // Back
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 
@@ -693,9 +693,9 @@ internal class MainMenuScreenTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtScanlines";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);   // Bilinear (1)
-        screen.HandleKey(Keys.Down);   // CrtScanlines (2)
-        screen.HandleKey(Keys.Return); // select CrtScanlines — matches overlay
+        screen.HandleKey(SDL.Keycode.Down);   // Bilinear (1)
+        screen.HandleKey(SDL.Keycode.Down);   // CrtScanlines (2)
+        screen.HandleKey(SDL.Keycode.Return); // select CrtScanlines — matches overlay
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
     }
 
@@ -708,9 +708,9 @@ internal class MainMenuScreenTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtScanlines";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // select CrtScanlines
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // select CrtScanlines
         Assert.That(callbackFired, Is.True);
         Assert.That(received, Is.Null);
     }
@@ -722,9 +722,9 @@ internal class MainMenuScreenTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtPhosphor";
         OpenVideoFilterSubMenu(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
@@ -746,9 +746,9 @@ internal class MainMenuScreenTests
         _config.OverscanMode = "Overscan";
         using var screen = CreateScreen(onOverscanModeChanged: mode => received = mode);
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);   // Video Filter (index 1)
-        screen.HandleKey(Keys.Down);   // Overscan (index 2 in GDI mode)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // Video Filter (index 1)
+        screen.HandleKey(SDL.Keycode.Down);   // Overscan (index 2 in GDI mode)
+        screen.HandleKey(SDL.Keycode.Return);
         // Overscan cycle: Overscan → Normal → Underscan
         Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
         Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
@@ -761,11 +761,11 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         // Main: 4 items but Resume (index 1) disabled. Enabled: New Game(0), Settings(2), Exit(3).
-        screen.HandleKey(Keys.Down); // 0 → 2 (skips disabled Resume)
-        screen.HandleKey(Keys.Down); // 2 → 3
+        screen.HandleKey(SDL.Keycode.Down); // 0 → 2 (skips disabled Resume)
+        screen.HandleKey(SDL.Keycode.Down); // 2 → 3
         Assert.That(screen.SelectedIndex, Is.EqualTo(3));
 
-        screen.HandleKey(Keys.Down); // 3 → wraps to 0
+        screen.HandleKey(SDL.Keycode.Down); // 3 → wraps to 0
         Assert.That(screen.SelectedIndex, Is.EqualTo(0));
     }
 
@@ -775,16 +775,16 @@ internal class MainMenuScreenTests
     public void KeyBindings_AssignDuplicateKey_ClearsOldAction()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);   // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);   // skip Video (index 0)
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyboardBindings));
 
-        screen.HandleKey(Keys.Down);   // P1 Down (index 1)
-        screen.HandleKey(Keys.Return); // start rebind
-        screen.HandleKey(Keys.W);      // bind "W" — already used by P1 Up
+        screen.HandleKey(SDL.Keycode.Down);   // P1 Down (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // start rebind
+        screen.HandleKey(SDL.Keycode.W);      // bind "W" — already used by P1 Up
 
         Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
         Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
@@ -797,7 +797,7 @@ internal class MainMenuScreenTests
     public void HandleGamepadNav_WhenNotVisible_DoesNothing()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Return); // New Game → IsVisible = false
+        screen.HandleKey(SDL.Keycode.Return); // New Game → IsVisible = false
         screen.HandleGamepadNav(new MenuNavInput { Down = true });
         // Should do nothing (IsVisible = false)
         Assert.That(screen.SelectedIndex, Is.EqualTo(0));
@@ -842,8 +842,8 @@ internal class MainMenuScreenTests
     public void HandleGamepadNav_Back_OnSubScreen_NavigatesUp()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
         screen.HandleGamepadNav(new MenuNavInput { Back = true });
@@ -854,12 +854,12 @@ internal class MainMenuScreenTests
     public void HandleGamepadNav_DuringRebinding_Ignores()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Video (index 0)
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Return);  // KeyboardBindings (index 2)
-        screen.HandleKey(Keys.Return);  // start rebinding "P1 Up"
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // KeyboardBindings (index 2)
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding "P1 Up"
         Assert.That(screen.RebindingAction, Is.Not.Null);
 
         int indexBefore = screen.SelectedIndex;
@@ -898,7 +898,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         bool fired = false;
         screen.NewGameChosen += () => fired = true;
-        screen.HandleKey(Keys.Z);
+        screen.HandleKey(SDL.Keycode.Z);
         Assert.That(fired, Is.True);
     }
 
@@ -908,7 +908,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         bool fired = false;
         screen.NewGameChosen += () => fired = true;
-        screen.HandleKey(Keys.Space);
+        screen.HandleKey(SDL.Keycode.Space);
         Assert.That(fired, Is.True);
     }
 
@@ -921,9 +921,9 @@ internal class MainMenuScreenTests
         bool fired = false;
         screen.ExitChosen += () => fired = true;
         // Main: New Game(0), Resume(1 disabled), Settings(2), Exit(3)
-        screen.HandleKey(Keys.Down); // 0 → 2 (skips disabled)
-        screen.HandleKey(Keys.Down); // 2 → 3
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // 0 → 2 (skips disabled)
+        screen.HandleKey(SDL.Keycode.Down); // 2 → 3
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(fired,            Is.True);
         Assert.That(screen.IsVisible, Is.False);
     }
@@ -934,15 +934,15 @@ internal class MainMenuScreenTests
     public void HandleKey_Escape_DuringKeyRebinding_CancelsRebind()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Video (index 0)
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Return);  // KeyboardBindings (index 2)
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // KeyboardBindings (index 2)
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up
         Assert.That(screen.RebindingAction, Is.Not.Null);
 
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.RebindingAction, Is.Null);
     }
 
@@ -950,16 +950,16 @@ internal class MainMenuScreenTests
     public void HandleKey_Escape_DuringGamepadRebinding_CancelsRebind()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up
         Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
 
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.GamepadRebindingAction, Is.Null);
     }
 
@@ -976,13 +976,13 @@ internal class MainMenuScreenTests
     public void HandleGamepadButtonPress_StartButton_ReturnsReservedMessage()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up
         Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
 
         string? msg = screen.HandleGamepadButtonPress("Start");
@@ -994,13 +994,13 @@ internal class MainMenuScreenTests
     public void HandleGamepadButtonPress_NormalButton_SetsBindingAndReturnsNull()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up
 
         string? msg = screen.HandleGamepadButtonPress("X");
         Assert.That(msg, Is.Null);
@@ -1021,8 +1021,8 @@ internal class MainMenuScreenTests
     public void GetTitle_SettingsScreen_ReturnsSettings()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.GetTitle(), Is.EqualTo("SETTINGS"));
     }
 
@@ -1030,11 +1030,11 @@ internal class MainMenuScreenTests
     public void GetTitle_KeyboardBindings_ReturnsKeyboardControls()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);   // skip Video (index 0)
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Return); // KeyboardBindings (index 2)
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
         Assert.That(screen.GetTitle(), Is.EqualTo("KEYBOARD CONTROLS"));
     }
 
@@ -1042,12 +1042,12 @@ internal class MainMenuScreenTests
     public void GetTitle_KeyboardBindings_DuringRebind_ContainsActionLabel()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);   // skip Video (index 0)
-        screen.HandleKey(Keys.Down);   // skip Sound (index 1)
-        screen.HandleKey(Keys.Return); // KeyboardBindings (index 2)
-        screen.HandleKey(Keys.Return); // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
+        screen.HandleKey(SDL.Keycode.Return); // start rebinding P1 Up
         Assert.That(screen.GetTitle(), Does.Contain("UP"));
     }
 
@@ -1055,12 +1055,12 @@ internal class MainMenuScreenTests
     public void GetTitle_GamepadBindings_ReturnsGamepadControls()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.GetTitle(), Is.EqualTo("GAMEPAD CONTROLS"));
     }
 
@@ -1068,13 +1068,13 @@ internal class MainMenuScreenTests
     public void GetTitle_GamepadBindings_DuringRebind_ContainsActionLabel()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up
         Assert.That(screen.GetTitle(), Does.Contain("UP"));
     }
 
@@ -1083,8 +1083,8 @@ internal class MainMenuScreenTests
     {
         _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Resume (enabled)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Resume (enabled)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.GetTitle(), Is.EqualTo("LOAD GAME"));
     }
 
@@ -1095,14 +1095,14 @@ internal class MainMenuScreenTests
     {
         _saves.SlotExists(0).Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Resume
-        screen.HandleKey(Keys.Return);  // → ResumeSlots
+        screen.HandleKey(SDL.Keycode.Down);    // Resume
+        screen.HandleKey(SDL.Keycode.Return);  // → ResumeSlots
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.ResumeSlots));
 
         // Last item in the list is "← Back"
         string[] items = screen.GetCurrentItems();
-        for (int i = 0; i < items.Length - 1; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < items.Length - 1; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
 
@@ -1114,9 +1114,9 @@ internal class MainMenuScreenTests
         bool fired = false;
         screen.ResumeChosen += () => fired = true;
 
-        screen.HandleKey(Keys.Down);    // Resume (enabled)
-        screen.HandleKey(Keys.Return);  // → ResumeSlots, first item = slot 0
-        screen.HandleKey(Keys.Return);  // activate slot 0 → load → ResumeChosen
+        screen.HandleKey(SDL.Keycode.Down);    // Resume (enabled)
+        screen.HandleKey(SDL.Keycode.Return);  // → ResumeSlots, first item = slot 0
+        screen.HandleKey(SDL.Keycode.Return);  // activate slot 0 → load → ResumeChosen
 
         Assert.That(fired,            Is.True);
         Assert.That(screen.IsVisible, Is.False);
@@ -1127,9 +1127,9 @@ internal class MainMenuScreenTests
     {
         _saves.HasAutoSave.Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Resume (enabled — autosave exists)
-        screen.HandleKey(Keys.Return);  // → ResumeSlots; autosave is index 0
-        screen.HandleKey(Keys.Return);  // activate autosave
+        screen.HandleKey(SDL.Keycode.Down);    // Resume (enabled — autosave exists)
+        screen.HandleKey(SDL.Keycode.Return);  // → ResumeSlots; autosave is index 0
+        screen.HandleKey(SDL.Keycode.Return);  // activate autosave
         _saves.Received(1).AutoLoad();
     }
 
@@ -1138,9 +1138,9 @@ internal class MainMenuScreenTests
     {
         _saves.SlotExists(2).Returns(true);
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Resume (enabled — slot 2 exists)
-        screen.HandleKey(Keys.Return);  // → ResumeSlots; slot 2 is the only slot (index 0)
-        screen.HandleKey(Keys.Return);  // activate slot 2
+        screen.HandleKey(SDL.Keycode.Down);    // Resume (enabled — slot 2 exists)
+        screen.HandleKey(SDL.Keycode.Return);  // → ResumeSlots; slot 2 is the only slot (index 0)
+        screen.HandleKey(SDL.Keycode.Return);  // activate slot 2
         _saves.Received(1).LoadSlot(2);
     }
 
@@ -1150,12 +1150,12 @@ internal class MainMenuScreenTests
     public void GamepadBindings_NavigateTo_SetsCurrentScreen()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.GamepadBindings));
     }
 
@@ -1163,12 +1163,12 @@ internal class MainMenuScreenTests
     public void GamepadBindings_GetCurrentItems_HasNineItems()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(9)); // 8 actions + Back
     }
 
@@ -1176,13 +1176,13 @@ internal class MainMenuScreenTests
     public void GamepadBindings_SelectAction_SetsGamepadRebindingAction()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // index 0 → P1 Up
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // index 0 → P1 Up
         Assert.That(screen.GamepadRebindingAction, Is.EqualTo("P1 Up"));
     }
 
@@ -1190,14 +1190,14 @@ internal class MainMenuScreenTests
     public void GamepadBindings_Back_ReturnsToSettings()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down); // navigate to Back (index 8)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down); // navigate to Back (index 8)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -1208,14 +1208,14 @@ internal class MainMenuScreenTests
         _config.InputMappings["P1 Down"].GamepadButton = "B";
 
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // P1 Down (index 1)
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Down
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // P1 Down (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Down
 
         screen.HandleGamepadButtonPress("A"); // "A" was P1 Up → clear P1 Up, assign to P1 Down
         Assert.That(_config.InputMappings["P1 Down"].GamepadButton, Is.EqualTo("A"));
@@ -1233,7 +1233,7 @@ internal class MainMenuScreenTests
             _saves, _config, new LocalizationData(), null,
             fs => received = fs, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Return); // Window Mode (index 0, already selected)
+        screen.HandleKey(SDL.Keycode.Return); // Window Mode (index 0, already selected)
         Assert.That(received, Is.True); // Windowed → Fullscreen (toggled to true)
     }
 
@@ -1243,10 +1243,10 @@ internal class MainMenuScreenTests
         bool initial = _config.ShowFps;
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);   // FPS Overlay (index 3 in GDI mode)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);   // FPS Overlay (index 3 in GDI mode)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!initial));
     }
 
@@ -1256,10 +1256,10 @@ internal class MainMenuScreenTests
     public void Settings_Back_ReturnsToMain()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Back (index 5)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        for (int i = 0; i < 5; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 5)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
 
@@ -1269,13 +1269,13 @@ internal class MainMenuScreenTests
     public void KeyboardBindings_Back_ReturnsToSettings()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Video (index 0)
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Return);  // KeyboardBindings (index 2)
-        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down); // to Back (index 8)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // KeyboardBindings (index 2)
+        for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 8)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -1290,7 +1290,7 @@ internal class MainMenuScreenTests
             _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Left); // already at 0 — no change
+        screen.HandleKey(SDL.Keycode.Left); // already at 0 — no change
         Assert.That(_config.Volume, Is.EqualTo(0));
         Assert.That(received,       Is.EqualTo(999)); // callback not invoked
     }
@@ -1304,7 +1304,7 @@ internal class MainMenuScreenTests
             _saves, _config, new LocalizationData(), null,
             _ => { }, () => { }, v => received = v, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Right); // already at 100 — no change
+        screen.HandleKey(SDL.Keycode.Right); // already at 100 — no change
         Assert.That(_config.Volume, Is.EqualTo(100));
         Assert.That(received,       Is.EqualTo(999));
     }
@@ -1343,13 +1343,13 @@ internal class MainMenuScreenTests
     {
         _config.OverrideStartBindingProtection = true;
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Return);  // start rebinding P1 Up (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding P1 Up (index 0)
         Assert.That(screen.GamepadRebindingAction, Is.Not.Null);
 
         string? msg = screen.HandleGamepadButtonPress("Start");
@@ -1363,16 +1363,16 @@ internal class MainMenuScreenTests
     {
         _config.OverrideStartBindingProtection = true;
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);  // GamepadBindings
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);  // GamepadBindings
 
         // OpenMenu entry is at index 8 (after the 8 NES button entries)
-        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);  // start rebinding OpenMenu
+        for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);  // start rebinding OpenMenu
         Assert.That(screen.GamepadRebindingAction, Is.EqualTo("OpenMenu"));
 
         string? msg = screen.HandleGamepadButtonPress("Y");
@@ -1386,12 +1386,12 @@ internal class MainMenuScreenTests
     {
         _config.OverrideStartBindingProtection = true;
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Down);    // skip Keyboard Controls (index 2)
-        screen.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        screen.HandleKey(Keys.Return);  // GamepadBindings
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return);  // GamepadBindings
         Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(10)); // 8 NES + OpenMenu + Back
     }
 
@@ -1401,11 +1401,11 @@ internal class MainMenuScreenTests
     public void ActiveNesButton_KeyboardBindings_FirstItem_ReturnsP1Up()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);    // Settings
-        screen.HandleKey(Keys.Return);
-        screen.HandleKey(Keys.Down);    // skip Video (index 0)
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Return);  // Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);    // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // Keyboard Controls (index 2)
         // SelectedIndex is 0 = P1 Up
         Assert.That(screen.ActiveNesButton, Is.EqualTo("P1 Up"));
     }
@@ -1414,13 +1414,13 @@ internal class MainMenuScreenTests
     public void ActiveNesButton_KeyboardBindings_BackEntry_ReturnsNull()
     {
         using var screen = CreateScreen();
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);  // Settings
-        screen.HandleKey(Keys.Down);    // skip Video (index 0)
-        screen.HandleKey(Keys.Down);    // skip Sound (index 1)
-        screen.HandleKey(Keys.Return);  // Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);  // Settings
+        screen.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return);  // Keyboard Controls (index 2)
         // Navigate to the last item (Back, configKey = "")
-        for (int i = 0; i < 8; i++) screen.HandleKey(Keys.Down);
+        for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down);
         Assert.That(screen.ActiveNesButton, Is.Null);
     }
 
@@ -1463,10 +1463,10 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
-        screen.HandleKey(Keys.Down); // Window (1)
-        screen.HandleKey(Keys.Down); // Filter (2)
-        screen.HandleKey(Keys.Down); // Overlay (3)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // Window (1)
+        screen.HandleKey(SDL.Keycode.Down); // Filter (2)
+        screen.HandleKey(SDL.Keycode.Down); // Overlay (3)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
 
@@ -1477,10 +1477,10 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen(onVideoFilterOverlayChanged: m => received = m);
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.CrtScanlines));
     }
 
@@ -1491,10 +1491,10 @@ internal class MainMenuScreenTests
         _config.VideoFilter        = "CrtScanlines";
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
@@ -1504,10 +1504,10 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoFilterOverlay = "CrtScreen";
         OpenVideoScreenD3D11(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return); // CrtScreen → None
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return); // CrtScreen → None
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
     }
 
@@ -1528,8 +1528,8 @@ internal class MainMenuScreenTests
     private static void OpenVideoPictureScreen(MainMenuScreen screen)
     {
         OpenVideoScreenD3D11(screen);
-        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Picture (index 5)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 5; i++) screen.HandleKey(SDL.Keycode.Down); // to Picture (index 5)
+        screen.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -1572,8 +1572,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // to Brightness (index 1)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down); // to Brightness (index 1)
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoBrightness, Is.EqualTo(1));
     }
 
@@ -1583,8 +1583,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoBrightness = 10;
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // to Brightness
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Down); // to Brightness
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoBrightness, Is.EqualTo(9));
     }
 
@@ -1593,9 +1593,9 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast (index 2)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast (index 2)
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoContrast, Is.EqualTo(1));
     }
 
@@ -1604,10 +1604,10 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast
-        screen.HandleKey(Keys.Down); // Saturation (index 3)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast
+        screen.HandleKey(SDL.Keycode.Down); // Saturation (index 3)
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoSaturation, Is.EqualTo(1));
     }
 
@@ -1616,11 +1616,11 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast
-        screen.HandleKey(Keys.Down); // Saturation
-        screen.HandleKey(Keys.Down); // Hue (index 4)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast
+        screen.HandleKey(SDL.Keycode.Down); // Saturation
+        screen.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoHue, Is.EqualTo(1));
     }
 
@@ -1629,11 +1629,11 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast
-        screen.HandleKey(Keys.Down); // Saturation
-        screen.HandleKey(Keys.Down); // Hue (index 4)
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast
+        screen.HandleKey(SDL.Keycode.Down); // Saturation
+        screen.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoHue, Is.EqualTo(-1));
     }
 
@@ -1643,11 +1643,11 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoHue = 100;
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast
-        screen.HandleKey(Keys.Down); // Saturation
-        screen.HandleKey(Keys.Down); // Hue (index 4)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast
+        screen.HandleKey(SDL.Keycode.Down); // Saturation
+        screen.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoHue, Is.EqualTo(100));
     }
 
@@ -1657,11 +1657,11 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoHue = -100;
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down); // Brightness
-        screen.HandleKey(Keys.Down); // Contrast
-        screen.HandleKey(Keys.Down); // Saturation
-        screen.HandleKey(Keys.Down); // Hue (index 4)
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Down); // Brightness
+        screen.HandleKey(SDL.Keycode.Down); // Contrast
+        screen.HandleKey(SDL.Keycode.Down); // Saturation
+        screen.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoHue, Is.EqualTo(-100));
     }
 
@@ -1671,8 +1671,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoBrightness = 100;
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoBrightness, Is.EqualTo(100));
     }
 
@@ -1682,8 +1682,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoBrightness = -100;
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoBrightness, Is.EqualTo(-100));
     }
 
@@ -1693,7 +1693,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         _config.VideoColorFilter = "None";
         OpenVideoPictureScreen(screen);
-        screen.HandleKey(Keys.Return); // activate ColorPreset (index 0)
+        screen.HandleKey(SDL.Keycode.Return); // activate ColorPreset (index 0)
         Assert.That(_config.VideoColorFilter, Is.Not.EqualTo("None"));
     }
 
@@ -1707,8 +1707,8 @@ internal class MainMenuScreenTests
         _config.VideoHue         = 75;
         _config.VideoColorFilter = "Warm";
         OpenVideoPictureScreen(screen);
-        for (int i = 0; i < 5; i++) screen.HandleKey(Keys.Down); // to Reset (index 5)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 5; i++) screen.HandleKey(SDL.Keycode.Down); // to Reset (index 5)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
         Assert.That(_config.VideoContrast,    Is.EqualTo(0));
         Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
@@ -1721,8 +1721,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        for (int i = 0; i < 6; i++) screen.HandleKey(Keys.Down); // to Back (index 6)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 6; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 6)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 
@@ -1734,8 +1734,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoFilterSubMenu(screen);
-        for (int i = 0; i < 6; i++) screen.HandleKey(Keys.Down); // to Xbr (index 6)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 6; i++) screen.HandleKey(SDL.Keycode.Down); // to Xbr (index 6)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoFilter, Is.EqualTo("Xbr"));
     }
 
@@ -1744,9 +1744,9 @@ internal class MainMenuScreenTests
     private static void OpenAudioEqScreen(MainMenuScreen screen)
     {
         OpenSoundScreen(screen);
-        screen.HandleKey(Keys.Down);   // Audio Filter item (index 1)
-        screen.HandleKey(Keys.Down);   // EQ item (index 2)
-        screen.HandleKey(Keys.Return); // enter AudioEq screen
+        screen.HandleKey(SDL.Keycode.Down);   // Audio Filter item (index 1)
+        screen.HandleKey(SDL.Keycode.Down);   // EQ item (index 2)
+        screen.HandleKey(SDL.Keycode.Return); // enter AudioEq screen
     }
 
     [Test]
@@ -1793,7 +1793,7 @@ internal class MainMenuScreenTests
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(screen); // SelectedItem = 0 (Bass)
-        screen.HandleKey(Keys.Right);
+        screen.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.AudioEqBass, Is.EqualTo(1));
         Assert.That(received.bass, Is.EqualTo(1));
     }
@@ -1809,9 +1809,9 @@ internal class MainMenuScreenTests
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(screen);
-        screen.HandleKey(Keys.Down); // Mid
-        screen.HandleKey(Keys.Down); // Treble (index 2)
-        screen.HandleKey(Keys.Left);
+        screen.HandleKey(SDL.Keycode.Down); // Mid
+        screen.HandleKey(SDL.Keycode.Down); // Treble (index 2)
+        screen.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.AudioEqTreble, Is.EqualTo(5));
         Assert.That(received.treble, Is.EqualTo(5));
     }
@@ -1824,8 +1824,8 @@ internal class MainMenuScreenTests
         _config.AudioEqTreble = 8;
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
-        for (int i = 0; i < 3; i++) screen.HandleKey(Keys.Down); // to Reset (index 3)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) screen.HandleKey(SDL.Keycode.Down); // to Reset (index 3)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.AudioEqBass,   Is.EqualTo(0));
         Assert.That(_config.AudioEqMid,    Is.EqualTo(0));
         Assert.That(_config.AudioEqTreble, Is.EqualTo(0));
@@ -1836,8 +1836,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // to Back (index 4)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 4)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
 
@@ -1846,7 +1846,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
-        screen.HandleKey(Keys.Escape);
+        screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
     }
 
@@ -1872,10 +1872,10 @@ internal class MainMenuScreenTests
 
     private static void OpenLanguageScreen(MainMenuScreen screen)
     {
-        screen.HandleKey(Keys.Down);   // Settings (index 2)
-        screen.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // Language (index 4)
-        screen.HandleKey(Keys.Return); // enter Language
+        screen.HandleKey(SDL.Keycode.Down);   // Settings (index 2)
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // Language (index 4)
+        screen.HandleKey(SDL.Keycode.Return); // enter Language
     }
 
     [Test]
@@ -1914,7 +1914,7 @@ internal class MainMenuScreenTests
             lang => { callbackFired = true; },
             (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(screen);
-        screen.HandleKey(Keys.Return); // select Auto (index 0)
+        screen.HandleKey(SDL.Keycode.Return); // select Auto (index 0)
         Assert.That(_config.Language, Is.EqualTo("Auto"));
         Assert.That(callbackFired, Is.True);
     }
@@ -1930,8 +1930,8 @@ internal class MainMenuScreenTests
             _ => { },
             (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(screen);
-        screen.HandleKey(Keys.Down); // first language (index 1)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // first language (index 1)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.Language, Is.Not.EqualTo("Auto"));
     }
 
@@ -1950,8 +1950,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenLanguageScreen(screen);
         int backIndex = screen.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
@@ -1960,8 +1960,8 @@ internal class MainMenuScreenTests
     private static void OpenVideoMotionEffectScreen(MainMenuScreen screen)
     {
         OpenVideoScreenD3D11(screen);
-        for (int i = 0; i < 4; i++) screen.HandleKey(Keys.Down); // MotionEffect (index 4)
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // MotionEffect (index 4)
+        screen.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -1995,8 +1995,8 @@ internal class MainMenuScreenTests
         _config.VideoMotionEffect = "None";
         using var screen = CreateScreen();
         OpenVideoMotionEffectScreen(screen);
-        screen.HandleKey(Keys.Down); // CrtJitter (index 1)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // CrtJitter (index 1)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoMotionEffect, Is.EqualTo("CrtJitter"));
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
@@ -2011,8 +2011,8 @@ internal class MainMenuScreenTests
             _ => { }, _ => { }, _ => { }, m => received = m, _ => { }, _ => { },
             (_, _, _, _) => { }, (_, _, _) => { });
         OpenVideoMotionEffectScreen(screen);
-        screen.HandleKey(Keys.Down); // CrtJitter
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // CrtJitter
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoMotionEffectMode.CrtJitter));
     }
 
@@ -2022,8 +2022,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoMotionEffectScreen(screen);
         int backIndex = screen.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 
@@ -2033,7 +2033,7 @@ internal class MainMenuScreenTests
     {
         OpenVideoScreenD3D11(screen);
         // Presets is at index 0 — already selected
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -2074,8 +2074,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        screen.HandleKey(Keys.Down); // LivingRoom (index 1)
-        screen.HandleKey(Keys.Return);
+        screen.HandleKey(SDL.Keycode.Down); // LivingRoom (index 1)
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoPreset, Is.EqualTo("LivingRoom"));
         Assert.That(_config.VideoFilter, Is.EqualTo("CrtScreen"));
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
@@ -2087,7 +2087,7 @@ internal class MainMenuScreenTests
         _config.VideoPreset = "Sharp";
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        screen.HandleKey(Keys.Return); // None (index 0)
+        screen.HandleKey(SDL.Keycode.Return); // None (index 0)
         Assert.That(_config.VideoPreset, Is.EqualTo("None"));
     }
 
@@ -2108,8 +2108,8 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
         int backIndex = screen.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) screen.HandleKey(Keys.Down);
-        screen.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
 }

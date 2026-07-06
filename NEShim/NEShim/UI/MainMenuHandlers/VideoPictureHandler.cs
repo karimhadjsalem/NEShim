@@ -1,3 +1,4 @@
+using System.Drawing;
 using NEShim.Rendering;
 
 namespace NEShim.UI;

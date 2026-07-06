@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
+using SDL3;
 using NEShim.Achievements;
 using NEShim.Audio;
 using NEShim.Config;
@@ -69,8 +71,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to start emulator:\n\n{ex.Message}",
-                "NEShim — Startup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            SDL.ShowSimpleMessageBox(SDL.MessageBoxFlags.Error,
+                "NEShim — Startup Error", $"Failed to start emulator:\n\n{ex.Message}", IntPtr.Zero);
             return;
         }
         _renderer?.MarkOverlayDirty();
@@ -99,7 +101,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     {
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, null, 256, 240, _config!.ForceRenderer);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -140,8 +142,6 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
                 : null);
         }
-        else if (_renderer is Rendering.GdiRenderer gdi)
-            gdi.InitializeRenderingOptions(Rendering.Filters.GdiFilterFactory.Create(mode), overscan);
     }
 
     private void OnD3DDeviceLost(object? sender, EventArgs e)
@@ -155,7 +155,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _overlayRenderer = null;
 
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, null, 256, 240, _config!.ForceRenderer);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _config!.ForceRenderer);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -411,8 +411,6 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 _config!.VideoFilter = mode.ToString();
                 if (_renderer is Rendering.D3D11Renderer d3d)
                     d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
-                else if (_renderer is Rendering.GdiRenderer gdi)
-                    gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
             onVideoFilterOverlayChanged: mode =>
@@ -518,8 +516,6 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 _config!.VideoFilter = mode.ToString();
                 if (_renderer is Rendering.D3D11Renderer d3d)
                     d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
-                else if (_renderer is Rendering.GdiRenderer gdi)
-                    gdi.SetFilter(Rendering.Filters.GdiFilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
             onVideoFilterOverlayChanged: mode =>
@@ -666,7 +662,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
     }
 
-    private void OnKeyDown(Keys key)
+    private void OnKeyDown(SDL.Keycode key)
     {
         if (_logoScreen is not null)
         {
@@ -694,7 +690,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             }
         }
 
-        if (key == Keys.F11)
+        if (key == SDL.Keycode.F11)
             SetWindowMode(!_isFullscreen);
     }
 

@@ -1,5 +1,5 @@
 using System.Drawing;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
@@ -189,14 +189,14 @@ internal sealed partial class InGameMenu
 
     // ---- Keyboard input ----
 
-    public bool HandleKey(Keys key)
+    public bool HandleKey(SDL.Keycode key)
     {
         if (!IsOpen) return false;
         if (Current == Screen.ControllerDisconnected) return false;
 
         if (RebindingAction != null)
         {
-            if (key == Keys.Escape)
+            if (key == SDL.Keycode.Escape)
                 RebindingAction = null;
             else
             {
@@ -209,48 +209,48 @@ internal sealed partial class InGameMenu
 
         if (GamepadRebindingAction != null)
         {
-            if (key == Keys.Escape) GamepadRebindingAction = null;
+            if (key == SDL.Keycode.Escape) GamepadRebindingAction = null;
             return true; // block all nav keys while waiting for a gamepad button
         }
 
         if (Current == Screen.Sound && SelectedItem == SoundHandler.VolumeIndex)
         {
-            if (key == Keys.Left)  { AdjustVolume(-5); return true; }
-            if (key == Keys.Right) { AdjustVolume( 5); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustVolume(-5); return true; }
+            if (key == SDL.Keycode.Right) { AdjustVolume( 5); return true; }
         }
 
         if (Current == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedItem))
         {
-            if (key == Keys.Left)  { AdjustPicture(SelectedItem, -1); return true; }
-            if (key == Keys.Right) { AdjustPicture(SelectedItem,  1); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustPicture(SelectedItem, -1); return true; }
+            if (key == SDL.Keycode.Right) { AdjustPicture(SelectedItem,  1); return true; }
         }
 
         if (Current == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedItem))
         {
-            if (key == Keys.Left)  { AdjustEq(SelectedItem, -1); return true; }
-            if (key == Keys.Right) { AdjustEq(SelectedItem,  1); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustEq(SelectedItem, -1); return true; }
+            if (key == SDL.Keycode.Right) { AdjustEq(SelectedItem,  1); return true; }
         }
 
         switch (key)
         {
-            case Keys.Escape:
+            case SDL.Keycode.Escape:
                 if (Current == Screen.Root)
                     Close();
                 else
                     NavigateTo(ParentScreen(Current));
                 return true;
 
-            case Keys.Up:
+            case SDL.Keycode.Up:
                 MoveCursor(-1);
                 return true;
 
-            case Keys.Down:
+            case SDL.Keycode.Down:
                 MoveCursor(1);
                 return true;
 
-            case Keys.Return:
-            case Keys.Z:
-            case Keys.Space:
+            case SDL.Keycode.Return:
+            case SDL.Keycode.Z:
+            case SDL.Keycode.Space:
                 if (IsItemEnabled(SelectedItem))
                     ActivateCurrent();
                 return true;

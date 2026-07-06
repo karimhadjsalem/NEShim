@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Drawing;
 
 namespace NEShim.Config;
 
@@ -135,10 +136,10 @@ public sealed class AppConfig
         ["P1 Down"]   = new InputBinding("S",         "DPadDown"),
         ["P1 Left"]   = new InputBinding("A",         "DPadLeft"),
         ["P1 Right"]  = new InputBinding("D",         "DPadRight"),
-        ["P1 A"]      = new InputBinding("OemPeriod", "A"),
-        ["P1 B"]      = new InputBinding("OemComma",  "B"),
-        ["P1 Start"]  = new InputBinding("Return",    "Y"),
-        ["P1 Select"] = new InputBinding("RShiftKey", "Back"),
+        ["P1 A"]      = new InputBinding("Period", "A"),
+        ["P1 B"]      = new InputBinding("Comma",  "B"),
+        ["P1 Start"]  = new InputBinding("Return", "Y"),
+        ["P1 Select"] = new InputBinding("RShift",  "Back"),
     };
 
     /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>

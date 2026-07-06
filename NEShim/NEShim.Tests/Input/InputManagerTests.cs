@@ -1,6 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Windows.Forms;
+using SDL3;
 using NSubstitute;
 using NEShim.Config;
 using NEShim.Input;
@@ -43,17 +43,17 @@ internal class InputManagerTests
     [Test]
     public void OnKeyDown_ThenOnKeyUp_KeyIsNoLongerTracked()
     {
-        _manager.OnKeyDown(Keys.W);
+        _manager.OnKeyDown(SDL.Keycode.W);
         Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.True);
 
-        _manager.OnKeyUp(Keys.W);
+        _manager.OnKeyUp(SDL.Keycode.W);
         Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.False);
     }
 
     [Test]
     public void PollSnapshot_MapsKeyToNesButton()
     {
-        _manager.OnKeyDown(Keys.W);
+        _manager.OnKeyDown(SDL.Keycode.W);
         Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.True);
     }
 
@@ -66,9 +66,9 @@ internal class InputManagerTests
     [Test]
     public void PollSnapshot_MultipleKeysMapped_AllAppearInSnapshot()
     {
-        _manager.OnKeyDown(Keys.W);
-        _manager.OnKeyDown(Keys.S);
-        _manager.OnKeyDown(Keys.Return);
+        _manager.OnKeyDown(SDL.Keycode.W);
+        _manager.OnKeyDown(SDL.Keycode.S);
+        _manager.OnKeyDown(SDL.Keycode.Return);
 
         var snapshot = _manager.PollSnapshot(_config);
         Assert.That(snapshot.IsPressed("P1 Up"),    Is.True);
@@ -192,7 +192,7 @@ internal class InputManagerTests
         var fired = new List<string>();
         _manager.HotkeyFired += action => fired.Add(action);
 
-        _manager.OnKeyDown(Keys.F5);
+        _manager.OnKeyDown(SDL.Keycode.F5);
         _manager.AdvanceHotkeyState(_config);
 
         Assert.That(fired, Is.EqualTo(new[] { "SaveActiveSlot" }));
@@ -204,7 +204,7 @@ internal class InputManagerTests
         int count = 0;
         _manager.HotkeyFired += _ => count++;
 
-        _manager.OnKeyDown(Keys.F5);
+        _manager.OnKeyDown(SDL.Keycode.F5);
         _manager.AdvanceHotkeyState(_config); // frame 1: edge fires
         _manager.AdvanceHotkeyState(_config); // frame 2: held, no edge
 
@@ -217,7 +217,7 @@ internal class InputManagerTests
         var fired = new List<string>();
         _manager.HotkeyFired += action => fired.Add(action);
 
-        _manager.OnKeyDown(Keys.F9);
+        _manager.OnKeyDown(SDL.Keycode.F9);
         _manager.AdvanceHotkeyState(_config);
 
         Assert.That(fired, Contains.Item("LoadActiveSlot"));
@@ -229,7 +229,7 @@ internal class InputManagerTests
         var fired = new List<string>();
         _manager.HotkeyFired += action => fired.Add(action);
 
-        _manager.OnKeyDown(Keys.F1);
+        _manager.OnKeyDown(SDL.Keycode.F1);
         _manager.AdvanceHotkeyState(_config);
 
         Assert.That(fired, Contains.Item("SelectSlot1"));
@@ -241,8 +241,8 @@ internal class InputManagerTests
         var fired = new List<string>();
         _manager.HotkeyFired += action => fired.Add(action);
 
-        _manager.OnKeyDown(Keys.F1);
-        _manager.OnKeyDown(Keys.F5);
+        _manager.OnKeyDown(SDL.Keycode.F1);
+        _manager.OnKeyDown(SDL.Keycode.F5);
         _manager.AdvanceHotkeyState(_config);
 
         Assert.That(fired, Contains.Item("SelectSlot1"));
@@ -269,7 +269,7 @@ internal class InputManagerTests
         bool fired = false;
         _manager.MenuToggleRequested += () => fired = true;
 
-        _manager.OnKeyDown(Keys.Escape);
+        _manager.OnKeyDown(SDL.Keycode.Escape);
         _manager.AdvanceHotkeyState(_config);
 
         Assert.That(fired, Is.True);
@@ -281,7 +281,7 @@ internal class InputManagerTests
         int count = 0;
         _manager.MenuToggleRequested += () => count++;
 
-        _manager.OnKeyDown(Keys.Escape);
+        _manager.OnKeyDown(SDL.Keycode.Escape);
         _manager.AdvanceHotkeyState(_config); // edge fires
         _manager.AdvanceHotkeyState(_config); // held, silent
 

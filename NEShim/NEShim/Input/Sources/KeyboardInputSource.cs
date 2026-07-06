@@ -1,19 +1,19 @@
 using System.Collections.Generic;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Config;
 
 namespace NEShim.Input.Sources;
 
 /// <summary>
-/// Captures keyboard state via WM_KEYDOWN/WM_KEYUP events forwarded from MainForm.
-/// Returns active key names as strings matching the Keys.ToString() convention
-/// used in InputBinding.Key (e.g. Keys.W → "W", Keys.OemPeriod → "OemPeriod").
-/// Thread-safe: OnKeyDown/OnKeyUp are called on the UI thread; GetActiveIdentifiers
+/// Captures keyboard state via SDL KeyDown/KeyUp events forwarded from SDL3WindowHost.
+/// Returns active key names as strings matching SDL.Keycode.ToString() convention
+/// used in InputBinding.Key (e.g. SDL.Keycode.W → "W", SDL.Keycode.Period → "Period").
+/// Thread-safe: OnKeyDown/OnKeyUp are called on the main thread; GetActiveIdentifiers
 /// and hotkey helpers are called on the emulation thread.
 /// </summary>
 internal sealed class KeyboardInputSource : IInputSource
 {
-    private readonly HashSet<Keys> _pressedKeys = new();
+    private readonly HashSet<SDL.Keycode> _pressedKeys = new();
     private readonly object _keyLock = new();
 
     public bool IsAvailable => true;
@@ -29,23 +29,23 @@ internal sealed class KeyboardInputSource : IInputSource
         }
     }
 
-    public void OnKeyDown(Keys key)
+    public void OnKeyDown(SDL.Keycode key)
     {
         lock (_keyLock) _pressedKeys.Add(key);
     }
 
-    public void OnKeyUp(Keys key)
+    public void OnKeyUp(SDL.Keycode key)
     {
         lock (_keyLock) _pressedKeys.Remove(key);
     }
 
-    internal bool IsKeyPressed(Keys key)
+    internal bool IsKeyPressed(SDL.Keycode key)
     {
         lock (_keyLock) return _pressedKeys.Contains(key);
     }
 
-    internal HashSet<Keys> GetPressedKeysCopy()
+    internal HashSet<SDL.Keycode> GetPressedKeysCopy()
     {
-        lock (_keyLock) return new HashSet<Keys>(_pressedKeys);
+        lock (_keyLock) return new HashSet<SDL.Keycode>(_pressedKeys);
     }
 }

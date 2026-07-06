@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+﻿using SDL3;
 using NEShim.Config;
 using NEShim.Input.Sources;
 
@@ -27,72 +27,72 @@ internal class KeyboardInputSourceTests
     [Test]
     public void OnKeyDown_KeyAppearsInIdentifiers()
     {
-        _source.OnKeyDown(Keys.W);
+        _source.OnKeyDown(SDL.Keycode.W);
         Assert.That(_source.GetActiveIdentifiers(new AppConfig()), Contains.Item("W"));
     }
 
     [Test]
     public void OnKeyUp_RemovesKeyFromIdentifiers()
     {
-        _source.OnKeyDown(Keys.W);
-        _source.OnKeyUp(Keys.W);
+        _source.OnKeyDown(SDL.Keycode.W);
+        _source.OnKeyUp(SDL.Keycode.W);
         Assert.That(_source.GetActiveIdentifiers(new AppConfig()), Is.Empty);
     }
 
     [Test]
     public void MultipleKeysDown_AllAppearInIdentifiers()
     {
-        _source.OnKeyDown(Keys.W);
-        _source.OnKeyDown(Keys.A);
-        _source.OnKeyDown(Keys.Return); // Keys.Return.ToString() = "Enter"
+        _source.OnKeyDown(SDL.Keycode.W);
+        _source.OnKeyDown(SDL.Keycode.A);
+        _source.OnKeyDown(SDL.Keycode.Return); // SDL.Keycode.Return.ToString() = "Return"
 
         var ids = _source.GetActiveIdentifiers(new AppConfig());
-        Assert.That(ids, Is.SupersetOf(new[] { "W", "A", "Enter" }));
+        Assert.That(ids, Is.SupersetOf(new[] { "W", "A", "Return" }));
     }
 
     [Test]
     public void GetActiveIdentifiers_UsesKeyToStringConvention()
     {
-        // Keys.OemPeriod → "OemPeriod", not a numeric code
-        _source.OnKeyDown(Keys.OemPeriod);
-        Assert.That(_source.GetActiveIdentifiers(new AppConfig()), Contains.Item("OemPeriod"));
+        // SDL.Keycode.Period → "Period" (SDL name, not WinForms "OemPeriod")
+        _source.OnKeyDown(SDL.Keycode.Period);
+        Assert.That(_source.GetActiveIdentifiers(new AppConfig()), Contains.Item("Period"));
     }
 
     [Test]
     public void IsKeyPressed_TrueWhenKeyIsDown()
     {
-        _source.OnKeyDown(Keys.Space);
-        Assert.That(_source.IsKeyPressed(Keys.Space), Is.True);
+        _source.OnKeyDown(SDL.Keycode.Space);
+        Assert.That(_source.IsKeyPressed(SDL.Keycode.Space), Is.True);
     }
 
     [Test]
     public void IsKeyPressed_FalseWhenKeyNotDown()
     {
-        Assert.That(_source.IsKeyPressed(Keys.Space), Is.False);
+        Assert.That(_source.IsKeyPressed(SDL.Keycode.Space), Is.False);
     }
 
     [Test]
     public void IsKeyPressed_FalseAfterKeyUp()
     {
-        _source.OnKeyDown(Keys.Space);
-        _source.OnKeyUp(Keys.Space);
-        Assert.That(_source.IsKeyPressed(Keys.Space), Is.False);
+        _source.OnKeyDown(SDL.Keycode.Space);
+        _source.OnKeyUp(SDL.Keycode.Space);
+        Assert.That(_source.IsKeyPressed(SDL.Keycode.Space), Is.False);
     }
 
     [Test]
     public void GetPressedKeysCopy_ReflectsCurrentState()
     {
-        _source.OnKeyDown(Keys.F5);
-        Assert.That(_source.GetPressedKeysCopy(), Contains.Item(Keys.F5));
+        _source.OnKeyDown(SDL.Keycode.F5);
+        Assert.That(_source.GetPressedKeysCopy(), Contains.Item(SDL.Keycode.F5));
     }
 
     [Test]
     public void GetPressedKeysCopy_IsSnapshot_NotLive()
     {
-        _source.OnKeyDown(Keys.F5);
+        _source.OnKeyDown(SDL.Keycode.F5);
         var copy = _source.GetPressedKeysCopy();
-        _source.OnKeyUp(Keys.F5);
+        _source.OnKeyUp(SDL.Keycode.F5);
         // The snapshot captured before KeyUp should still have F5
-        Assert.That(copy, Contains.Item(Keys.F5));
+        Assert.That(copy, Contains.Item(SDL.Keycode.F5));
     }
 }

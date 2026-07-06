@@ -1,7 +1,7 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Config;
 using NEShim.Saves;
 using NEShim.Localization;
@@ -195,12 +195,12 @@ internal class MainMenuRendererTests
     {
         using var menu = CreateMenu();
         // Main → Down once skips disabled Resume → lands on Settings → enter → Down×2 → Keyboard Controls (index 2) → rebind
-        menu.HandleKey(Keys.Down);    // 0→(1 disabled)→2 (Settings)
-        menu.HandleKey(Keys.Return);  // → Settings screen
-        menu.HandleKey(Keys.Down);    // skip Video (index 0)
-        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
-        menu.HandleKey(Keys.Return);  // → KeyboardBindings (item 2 = Keyboard Controls)
-        menu.HandleKey(Keys.Return);  // → starts rebinding "P1 Up"
+        menu.HandleKey(SDL.Keycode.Down);    // 0→(1 disabled)→2 (Settings)
+        menu.HandleKey(SDL.Keycode.Return);  // → Settings screen
+        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return);  // → KeyboardBindings (item 2 = Keyboard Controls)
+        menu.HandleKey(SDL.Keycode.Return);  // → starts rebinding "P1 Up"
 
         Assert.That(menu.RebindingAction, Is.Not.Null);
         Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 300), Bounds800x600HT, menu), Is.EqualTo(-1));
@@ -243,8 +243,8 @@ internal class MainMenuRendererTests
     {
         using var menu = CreateMenu();
         // Navigate to Settings sub-screen (one Down skips disabled Resume, lands on Settings)
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
 
         Assert.That(menu.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
 
@@ -296,8 +296,8 @@ internal class MainMenuRendererTests
     public void Draw_SettingsSubScreen_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings (skips disabled Resume)
-        menu.HandleKey(Keys.Return);  // → Settings
+        menu.HandleKey(SDL.Keycode.Down);    // Settings (skips disabled Resume)
+        menu.HandleKey(SDL.Keycode.Return);  // → Settings
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -307,11 +307,11 @@ internal class MainMenuRendererTests
     public void Draw_VideoSubScreen_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);    // skip Keyboard Controls
-        menu.HandleKey(Keys.Down);    // Video (index 2)
-        menu.HandleKey(Keys.Return);  // → Video
+        menu.HandleKey(SDL.Keycode.Down);    // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls
+        menu.HandleKey(SDL.Keycode.Down);    // Video (index 2)
+        menu.HandleKey(SDL.Keycode.Return);  // → Video
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -321,10 +321,10 @@ internal class MainMenuRendererTests
     public void Draw_SoundSubScreen_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings
-        menu.HandleKey(Keys.Return);
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Sound (index 3)
-        menu.HandleKey(Keys.Return);  // → Sound
+        menu.HandleKey(SDL.Keycode.Down);    // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(SDL.Keycode.Down); // Sound (index 3)
+        menu.HandleKey(SDL.Keycode.Return);  // → Sound
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -334,9 +334,9 @@ internal class MainMenuRendererTests
     public void Draw_KeyboardBindingsSubScreen_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return);  // → KeyboardBindings (index 0)
+        menu.HandleKey(SDL.Keycode.Down);    // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Return);  // → KeyboardBindings (index 0)
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -346,10 +346,10 @@ internal class MainMenuRendererTests
     public void Draw_RebindingMode_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Return);  // KeyboardBindings
-        menu.HandleKey(Keys.Return);  // → starts rebinding "P1 Up"
+        menu.HandleKey(SDL.Keycode.Down);    // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Return);  // KeyboardBindings
+        menu.HandleKey(SDL.Keycode.Return);  // → starts rebinding "P1 Up"
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -361,8 +361,8 @@ internal class MainMenuRendererTests
         _saves.SlotExists(0).Returns(true);
         _saves.HasAutoSave.Returns(true);
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Resume (now enabled)
-        menu.HandleKey(Keys.Return);  // → ResumeSlots
+        menu.HandleKey(SDL.Keycode.Down);    // Resume (now enabled)
+        menu.HandleKey(SDL.Keycode.Return);  // → ResumeSlots
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
         Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
@@ -372,13 +372,13 @@ internal class MainMenuRendererTests
     public void Draw_GamepadRebindingMode_DoesNotThrow()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings (skips disabled Resume)
-        menu.HandleKey(Keys.Return);  // → Settings
-        menu.HandleKey(Keys.Down);    // skip Video (index 0)
-        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return);  // → GamepadBindings
-        menu.HandleKey(Keys.Return);  // start rebind for P1 Up (index 0)
+        menu.HandleKey(SDL.Keycode.Down);    // Settings (skips disabled Resume)
+        menu.HandleKey(SDL.Keycode.Return);  // → Settings
+        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return);  // → GamepadBindings
+        menu.HandleKey(SDL.Keycode.Return);  // start rebind for P1 Up (index 0)
         Assert.That(menu.IsGamepadRebinding, Is.True);
         using var canvas = MakeCanvas();
         using var g      = Graphics.FromImage(canvas);
@@ -389,13 +389,13 @@ internal class MainMenuRendererTests
     public void HitTestItem_DuringGamepadRebinding_ReturnsNegativeOne()
     {
         using var menu = CreateMenu();
-        menu.HandleKey(Keys.Down);    // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);    // skip Video (index 0)
-        menu.HandleKey(Keys.Down);    // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);    // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return);  // → GamepadBindings
-        menu.HandleKey(Keys.Return);  // start rebind
+        menu.HandleKey(SDL.Keycode.Down);    // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return);  // → GamepadBindings
+        menu.HandleKey(SDL.Keycode.Return);  // start rebind
         Assert.That(menu.IsGamepadRebinding, Is.True);
         Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 300), Bounds800x600HT, menu), Is.EqualTo(-1));
     }

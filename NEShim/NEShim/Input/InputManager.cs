@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Config;
 using NEShim.Input.Mappers;
 using NEShim.Input.Sources;
@@ -22,7 +22,7 @@ internal sealed class InputManager : IInputReader
     private readonly IInputMapper        _steamMapper;
 
     // Edge detection for hotkeys
-    private readonly HashSet<Keys> _prevHotkeyKeys = new();
+    private readonly HashSet<SDL.Keycode> _prevHotkeyKeys = new();
     private XInputHelper.GamepadState _prevHotkeyPad;
 
     // Controller disconnect tracking
@@ -65,8 +65,8 @@ internal sealed class InputManager : IInputReader
 
     // ── IInputReader: keyboard forwarding ──────────────────────────────────────
 
-    public void OnKeyDown(Keys key) => _keyboardSource.OnKeyDown(key);
-    public void OnKeyUp(Keys key)   => _keyboardSource.OnKeyUp(key);
+    public void OnKeyDown(SDL.Keycode key) => _keyboardSource.OnKeyDown(key);
+    public void OnKeyUp(SDL.Keycode key)   => _keyboardSource.OnKeyUp(key);
 
     // ── IInputReader: frame polling ────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ internal sealed class InputManager : IInputReader
 
         // Menu toggle — fire at most once even if multiple triggers are active
         bool menuToggle =
-            (curr.Contains(Keys.Escape) && !_prevHotkeyKeys.Contains(Keys.Escape))
+            (curr.Contains(SDL.Keycode.Escape) && !_prevHotkeyKeys.Contains(SDL.Keycode.Escape))
             || (!config.OverrideStartBindingProtection
                 && pad.Connected && pad.Start && !_prevHotkeyPad.Start)
             || (config.GamepadHotkeyMappings.TryGetValue("OpenMenu", out var openBtn)
@@ -139,7 +139,7 @@ internal sealed class InputManager : IInputReader
         // Keyboard hotkeys
         foreach (var (action, keyName) in config.HotkeyMappings)
         {
-            if (!Enum.TryParse<Keys>(keyName, out var key)) continue;
+            if (!Enum.TryParse<SDL.Keycode>(keyName, out var key)) continue;
             if (curr.Contains(key) && !_prevHotkeyKeys.Contains(key))
                 HotkeyFired?.Invoke(action);
         }

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.Immutable;
 using NEShim.Config;
 using NEShim.Input.Mappers;
@@ -50,10 +50,10 @@ internal class KeyboardMapperTests
     [Test]
     public void Map_MultipleKeys_AllMapped()
     {
-        // Keys.Return.ToString() = "Enter" (alias), so identifier is "Enter" not "Return".
-        // The mapper resolves binding key "Return" → Keys.Return → "Enter" via Enum.TryParse.
+        // SDL.Keycode.Return.ToString() = "Return"; the keyboard source emits "Return" and
+        // the config binding "Return" both parse to SDL.Keycode.Return via Enum.TryParse.
         var builder = NewBuilder();
-        _mapper.Map(new HashSet<string> { "W", "S", "Enter" }, _config, builder);
+        _mapper.Map(new HashSet<string> { "W", "S", "Return" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"),    Is.True);
         Assert.That(builder.Contains("P1 Down"),  Is.True);
         Assert.That(builder.Contains("P1 Start"), Is.True);
@@ -79,11 +79,10 @@ internal class KeyboardMapperTests
     [Test]
     public void Map_AllDefaultBindings_MappedCorrectly()
     {
-        // The mapper resolves identifiers and binding keys to Keys enum values,
-        // so aliases ("Return"/"Enter", "OemComma"/"Oemcomma") match correctly
-        // regardless of which casing the keyboard source or config uses.
+        // Identifiers are SDL.Keycode.ToString() values produced by KeyboardInputSource.
+        // Config binding keys are SDL.Keycode names stored in AppConfig.InputMappings defaults.
         var ids = new HashSet<string>
-            { "W", "S", "A", "D", "OemPeriod", "OemComma", "Return", "RShiftKey" };
+            { "W", "S", "A", "D", "Period", "Comma", "Return", "RShift" };
         var builder = NewBuilder();
         _mapper.Map(ids, _config, builder);
 
@@ -103,6 +102,74 @@ internal class KeyboardMapperTests
         _config.InputMappings["P1 Up"] = new InputBinding("NotAValidKey!!!", null);
         var builder = NewBuilder();
         _mapper.Map(new HashSet<string> { "NotAValidKey!!!" }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.False);
+    }
+
+    // ── SDL.Keycode name round-trip tests ────────────────────────────────────────
+    // Validates that SDL.Keycode enum names serialise correctly to/from config strings.
+
+    [Test]
+    public void ParseKey_Return_ParsesCorrectly()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("Return", null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "Return" }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [Test]
+    public void ParseKey_CommonMovementKeys_ParseCorrectly()
+    {
+        foreach (var key in new[] { "Up", "Down", "Left", "Right", "Space", "Escape" })
+        {
+            _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+            var builder = NewBuilder();
+            _mapper.Map(new HashSet<string> { key }, _config, builder);
+            Assert.That(builder.Contains("P1 Up"), Is.True, $"Key '{key}' should parse");
+        }
+    }
+
+    [Test]
+    public void ParseKey_FunctionKeys_ParseCorrectly()
+    {
+        foreach (var key in new[] { "F1", "F11", "F12" })
+        {
+            _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+            var builder = NewBuilder();
+            _mapper.Map(new HashSet<string> { key }, _config, builder);
+            Assert.That(builder.Contains("P1 Up"), Is.True, $"Key '{key}' should parse");
+        }
+    }
+
+    [Test]
+    public void ParseKey_Letters_ParseCorrectly()
+    {
+        foreach (var key in new[] { "A", "Z" })
+        {
+            _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+            var builder = NewBuilder();
+            _mapper.Map(new HashSet<string> { key }, _config, builder);
+            Assert.That(builder.Contains("P1 Up"), Is.True, $"Key '{key}' should parse");
+        }
+    }
+
+    [Test]
+    public void ParseKey_CaseInsensitive_Succeeds()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("escape", null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "Escape" }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [Test]
+    public void ParseKey_WinFormsName_NoLongerResolves()
+    {
+        // WinForms name "NumPad0" has no SDL.Keycode equivalent of that name.
+        // SDL uses "Kp0" instead — old configs with "NumPad0" will silently fail to bind.
+        _config.InputMappings["P1 Up"] = new InputBinding("NumPad0", null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "NumPad0" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"), Is.False);
     }
 }

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using BizHawk.Common;
 using NEShim.Platform;
+using SDL3;
 using Steamworks;
 
 namespace NEShim;
@@ -51,13 +52,12 @@ static class Program
                 $"Time:    {DateTime.UtcNow:O}\n" +
                 $"Version: {version}\n\n" +
                 $"{ex}\n");
-            MessageBox.Show(
+            SDL.ShowSimpleMessageBox(SDL.MessageBoxFlags.Error,
+                "NEShim — Unexpected Error",
                 $"NEShim encountered an unexpected error and must close.\n\n" +
                 $"A crash log has been written to:\n{path}\n\n" +
                 "If you report this issue, please attach the log.",
-                "NEShim — Unexpected Error",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                IntPtr.Zero);
         }
         catch { }
         finally { Environment.Exit(1); }

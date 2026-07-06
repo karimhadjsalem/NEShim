@@ -1,5 +1,5 @@
-using System.Drawing;
-using System.Windows.Forms;
+﻿using System.Drawing;
+using SDL3;
 using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Input;
@@ -86,7 +86,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down); // move cursor to index 1
+        menu.HandleKey(SDL.Keycode.Down); // move cursor to index 1
         menu.Open();   // second open should be ignored
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
@@ -97,7 +97,7 @@ internal class InGameMenuTests
     public void HandleKey_WhenClosed_ReturnsFalse()
     {
         var menu     = CreateMenu();
-        bool consumed = menu.HandleKey(Keys.Return);
+        bool consumed = menu.HandleKey(SDL.Keycode.Return);
         Assert.That(consumed, Is.False);
     }
 
@@ -106,7 +106,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
         Assert.That(menu.IsOpen, Is.False);
     }
 
@@ -116,12 +116,12 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate into Save Slot Select (index 2)
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.SaveSlotSelect));
 
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
 
         Assert.That(menu.Current,  Is.EqualTo(InGameMenu.Screen.Root));
         Assert.That(menu.IsOpen,   Is.True);
@@ -132,7 +132,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
+        menu.HandleKey(SDL.Keycode.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(1));
     }
 
@@ -142,7 +142,7 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Root has 8 items (indices 0–7). Up from 0 wraps to 7.
-        menu.HandleKey(Keys.Up);
+        menu.HandleKey(SDL.Keycode.Up);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
     }
 
@@ -152,7 +152,7 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // SelectedItem = 0 (Resume)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.IsOpen, Is.False);
     }
 
@@ -165,8 +165,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Load Game (index 4): 0→1→2→3→4 (enabled because slot exists)
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
 
         Assert.That(menu.Current,      Is.EqualTo(InGameMenu.Screen.ConfirmLoad));
         Assert.That(menu.SelectedItem, Is.EqualTo(0)); // default is "Yes"
@@ -178,9 +178,9 @@ internal class InGameMenuTests
         _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
-        menu.HandleKey(Keys.Return);   // confirm Yes
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);   // enter ConfirmLoad (selection at "Yes")
+        menu.HandleKey(SDL.Keycode.Return);   // confirm Yes
 
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -191,10 +191,10 @@ internal class InGameMenuTests
         _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);   // ConfirmLoad, at "Yes"
-        menu.HandleKey(Keys.Down);     // move to "No"
-        menu.HandleKey(Keys.Return);   // activate "No"
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);   // ConfirmLoad, at "Yes"
+        menu.HandleKey(SDL.Keycode.Down);     // move to "No"
+        menu.HandleKey(SDL.Keycode.Return);   // activate "No"
 
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
         Assert.That(menu.IsOpen,  Is.True);
@@ -208,8 +208,8 @@ internal class InGameMenuTests
         // Navigate to "Return to Main Menu" (index 6).
         // With no save, Load Game (index 4) is skipped: 0→1→2→3→5→6
         for (int i = 0; i < 5; i++)
-            menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+            menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
 
         Assert.That(menu.Current,      Is.EqualTo(InGameMenu.Screen.ConfirmMainMenu));
         Assert.That(menu.SelectedItem, Is.EqualTo(1)); // default is "No"
@@ -222,8 +222,8 @@ internal class InGameMenuTests
         menu.Open();
         // Navigate to "Exit" (index 7): 0→1→2→3→5→6→7
         for (int i = 0; i < 6; i++)
-            menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+            menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
 
         Assert.That(menu.Current,      Is.EqualTo(InGameMenu.Screen.ConfirmExit));
         Assert.That(menu.SelectedItem, Is.EqualTo(1)); // default is "No"
@@ -236,10 +236,10 @@ internal class InGameMenuTests
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
         menu.Open();
         for (int i = 0; i < 5; i++)
-            menu.HandleKey(Keys.Down); // land on index 6
-        menu.HandleKey(Keys.Return);   // enter ConfirmMainMenu (selection at "No")
-        menu.HandleKey(Keys.Up);       // move to "Yes"
-        menu.HandleKey(Keys.Return);   // confirm
+            menu.HandleKey(SDL.Keycode.Down); // land on index 6
+        menu.HandleKey(SDL.Keycode.Return);   // enter ConfirmMainMenu (selection at "No")
+        menu.HandleKey(SDL.Keycode.Up);       // move to "Yes"
+        menu.HandleKey(SDL.Keycode.Return);   // confirm
 
         Assert.That(menu.IsOpen,        Is.False);
         Assert.That(callbackInvoked,    Is.True);
@@ -252,9 +252,9 @@ internal class InGameMenuTests
         var menu = CreateMenu(onReturnToMainMenu: () => callbackInvoked = true);
         menu.Open();
         for (int i = 0; i < 5; i++)
-            menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);   // ConfirmMainMenu, at "No"
-        menu.HandleKey(Keys.Return);   // activate "No"
+            menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);   // ConfirmMainMenu, at "No"
+        menu.HandleKey(SDL.Keycode.Return);   // activate "No"
 
         Assert.That(menu.Current,     Is.EqualTo(InGameMenu.Screen.Root));
         Assert.That(menu.IsOpen,      Is.True);
@@ -268,10 +268,10 @@ internal class InGameMenuTests
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
         menu.Open();
         for (int i = 0; i < 6; i++)
-            menu.HandleKey(Keys.Down); // land on index 7 (Exit)
-        menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
-        menu.HandleKey(Keys.Up);       // move to "Yes"
-        menu.HandleKey(Keys.Return);   // confirm
+            menu.HandleKey(SDL.Keycode.Down); // land on index 7 (Exit)
+        menu.HandleKey(SDL.Keycode.Return);   // ConfirmExit, at "No"
+        menu.HandleKey(SDL.Keycode.Up);       // move to "Yes"
+        menu.HandleKey(SDL.Keycode.Return);   // confirm
 
         Assert.That(menu.IsOpen,    Is.False);
         Assert.That(exitInvoked,    Is.True);
@@ -284,9 +284,9 @@ internal class InGameMenuTests
         var menu = CreateMenu(onExitToDesktop: () => exitInvoked = true);
         menu.Open();
         for (int i = 0; i < 6; i++)
-            menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);   // ConfirmExit, at "No"
-        menu.HandleKey(Keys.Return);   // activate "No"
+            menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);   // ConfirmExit, at "No"
+        menu.HandleKey(SDL.Keycode.Return);   // activate "No"
 
         Assert.That(menu.Current,    Is.EqualTo(InGameMenu.Screen.Root));
         Assert.That(menu.IsOpen,     Is.True);
@@ -319,13 +319,13 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Save Game (index 3)
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(3));
 
         // One more Down should skip index 4 (disabled) and land on index 5 (Settings)
-        menu.HandleKey(Keys.Down);
+        menu.HandleKey(SDL.Keycode.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(5));
     }
 
@@ -360,19 +360,19 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Settings (index 5 with no save — skips disabled Load Game)
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
 
         // Navigate to Video (index 0) → Down×2 to FPS (index 3 in the 5-item GDI Video layout)
-        menu.HandleKey(Keys.Return); // enter Video screen (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // enter Video screen (index 0)
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
 
-        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
-        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
-        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Down);   // select FPS (index 3 in GDI mode)
         bool before = _config.ShowFps;
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.ShowFps, Is.EqualTo(!before));
     }
 
@@ -382,13 +382,13 @@ internal class InGameMenuTests
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter Settings
-        menu.HandleKey(Keys.Return); // enter Video screen (index 0)
-        menu.HandleKey(Keys.Down);   // skip Video Filter (index 1)
-        menu.HandleKey(Keys.Down);   // skip Overscan (index 2 in GDI mode)
-        menu.HandleKey(Keys.Down);   // select FPS (index 3 in GDI mode)
-        menu.HandleKey(Keys.Return); // toggle FPS
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        menu.HandleKey(SDL.Keycode.Return); // enter Video screen (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video Filter (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Overscan (index 2 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Down);   // select FPS (index 3 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Return); // toggle FPS
         Assert.That(saved, Is.True);
     }
 
@@ -400,15 +400,15 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to "Select Save Slot" (index 2)
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter SaveSlotSelect
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter SaveSlotSelect
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.SaveSlotSelect));
 
         // Move to slot 2 (index 2) and select
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
 
         _saves.Received().ActiveSlot = 2;
         Assert.That(_config.ActiveSlot,     Is.EqualTo(2));
@@ -423,15 +423,15 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Settings (index 5, skipping disabled Load Game at 4): 4 Downs then Return
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // select Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // select Keyboard Controls (index 2)
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.KeyboardBindings));
 
         // Select first binding (Up → P1 Up)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.RebindingAction, Is.EqualTo("P1 Up"));
     }
 
@@ -441,14 +441,14 @@ internal class InGameMenuTests
         bool saved = false;
         var menu   = CreateMenu(onConfigSaved: () => saved = true);
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Return); // start rebind for P1 Up
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Return); // start rebind for P1 Up
 
-        menu.HandleKey(Keys.T); // assign T to P1 Up
+        menu.HandleKey(SDL.Keycode.T); // assign T to P1 Up
         Assert.That(menu.RebindingAction, Is.Null);
         Assert.That(_config.InputMappings["P1 Up"].Key, Is.EqualTo("T"));
         Assert.That(saved, Is.True);
@@ -460,12 +460,12 @@ internal class InGameMenuTests
         string originalKey = _config.InputMappings["P1 Up"].Key!;
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Return); // Key Bindings
-        menu.HandleKey(Keys.Return); // start rebind
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Return); // Key Bindings
+        menu.HandleKey(SDL.Keycode.Return); // start rebind
 
-        menu.HandleKey(Keys.Escape); // cancel
+        menu.HandleKey(SDL.Keycode.Escape); // cancel
         Assert.That(menu.RebindingAction, Is.Null);
         Assert.That(_config.InputMappings["P1 Up"].Key, Is.EqualTo(originalKey));
     }
@@ -480,8 +480,8 @@ internal class InGameMenuTests
         Assert.That(menu.GetTitle(), Is.EqualTo("PAUSED"));
 
         // Navigate to ConfirmMainMenu
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.GetTitle(), Is.EqualTo("RETURN TO MAIN MENU?"));
     }
 
@@ -498,8 +498,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter ConfirmMainMenu
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter ConfirmMainMenu
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(2));
         Assert.That(menu.GetCurrentItems()[0], Does.StartWith("Yes"));
         Assert.That(menu.GetCurrentItems()[1], Does.StartWith("No"));
@@ -510,9 +510,9 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter SaveSlotSelect
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter SaveSlotSelect
 
         string[] items = menu.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(9)); // 8 slots + ← Back
@@ -528,15 +528,15 @@ internal class InGameMenuTests
         _config.WindowMode = "Fullscreen";
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter Settings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
 
         string[] items = menu.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(6)); // Video, Sound, Keyboard Controls, Gamepad Controls, Language, ← Back
         Assert.That(items[0], Is.EqualTo("Video"));
 
         // Window Mode lives in the Video sub-screen
-        menu.HandleKey(Keys.Return); // enter Video (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // enter Video (index 0)
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
         string[] videoItems = menu.GetCurrentItems();
         Assert.That(videoItems[0], Does.Contain("Fullscreen"));
@@ -557,11 +557,11 @@ internal class InGameMenuTests
 
         menuWithToggle.Open();
         _config.WindowMode = "Fullscreen";
-        for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(Keys.Down);
-        menuWithToggle.HandleKey(Keys.Return); // Settings
-        menuWithToggle.HandleKey(Keys.Return); // enter Video (index 0)
+        for (int i = 0; i < 4; i++) menuWithToggle.HandleKey(SDL.Keycode.Down);
+        menuWithToggle.HandleKey(SDL.Keycode.Return); // Settings
+        menuWithToggle.HandleKey(SDL.Keycode.Return); // enter Video (index 0)
         // Window Mode is index 0 in Video — already selected
-        menuWithToggle.HandleKey(Keys.Return); // activate — should toggle to Windowed
+        menuWithToggle.HandleKey(SDL.Keycode.Return); // activate — should toggle to Windowed
 
         Assert.That(receivedFullscreen, Is.False); // was Fullscreen, toggled to Windowed
     }
@@ -572,10 +572,10 @@ internal class InGameMenuTests
     private void OpenSoundScreen(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings
-        menu.HandleKey(Keys.Return); // enter Settings
-        menu.HandleKey(Keys.Down); // to Sound (index 1)
-        menu.HandleKey(Keys.Return); // enter Sound
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // to Settings
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        menu.HandleKey(SDL.Keycode.Down); // to Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // enter Sound
     }
 
     [Test]
@@ -619,7 +619,7 @@ internal class InGameMenuTests
         int received = -1;
         var menu = CreateMenu(onVolumeChanged: v => received = v);
         OpenSoundScreen(menu); // SelectedItem = 0 (Volume)
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.Volume, Is.EqualTo(45));
         Assert.That(received, Is.EqualTo(45));
     }
@@ -631,7 +631,7 @@ internal class InGameMenuTests
         int received = -1;
         var menu = CreateMenu(onVolumeChanged: v => received = v);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.Volume, Is.EqualTo(55));
         Assert.That(received, Is.EqualTo(55));
     }
@@ -643,7 +643,7 @@ internal class InGameMenuTests
         int received = -1;
         var menu = CreateMenu(onVolumeChanged: v => received = v);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Left); // cannot go below 0
+        menu.HandleKey(SDL.Keycode.Left); // cannot go below 0
         Assert.That(_config.Volume, Is.EqualTo(0));
         Assert.That(received, Is.EqualTo(-1)); // callback not called when no change
     }
@@ -655,7 +655,7 @@ internal class InGameMenuTests
         int received = -1;
         var menu = CreateMenu(onVolumeChanged: v => received = v);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Right); // cannot go above 100
+        menu.HandleKey(SDL.Keycode.Right); // cannot go above 100
         Assert.That(_config.Volume, Is.EqualTo(100));
         Assert.That(received, Is.EqualTo(-1));
     }
@@ -666,10 +666,10 @@ internal class InGameMenuTests
         _config.AudioFilter = "Default";
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
-        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
-        menu.HandleKey(Keys.Down);   // index 1 = Warm
-        menu.HandleKey(Keys.Return); // select Warm → returns to Sound
+        menu.HandleKey(SDL.Keycode.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(SDL.Keycode.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
+        menu.HandleKey(SDL.Keycode.Return); // select Warm → returns to Sound
         Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
     }
 
@@ -679,10 +679,10 @@ internal class InGameMenuTests
         AudioFilterMode? received = null;
         var menu = CreateMenu(onFilterChanged: mode => received = mode);
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Down);   // index 1 = Audio Filter item
-        menu.HandleKey(Keys.Return); // enter AudioFilter sub-screen
-        menu.HandleKey(Keys.Down);   // index 1 = Warm
-        menu.HandleKey(Keys.Return); // select Warm → callback fired
+        menu.HandleKey(SDL.Keycode.Down);   // index 1 = Audio Filter item
+        menu.HandleKey(SDL.Keycode.Return); // enter AudioFilter sub-screen
+        menu.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
+        menu.HandleKey(SDL.Keycode.Return); // select Warm → callback fired
         Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
@@ -691,8 +691,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // Back is at index 3
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(SDL.Keycode.Down); // Back is at index 3
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -701,12 +701,12 @@ internal class InGameMenuTests
     private static void OpenAudioFilterScreen(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);                               // Sound (index 1)
-        menu.HandleKey(Keys.Return);                             // enter Sound
-        menu.HandleKey(Keys.Down);                              // Audio Filter item (index 1)
-        menu.HandleKey(Keys.Return);                            // enter AudioFilter screen
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);                               // Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return);                             // enter Sound
+        menu.HandleKey(SDL.Keycode.Down);                              // Audio Filter item (index 1)
+        menu.HandleKey(SDL.Keycode.Return);                            // enter AudioFilter screen
     }
 
     [Test]
@@ -751,8 +751,8 @@ internal class InGameMenuTests
         _config.AudioFilter = "Default";
         var menu = CreateMenu();
         OpenAudioFilterScreen(menu);
-        menu.HandleKey(Keys.Down);   // index 1 = Warm
-        menu.HandleKey(Keys.Return); // select Warm
+        menu.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
+        menu.HandleKey(SDL.Keycode.Return); // select Warm
         Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
@@ -763,8 +763,8 @@ internal class InGameMenuTests
         AudioFilterMode? received = null;
         var menu = CreateMenu(onFilterChanged: mode => received = mode);
         OpenAudioFilterScreen(menu);
-        menu.HandleKey(Keys.Down);   // Warm
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);   // Warm
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(AudioFilterMode.Warm));
     }
 
@@ -773,8 +773,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenAudioFilterScreen(menu);
-        for (int i = 0; i < 7; i++) menu.HandleKey(Keys.Down); // Back is at index 7
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 7; i++) menu.HandleKey(SDL.Keycode.Down); // Back is at index 7
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
@@ -783,7 +783,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenAudioFilterScreen(menu);
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
@@ -792,7 +792,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -846,11 +846,11 @@ internal class InGameMenuTests
         _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
@@ -863,11 +863,11 @@ internal class InGameMenuTests
             () => { }, () => { }, () => { }, _ => { }, () => { },
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("(unset)"));
     }
 
@@ -877,12 +877,12 @@ internal class InGameMenuTests
         _config.InputMappings["P1 Up"] = new InputBinding("W", null);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
@@ -891,9 +891,9 @@ internal class InGameMenuTests
     private static void OpenVideoScreen(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Settings (index 5, skipping disabled)
-        menu.HandleKey(Keys.Return); // enter Settings
-        menu.HandleKey(Keys.Return); // enter Video (index 0)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // to Settings (index 5, skipping disabled)
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        menu.HandleKey(SDL.Keycode.Return); // enter Video (index 0)
     }
 
     [Test]
@@ -934,8 +934,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoScreen(menu);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // ← Back (index 4 in GDI mode)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // ← Back (index 4 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -946,13 +946,13 @@ internal class InGameMenuTests
         var menu = CreateMenu(onVideoFilterChanged: f => received = f);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);   // select Video Filter (index 1)
-        menu.HandleKey(Keys.Return); // enter VideoFilter sub-menu
+        menu.HandleKey(SDL.Keycode.Down);   // select Video Filter (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // enter VideoFilter sub-menu
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.VideoFilter));
         // GDI mode: [0]=PixelPerfect(✓), [1]=Bilinear, [2]=Back
         // cursor starts at index 0; navigate down to Bilinear before selecting
-        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
-        menu.HandleKey(Keys.Return); // select Bilinear
+        menu.HandleKey(SDL.Keycode.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
@@ -963,9 +963,9 @@ internal class InGameMenuTests
     private void OpenVideoFilterSubMenu(InGameMenu menu)
     {
         OpenVideoScreen(menu);
-        if (NEShim.Platform.PlatformDetector.IsD3D11Active) menu.HandleKey(Keys.Down); // skip Presets(0) → Window(1)
-        menu.HandleKey(Keys.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
-        menu.HandleKey(Keys.Return); // → VideoFilter sub-menu
+        if (NEShim.Platform.PlatformDetector.IsD3D11Active) menu.HandleKey(SDL.Keycode.Down); // skip Presets(0) → Window(1)
+        menu.HandleKey(SDL.Keycode.Down);   // Video Filter (index 1 GDI / index 2 D3D11)
+        menu.HandleKey(SDL.Keycode.Return); // → VideoFilter sub-menu
     }
 
     [Test]
@@ -1009,8 +1009,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
-        menu.HandleKey(Keys.Return); // select Bilinear
+        menu.HandleKey(SDL.Keycode.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // select Bilinear
         Assert.That(_config.VideoFilter, Is.EqualTo("Bilinear"));
     }
 
@@ -1021,8 +1021,8 @@ internal class InGameMenuTests
         var menu = CreateMenu(onVideoFilterChanged: m => received = m);
         _config.VideoFilter = "PixelPerfect";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);   // move to Bilinear (index 1)
-        menu.HandleKey(Keys.Return); // select Bilinear
+        menu.HandleKey(SDL.Keycode.Down);   // move to Bilinear (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // select Bilinear
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoFilterMode.Bilinear));
     }
 
@@ -1031,7 +1031,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Return); // select any filter
+        menu.HandleKey(SDL.Keycode.Return); // select any filter
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
@@ -1042,8 +1042,8 @@ internal class InGameMenuTests
         OpenVideoFilterSubMenu(menu);
         // Back is at last index — navigate to it
         var itemCount = menu.GetCurrentItems().Length;
-        for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Back
+        for (int i = 0; i < itemCount - 1; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Back
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
@@ -1057,9 +1057,9 @@ internal class InGameMenuTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtScanlines";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);   // Bilinear (1)
-        menu.HandleKey(Keys.Down);   // CrtScanlines (2)
-        menu.HandleKey(Keys.Return); // select CrtScanlines — matches overlay
+        menu.HandleKey(SDL.Keycode.Down);   // Bilinear (1)
+        menu.HandleKey(SDL.Keycode.Down);   // CrtScanlines (2)
+        menu.HandleKey(SDL.Keycode.Return); // select CrtScanlines — matches overlay
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("None"));
     }
 
@@ -1072,9 +1072,9 @@ internal class InGameMenuTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtScanlines";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // select CrtScanlines
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // select CrtScanlines
         Assert.That(callbackFired, Is.True);
         Assert.That(received, Is.Null);
     }
@@ -1086,9 +1086,9 @@ internal class InGameMenuTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         _config.VideoFilterOverlay = "CrtPhosphor";
         OpenVideoFilterSubMenu(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // select CrtScanlines — overlay is CrtPhosphor (different)
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
@@ -1131,9 +1131,9 @@ internal class InGameMenuTests
         var menu = CreateMenu(onOverscanModeChanged: m => received = m);
         _config.OverscanMode = "Overscan";
         OpenVideoScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);   // select Overscan (index 2 in GDI mode)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);   // select Overscan (index 2 in GDI mode)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(NEShim.Rendering.OverscanMode.Normal));
         Assert.That(_config.OverscanMode, Is.EqualTo("Normal"));
     }
@@ -1146,10 +1146,10 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Exit (index 7): skips disabled Load Game (4)
-        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down);
         Assert.That(menu.SelectedItem, Is.EqualTo(7));
 
-        menu.HandleKey(Keys.Down); // wraps to index 0
+        menu.HandleKey(SDL.Keycode.Down); // wraps to index 0
         Assert.That(menu.SelectedItem, Is.EqualTo(0));
     }
 
@@ -1161,16 +1161,16 @@ internal class InGameMenuTests
         // P1 Up is bound to "W" by default; binding "W" to P1 Down should clear P1 Up
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.KeyboardBindings));
 
-        menu.HandleKey(Keys.Down);   // P1 Down (index 1)
-        menu.HandleKey(Keys.Return); // start rebind
-        menu.HandleKey(Keys.W);      // bind "W" — currently used by P1 Up
+        menu.HandleKey(SDL.Keycode.Down);   // P1 Down (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // start rebind
+        menu.HandleKey(SDL.Keycode.W);      // bind "W" — currently used by P1 Up
 
         Assert.That(_config.InputMappings["P1 Down"].Key, Is.EqualTo("W"));
         Assert.That(_config.InputMappings["P1 Up"].Key,   Is.Null); // cleared
@@ -1182,14 +1182,14 @@ internal class InGameMenuTests
     private void OpenGamepadBindings(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down); // skip Sound (index 1)
-        menu.HandleKey(Keys.Down); // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down); // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down); // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down); // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down); // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.GamepadBindings));
-        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // start rebind for P1 Up (index 0)
         Assert.That(menu.IsGamepadRebinding, Is.True);
     }
 
@@ -1292,9 +1292,9 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // → SaveSlotSelect
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // → SaveSlotSelect
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.SaveSlotSelect));
 
         menu.HandleGamepadNav(new MenuNavInput { Back = true });
@@ -1307,12 +1307,12 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // KeyboardBindings (index 2)
-        menu.HandleKey(Keys.Return); // start rebind
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
+        menu.HandleKey(SDL.Keycode.Return); // start rebind
         Assert.That(menu.RebindingAction, Is.Not.Null);
 
         int itemBefore = menu.SelectedItem;
@@ -1327,10 +1327,10 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         menu.Open();
         // Navigate to Sound screen, select Volume (index 0)
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down); // Sound (index 1)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down); // Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
         Assert.That(menu.SelectedItem, Is.EqualTo(0)); // Volume
 
@@ -1344,10 +1344,10 @@ internal class InGameMenuTests
         _config.Volume = 60;
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down); // Sound (index 1)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down); // Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return);
 
         menu.HandleGamepadNav(new MenuNavInput { Right = true });
         Assert.That(_config.Volume, Is.EqualTo(65));
@@ -1360,7 +1360,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Z); // Resume (index 0) → Close()
+        menu.HandleKey(SDL.Keycode.Z); // Resume (index 0) → Close()
         Assert.That(menu.IsOpen, Is.False);
     }
 
@@ -1369,7 +1369,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Space);
+        menu.HandleKey(SDL.Keycode.Space);
         Assert.That(menu.IsOpen, Is.False);
     }
 
@@ -1382,7 +1382,7 @@ internal class InGameMenuTests
         OpenGamepadBindings(menu);
         Assert.That(menu.IsGamepadRebinding, Is.True);
 
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
         Assert.That(menu.IsGamepadRebinding, Is.False);
     }
 
@@ -1394,8 +1394,8 @@ internal class InGameMenuTests
         bool reset = false;
         var menu = CreateMenu(onResetGame: () => reset = true);
         menu.Open();
-        menu.HandleKey(Keys.Down); // index 1 (Reset Game)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // index 1 (Reset Game)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(reset,       Is.True);
         Assert.That(menu.IsOpen, Is.False);
     }
@@ -1405,10 +1405,10 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down); // index 3 (Save Game)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down); // index 3 (Save Game)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.IsOpen, Is.False);
     }
 
@@ -1417,10 +1417,10 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down); // index 3 (Save Game)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down); // index 3 (Save Game)
+        menu.HandleKey(SDL.Keycode.Return);
         _saves.Received(1).SaveToActiveSlot();
     }
 
@@ -1430,9 +1430,9 @@ internal class InGameMenuTests
         _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
-        menu.HandleKey(Keys.Return);   // enter ConfirmLoad (selection at "Yes")
-        menu.HandleKey(Keys.Return);   // confirm Yes
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Load Game (enabled at index 4)
+        menu.HandleKey(SDL.Keycode.Return);   // enter ConfirmLoad (selection at "Yes")
+        menu.HandleKey(SDL.Keycode.Return);   // confirm Yes
         _saves.Received(1).LoadFromActiveSlot();
     }
 
@@ -1464,9 +1464,9 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // SaveSlotSelect
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // SaveSlotSelect
         Assert.That(menu.GetTitle(), Does.Contain("SELECT SLOT"));
     }
 
@@ -1475,8 +1475,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
         Assert.That(menu.GetTitle(), Is.EqualTo("SETTINGS"));
     }
 
@@ -1485,11 +1485,11 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // KeyboardBindings (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
         Assert.That(menu.GetTitle(), Is.EqualTo("KEYBOARD CONTROLS"));
     }
 
@@ -1498,12 +1498,12 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // KeyboardBindings (index 2)
-        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
+        menu.HandleKey(SDL.Keycode.Return); // start rebind for P1 Up (index 0)
         Assert.That(menu.GetTitle(), Is.EqualTo("PRESS KEY FOR  UP"));
     }
 
@@ -1512,12 +1512,12 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
         Assert.That(menu.GetTitle(), Is.EqualTo("GAMEPAD CONTROLS"));
     }
 
@@ -1526,13 +1526,13 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
-        menu.HandleKey(Keys.Return); // start rebind for P1 Up (index 0)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
+        menu.HandleKey(SDL.Keycode.Return); // start rebind for P1 Up (index 0)
         Assert.That(menu.GetTitle(), Is.EqualTo("PRESS BUTTON FOR  UP"));
     }
 
@@ -1542,8 +1542,8 @@ internal class InGameMenuTests
         _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Load Game (enabled at index 4)
-        menu.HandleKey(Keys.Return); // ConfirmLoad
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Load Game (enabled at index 4)
+        menu.HandleKey(SDL.Keycode.Return); // ConfirmLoad
         Assert.That(menu.GetTitle(), Is.EqualTo("LOAD GAME?"));
     }
 
@@ -1570,10 +1570,10 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(menu);
-        menu.HandleKey(Keys.Down); // Window (1)
-        menu.HandleKey(Keys.Down); // Filter (2)
-        menu.HandleKey(Keys.Down); // Overlay (3)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // Window (1)
+        menu.HandleKey(SDL.Keycode.Down); // Filter (2)
+        menu.HandleKey(SDL.Keycode.Down); // Overlay (3)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtScanlines"));
     }
 
@@ -1584,10 +1584,10 @@ internal class InGameMenuTests
         _config.VideoFilter        = "CrtScanlines";
         _config.VideoFilterOverlay = "None";
         OpenVideoScreenD3D11(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // None → skip CrtScanlines (primary) → CrtPhosphor
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
@@ -1614,8 +1614,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // Exit (index 7)
-        menu.HandleKey(Keys.Return); // ConfirmExit
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down); // Exit (index 7)
+        menu.HandleKey(SDL.Keycode.Return); // ConfirmExit
         Assert.That(menu.GetTitle(), Is.EqualTo("EXIT TO DESKTOP?"));
     }
 
@@ -1627,8 +1627,8 @@ internal class InGameMenuTests
         _saves.SlotExists(0).Returns(true);
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // ConfirmLoad
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // ConfirmLoad
         string[] items = menu.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(2));
         Assert.That(items[0], Does.Contain("Yes"));
@@ -1640,8 +1640,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // ConfirmExit
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // ConfirmExit
         string[] items = menu.GetCurrentItems();
         Assert.That(items.Length, Is.EqualTo(2));
         Assert.That(items[0], Does.Contain("Yes"));
@@ -1653,11 +1653,11 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // KeyboardBindings (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
@@ -1666,12 +1666,12 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(9));
     }
 
@@ -1682,10 +1682,10 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // enter Settings
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // Back (index 5)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down); // Back (index 5)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
     }
 
@@ -1694,13 +1694,13 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // KeyboardBindings (index 2)
-        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // Back (index 8)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // KeyboardBindings (index 2)
+        for (int i = 0; i < 8; i++) menu.HandleKey(SDL.Keycode.Down); // Back (index 8)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -1709,14 +1709,14 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
-        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // Back (index 8)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
+        for (int i = 0; i < 8; i++) menu.HandleKey(SDL.Keycode.Down); // Back (index 8)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -1758,16 +1758,16 @@ internal class InGameMenuTests
         menu.Open();
 
         // Navigate to GamepadBindings
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings (index 5)
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings (index 5)
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
 
         // The OpenMenu entry is at index 8 (after the 8 NES buttons)
-        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down); // index 8 = OpenMenu
-        menu.HandleKey(Keys.Return); // start rebinding OpenMenu
+        for (int i = 0; i < 8; i++) menu.HandleKey(SDL.Keycode.Down); // index 8 = OpenMenu
+        menu.HandleKey(SDL.Keycode.Return); // start rebinding OpenMenu
         Assert.That(menu.GamepadRebindingAction, Is.EqualTo("OpenMenu"));
 
         string? toast = menu.HandleGamepadButtonPress("RightShoulder");
@@ -1783,12 +1783,12 @@ internal class InGameMenuTests
         _config.OverrideStartBindingProtection = true;
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Down);   // skip Keyboard Controls (index 2)
-        menu.HandleKey(Keys.Down);   // Gamepad Controls (index 3)
-        menu.HandleKey(Keys.Return); // GamepadBindings
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
         Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(10)); // 8 NES + OpenMenu + Back
     }
 
@@ -1799,11 +1799,11 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         // SelectedItem is 0 = P1 Up
         Assert.That(menu.ActiveNesButton, Is.EqualTo("P1 Up"));
     }
@@ -1813,13 +1813,13 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return); // Settings
-        menu.HandleKey(Keys.Down);   // skip Video (index 0)
-        menu.HandleKey(Keys.Down);   // skip Sound (index 1)
-        menu.HandleKey(Keys.Return); // Keyboard Controls (index 2)
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
         // Navigate to the last item (Back, configKey = "")
-        for (int i = 0; i < 8; i++) menu.HandleKey(Keys.Down);
+        for (int i = 0; i < 8; i++) menu.HandleKey(SDL.Keycode.Down);
         Assert.That(menu.ActiveNesButton, Is.Null);
     }
 
@@ -1836,8 +1836,8 @@ internal class InGameMenuTests
     private void OpenVideoPictureScreen(InGameMenu menu)
     {
         OpenVideoScreenD3D11(menu);
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Picture (index 5)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down); // to Picture (index 5)
+        menu.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -1880,8 +1880,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // to Brightness (index 1)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // to Brightness (index 1)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoBrightness, Is.EqualTo(1));
     }
 
@@ -1891,8 +1891,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoBrightness = 10;
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // to Brightness
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Down); // to Brightness
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoBrightness, Is.EqualTo(9));
     }
 
@@ -1901,9 +1901,9 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast (index 2)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast (index 2)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoContrast, Is.EqualTo(1));
     }
 
@@ -1912,10 +1912,10 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast
-        menu.HandleKey(Keys.Down); // Saturation (index 3)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast
+        menu.HandleKey(SDL.Keycode.Down); // Saturation (index 3)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoSaturation, Is.EqualTo(1));
     }
 
@@ -1924,11 +1924,11 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast
-        menu.HandleKey(Keys.Down); // Saturation
-        menu.HandleKey(Keys.Down); // Hue (index 4)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast
+        menu.HandleKey(SDL.Keycode.Down); // Saturation
+        menu.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoHue, Is.EqualTo(1));
     }
 
@@ -1937,11 +1937,11 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast
-        menu.HandleKey(Keys.Down); // Saturation
-        menu.HandleKey(Keys.Down); // Hue (index 4)
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast
+        menu.HandleKey(SDL.Keycode.Down); // Saturation
+        menu.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoHue, Is.EqualTo(-1));
     }
 
@@ -1951,11 +1951,11 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoHue = 100;
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast
-        menu.HandleKey(Keys.Down); // Saturation
-        menu.HandleKey(Keys.Down); // Hue (index 4)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast
+        menu.HandleKey(SDL.Keycode.Down); // Saturation
+        menu.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoHue, Is.EqualTo(100));
     }
 
@@ -1965,11 +1965,11 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoHue = -100;
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down); // Brightness
-        menu.HandleKey(Keys.Down); // Contrast
-        menu.HandleKey(Keys.Down); // Saturation
-        menu.HandleKey(Keys.Down); // Hue (index 4)
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Down); // Brightness
+        menu.HandleKey(SDL.Keycode.Down); // Contrast
+        menu.HandleKey(SDL.Keycode.Down); // Saturation
+        menu.HandleKey(SDL.Keycode.Down); // Hue (index 4)
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoHue, Is.EqualTo(-100));
     }
 
@@ -1979,8 +1979,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoBrightness = 100;
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.VideoBrightness, Is.EqualTo(100));
     }
 
@@ -1990,8 +1990,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoBrightness = -100;
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.VideoBrightness, Is.EqualTo(-100));
     }
 
@@ -2001,7 +2001,7 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         _config.VideoColorFilter = "None";
         OpenVideoPictureScreen(menu);
-        menu.HandleKey(Keys.Return); // activate ColorPreset (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // activate ColorPreset (index 0)
         Assert.That(_config.VideoColorFilter, Is.Not.EqualTo("None"));
     }
 
@@ -2015,8 +2015,8 @@ internal class InGameMenuTests
         _config.VideoHue         = 75;
         _config.VideoColorFilter = "Warm";
         OpenVideoPictureScreen(menu);
-        for (int i = 0; i < 5; i++) menu.HandleKey(Keys.Down); // to Reset (index 5)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down); // to Reset (index 5)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoBrightness,  Is.EqualTo(0));
         Assert.That(_config.VideoContrast,    Is.EqualTo(0));
         Assert.That(_config.VideoSaturation,  Is.EqualTo(0));
@@ -2029,8 +2029,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Back (index 6)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down); // to Back (index 6)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
@@ -2042,8 +2042,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoFilterSubMenu(menu);
-        for (int i = 0; i < 6; i++) menu.HandleKey(Keys.Down); // to Xbr (index 6)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down); // to Xbr (index 6)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoFilter, Is.EqualTo("Xbr"));
     }
 
@@ -2053,13 +2053,13 @@ internal class InGameMenuTests
     private static void OpenAudioEqScreen(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
-        menu.HandleKey(Keys.Return);
-        menu.HandleKey(Keys.Down);   // Sound (index 1)
-        menu.HandleKey(Keys.Return); // enter Sound
-        menu.HandleKey(Keys.Down);   // Audio Filter item (index 1)
-        menu.HandleKey(Keys.Down);   // EQ item (index 2)
-        menu.HandleKey(Keys.Return); // enter AudioEq screen
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);   // Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Return); // enter Sound
+        menu.HandleKey(SDL.Keycode.Down);   // Audio Filter item (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // EQ item (index 2)
+        menu.HandleKey(SDL.Keycode.Return); // enter AudioEq screen
     }
 
     [Test]
@@ -2116,7 +2116,7 @@ internal class InGameMenuTests
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(menu); // SelectedItem = 0 (Bass)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.AudioEqBass, Is.EqualTo(1));
         Assert.That(received.bass, Is.EqualTo(1));
     }
@@ -2132,8 +2132,8 @@ internal class InGameMenuTests
             _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { },
             (_, _, _, _) => { }, (b, m, t) => received = (b, m, t));
         OpenAudioEqScreen(menu);
-        menu.HandleKey(Keys.Down); // move to Mid (index 1)
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Down); // move to Mid (index 1)
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.AudioEqMid, Is.EqualTo(2));
         Assert.That(received.mid, Is.EqualTo(2));
     }
@@ -2144,7 +2144,7 @@ internal class InGameMenuTests
         _config.AudioEqBass = -12;
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        menu.HandleKey(Keys.Left);
+        menu.HandleKey(SDL.Keycode.Left);
         Assert.That(_config.AudioEqBass, Is.EqualTo(-12));
     }
 
@@ -2154,9 +2154,9 @@ internal class InGameMenuTests
         _config.AudioEqTreble = 12;
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        menu.HandleKey(Keys.Down); // Mid
-        menu.HandleKey(Keys.Down); // Treble (index 2)
-        menu.HandleKey(Keys.Right);
+        menu.HandleKey(SDL.Keycode.Down); // Mid
+        menu.HandleKey(SDL.Keycode.Down); // Treble (index 2)
+        menu.HandleKey(SDL.Keycode.Right);
         Assert.That(_config.AudioEqTreble, Is.EqualTo(12));
     }
 
@@ -2168,8 +2168,8 @@ internal class InGameMenuTests
         _config.AudioEqTreble = 9;
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        for (int i = 0; i < 3; i++) menu.HandleKey(Keys.Down); // to Reset (index 3)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 3; i++) menu.HandleKey(SDL.Keycode.Down); // to Reset (index 3)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.AudioEqBass,   Is.EqualTo(0));
         Assert.That(_config.AudioEqMid,    Is.EqualTo(0));
         Assert.That(_config.AudioEqTreble, Is.EqualTo(0));
@@ -2180,8 +2180,8 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to Back (index 4)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // to Back (index 4)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
@@ -2190,7 +2190,7 @@ internal class InGameMenuTests
     {
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        menu.HandleKey(Keys.Escape);
+        menu.HandleKey(SDL.Keycode.Escape);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Sound));
     }
 
@@ -2220,10 +2220,10 @@ internal class InGameMenuTests
     private static void OpenLanguageScreen(InGameMenu menu)
     {
         menu.Open();
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Settings
-        menu.HandleKey(Keys.Return);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // Language (index 4)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
+        menu.HandleKey(SDL.Keycode.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Language (index 4)
+        menu.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -2262,7 +2262,7 @@ internal class InGameMenuTests
             lang => { callbackFired = true; },
             (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(menu);
-        menu.HandleKey(Keys.Return); // select Auto (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // select Auto (index 0)
         Assert.That(_config.Language, Is.EqualTo("Auto"));
         Assert.That(callbackFired, Is.True);
     }
@@ -2278,8 +2278,8 @@ internal class InGameMenuTests
             _ => { },
             (_, _, _, _) => { }, (_, _, _) => { });
         OpenLanguageScreen(menu);
-        menu.HandleKey(Keys.Down); // move to first language (index 1 = English)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // move to first language (index 1 = English)
+        menu.HandleKey(SDL.Keycode.Return);
         // Config should be set to the code of the first language in the registry
         Assert.That(_config.Language, Is.Not.EqualTo("Auto"));
     }
@@ -2309,8 +2309,8 @@ internal class InGameMenuTests
         OpenLanguageScreen(menu);
         // Back is the last item
         int backIndex = menu.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
     }
 
@@ -2321,8 +2321,8 @@ internal class InGameMenuTests
     private void OpenVideoMotionEffectScreen(InGameMenu menu)
     {
         OpenVideoScreen(menu);
-        for (int i = 0; i < 4; i++) menu.HandleKey(Keys.Down); // to MotionEffect (index 4)
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // to MotionEffect (index 4)
+        menu.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -2371,8 +2371,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoMotionEffectScreen(menu);
-        menu.HandleKey(Keys.Down); // CrtJitter (index 1)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // CrtJitter (index 1)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoMotionEffect, Is.EqualTo("CrtJitter"));
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
@@ -2388,8 +2388,8 @@ internal class InGameMenuTests
             (_, _, _, _) => { }, (_, _, _) => { });
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoMotionEffectScreen(menu);
-        menu.HandleKey(Keys.Down); // CrtJitter
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // CrtJitter
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(received, Is.EqualTo(NEShim.Rendering.VideoMotionEffectMode.CrtJitter));
     }
 
@@ -2400,8 +2400,8 @@ internal class InGameMenuTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoMotionEffectScreen(menu);
         int backIndex = menu.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 
@@ -2412,7 +2412,7 @@ internal class InGameMenuTests
     {
         OpenVideoScreen(menu);
         // Already at index 0 (VideoPresets)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Return);
     }
 
     [Test]
@@ -2459,8 +2459,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
-        menu.HandleKey(Keys.Down); // LivingRoom (index 1)
-        menu.HandleKey(Keys.Return);
+        menu.HandleKey(SDL.Keycode.Down); // LivingRoom (index 1)
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoPreset,      Is.EqualTo("LivingRoom"));
         Assert.That(_config.VideoFilter,      Is.EqualTo("CrtScreen"));
         Assert.That(menu.Current,             Is.EqualTo(InGameMenu.Screen.Video));
@@ -2473,7 +2473,7 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
-        menu.HandleKey(Keys.Return); // None (index 0)
+        menu.HandleKey(SDL.Keycode.Return); // None (index 0)
         Assert.That(_config.VideoPreset, Is.EqualTo("None"));
         Assert.That(menu.Current,        Is.EqualTo(InGameMenu.Screen.Video));
     }
@@ -2497,8 +2497,8 @@ internal class InGameMenuTests
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
         int backIndex = menu.GetCurrentItems().Length - 1;
-        for (int i = 0; i < backIndex; i++) menu.HandleKey(Keys.Down);
-        menu.HandleKey(Keys.Return);
+        for (int i = 0; i < backIndex; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
 }

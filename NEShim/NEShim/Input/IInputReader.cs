@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Config;
 
 namespace NEShim.Input;
@@ -17,11 +17,11 @@ internal interface IInputReader
     /// </summary>
     void AdvanceHotkeyState(AppConfig config);
 
-    /// <summary>Forwards a WM_KEYDOWN event from the UI thread to the input source.</summary>
-    void OnKeyDown(Keys key);
+    /// <summary>Forwards a SDL KeyDown event from the main thread to the input source.</summary>
+    void OnKeyDown(SDL.Keycode key);
 
-    /// <summary>Forwards a WM_KEYUP event from the UI thread to the input source.</summary>
-    void OnKeyUp(Keys key);
+    /// <summary>Forwards a SDL KeyUp event from the main thread to the input source.</summary>
+    void OnKeyUp(SDL.Keycode key);
 
     // ── Binding UI ─────────────────────────────────────────────────────────────
 
