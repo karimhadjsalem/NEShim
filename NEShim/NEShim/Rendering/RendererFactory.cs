@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -7,7 +5,6 @@ namespace NEShim.Rendering;
 /// In SDL3 mode D3D11 is required; if initialisation fails the exception propagates.
 /// Also sets <see cref="Platform.PlatformDetector.IsD3D11Active"/>.
 /// </summary>
-[ExcludeFromCodeCoverage]
 internal static class RendererFactory
 {
     internal static IFrameRenderer Create(

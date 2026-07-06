@@ -172,4 +172,75 @@ internal class KeyboardMapperTests
         _mapper.Map(new HashSet<string> { "NumPad0" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"), Is.False);
     }
+
+    // ── SDL key name coverage — keys whose names differ from WinForms ────────────
+    // These confirm the positive side: users who rebind to these SDL names in config.json
+    // get a working binding. The negative side (WinForms names no longer parse) is above.
+
+    [TestCase("Alpha0")]
+    [TestCase("Alpha9")]
+    public void ParseKey_SdlDigitRowNames_ParseCorrectly(string key)
+    {
+        // SDL: "Alpha0"–"Alpha9"   (WinForms was "D0"–"D9")
+        _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { key }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [TestCase("Kp0")]
+    [TestCase("Kp9")]
+    public void ParseKey_SdlNumpadNames_ParseCorrectly(string key)
+    {
+        // SDL: "Kp0"–"Kp9"   (WinForms was "NumPad0"–"NumPad9")
+        _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { key }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [TestCase("LShift")]
+    [TestCase("RShift")]
+    [TestCase("LCtrl")]
+    [TestCase("RCtrl")]
+    [TestCase("LAlt")]
+    [TestCase("RAlt")]
+    public void ParseKey_SdlModifierNames_ParseCorrectly(string key)
+    {
+        // SDL: "LShift"/"RShift"   (WinForms: "LShiftKey"/"RShiftKey")
+        // SDL: "LCtrl"/"RCtrl"     (WinForms: "LControlKey"/"RControlKey")
+        // SDL: "LAlt"/"RAlt"       (WinForms: "LMenu"/"RMenu")
+        _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { key }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [TestCase("Backspace")]
+    [TestCase("Period")]
+    [TestCase("Comma")]
+    public void ParseKey_SdlPunctuationNames_ParseCorrectly(string key)
+    {
+        // SDL: "Backspace"   (WinForms: "Back")
+        // SDL: "Period"      (WinForms: "OemPeriod")
+        // SDL: "Comma"       (WinForms: "OemComma")
+        _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { key }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+    }
+
+    [TestCase("D0")]
+    [TestCase("LShiftKey")]
+    [TestCase("LControlKey")]
+    [TestCase("LMenu")]
+    [TestCase("Back")]
+    [TestCase("OemComma")]
+    public void ParseKey_WinFormsRenamedKeys_NoLongerResolve(string key)
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding(key, null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { key }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.False);
+    }
 }
