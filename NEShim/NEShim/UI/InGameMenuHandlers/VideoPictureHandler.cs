@@ -1,4 +1,3 @@
-using System.Drawing;
 using NEShim.Rendering;
 
 namespace NEShim.UI;
@@ -19,17 +18,6 @@ internal sealed partial class InGameMenu
 
         public static bool IsSliderIndex(int index) => index >= BrightnessIndex && index <= HueIndex;
 
-        private const int BarWidth = 20;
-
-        private static string PictureSlider(string label, int value)
-        {
-            int filled = (int)Math.Round((value + 100.0) / 200.0 * BarWidth);
-            filled     = Math.Clamp(filled, 0, BarWidth);
-            string bar = new string('█', filled) + new string('░', BarWidth - filled);
-            string num = value == 0 ? "0" : value.ToString("+0;-0");
-            return $"{label}\t◀{bar}▶  {num.PadLeft(4)}";
-        }
-
         public VideoPictureHandler(InGameMenu menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoPictureTitle;
@@ -41,14 +29,23 @@ internal sealed partial class InGameMenu
             return
             [
                 $"{Menu._localization.VideoColorPresetLabel}: {ColorDisplayName(currentColor)}",
-                PictureSlider(Menu._localization.VideoBrightnessLabel, Menu._config.VideoBrightness),
-                PictureSlider(Menu._localization.VideoContrastLabel,   Menu._config.VideoContrast),
-                PictureSlider(Menu._localization.VideoSaturationLabel, Menu._config.VideoSaturation),
-                PictureSlider(Menu._localization.VideoHueLabel,        Menu._config.VideoHue),
+                Menu._localization.VideoBrightnessLabel,
+                Menu._localization.VideoContrastLabel,
+                Menu._localization.VideoSaturationLabel,
+                Menu._localization.VideoHueLabel,
                 Menu._localization.VideoResetPicture,
                 Menu._localization.Back,
             ];
         }
+
+        public override SliderItemData? GetSliderData(int index) => index switch
+        {
+            BrightnessIndex => new SliderItemData(Menu._localization.VideoBrightnessLabel, (Menu._config.VideoBrightness + 100) / 200f, FormatPct(Menu._config.VideoBrightness)),
+            ContrastIndex   => new SliderItemData(Menu._localization.VideoContrastLabel,   (Menu._config.VideoContrast   + 100) / 200f, FormatPct(Menu._config.VideoContrast)),
+            SaturationIndex => new SliderItemData(Menu._localization.VideoSaturationLabel, (Menu._config.VideoSaturation + 100) / 200f, FormatPct(Menu._config.VideoSaturation)),
+            HueIndex        => new SliderItemData(Menu._localization.VideoHueLabel,        (Menu._config.VideoHue        + 100) / 200f, FormatPct(Menu._config.VideoHue)),
+            _               => null,
+        };
 
         public override void Activate(int index)
         {
@@ -71,6 +68,8 @@ internal sealed partial class InGameMenu
                 // Slider indices (1–4): activation is a no-op; use left/right to adjust.
             }
         }
+
+        private static string FormatPct(int value) => value == 0 ? "0" : value.ToString("+0;-0");
 
         private string ColorDisplayName(VideoColorFilterMode mode) => mode switch
         {

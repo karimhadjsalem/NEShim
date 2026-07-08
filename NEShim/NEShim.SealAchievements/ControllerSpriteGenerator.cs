@@ -1,10 +1,54 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
-namespace NEShim.UI;
+namespace NEShim.SealAchievements;
 
-internal static class NesControllerDiagram
+/// <summary>
+/// Renders the NES controller diagram to PNG files at a fixed resolution.
+/// These PNGs are checked in as embedded resources in the main NEShim project
+/// and blitted at runtime, replacing the runtime GDI+ drawing code.
+/// </summary>
+internal static class ControllerSpriteGenerator
 {
+    // Canvas size — 2.43:1 aspect to match the controller's Aspect constant.
+    // With these exact dimensions the controller fills the canvas with no label-gap space above it.
+    private const int CanvasW = 720;
+    private const int CanvasH = 296;
+
+    private static readonly (string? highlight, string filename)[] Variants =
+    [
+        (null,         "controller_none.png"),
+        ("P1 Up",      "controller_p1_up.png"),
+        ("P1 Down",    "controller_p1_down.png"),
+        ("P1 Left",    "controller_p1_left.png"),
+        ("P1 Right",   "controller_p1_right.png"),
+        ("P1 A",       "controller_p1_a.png"),
+        ("P1 B",       "controller_p1_b.png"),
+        ("P1 Start",   "controller_p1_start.png"),
+        ("P1 Select",  "controller_p1_select.png"),
+    ];
+
+    public static void Generate(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+
+        foreach (var (highlight, filename) in Variants)
+        {
+            using var bmp = new Bitmap(CanvasW, CanvasH, PixelFormat.Format32bppArgb);
+            using var g   = Graphics.FromImage(bmp);
+            g.Clear(Color.Transparent);
+            DrawController(g, new RectangleF(0, 0, CanvasW, CanvasH), highlight);
+
+            string path = Path.Combine(outDir, filename);
+            bmp.Save(path, ImageFormat.Png);
+            Console.WriteLine($"  Wrote {path}");
+        }
+    }
+
+    // ── Drawing code ─────────────────────────────────────────────────────────
+    // Source: NEShim/UI/NesControllerDiagram.cs (deleted after sprites are committed).
+
     private static readonly Color BodyColor     = Color.FromArgb(255,  20,  20,  24);
     private static readonly Color BandEdge      = Color.FromArgb(255,  60,  60,  66);
     private static readonly Color DpadColor     = Color.FromArgb(255,  26,  26,  32);
@@ -14,10 +58,9 @@ internal static class NesControllerDiagram
     private static readonly Color Pill          = Color.FromArgb(255,  30,  30,  36);
     private static readonly Color PillLabel     = Color.FromArgb(255, 165,  20,  20);
     private static readonly Color HighlightFill = Color.FromArgb(190,  55, 110, 195);
-    private static readonly Color DiagramLabel  = Color.FromArgb(180, 200, 210, 230);
     private static readonly Color ArrowColor    = Color.FromArgb(150,  88,  88,  94);
 
-    public static void Draw(Graphics g, RectangleF area, string? highlight, string label = "NES Controller")
+    private static void DrawController(Graphics g, RectangleF area, string? highlight)
     {
         if (area.Width < 40 || area.Height < 18) return;
 
@@ -32,20 +75,13 @@ internal static class NesControllerDiagram
         var prev = g.SmoothingMode;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // Label in the space above the controller
-        float labelGap = oy - area.Y;
-        if (labelGap >= 12f)
-            DrawLabel(g, label, new RectangleF(area.X, area.Y, area.Width, labelGap),
-                Math.Min(14f, labelGap * 0.75f), DiagramLabel);
-
-        // Controller body — black fill, grey border
+        // Controller body
         using (var bodyBrush = new SolidBrush(BodyColor))
         using (var bodyPen   = new Pen(WhiteBg, 5.5f))
             DrawRoundedRect(g, bodyBrush, bodyPen,
                 new RectangleF(ox + 0.005f * aw, oy + 0.040f * ah, 0.990f * aw, 0.920f * ah),
                 0.068f * aw, 0.160f * ah, 0.5f);
 
-        // One horizontal grey band across the centre section for the start area
         float cpX   = ox + 0.356f * aw;
         float cpW   = 0.258f * aw;
         float cpRx  = 0.014f * aw;
@@ -57,28 +93,23 @@ internal static class NesControllerDiagram
 
         using (var bandBrush = new SolidBrush(WhiteBg))
         using (var bandPen   = new Pen(BandEdge, 0.8f))
-        {
             DrawRoundedRect(g, bandBrush, bandPen, startBand, cpRx, cpRy);
-        }
 
-        // 4 horizontal slots
         float gSlotH  = 0.1f * ah;
         float gSlotRx = gSlotH * 0.5f;
         float yOff1 = baseY - 0.55f * ah;
         float yOff2 = baseY - 0.39f * ah;
         float yOff3 = baseY - 0.23f * ah;
         float yOff4 = baseY + 0.21f * ah;
-
         RectangleF startLabelBand = startBand with { Y = yOff3, Height = gSlotH };
-        
+
         using var grilleBrush = new SolidBrush(BandEdge);
         DrawRoundedRect(g, grilleBrush, null, startBand with { Y = yOff1, Height = gSlotH }, gSlotRx, gSlotRx);
         DrawRoundedRect(g, grilleBrush, null, startBand with { Y = yOff2, Height = gSlotH }, gSlotRx, gSlotRx);
         DrawRoundedRect(g, grilleBrush, null, startLabelBand, gSlotRx, gSlotRx);
         DrawRoundedRect(g, grilleBrush, null, startBand with { Y = yOff4, Height = gSlotH }, gSlotRx, gSlotRx);
 
-        // SELECT / START pills in the black gap between the two bands
-        float pillY = startBand.Y + startBand.Height * 0.33f;
+        float pillY  = startBand.Y + startBand.Height * 0.33f;
         float selCx  = startBand.X + startBand.Width * 0.25f;
         float staCx  = startBand.X + startBand.Width * 0.75f;
         float pillW  = 0.090f * aw;
@@ -94,16 +125,12 @@ internal static class NesControllerDiagram
             DrawRoundedRect(g, pillBrush, pillPen, selRect, pillRx, pillRy);
             DrawRoundedRect(g, pillBrush, pillPen, staRect, pillRx, pillRy);
         }
-        float pillLabelEm = Math.Max(5f, 5.0f * ah / 100f);
-        float labelY = startLabelBand.Y + startLabelBand.Height * 0.25f;
-        float selLabelX = startLabelBand.X;
-        float staLabelX = startLabelBand.X + startLabelBand.Width * 0.50f;
-        RectangleF selectLabel = new RectangleF(selLabelX, labelY, pillW * 1.5f, pillH);
-        RectangleF startLabel = new RectangleF(staLabelX, labelY, pillW * 1.5f, pillH);
-        DrawLabel(g, "SELECT", selectLabel, pillLabelEm, PillLabel);
-        DrawLabel(g, "START",  startLabel, pillLabelEm, PillLabel);
 
-        // D-pad — grey outline cross drawn first, then dark cross on top
+        float pillLabelEm = Math.Max(5f, 5.0f * ah / 100f);
+        float labelY      = startLabelBand.Y + startLabelBand.Height * 0.25f;
+        DrawLabel(g, "SELECT", new RectangleF(startLabelBand.X, labelY, pillW * 1.5f, pillH), pillLabelEm, PillLabel);
+        DrawLabel(g, "START",  new RectangleF(startLabelBand.X + startLabelBand.Width * 0.50f, labelY, pillW * 1.5f, pillH), pillLabelEm, PillLabel);
+
         float dcx    = ox  + 0.173f * aw;
         float dcy    = oy  + 0.500f * ah;
         float armT   = 0.058f * aw;
@@ -125,7 +152,6 @@ internal static class NesControllerDiagram
             g.FillRectangle(dpadBrush, dcx - armT * 0.5f, dcy - armL,        armT,      2f * armL);
         }
 
-        // Direction arrows — small triangles pointing toward each arm tip
         float arrowS    = 0.015f * aw;
         float arrowDist = armL   * 0.62f;
         using var arrowBrush = new SolidBrush(ArrowColor);
@@ -134,7 +160,6 @@ internal static class NesControllerDiagram
         DrawArrow(g, arrowBrush, dcx - arrowDist,  dcy,             -1,  0, arrowS);
         DrawArrow(g, arrowBrush, dcx + arrowDist,  dcy,              1,  0, arrowS);
 
-        // A and B face buttons — white rounded-square backing then red circle
         float btnR = 0.048f * aw;
         float bgH  = btnR * 1.26f;
         float bgRx = bgH  * 0.42f;
@@ -160,7 +185,6 @@ internal static class NesControllerDiagram
         DrawLabel(g, "B", new RectangleF(bcx - btnR, bcy - btnR, btnR * 2f, btnR * 2f), abLabelEm, Color.White);
         DrawLabel(g, "A", new RectangleF(acx - btnR, acy - btnR, btnR * 2f, btnR * 2f), abLabelEm, Color.White);
 
-        // Highlight overlay for the active/selected button
         if (highlight != null)
             DrawHighlight(g, highlight,
                 dcx, dcy, armL, armT,
@@ -172,10 +196,10 @@ internal static class NesControllerDiagram
 
     private static void DrawHighlight(
         Graphics g, string highlight,
-        float dcx,  float dcy,  float armL, float armT,
+        float dcx, float dcy, float armL, float armT,
         float selCx, float staCx, float pillY,
         float pillW, float pillH, float pillRx, float pillRy,
-        float bcx,  float bcy,  float acx,  float acy,
+        float bcx, float bcy, float acx, float acy,
         float btnR, float aw)
     {
         using var hBrush = new SolidBrush(HighlightFill);
@@ -231,13 +255,12 @@ internal static class NesControllerDiagram
 
     private static void DrawRoundedRect(Graphics g, Brush brush, Pen? pen, RectangleF rect, float rx, float ry, float cornerCurve = 2f)
     {
-        rx = Math.Min(rx, rect.Width / cornerCurve);
+        rx = Math.Min(rx, rect.Width  / cornerCurve);
         ry = Math.Min(ry, rect.Height / cornerCurve);
         using var path = new GraphicsPath();
         path.AddArc(rect.X, rect.Y, rx * cornerCurve, ry * cornerCurve, 180, 90);
         path.AddArc(rect.X + rect.Width - rx * cornerCurve, rect.Y, rx * cornerCurve, ry * cornerCurve, 270, 90);
-        path.AddArc(rect.X + rect.Width - rx * cornerCurve, rect.Y + rect.Height - ry * cornerCurve, rx * cornerCurve,
-            ry * cornerCurve, 0, 90);
+        path.AddArc(rect.X + rect.Width - rx * cornerCurve, rect.Y + rect.Height - ry * cornerCurve, rx * cornerCurve, ry * cornerCurve, 0, 90);
         path.AddArc(rect.X, rect.Y + rect.Height - ry * cornerCurve, rx * cornerCurve, ry * cornerCurve, 90, 90);
         path.CloseFigure();
         g.FillPath(brush, path);

@@ -1,4 +1,4 @@
-using System.Drawing;
+using SDL3;
 
 namespace NEShim.UI;
 
@@ -14,9 +14,9 @@ internal sealed class LogoScreen : IDisposable
 
     private DateTime? _startTime;
 
-    public Bitmap Image { get; }
+    public IntPtr Image { get; }
 
-    public LogoScreen(Bitmap image) => Image = image;
+    public LogoScreen(IntPtr image) => Image = image;
 
     private float ElapsedSeconds
     {
@@ -39,5 +39,8 @@ internal sealed class LogoScreen : IDisposable
         return fadeElapsed >= fadeOut ? 0f : 1f - fadeElapsed / fadeOut;
     }
 
-    public void Dispose() => Image.Dispose();
+    public void Dispose()
+    {
+        if (Image != IntPtr.Zero) SDL.DestroySurface(Image);
+    }
 }

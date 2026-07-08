@@ -1,6 +1,5 @@
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
+using NEShim.Rendering;
+using SDL3;
 
 namespace NEShim.UI;
 
@@ -8,27 +7,24 @@ internal static class LogoRenderer
 {
     private const float MarginFraction = 0.8f; // logo fits within 80% of the panel; 10% margin each side
 
-    internal static void Draw(Graphics g, Rectangle bounds, Bitmap logo, float alpha)
+    internal static void Draw(SDL3PaintContext ctx, SDL.Rect bounds, IntPtr logoSurface, float alpha)
     {
-        g.Clear(Color.Black);
-        var dest = ComputeDisplayRect(logo.Size, bounds);
-        g.CompositingMode   = CompositingMode.SourceOver;
-        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        var cm = new ColorMatrix { Matrix33 = alpha };
-        using var attrs = new ImageAttributes();
-        attrs.SetColorMatrix(cm);
-        g.DrawImage(logo, dest, 0, 0, logo.Width, logo.Height, GraphicsUnit.Pixel, attrs);
+        ctx.Clear(new SDL.Color { R = 0, G = 0, B = 0, A = 255 });
+        if (logoSurface == IntPtr.Zero) return;
+        var (logoW, logoH) = SDL3PaintContext.GetSurfaceSize(logoSurface);
+        var dest = ComputeDisplayRect(logoW, logoH, bounds);
+        ctx.BlitSurfaceAlpha(logoSurface, dest, alpha);
     }
 
-    internal static Rectangle ComputeDisplayRect(Size imageSize, Rectangle bounds)
+    internal static SDL.Rect ComputeDisplayRect(int imageW, int imageH, SDL.Rect bounds)
     {
-        int maxW  = (int)(bounds.Width  * MarginFraction);
-        int maxH  = (int)(bounds.Height * MarginFraction);
-        float scale = Math.Min((float)maxW / imageSize.Width, (float)maxH / imageSize.Height);
-        int destW = (int)(imageSize.Width  * scale);
-        int destH = (int)(imageSize.Height * scale);
-        int destX = bounds.X + (bounds.Width  - destW) / 2;
-        int destY = bounds.Y + (bounds.Height - destH) / 2;
-        return new Rectangle(destX, destY, destW, destH);
+        int maxW    = (int)(bounds.W * MarginFraction);
+        int maxH    = (int)(bounds.H * MarginFraction);
+        float scale = Math.Min((float)maxW / imageW, (float)maxH / imageH);
+        int destW   = (int)(imageW * scale);
+        int destH   = (int)(imageH * scale);
+        int destX   = bounds.X + (bounds.W - destW) / 2;
+        int destY   = bounds.Y + (bounds.H - destH) / 2;
+        return new SDL.Rect { X = destX, Y = destY, W = destW, H = destH };
     }
 }

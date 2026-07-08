@@ -237,4 +237,46 @@ internal class InputProcessorTests
 
         _input.Received(2).PollMenuNav(_config);
     }
+
+    [Test]
+    public void PollPausedMenuInput_WhenNotWaiting_CallsGetHeldSliderDir()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((false, false));
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _input.Received(1).GetHeldSliderDir(_config);
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenInBindingMode_DoesNotCallGetHeldSliderDir()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _input.PollAnyGamepadButtonPressed().Returns((string?)null);
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _input.DidNotReceive().GetHeldSliderDir(Arg.Any<AppConfig>());
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenHeldLeftOnFirstCall_DoesNotDispatchRepeatImmediately()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((true, false)); // Left held
+        var processor = CreateProcessor(CreateMenu());
+
+        // First call: direction just started — initial delay not elapsed; no repeat
+        processor.PollPausedMenuInput(_config);
+        // Second call immediately: still within initial delay; still no repeat
+        processor.PollPausedMenuInput(_config);
+
+        // No repeat should fire — only edge nav (none here) should dispatch
+        _menuInput.DidNotReceive().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
+    }
 }

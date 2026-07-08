@@ -609,7 +609,10 @@ internal class InGameMenuTests
         _config.Volume = 75;
         var menu = CreateMenu();
         OpenSoundScreen(menu);
-        Assert.That(menu.GetCurrentItems()[0], Does.Contain("75"));
+        var slider = menu.GetCurrentSliderData(0);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("75"));
+        Assert.That(slider.Value.Fill01, Is.EqualTo(0.75f).Within(0.001f));
     }
 
     [Test]
@@ -1865,14 +1868,14 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void VideoPicture_BrightnessSlider_Default_ContainsBlockBarAndZero()
+    public void VideoPicture_BrightnessSlider_Default_ReturnsSliderDataAtMidpoint()
     {
         var menu = CreateMenu();
         OpenVideoPictureScreen(menu);
-        string[] items = menu.GetCurrentItems();
-        Assert.That(items[1], Does.Contain("0"));
-        Assert.That(items[1], Does.Contain("█"));
-        Assert.That(items[1], Does.Contain("░"));
+        var slider = menu.GetCurrentSliderData(1);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("0"));
+        Assert.That(slider.Value.Fill01, Is.EqualTo(0.5f).Within(0.001f));
     }
 
     [Test]
@@ -2093,7 +2096,9 @@ internal class InGameMenuTests
         _config.AudioEqBass = 6;
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        Assert.That(menu.GetCurrentItems()[0], Does.Contain("+6"));
+        var slider = menu.GetCurrentSliderData(0);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("+6"));
     }
 
     [Test]
@@ -2102,7 +2107,9 @@ internal class InGameMenuTests
         _config.AudioEqMid = 0;
         var menu = CreateMenu();
         OpenAudioEqScreen(menu);
-        Assert.That(menu.GetCurrentItems()[1], Does.Contain("0"));
+        var slider = menu.GetCurrentSliderData(1);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("0"));
     }
 
     [Test]

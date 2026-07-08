@@ -1,56 +1,21 @@
-﻿using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
 using SDL3;
-using NEShim.Config;
-using NEShim.Saves;
-using NEShim.Localization;
 using NEShim.UI;
-using NSubstitute;
 
 namespace NEShim.Tests.UI;
 
 /// <summary>
-/// Tests for MainMenuRenderer.GetMainPanelRect (panel positioning) and HitTestItem.
-/// Uses real MainMenuScreen instances with a temp-dir SaveStateManager and no-op callbacks.
+/// Tests for MainMenuRenderer.GetMainPanelRect (panel positioning — pure arithmetic, no SDL init required).
 /// </summary>
 [TestFixture]
 internal class MainMenuRendererTests
 {
-    private string       _tempDir = null!;
-    private ISaveManager _saves   = null!;
-    private AppConfig    _config  = null!;
-
-    [SetUp]
-    public void SetUp()
-    {
-        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_tempDir);
-        _saves  = Substitute.For<ISaveManager>();
-        _saves.SlotCount.Returns(8);
-        _config = new AppConfig(); // default MainMenuPosition = "BottomCenter"
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
-    }
-
-    private MainMenuScreen CreateMenu() =>
-        new(_saves, _config, new LocalizationData(), null,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
-
-    // ---- GetMainPanelRect — position variants ----
-    //
-    // Margin = 40 (private const in MainMenuRenderer)
     // All tests use bounds (0,0,800,600), panelW=300, panelH=200.
+    // Margin = 40 (private const in MainMenuRenderer)
 
-    private static readonly Rectangle Bounds800x600 = new(0, 0, 800, 600);
-    private const int PanelW  = 300;
-    private const int PanelH  = 200;
-    private const int Margin  = 40;
+    private static readonly SDL.Rect Bounds800x600 = new() { X = 0, Y = 0, W = 800, H = 600 };
+    private const int PanelW = 300;
+    private const int PanelH = 200;
+    private const int Margin = 40;
 
     [Test]
     public void GetMainPanelRect_BottomCenter_X_IsCentered()
@@ -149,15 +114,15 @@ internal class MainMenuRendererTests
     public void GetMainPanelRect_AlwaysPreservesSuppliedDimensions()
     {
         var rect = MainMenuRenderer.GetMainPanelRect(Bounds800x600, PanelW, PanelH, "BottomCenter");
-        Assert.That(rect.Width,  Is.EqualTo(PanelW));
-        Assert.That(rect.Height, Is.EqualTo(PanelH));
+        Assert.That(rect.W, Is.EqualTo(PanelW));
+        Assert.That(rect.H, Is.EqualTo(PanelH));
     }
 
     [Test]
     public void GetMainPanelRect_NarrowBounds_X_ClampedToEight()
     {
-        // panelW > bounds.Width → centered X is negative → clamped to 8
-        var tinyBounds = new Rectangle(0, 0, 50, 600);
+        // panelW > bounds.W → centered X is negative → clamped to 8
+        var tinyBounds = new SDL.Rect { X = 0, Y = 0, W = 50, H = 600 };
         var rect = MainMenuRenderer.GetMainPanelRect(tinyBounds, PanelW, PanelH, "Center");
         Assert.That(rect.X, Is.EqualTo(8));
     }
@@ -165,8 +130,8 @@ internal class MainMenuRendererTests
     [Test]
     public void GetMainPanelRect_ShortBounds_Y_ClampedToEight()
     {
-        // panelH > bounds.Height → centered Y is negative → clamped to 8
-        var tinyBounds = new Rectangle(0, 0, 800, 50);
+        // panelH > bounds.H → centered Y is negative → clamped to 8
+        var tinyBounds = new SDL.Rect { X = 0, Y = 0, W = 800, H = 50 };
         var rect = MainMenuRenderer.GetMainPanelRect(tinyBounds, PanelW, PanelH, "Center");
         Assert.That(rect.Y, Is.EqualTo(8));
     }
@@ -174,259 +139,8 @@ internal class MainMenuRendererTests
     [Test]
     public void GetMainPanelRect_UnknownPosition_DefaultsToCentered()
     {
-        // Unrecognised position string falls through to the default (Center) branch
         var rect = MainMenuRenderer.GetMainPanelRect(Bounds800x600, PanelW, PanelH, "Mystery");
         Assert.That(rect.X, Is.EqualTo((800 - PanelW) / 2));
         Assert.That(rect.Y, Is.EqualTo((600 - PanelH) / 2));
-    }
-
-    // ---- HitTestItem ----
-    //
-    // Main screen: 4 items, BottomCenter, bounds 800×600:
-    //   panelW = min(360, 800-60) = 360
-    //   panelH = 52 + 4*42 + 14 = 234
-    //   panelX = (800-360)/2 = 220, panelY = 600-234-100 = 266
-    //   item i rect: (226, 316 + i*42, 348, 40)
-
-    private static readonly Rectangle Bounds800x600HT = new(0, 0, 800, 600);
-
-    [Test]
-    public void HitTestItem_DuringRebinding_ReturnsNegativeOne()
-    {
-        using var menu = CreateMenu();
-        // Main → Down once skips disabled Resume → lands on Settings → enter → Down×2 → Keyboard Controls (index 2) → rebind
-        menu.HandleKey(SDL.Keycode.Down);    // 0→(1 disabled)→2 (Settings)
-        menu.HandleKey(SDL.Keycode.Return);  // → Settings screen
-        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
-        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
-        menu.HandleKey(SDL.Keycode.Return);  // → KeyboardBindings (item 2 = Keyboard Controls)
-        menu.HandleKey(SDL.Keycode.Return);  // → starts rebinding "P1 Up"
-
-        Assert.That(menu.RebindingAction, Is.Not.Null);
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 300), Bounds800x600HT, menu), Is.EqualTo(-1));
-    }
-
-    [Test]
-    public void HitTestItem_EnabledItem_ReturnsCorrectIndex()
-    {
-        using var menu = CreateMenu();
-        // Item 0 (New Game) center: (400, 336) — inside rect (226, 316, 348, 40)
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 336), Bounds800x600HT, menu), Is.EqualTo(0));
-    }
-
-    [Test]
-    public void HitTestItem_DisabledItem_ReturnsNegativeOne()
-    {
-        using var menu = CreateMenu();
-        // Item 1 (Resume Game) is disabled when no saves exist.
-        // Item 1 center: (400, 378) — inside rect (226, 358, 348, 40)
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 378), Bounds800x600HT, menu), Is.EqualTo(-1));
-    }
-
-    [Test]
-    public void HitTestItem_PointAbovePanel_ReturnsNegativeOne()
-    {
-        using var menu = CreateMenu();
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 10), Bounds800x600HT, menu), Is.EqualTo(-1));
-    }
-
-    [Test]
-    public void HitTestItem_PointOutsidePanelHorizontally_ReturnsNegativeOne()
-    {
-        using var menu = CreateMenu();
-        // Item rects start at x=226; x=50 is outside
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(50, 336), Bounds800x600HT, menu), Is.EqualTo(-1));
-    }
-
-    [Test]
-    public void HitTestItem_SubScreen_CenteredPanel_ReturnsFirstItem()
-    {
-        using var menu = CreateMenu();
-        // Navigate to Settings sub-screen (one Down skips disabled Resume, lands on Settings)
-        menu.HandleKey(SDL.Keycode.Down);
-        menu.HandleKey(SDL.Keycode.Return);
-
-        Assert.That(menu.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
-
-        // Settings sub-screen (6 items), centered 800×600:
-        //   panelW = min(440, 800-60) = 440
-        //   panelH = 52 + 6*42 + 14 = 318
-        //   panelX = max(8, (800-440)/2) = 180
-        //   panelY = max(8, (600-318)/2) = 141
-        //   item 0 rect: (186, 191, 428, 40) → center y = 211
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 211), Bounds800x600HT, menu), Is.EqualTo(0));
-    }
-
-    [Test]
-    public void HitTestItem_DisabledResumeBecomesEnabled_WhenSlotExists()
-    {
-        _saves.SlotExists(0).Returns(true);
-        using var menu = CreateMenu();
-
-        // Resume Game (item 1) is now enabled
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 378), Bounds800x600HT, menu), Is.EqualTo(1));
-    }
-
-    // ---- Draw smoke tests ----
-
-    private static Bitmap MakeCanvas() =>
-        new(800, 600, PixelFormat.Format32bppArgb);
-
-    [Test]
-    public void Draw_MainScreen_NoBackground_DoesNotThrow()
-    {
-        using var menu   = CreateMenu();
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_MainScreen_WithResumeEnabled_DoesNotThrow()
-    {
-        // Make Resume Game enabled so the selected item can reach it
-        _saves.SlotExists(0).Returns(true);
-        using var menu   = CreateMenu();
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_SettingsSubScreen_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings (skips disabled Resume)
-        menu.HandleKey(SDL.Keycode.Return);  // → Settings
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_VideoSubScreen_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings
-        menu.HandleKey(SDL.Keycode.Return);
-        menu.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls
-        menu.HandleKey(SDL.Keycode.Down);    // Video (index 2)
-        menu.HandleKey(SDL.Keycode.Return);  // → Video
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_SoundSubScreen_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings
-        menu.HandleKey(SDL.Keycode.Return);
-        for (int i = 0; i < 3; i++) menu.HandleKey(SDL.Keycode.Down); // Sound (index 3)
-        menu.HandleKey(SDL.Keycode.Return);  // → Sound
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_KeyboardBindingsSubScreen_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings
-        menu.HandleKey(SDL.Keycode.Return);
-        menu.HandleKey(SDL.Keycode.Return);  // → KeyboardBindings (index 0)
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_RebindingMode_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings
-        menu.HandleKey(SDL.Keycode.Return);
-        menu.HandleKey(SDL.Keycode.Return);  // KeyboardBindings
-        menu.HandleKey(SDL.Keycode.Return);  // → starts rebinding "P1 Up"
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_ResumeSlots_DoesNotThrow()
-    {
-        _saves.SlotExists(0).Returns(true);
-        _saves.HasAutoSave.Returns(true);
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Resume (now enabled)
-        menu.HandleKey(SDL.Keycode.Return);  // → ResumeSlots
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_GamepadRebindingMode_DoesNotThrow()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings (skips disabled Resume)
-        menu.HandleKey(SDL.Keycode.Return);  // → Settings
-        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
-        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
-        menu.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
-        menu.HandleKey(SDL.Keycode.Return);  // → GamepadBindings
-        menu.HandleKey(SDL.Keycode.Return);  // start rebind for P1 Up (index 0)
-        Assert.That(menu.IsGamepadRebinding, Is.True);
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void HitTestItem_DuringGamepadRebinding_ReturnsNegativeOne()
-    {
-        using var menu = CreateMenu();
-        menu.HandleKey(SDL.Keycode.Down);    // Settings
-        menu.HandleKey(SDL.Keycode.Return);
-        menu.HandleKey(SDL.Keycode.Down);    // skip Video (index 0)
-        menu.HandleKey(SDL.Keycode.Down);    // skip Sound (index 1)
-        menu.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
-        menu.HandleKey(SDL.Keycode.Return);  // → GamepadBindings
-        menu.HandleKey(SDL.Keycode.Return);  // start rebind
-        Assert.That(menu.IsGamepadRebinding, Is.True);
-        Assert.That(MainMenuRenderer.HitTestItem(new Point(400, 300), Bounds800x600HT, menu), Is.EqualTo(-1));
-    }
-
-    [Test]
-    public void Draw_MainScreen_WithWideBackground_DoesNotThrow()
-    {
-        // Wide image (200×100): imgAspect=2.0 > bounds aspect 1.333 → else branch in DrawBackground
-        string imgPath = Path.Combine(_tempDir, "bg_wide.bmp");
-        using (var bmp = new Bitmap(200, 100, PixelFormat.Format32bppArgb))
-            bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
-
-        using var menu   = new MainMenuScreen(_saves, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
-    }
-
-    [Test]
-    public void Draw_MainScreen_WithTallBackground_DoesNotThrow()
-    {
-        // Tall image (100×200): imgAspect=0.5, bounds aspect 1.333 > imgAspect → if branch in DrawBackground
-        string imgPath = Path.Combine(_tempDir, "bg_tall.bmp");
-        using (var bmp = new Bitmap(100, 200, PixelFormat.Format32bppArgb))
-            bmp.Save(imgPath, System.Drawing.Imaging.ImageFormat.Bmp);
-
-        using var menu   = new MainMenuScreen(_saves, _config, new LocalizationData(), imgPath,
-            _ => { }, () => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
-        using var canvas = MakeCanvas();
-        using var g      = Graphics.FromImage(canvas);
-        Assert.That(() => MainMenuRenderer.Draw(g, Bounds800x600HT, menu), Throws.Nothing);
     }
 }

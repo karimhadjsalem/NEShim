@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
 using SDL3;
 using NEShim.Achievements;
 using NEShim.Audio;
@@ -36,13 +35,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private Rendering.IOverlayRenderer? _overlayRenderer;
     private Rendering.IFrameRenderer?   _renderer;
 
-    private Bitmap? _sidebarLeft;
-    private Bitmap? _sidebarRight;
+    private IntPtr _sidebarLeft;
+    private IntPtr _sidebarRight;
 
     // ---- Logo splash screen ----
     private LogoScreen?           _logoScreen;
     private Task?                 _preloadTask;
-    private Bitmap?               _preloadedMenuBackground;
+    private IntPtr                _preloadedMenuBackground;
     private MainMenuMusic?        _preloadedMusic;
     private AchievementManager?   _pendingAchievements;
 
@@ -171,14 +170,14 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     {
         _pendingAchievements = achievements;
         using var stream = typeof(UI.LogoScreen).Assembly
-            .GetManifestResourceStream("NEShim.logos.neshim-logo-splash.png");
+            .GetManifestResourceStream("NEShim.Assets.logos.neshim-logo-splash.png");
         if (stream is null)
         {
             Logger.Log("[Logo] Embedded resource not found — skipping splash screen.");
             FinishInitialization(achievements);
             return;
         }
-        _logoScreen = new UI.LogoScreen(new System.Drawing.Bitmap(stream));
+        _logoScreen = new UI.LogoScreen(Rendering.SdlSurfaceLoader.LoadFromStream(stream));
         _preloadTask = Task.Run(PreloadAssets);
     }
 
@@ -222,8 +221,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuBackgroundPath);
             if (resolved != null)
             {
-                try { _preloadedMenuBackground = new Bitmap(resolved); }
-                catch { }
+                _preloadedMenuBackground = Rendering.SdlSurfaceLoader.LoadFromFile(resolved);
             }
         }
 
@@ -323,8 +321,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private void InitializeRendering()
     {
         _frameBuffer  = new FrameBuffer();
-        _sidebarLeft  = LoadSidebarBitmap(_config!.SidebarLeftPath);
-        _sidebarRight = LoadSidebarBitmap(_config.SidebarRightPath);
+        _sidebarLeft  = LoadSidebarSurface(_config!.SidebarLeftPath);
+        _sidebarRight = LoadSidebarSurface(_config.SidebarRightPath);
     }
 
     private void InitializeInput()
@@ -380,7 +378,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             saveStates:          _saves!,
             config:              _config!,
             localization:        localization,
-            bgImagePath:         _preloadedMenuBackground is null ? _config!.MainMenuBackgroundPath : null,
+            bgImagePath:         _preloadedMenuBackground == IntPtr.Zero ? _config!.MainMenuBackgroundPath : null,
             bgImage:             _preloadedMenuBackground,
             onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
             onConfigSaved:       () => { },
@@ -453,7 +451,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 ConfigLoader.Save(_config!);
             });
 
-        _preloadedMenuBackground = null;
+        _preloadedMenuBackground = IntPtr.Zero;
 
         _mainMenuScreen.NewGameChosen += () => _marshalToMainThread(() =>
         {
@@ -595,13 +593,12 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _renderer?.MarkOverlayDirty();
     }
 
-    private static Bitmap? LoadSidebarBitmap(string path)
+    private static IntPtr LoadSidebarSurface(string path)
     {
-        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (string.IsNullOrWhiteSpace(path)) return IntPtr.Zero;
         string? resolved = UI.MainMenuScreen.ResolveAssetPath(path);
-        if (resolved == null) return null;
-        try   { return new Bitmap(resolved); }
-        catch { return null; }
+        if (resolved == null) return IntPtr.Zero;
+        return Rendering.SdlSurfaceLoader.LoadFromFile(resolved);
     }
 
     private static MainMenuMusic? CreateMainMenuMusic(AppConfig config)
@@ -696,16 +693,16 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     // ---- IMenuSceneProvider --------------------------------------------------
 
-    Action<Graphics, Rectangle>? Rendering.IMenuSceneProvider.GetActiveScenePainter()
+    Action<Rendering.SDL3PaintContext, SDL.Rect>? Rendering.IMenuSceneProvider.GetActiveScenePainter()
     {
         if (_logoScreen is not null)
-            return (g, b) => LogoRenderer.Draw(g, b, _logoScreen.Image, _logoScreen.CurrentAlpha);
+            return (ctx, b) => LogoRenderer.Draw(ctx, b, _logoScreen.Image, _logoScreen.CurrentAlpha);
 
         if (_mainMenuScreen?.IsVisible == true)
-            return (g, b) => MainMenuRenderer.Draw(g, b, _mainMenuScreen);
+            return (ctx, b) => MainMenuRenderer.Draw(ctx, b, _mainMenuScreen);
 
         if (_menu?.IsOpen == true)
-            return (g, b) => MenuRenderer.Draw(g, b, _menu);
+            return (ctx, b) => MenuRenderer.Draw(ctx, b, _menu);
 
         return null;
     }
@@ -763,14 +760,16 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
         Logger.Log("[Shutdown] Disposing resources.");
         _logoScreen?.Dispose();
-        _preloadedMenuBackground?.Dispose();
+        if (_preloadedMenuBackground != IntPtr.Zero) { SDL.DestroySurface(_preloadedMenuBackground); _preloadedMenuBackground = IntPtr.Zero; }
         _preloadedMusic?.Dispose();
         _renderer?.Dispose();
         _overlayRenderer?.Dispose();
-        _sidebarLeft?.Dispose();
-        _sidebarRight?.Dispose();
+        if (_sidebarLeft  != IntPtr.Zero) { SDL.DestroySurface(_sidebarLeft);  _sidebarLeft  = IntPtr.Zero; }
+        if (_sidebarRight != IntPtr.Zero) { SDL.DestroySurface(_sidebarRight); _sidebarRight = IntPtr.Zero; }
         _mainMenuMusic?.Dispose();
         _mainMenuScreen?.Dispose();
+        FlagImageLoader.Dispose();
+        ControllerSprites.Dispose();
         _audio?.Dispose();
         _host?.Dispose();
         SteamManager.Shutdown();

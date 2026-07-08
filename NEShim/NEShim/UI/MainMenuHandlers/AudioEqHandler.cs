@@ -12,17 +12,6 @@ internal sealed partial class MainMenuScreen
 
         public static bool IsSliderIndex(int index) => index <= TrebleIndex;
 
-        private const int BarWidth = 12;
-
-        private static string EqSlider(string label, int value)
-        {
-            int filled = (int)Math.Round((value + 12.0) / 24.0 * BarWidth);
-            filled     = Math.Clamp(filled, 0, BarWidth);
-            string bar = new string('█', filled) + new string('░', BarWidth - filled);
-            string num = value == 0 ? "0" : value.ToString("+0;-0");
-            return $"{label}\t◀{bar}▶ {num.PadLeft(4)}";
-        }
-
         public AudioEqHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string Title     => Menu._localization.AudioEqTitle;
@@ -30,17 +19,27 @@ internal sealed partial class MainMenuScreen
 
         public override string[] GetItems() =>
         [
-            EqSlider(Menu._localization.AudioEqBass,   Menu._config.AudioEqBass),
-            EqSlider(Menu._localization.AudioEqMid,    Menu._config.AudioEqMid),
-            EqSlider(Menu._localization.AudioEqTreble, Menu._config.AudioEqTreble),
+            Menu._localization.AudioEqBass,
+            Menu._localization.AudioEqMid,
+            Menu._localization.AudioEqTreble,
             Menu._localization.AudioEqReset,
             Menu._localization.Back,
         ];
+
+        public override SliderItemData? GetSliderData(int index) => index switch
+        {
+            BassIndex   => new SliderItemData(Menu._localization.AudioEqBass,   (Menu._config.AudioEqBass   + 12) / 24f, FormatDb(Menu._config.AudioEqBass)),
+            MidIndex    => new SliderItemData(Menu._localization.AudioEqMid,    (Menu._config.AudioEqMid    + 12) / 24f, FormatDb(Menu._config.AudioEqMid)),
+            TrebleIndex => new SliderItemData(Menu._localization.AudioEqTreble, (Menu._config.AudioEqTreble + 12) / 24f, FormatDb(Menu._config.AudioEqTreble)),
+            _           => null,
+        };
 
         public override void Activate(int index)
         {
             if (index == ResetIndex) Menu.ResetEq();
             else if (index == 4)     Menu.NavigateTo(Screen.Sound);
         }
+
+        private static string FormatDb(int value) => value == 0 ? "0" : value.ToString("+0;-0");
     }
 }

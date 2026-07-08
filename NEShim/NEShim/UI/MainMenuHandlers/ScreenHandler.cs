@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace NEShim.UI;
 
 internal sealed partial class MainMenuScreen
@@ -12,7 +10,8 @@ internal sealed partial class MainMenuScreen
         public abstract int      ItemCount { get; }
         public abstract string[] GetItems();
         public abstract void     Activate(int index);
-        public virtual  bool     IsItemEnabled(int index) => true;
-        public virtual  Bitmap?  GetItemIcon(int index)   => null;
+        public virtual  bool              IsItemEnabled(int index) => true;
+        public virtual  IntPtr            GetItemIcon(int index)   => IntPtr.Zero;
+        public virtual  SliderItemData?   GetSliderData(int index) => null;
     }
 }

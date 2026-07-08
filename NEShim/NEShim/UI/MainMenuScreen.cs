@@ -1,8 +1,6 @@
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using SDL3;
 using NEShim.Audio;
+using NEShim.Rendering;
 using NEShim.Config;
 using NEShim.Localization;
 using NEShim.Saves;
@@ -29,12 +27,11 @@ internal sealed partial class MainMenuScreen : IDisposable
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
     public bool    IsVisible       { get; private set; } = true;
     public int     SelectedIndex   { get; private set; }
-    public Bitmap? Background      { get; }
+    public IntPtr  Background      { get; }
 
-    // Pre-scaled background bitmap cache — rebuilt only when bounds change.
-    // Avoids per-frame HighQualityBicubic scaling in DrawBackground.
-    private Bitmap? _scaledBackground;
-    private Size    _scaledBoundsSize;
+    // Pre-scaled background surface cache — rebuilt only when bounds change.
+    private IntPtr        _scaledBackground;
+    private (int W, int H) _scaledBoundsSize;
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
@@ -123,7 +120,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<string>                         onLanguageChanged,
         Action<int, int, int, int>             onPictureAdjustChanged,
         Action<int, int, int>                  onAudioEqChanged,
-        Bitmap?          bgImage = null)
+        IntPtr           bgImage = default)
     {
         _saveStates                = saveStates;
         _config                    = config;
@@ -146,7 +143,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
         _handlers              = BuildHandlers();
 
-        if (bgImage is not null)
+        if (bgImage != default)
         {
             Background = bgImage;
         }
@@ -154,10 +151,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         {
             string? resolved = ResolveAssetPath(bgImagePath);
             if (resolved != null)
-            {
-                try { Background = new Bitmap(resolved); }
-                catch { }
-            }
+                Background = SdlSurfaceLoader.LoadFromFile(resolved);
         }
     }
 
@@ -511,8 +505,11 @@ internal sealed partial class MainMenuScreen : IDisposable
     public string[] GetCurrentItems() =>
         _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItems() : Array.Empty<string>();
 
-    public Bitmap? GetCurrentItemIcon(int index) =>
-        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemIcon(index) : null;
+    public IntPtr GetCurrentItemIcon(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemIcon(index) : IntPtr.Zero;
+
+    public SliderItemData? GetCurrentSliderData(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetSliderData(index) : null;
 
     public void UpdateLocalization(LocalizationData data)
     {
@@ -554,49 +551,55 @@ internal sealed partial class MainMenuScreen : IDisposable
         _                             => mode.ToString(),
     };
 
-    // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.
-    // The caller must not dispose the returned bitmap — it is owned by this instance.
-    internal Bitmap? GetScaledBackground(Rectangle bounds)
+    // Returns a pre-scaled SDL surface at bounds dimensions, rebuilding only when the bounds change.
+    // The caller must not destroy the returned surface — it is owned by this instance.
+    internal unsafe IntPtr GetScaledBackground(SDL.Rect bounds)
     {
-        if (Background == null) return null;
-        if (_scaledBackground != null && _scaledBoundsSize == bounds.Size)
+        if (Background == IntPtr.Zero) return IntPtr.Zero;
+        if (_scaledBackground != IntPtr.Zero && _scaledBoundsSize == (bounds.W, bounds.H))
             return _scaledBackground;
 
-        _scaledBackground?.Dispose();
-        _scaledBackground = null;
+        if (_scaledBackground != IntPtr.Zero)
+        {
+            SDL.DestroySurface(_scaledBackground);
+            _scaledBackground = IntPtr.Zero;
+        }
 
-        float imgAspect    = (float)Background.Width / Background.Height;
-        float boundsAspect = (float)bounds.Width / bounds.Height;
-        Rectangle dest;
+        SDL.Surface* bgSurf = (SDL.Surface*)Background;
+        int imgW = bgSurf->Width;
+        int imgH = bgSurf->Height;
+        if (imgW <= 0 || imgH <= 0) return IntPtr.Zero;
+
+        float imgAspect    = (float)imgW / imgH;
+        float boundsAspect = (float)bounds.W / bounds.H;
+        SDL.Rect srcRect;
         if (boundsAspect > imgAspect)
         {
-            int h = (int)(bounds.Width / imgAspect);
-            dest = new Rectangle(0, (bounds.Height - h) / 2, bounds.Width, h);
+            int h = (int)(bounds.W / imgAspect);
+            srcRect = new SDL.Rect { X = 0, Y = (bounds.H - h) / 2, W = bounds.W, H = h };
         }
         else
         {
-            int w = (int)(bounds.Height * imgAspect);
-            dest = new Rectangle((bounds.Width - w) / 2, 0, w, bounds.Height);
+            int w = (int)(bounds.H * imgAspect);
+            srcRect = new SDL.Rect { X = (bounds.W - w) / 2, Y = 0, W = w, H = bounds.H };
         }
 
-        var cached = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
-        using var cg = Graphics.FromImage(cached);
-        cg.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        cg.CompositingMode   = CompositingMode.SourceCopy;
-        using var black = new SolidBrush(Color.Black);
-        cg.FillRectangle(black, 0, 0, bounds.Width, bounds.Height);
-        cg.CompositingMode = CompositingMode.SourceOver;
-        cg.DrawImage(Background, dest);
+        IntPtr cached = SDL.CreateSurface(bounds.W, bounds.H, SDL.PixelFormat.ARGB8888);
+        if (cached == IntPtr.Zero) return IntPtr.Zero;
+
+        uint black = SDL.MapSurfaceRGB(cached, 0, 0, 0);
+        SDL.FillSurfaceRect(cached, IntPtr.Zero, black);
+        SDL.BlitSurfaceScaled(Background, IntPtr.Zero, cached, ref srcRect, SDL.ScaleMode.Linear);
 
         _scaledBackground = cached;
-        _scaledBoundsSize = bounds.Size;
+        _scaledBoundsSize = (bounds.W, bounds.H);
         return cached;
     }
 
     public void Dispose()
     {
-        _scaledBackground?.Dispose();
-        Background?.Dispose();
+        if (_scaledBackground != IntPtr.Zero) { SDL.DestroySurface(_scaledBackground); _scaledBackground = IntPtr.Zero; }
+        if (Background       != IntPtr.Zero)    SDL.DestroySurface(Background);
     }
 
     internal static string? ResolveAssetPath(string path)

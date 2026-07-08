@@ -16,7 +16,7 @@ internal sealed partial class MainMenuScreen
             => Menu._bindingActions
                 .Select(b => b.ConfigKey == ""
                     ? Menu._localization.Back
-                    : $"{b.Label,-8}  {Menu.KeyboardLabel(b.ConfigKey)}")
+                    : $"{b.Label}\t{Menu.KeyboardLabel(b.ConfigKey)}")
                 .ToArray();
         public override void Activate(int index)
         {

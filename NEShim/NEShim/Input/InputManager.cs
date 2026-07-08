@@ -4,6 +4,7 @@ using SDL3;
 using NEShim.Config;
 using NEShim.Input.Mappers;
 using NEShim.Input.Sources;
+using NEShim.Steam;
 
 namespace NEShim.Input;
 
@@ -105,13 +106,28 @@ internal sealed class InputManager : IInputReader
     {
         var result = default(MenuNavInput);
 
-        if (_xInputSource is IMenuNavSource xNav)
-            result = MenuNavInput.Union(result, xNav.GetMenuNav(config));
+        if (_xInputSource is IMenuNavSource xInputNav)
+            result = MenuNavInput.Union(result, xInputNav.GetMenuNav(config));
 
         if (_steamSource is IMenuNavSource steamNav)
             result = MenuNavInput.Union(result, steamNav.GetMenuNav(config));
 
         return result;
+    }
+
+    public (bool Left, bool Right) GetHeldSliderDir(AppConfig config)
+    {
+        bool keyLeft  = _keyboardSource.IsKeyPressed(SDL.Keycode.Left);
+        bool keyRight = _keyboardSource.IsKeyPressed(SDL.Keycode.Right);
+
+        var pad   = XInputHelper.GetState(0);
+        int dz    = config.GamepadDeadzone;
+        bool padLeft  = pad.Connected && (pad.DPadLeft  || AnalogStickHelper.StickLeft(pad.ThumbLX,  pad.ThumbLY, dz));
+        bool padRight = pad.Connected && (pad.DPadRight || AnalogStickHelper.StickRight(pad.ThumbLX, pad.ThumbLY, dz));
+
+        var (steamLeft, steamRight) = SteamInputManager.GetMenuHeldLeftRight();
+
+        return (keyLeft || padLeft || steamLeft, keyRight || padRight || steamRight);
     }
 
     /// <summary>

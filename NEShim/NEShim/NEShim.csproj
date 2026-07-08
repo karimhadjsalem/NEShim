@@ -16,6 +16,7 @@
         <PackageReference Include="System.Drawing.Common" Version="9.0.3" />
         <PackageReference Include="SDL3-CS" Version="3.*" />
         <PackageReference Include="SDL3-CS.Windows" Version="3.4.10.5" />
+        <PackageReference Include="SDL3-CS.Windows.TTF" Version="3.*" />
         <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
         <Reference Include="Steamworks.NET">
             <HintPath>lib\Steamworks.NET.dll</HintPath>
@@ -29,36 +30,65 @@
 
     <ItemGroup>
         <EmbeddedResource Include="icon.ico" />
-        <EmbeddedResource Include="logos\neshim-logo-splash.png" />
-        <EmbeddedResource Include="assets\flags\english.png">
-            <LogicalName>NEShim.assets.flags.english.png</LogicalName>
+        <EmbeddedResource Include="Assets\logos\neshim-logo-splash.png">
+            <LogicalName>NEShim.Assets.logos.neshim-logo-splash.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\french.png">
-            <LogicalName>NEShim.assets.flags.french.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_none.png">
+            <LogicalName>NEShim.Assets.controllers.controller_none.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\german.png">
-            <LogicalName>NEShim.assets.flags.german.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_up.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_up.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\spanish.png">
-            <LogicalName>NEShim.assets.flags.spanish.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_down.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_down.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\latam.png">
-            <LogicalName>NEShim.assets.flags.latam.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_left.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_left.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\japanese.png">
-            <LogicalName>NEShim.assets.flags.japanese.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_right.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_right.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\korean.png">
-            <LogicalName>NEShim.assets.flags.korean.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_a.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_a.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\russian.png">
-            <LogicalName>NEShim.assets.flags.russian.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_b.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_b.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\schinese.png">
-            <LogicalName>NEShim.assets.flags.schinese.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_start.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_start.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\portuguese.png">
-            <LogicalName>NEShim.assets.flags.portuguese.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_p1_select.png">
+            <LogicalName>NEShim.Assets.controllers.controller_p1_select.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\english.png">
+            <LogicalName>NEShim.Assets.flags.english.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\french.png">
+            <LogicalName>NEShim.Assets.flags.french.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\german.png">
+            <LogicalName>NEShim.Assets.flags.german.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\spanish.png">
+            <LogicalName>NEShim.Assets.flags.spanish.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\latam.png">
+            <LogicalName>NEShim.Assets.flags.latam.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\japanese.png">
+            <LogicalName>NEShim.Assets.flags.japanese.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\korean.png">
+            <LogicalName>NEShim.Assets.flags.korean.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\russian.png">
+            <LogicalName>NEShim.Assets.flags.russian.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\schinese.png">
+            <LogicalName>NEShim.Assets.flags.schinese.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\portuguese.png">
+            <LogicalName>NEShim.Assets.flags.portuguese.png</LogicalName>
         </EmbeddedResource>
     </ItemGroup>
 

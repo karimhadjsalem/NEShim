@@ -1,4 +1,3 @@
-using System.Drawing;
 using SDL3;
 using NEShim.Audio;
 using NEShim.Config;
@@ -481,8 +480,11 @@ internal sealed partial class InGameMenu
     public string GetTitle() =>
         _handlers.TryGetValue(Current, out var handler) ? handler.Title : "";
 
-    public Bitmap? GetCurrentItemIcon(int index) =>
-        _handlers.TryGetValue(Current, out var handler) ? handler.GetItemIcon(index) : null;
+    public IntPtr GetCurrentItemIcon(int index) =>
+        _handlers.TryGetValue(Current, out var handler) ? handler.GetItemIcon(index) : IntPtr.Zero;
+
+    public SliderItemData? GetCurrentSliderData(int index) =>
+        _handlers.TryGetValue(Current, out var handler) ? handler.GetSliderData(index) : null;
 
     public void UpdateLocalization(LocalizationData data)
     {

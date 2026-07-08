@@ -307,6 +307,19 @@ internal static class SteamInputManager
                Digital(h, _hMenuConfirm) || Digital(h, _hMenuBack);
     }
 
+    /// <summary>
+    /// Returns raw (non-edge-triggered) held state for menu left/right on the first connected controller.
+    /// Used by <see cref="NEShim.Input.InputManager"/> to implement held-slider repeat.
+    /// </summary>
+    public static (bool Left, bool Right) GetMenuHeldLeftRight()
+    {
+        if (!IsAvailable) return default;
+        int count = RefreshControllers();
+        if (count == 0) return default;
+        var h = _controllerBuf[0];
+        return (Digital(h, _hMenuLeft), Digital(h, _hMenuRight));
+    }
+
     private static int RefreshControllers()
     {
         _connectedCount = SteamInput.GetConnectedControllers(_controllerBuf);

@@ -1,4 +1,3 @@
-using System.Drawing;
 using NEShim.Localization;
 
 namespace NEShim.UI;
@@ -53,12 +52,12 @@ internal sealed partial class InGameMenu
             Menu.NavigateTo(Screen.Settings);
         }
 
-        public override Bitmap? GetItemIcon(int index)
+        public override IntPtr GetItemIcon(int index)
         {
             // Language rows (1..N) have flag icons; Auto and Back have none.
             if (index > 0 && index < BackIndex)
                 return FlagImageLoader.Get(index);
-            return null;
+            return IntPtr.Zero;
         }
     }
 }

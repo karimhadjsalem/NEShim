@@ -10,13 +10,65 @@ namespace NEShim.GameLoop;
 /// </summary>
 internal sealed class InputProcessor
 {
-    private readonly IInputReader _input;
-    private readonly InGameMenu _menu;
+    private readonly IInputReader    _input;
+    private readonly InGameMenu      _menu;
     private readonly IMenuInputTarget _menuInput;
-    private readonly Action<Action> _marshalToUiThread;
+    private readonly Action<Action>  _marshalToUiThread;
 
-    private bool _justDismissedDisconnectScreen;
-    private bool _prevIsWaitingForGamepadButton;
+    private bool                _justDismissedDisconnectScreen;
+    private bool                _prevIsWaitingForGamepadButton;
+    private SliderRepeatTracker _sliderRepeat;
+
+    /// <summary>
+    /// Tracks timing for continuous left/right slider movement when a direction is held.
+    /// Fires after an initial delay then at a fixed repeat interval.
+    /// </summary>
+    private struct SliderRepeatTracker
+    {
+        private const long InitialDelayMs         = 400;
+        private const long SlowRepeatIntervalMs   =  80;  // ~12 Hz
+        private const long FastRepeatIntervalMs   =  30;  // ~33 Hz
+        private const long AccelerationThresholdMs = 1000; // total hold time before fast phase
+
+        private int  _heldDirection; // -1 = left, 0 = none, +1 = right
+        private long _holdStartTick;
+        private long _nextFireTick;
+
+        /// <summary>
+        /// Advances the tracker for the current frame. Returns a synthetic nav input when
+        /// the repeat timer fires, or null when no repeat should trigger this frame.
+        /// Repeat rate accelerates after <c>AccelerationThresholdMs</c> of continuous hold.
+        /// </summary>
+        public MenuNavInput? Advance(bool heldLeft, bool heldRight)
+        {
+            int direction = heldRight ? 1 : heldLeft ? -1 : 0;
+
+            if (direction == 0)
+            {
+                _heldDirection = 0;
+                return null;
+            }
+
+            long now = Environment.TickCount64;
+
+            if (direction != _heldDirection)
+            {
+                _heldDirection = direction;
+                _holdStartTick = now;
+                _nextFireTick  = now + InitialDelayMs;
+                return null;
+            }
+
+            if (now < _nextFireTick) return null;
+
+            long totalHeld   = now - _holdStartTick;
+            long interval    = totalHeld >= AccelerationThresholdMs ? FastRepeatIntervalMs : SlowRepeatIntervalMs;
+            _nextFireTick    = now + interval;
+            return direction < 0
+                ? new MenuNavInput { Left  = true }
+                : new MenuNavInput { Right = true };
+        }
+    }
 
     /// <summary>
     /// True for the frame on which the controller-disconnect overlay was dismissed.
@@ -95,6 +147,14 @@ internal sealed class InputProcessor
             var nav = _input.PollMenuNav(config);
             if (nav.Any)
                 _marshalToUiThread(() => _menuInput.HandleGamepadNav(nav));
+
+            var (heldLeft, heldRight) = _input.GetHeldSliderDir(config);
+            var repeat = _sliderRepeat.Advance(heldLeft, heldRight);
+            if (repeat.HasValue)
+            {
+                var repeatNav = repeat.Value;
+                _marshalToUiThread(() => _menuInput.HandleGamepadNav(repeatNav));
+            }
         }
 
         _prevIsWaitingForGamepadButton = isWaiting;

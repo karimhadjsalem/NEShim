@@ -1557,14 +1557,14 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void VideoPicture_BrightnessSlider_Default_ContainsBlockBarAndZero()
+    public void VideoPicture_BrightnessSlider_Default_ReturnsSliderDataAtMidpoint()
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        string[] items = screen.GetCurrentItems();
-        Assert.That(items[1], Does.Contain("0"));
-        Assert.That(items[1], Does.Contain("█"));
-        Assert.That(items[1], Does.Contain("░"));
+        var slider = screen.GetCurrentSliderData(1);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("0"));
+        Assert.That(slider.Value.Fill01, Is.EqualTo(0.5f).Within(0.001f));
     }
 
     [Test]
@@ -1779,7 +1779,9 @@ internal class MainMenuScreenTests
         _config.AudioEqBass = 9;
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
-        Assert.That(screen.GetCurrentItems()[0], Does.Contain("+9"));
+        var slider = screen.GetCurrentSliderData(0);
+        Assert.That(slider.HasValue, Is.True);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("+9"));
     }
 
     [Test]

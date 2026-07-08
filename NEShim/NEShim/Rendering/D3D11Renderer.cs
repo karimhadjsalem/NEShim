@@ -1,9 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using SDL3;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -52,19 +50,22 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // Recreated on Resize.
     private ID3D11RenderTargetView _renderTargetView;
 
-    // Viewport-sized overlay texture + GDI+ bitmap — recreated on Resize.
+    // Viewport-sized overlay texture + SDL software renderer surface — recreated on Resize.
     private ID3D11Texture2D?          _overlayTexture;
     private ID3D11ShaderResourceView? _overlaySrv;
-    private Bitmap?                   _overlayBitmap;
+    private IntPtr                    _overlaySurface;
+    private IntPtr                    _overlayRenderer;
+    private SDL3FontCache?            _fontCache;
+    private SDL3PaintContext?         _paintContext;
     private volatile bool             _overlayDirty = true;
 
     // Sidebar textures — recreated when SetSidebars is called.
     private ID3D11Texture2D?          _leftSidebarTex;
     private ID3D11ShaderResourceView? _leftSidebarSrv;
-    private System.Drawing.Size       _leftSidebarBmpSize;
+    private (int W, int H)            _leftSidebarBmpSize;
     private ID3D11Texture2D?          _rightSidebarTex;
     private ID3D11ShaderResourceView? _rightSidebarSrv;
-    private System.Drawing.Size       _rightSidebarBmpSize;
+    private (int W, int H)            _rightSidebarBmpSize;
     private bool                      _hasSidebars;
 
     private int _nesTextureWidth;
@@ -333,10 +334,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _overlayDirty = true;
     }
 
-    public void SetSidebars(Bitmap? left, Bitmap? right)
+    public void SetSidebars(IntPtr left, IntPtr right)
     {
-        UploadSidebarBitmap(left,  ref _leftSidebarTex,  ref _leftSidebarSrv,  ref _leftSidebarBmpSize);
-        UploadSidebarBitmap(right, ref _rightSidebarTex, ref _rightSidebarSrv, ref _rightSidebarBmpSize);
+        UploadSidebarSurface(left,  ref _leftSidebarTex,  ref _leftSidebarSrv,  ref _leftSidebarBmpSize);
+        UploadSidebarSurface(right, ref _rightSidebarTex, ref _rightSidebarSrv, ref _rightSidebarBmpSize);
         _hasSidebars = _leftSidebarSrv is not null || _rightSidebarSrv is not null;
     }
 
@@ -754,46 +755,43 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.PSSetShader(_activePixelShader);
     }
 
-    private void UploadSidebarBitmap(
-        Bitmap?                           bmp,
-        ref ID3D11Texture2D?              tex,
-        ref ID3D11ShaderResourceView?     srv,
-        ref System.Drawing.Size           bmpSize)
+    private unsafe void UploadSidebarSurface(
+        IntPtr                        surface,
+        ref ID3D11Texture2D?          tex,
+        ref ID3D11ShaderResourceView? srv,
+        ref (int W, int H)            surfaceSize)
     {
         tex?.Dispose(); tex = null;
         srv?.Dispose(); srv = null;
-        bmpSize = default;
+        surfaceSize = default;
 
-        if (bmp is null) return;
+        if (surface == IntPtr.Zero) return;
 
-        bmpSize = bmp.Size;
-        var bmpData = bmp.LockBits(
-            new Rectangle(0, 0, bmp.Width, bmp.Height),
-            ImageLockMode.ReadOnly,
-            PixelFormat.Format32bppArgb);
-        try
-        {
-            // GDI+ Format32bppArgb stores bytes [B,G,R,A] — same as B8G8R8A8_UNorm.
-            var initData = new SubresourceData(bmpData.Scan0, (uint)Math.Abs(bmpData.Stride), 0);
-            tex = _device.CreateTexture2D(
-                new Texture2DDescription
-                {
-                    Width             = (uint)bmp.Width,
-                    Height            = (uint)bmp.Height,
-                    MipLevels         = 1,
-                    ArraySize         = 1,
-                    Format            = Format.B8G8R8A8_UNorm,
-                    SampleDescription = new SampleDescription(1, 0),
-                    Usage             = ResourceUsage.Immutable,
-                    BindFlags         = BindFlags.ShaderResource,
-                },
-                new[] { initData });
-            srv = _device.CreateShaderResourceView(tex);
-        }
-        finally
-        {
-            bmp.UnlockBits(bmpData);
-        }
+        SDL.Surface* surf = (SDL.Surface*)surface;
+        int surfW = surf->Width;
+        int surfH = surf->Height;
+        if (surfW <= 0 || surfH <= 0) return;
+
+        if (surf->Pixels == IntPtr.Zero) return;
+
+        surfaceSize = (surfW, surfH);
+        int srcStride = surf->Pitch;
+        // SDL ARGB8888 stores [B,G,R,A] — same layout as B8G8R8A8_UNorm, no byte-swap needed.
+        var initData = new SubresourceData(surf->Pixels, (uint)srcStride, 0);
+        tex = _device.CreateTexture2D(
+            new Texture2DDescription
+            {
+                Width             = (uint)surfW,
+                Height            = (uint)surfH,
+                MipLevels         = 1,
+                ArraySize         = 1,
+                Format            = Format.B8G8R8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage             = ResourceUsage.Immutable,
+                BindFlags         = BindFlags.ShaderResource,
+            },
+            new[] { initData });
+        srv = _device.CreateShaderResourceView(tex);
     }
 
     // ---- Overlay rendering (scene + FPS, toast, achievement) ---------------------------
@@ -808,7 +806,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         bool hasScene     = _menuSceneProvider?.GetActiveScenePainter() is not null;
 
         if (!hasTransient && !hasScene) return;
-        if (_overlayBitmap is null || _overlayTexture is null) return;
+        if (_paintContext is null || _overlayTexture is null) return;
 
         // Upload only when dirty. All state changes that affect the overlay
         // (input, navigation, timer ticks for animations) call MarkOverlayDirty().
@@ -837,46 +835,45 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void RenderOverlayBitmap()
     {
-        var clientRect = new Rectangle(0, 0, _viewportWidth, _viewportHeight);
-        using var g = Graphics.FromImage(_overlayBitmap!);
-        g.Clear(System.Drawing.Color.Transparent);
-        g.CompositingMode = CompositingMode.SourceOver;
+        var clientRect = new SDL.Rect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        _paintContext!.Clear(new SDL.Color { R = 0, G = 0, B = 0, A = 0 });
 
         // Draw active menu/logo scene first; transient overlays composite on top.
-        _menuSceneProvider?.GetActiveScenePainter()?.Invoke(g, clientRect);
+        _menuSceneProvider?.GetActiveScenePainter()?.Invoke(_paintContext, clientRect);
 
         if (_showFps)
-            OverlayRenderer.DrawFps(g, clientRect, _currentFps);
+            OverlayRenderer.DrawFps(_paintContext, clientRect, _currentFps);
 
         if (_toastText is not null)
-            OverlayRenderer.DrawToast(g, clientRect, _toastText);
+            OverlayRenderer.DrawToast(_paintContext, clientRect, _toastText);
+
+        SDL.RenderPresent(_overlayRenderer);
     }
 
     private unsafe void UploadOverlayBitmap()
     {
-        var bmpData = _overlayBitmap!.LockBits(
-            new Rectangle(0, 0, _overlayBitmap.Width, _overlayBitmap.Height),
-            ImageLockMode.ReadOnly,
-            PixelFormat.Format32bppArgb);
+        SDL.Surface* overlaySurf = (SDL.Surface*)_overlaySurface;
+        if (overlaySurf->Pixels == IntPtr.Zero) return;
+
+        var mapped = _context.Map(_overlayTexture!, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
         try
         {
-            var mapped = _context.Map(_overlayTexture!, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
-            try
-            {
-                int srcStride = Math.Abs(bmpData.Stride);
-                byte* dst = (byte*)mapped.DataPointer;
-                byte* src = (byte*)bmpData.Scan0;
-                for (int row = 0; row < _overlayBitmap.Height; row++)
-                    Buffer.MemoryCopy(src + row * srcStride, dst + row * mapped.RowPitch, srcStride, srcStride);
-            }
-            finally { _context.Unmap(_overlayTexture!, 0); }
+            int srcStride = overlaySurf->Pitch;
+            byte* dst = (byte*)mapped.DataPointer;
+            byte* src = (byte*)overlaySurf->Pixels;
+            for (int row = 0; row < _viewportHeight; row++)
+                Buffer.MemoryCopy(src + row * srcStride, dst + row * mapped.RowPitch, srcStride, srcStride);
         }
-        finally { _overlayBitmap.UnlockBits(bmpData); }
+        finally { _context.Unmap(_overlayTexture!, 0); }
     }
 
     private void CreateOverlayResources()
     {
-        _overlayBitmap  = new Bitmap(_viewportWidth, _viewportHeight, PixelFormat.Format32bppArgb);
+        _fontCache       = new SDL3FontCache();
+        _overlaySurface  = SDL.CreateSurface(_viewportWidth, _viewportHeight, SDL.PixelFormat.ARGB8888);
+        _overlayRenderer = SDL.CreateSoftwareRenderer(_overlaySurface);
+        _paintContext    = new SDL3PaintContext(_overlayRenderer, _fontCache, _viewportWidth, _viewportHeight);
+
         _overlayTexture = _device.CreateTexture2D(new Texture2DDescription
         {
             Width             = (uint)_viewportWidth,
@@ -897,7 +894,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
     {
         _overlaySrv?.Dispose();     _overlaySrv     = null;
         _overlayTexture?.Dispose(); _overlayTexture = null;
-        _overlayBitmap?.Dispose();  _overlayBitmap  = null;
+        _paintContext = null;
+        if (_overlayRenderer != IntPtr.Zero) { SDL.DestroyRenderer(_overlayRenderer); _overlayRenderer = IntPtr.Zero; }
+        if (_overlaySurface  != IntPtr.Zero) { SDL.DestroySurface(_overlaySurface);  _overlaySurface  = IntPtr.Zero; }
+        _fontCache?.Dispose(); _fontCache = null;
     }
 
     // ---- Intermediate render target management -----------------------------------------
@@ -1091,19 +1091,18 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     /// <summary>
     /// Computes UV sub-rect for cover-scale rendering (zoom to fill, center-crop).
-    /// Mirrors <see cref="OverlayRenderer.ComputeSidebarCover"/> but returns UV floats
-    /// for the D3D11 vertex buffer instead of a GDI+ source rectangle.
+    /// Returns UV floats for the D3D11 vertex buffer for cover-crop scaling of a sidebar surface.
     /// </summary>
-    private static (float u0, float v0, float u1, float v1) ComputeCoverUV(
-        System.Drawing.Size bmpSize, float quadPixelW, float quadPixelH)
+    internal static (float u0, float v0, float u1, float v1) ComputeCoverUV(
+        (int W, int H) surfaceSize, float quadPixelW, float quadPixelH)
     {
-        float scale = Math.Max(quadPixelW / bmpSize.Width, quadPixelH / bmpSize.Height);
+        float scale = Math.Max(quadPixelW / surfaceSize.W, quadPixelH / surfaceSize.H);
         float srcW  = quadPixelW / scale;
         float srcH  = quadPixelH / scale;
-        float srcX  = (bmpSize.Width  - srcW) / 2f;
-        float srcY  = (bmpSize.Height - srcH) / 2f;
-        return (srcX / bmpSize.Width,  srcY / bmpSize.Height,
-                (srcX + srcW) / bmpSize.Width, (srcY + srcH) / bmpSize.Height);
+        float srcX  = (surfaceSize.W - srcW) / 2f;
+        float srcY  = (surfaceSize.H - srcH) / 2f;
+        return (srcX / surfaceSize.W,  srcY / surfaceSize.H,
+                (srcX + srcW) / surfaceSize.W, (srcY + srcH) / surfaceSize.H);
     }
 
     // ---- Shader loading ----------------------------------------------------------------

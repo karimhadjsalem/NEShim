@@ -11,6 +11,12 @@ internal interface IInputReader
     MenuNavInput  PollMenuNav(AppConfig config);
 
     /// <summary>
+    /// Returns raw held state for left/right directional input — not edge-triggered.
+    /// Used to drive continuous slider movement while a direction is held.
+    /// </summary>
+    (bool Left, bool Right) GetHeldSliderDir(AppConfig config);
+
+    /// <summary>
     /// Detects edge transitions for all configured hotkeys and fires the
     /// corresponding events (<see cref="HotkeyFired"/>, <see cref="MenuToggleRequested"/>).
     /// Call once per frame on the emulation thread, after <see cref="PollSnapshot"/>.

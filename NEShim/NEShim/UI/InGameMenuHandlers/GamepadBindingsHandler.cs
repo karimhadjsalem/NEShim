@@ -17,7 +17,7 @@ internal sealed partial class InGameMenu
             => Menu._gamepadBindingActions
                 .Select(b => b.ConfigKey == ""
                     ? Menu._localization.Back
-                    : $"{b.Label,-8}  {Menu.GetGamepadLabel(b.ConfigKey)}")
+                    : $"{b.Label}\t{Menu.GetGamepadLabel(b.ConfigKey)}")
                 .ToArray();
         public override bool IsItemEnabled(int index)
         {

@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -31,8 +29,8 @@ internal interface IFrameRenderer : IDisposable
     /// <summary>Updates the FPS overlay state. May be called from the emulation thread (volatile write).</summary>
     void UpdateFpsOverlay(bool show, float fps);
 
-    /// <summary>Sets or clears sidebar images drawn in letterbox bars. Renderer takes no ownership of the bitmaps.</summary>
-    void SetSidebars(Bitmap? left, Bitmap? right);
+    /// <summary>Sets or clears sidebar SDL surfaces drawn in letterbox bars. Renderer takes no ownership of the surfaces.</summary>
+    void SetSidebars(IntPtr left, IntPtr right);
 
     /// <summary>Shows a brief toast notification.</summary>
     void ShowToast(string text);
