@@ -16,19 +16,20 @@ namespace NEShim.Input;
 internal sealed class InputManager : IInputReader
 {
     private readonly KeyboardInputSource _keyboardSource;
-    private readonly IInputSource        _xInputSource;
+    private readonly IInputSource        _gamepadSource;
     private readonly IInputSource        _steamSource;
     private readonly IInputMapper        _keyboardMapper;
-    private readonly IInputMapper        _xInputMapper;
+    private readonly IInputMapper        _gamepadMapper;
     private readonly IInputMapper        _steamMapper;
+    private readonly IGamepadDevice      _gamepadDevice;
 
     // Edge detection for hotkeys
     private readonly HashSet<SDL.Keycode> _prevHotkeyKeys = new();
-    private XInputHelper.GamepadState _prevHotkeyPad;
+    private GamepadState _prevHotkeyPad;
 
     // Controller disconnect tracking
     private bool _wasControllerConnected;
-    private bool _prevLoggedXInput;
+    private bool _prevLoggedGamepad;
     private bool _prevLoggedSteam;
 
     // ── IoC events ─────────────────────────────────────────────────────────────
@@ -37,31 +38,24 @@ internal sealed class InputManager : IInputReader
     public event Action?         MenuToggleRequested;
     public event Action?         GamepadDisconnected;
 
-    // ── Constructors ───────────────────────────────────────────────────────────
-
-    internal InputManager()
-        : this(new KeyboardInputSource(),
-               new XInputSource(),
-               new SteamInputSource(),
-               new KeyboardMapper(),
-               new XInputMapper(),
-               new SteamInputMapper())
-    { }
+    // ── Constructor ────────────────────────────────────────────────────────────
 
     internal InputManager(
         KeyboardInputSource keyboardSource,
-        IInputSource        xInputSource,
+        IInputSource        gamepadSource,
         IInputSource        steamSource,
         IInputMapper        keyboardMapper,
-        IInputMapper        xInputMapper,
-        IInputMapper        steamMapper)
+        IInputMapper        gamepadMapper,
+        IInputMapper        steamMapper,
+        IGamepadDevice      gamepadDevice)
     {
         _keyboardSource = keyboardSource;
-        _xInputSource   = xInputSource;
+        _gamepadSource  = gamepadSource;
         _steamSource    = steamSource;
         _keyboardMapper = keyboardMapper;
-        _xInputMapper   = xInputMapper;
+        _gamepadMapper  = gamepadMapper;
         _steamMapper    = steamMapper;
+        _gamepadDevice  = gamepadDevice;
     }
 
     // ── IInputReader: keyboard forwarding ──────────────────────────────────────
@@ -79,24 +73,24 @@ internal sealed class InputManager : IInputReader
         if (_steamSource.IsAvailable)
             _steamMapper.Map(steamIds, config, builder);
 
-        var xIds = _xInputSource.GetActiveIdentifiers(config);
-        if (_xInputSource.IsAvailable)
-            _xInputMapper.Map(xIds, config, builder);
+        var gamepadIds = _gamepadSource.GetActiveIdentifiers(config);
+        if (_gamepadSource.IsAvailable)
+            _gamepadMapper.Map(gamepadIds, config, builder);
 
         _keyboardMapper.Map(_keyboardSource.GetActiveIdentifiers(config), config, builder);
 
-        bool controllerNow = _xInputSource.IsAvailable || _steamSource.IsAvailable;
+        bool controllerNow = _gamepadSource.IsAvailable || _steamSource.IsAvailable;
         if (_wasControllerConnected && !controllerNow)
             GamepadDisconnected?.Invoke();
         _wasControllerConnected = controllerNow;
 
-        bool xInputNow = _xInputSource.IsAvailable;
-        bool steamNow  = _steamSource.IsAvailable;
-        if (xInputNow != _prevLoggedXInput || steamNow != _prevLoggedSteam)
+        bool gamepadNow = _gamepadSource.IsAvailable;
+        bool steamNow   = _steamSource.IsAvailable;
+        if (gamepadNow != _prevLoggedGamepad || steamNow != _prevLoggedSteam)
         {
-            Logger.Log($"[Input] Source: XInput={xInputNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
-            _prevLoggedXInput = xInputNow;
-            _prevLoggedSteam  = steamNow;
+            Logger.Log($"[Input] Source: Gamepad={gamepadNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
+            _prevLoggedGamepad = gamepadNow;
+            _prevLoggedSteam   = steamNow;
         }
 
         return new InputSnapshot(builder.ToImmutable());
@@ -106,8 +100,8 @@ internal sealed class InputManager : IInputReader
     {
         var result = default(MenuNavInput);
 
-        if (_xInputSource is IMenuNavSource xInputNav)
-            result = MenuNavInput.Union(result, xInputNav.GetMenuNav(config));
+        if (_gamepadSource is IMenuNavSource gamepadNav)
+            result = MenuNavInput.Union(result, gamepadNav.GetMenuNav(config));
 
         if (_steamSource is IMenuNavSource steamNav)
             result = MenuNavInput.Union(result, steamNav.GetMenuNav(config));
@@ -120,7 +114,7 @@ internal sealed class InputManager : IInputReader
         bool keyLeft  = _keyboardSource.IsKeyPressed(SDL.Keycode.Left);
         bool keyRight = _keyboardSource.IsKeyPressed(SDL.Keycode.Right);
 
-        var pad   = XInputHelper.GetState(0);
+        var pad   = _gamepadDevice.GetState(0);
         int dz    = config.GamepadDeadzone;
         bool padLeft  = pad.Connected && (pad.DPadLeft  || AnalogStickHelper.StickLeft(pad.ThumbLX,  pad.ThumbLY, dz));
         bool padRight = pad.Connected && (pad.DPadRight || AnalogStickHelper.StickRight(pad.ThumbLX, pad.ThumbLY, dz));
@@ -137,7 +131,7 @@ internal sealed class InputManager : IInputReader
     public void AdvanceHotkeyState(AppConfig config)
     {
         var curr = _keyboardSource.GetPressedKeysCopy();
-        var pad  = XInputHelper.GetState(0);
+        var pad  = _gamepadDevice.GetState(0);
 
         // Menu toggle — fire at most once even if multiple triggers are active
         bool menuToggle =
@@ -146,8 +140,8 @@ internal sealed class InputManager : IInputReader
                 && pad.Connected && pad.Start && !_prevHotkeyPad.Start)
             || (config.GamepadHotkeyMappings.TryGetValue("OpenMenu", out var openBtn)
                 && pad.Connected
-                && XInputHelper.GetButton(in pad, openBtn)
-                && !XInputHelper.GetButton(in _prevHotkeyPad, openBtn));
+                && pad.GetButton(openBtn)
+                && !_prevHotkeyPad.GetButton(openBtn));
 
         if (menuToggle)
             MenuToggleRequested?.Invoke();
@@ -164,12 +158,8 @@ internal sealed class InputManager : IInputReader
         foreach (var (action, buttonName) in config.GamepadHotkeyMappings)
         {
             if (action == "OpenMenu") continue;
-            if (pad.Connected
-                && XInputHelper.GetButton(in pad, buttonName)
-                && !XInputHelper.GetButton(in _prevHotkeyPad, buttonName))
-            {
+            if (pad.Connected && pad.GetButton(buttonName) && !_prevHotkeyPad.GetButton(buttonName))
                 HotkeyFired?.Invoke(action);
-            }
         }
 
         // Advance edge state
@@ -186,7 +176,7 @@ internal sealed class InputManager : IInputReader
         foreach (var k in keys)
             if (!_prevHotkeyKeys.Contains(k)) return true;
 
-        var curr = XInputHelper.GetState(0);
+        var curr = _gamepadDevice.GetState(0);
         if (!curr.Connected) return false;
         var prev = _prevHotkeyPad;
         return (curr.A             && !prev.A)             || (curr.B             && !prev.B)             ||
@@ -201,19 +191,19 @@ internal sealed class InputManager : IInputReader
     public bool PollAnyControllerButton()
     {
         bool any = false;
-        if (_xInputSource is IAnyButtonSource xa) any |= xa.AnyJustPressed();
-        if (_steamSource  is IAnyButtonSource sa) any |= sa.AnyJustPressed();
+        if (_gamepadSource is IAnyButtonSource ga) any |= ga.AnyJustPressed();
+        if (_steamSource   is IAnyButtonSource sa) any |= sa.AnyJustPressed();
         return any;
     }
 
     public void FlushBindingEdges()
     {
-        if (_xInputSource is IBindingSource b) b.FlushEdges();
+        if (_gamepadSource is IBindingSource b) b.FlushEdges();
     }
 
     public string? PollAnyGamepadButtonPressed()
     {
-        if (_xInputSource is IBindingSource b) return b.PollAnyButtonPressed();
+        if (_gamepadSource is IBindingSource b) return b.PollAnyButtonPressed();
         return null;
     }
 }

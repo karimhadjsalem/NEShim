@@ -2,7 +2,7 @@ namespace NEShim.Input;
 
 /// <summary>
 /// Strategy interface for gamepad button detection during the rebinding UI.
-/// Implemented by <see cref="Sources.XInputSource"/>.
+/// Implemented by <see cref="Sources.SDL3GamepadSource"/>.
 /// <see cref="InputManager.PollAnyGamepadButtonPressed"/> delegates to the first implementation found.
 /// </summary>
 internal interface IBindingSource

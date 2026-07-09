@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NEShim.Config;
 using NEShim.Localization;
 
@@ -9,6 +10,9 @@ namespace NEShim.UI;
 /// </summary>
 internal static class MenuBindingHelpers
 {
+    private static readonly HashSet<string> AnalogIdentifiers =
+        new() { "AnalogUp", "AnalogDown", "AnalogLeft", "AnalogRight" };
+
     /// <summary>
     /// Returns the standard NES-button binding action table, localised via
     /// <paramref name="localization"/>. The last entry has an empty ConfigKey and
@@ -73,13 +77,26 @@ internal static class MenuBindingHelpers
     {
         foreach (var kvp in config.InputMappings)
         {
-            if (kvp.Key != action && kvp.Value.GamepadButton == buttonName)
-                kvp.Value.GamepadButton = null;
+            if (kvp.Key != action)
+            {
+                if (kvp.Value.GamepadButton  == buttonName) kvp.Value.GamepadButton  = null;
+                if (kvp.Value.GamepadButton2 == buttonName) kvp.Value.GamepadButton2 = null;
+            }
         }
 
         if (config.InputMappings.TryGetValue(action, out var binding))
+        {
             binding.GamepadButton = buttonName;
+            // If the user explicitly binds an analog identifier as the primary button,
+            // clear the secondary slot on the same action. Without this, an action whose
+            // default GamepadButton2 was "AnalogDown" would fire for both AnalogUp
+            // (GamepadButton) and AnalogDown (GamepadButton2) simultaneously.
+            if (AnalogIdentifiers.Contains(buttonName))
+                binding.GamepadButton2 = null;
+        }
         else
+        {
             config.InputMappings[action] = new InputBinding(null, buttonName);
+        }
     }
 }

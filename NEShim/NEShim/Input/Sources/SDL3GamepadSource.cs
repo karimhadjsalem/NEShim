@@ -4,13 +4,13 @@ using NEShim.Config;
 namespace NEShim.Input.Sources;
 
 /// <summary>
-/// Captures XInput gamepad state via XInputHelper.GetState(0).
+/// Captures gamepad state via an <see cref="IGamepadDevice"/>.
 /// Implements IInputSource (gameplay button identifiers), IMenuNavSource
 /// (edge-triggered menu navigation), and IBindingSource (rebinding UI).
 /// The three polling paths each maintain their own edge-detection state and run
 /// in mutually exclusive phases of the emulation loop.
 /// </summary>
-internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSource, IAnyButtonSource
+internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBindingSource, IAnyButtonSource
 {
     // Firm-push threshold for rebinding (60% of full range). High enough that accidental
     // touches won't register; deliberate pushes will.
@@ -21,30 +21,28 @@ internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSourc
     // in-game also registers here.
     private const int AnyInputAnalogThreshold = 8000;
 
-    private readonly Func<XInputHelper.GamepadState>? _stateProvider;
+    private readonly IGamepadDevice _device;
 
-    private XInputHelper.GamepadState _lastState;
-    private XInputHelper.GamepadState _prevMenuState;
-    private XInputHelper.GamepadState _prevBindingState;
-    private XInputHelper.GamepadState _prevAnyState;
+    private GamepadState _lastState;
+    private GamepadState _prevMenuState;
+    private GamepadState _prevBindingState;
+    private GamepadState _prevAnyState;
 
     // Change-detection for analog stick logging — only logs when stick moves or analog output changes.
     private short _lastLoggedLX;
     private short _lastLoggedLY;
     private bool  _lastHadAnalog;
 
-    internal XInputSource() { }
-
-    internal XInputSource(Func<XInputHelper.GamepadState> stateProvider)
+    internal SDL3GamepadSource(IGamepadDevice device)
     {
-        _stateProvider = stateProvider;
+        _device = device;
     }
 
     public bool IsAvailable => _lastState.Connected;
 
     public IReadOnlySet<string> GetActiveIdentifiers(AppConfig config)
     {
-        _lastState = _stateProvider?.Invoke() ?? XInputHelper.GetState(0);
+        _lastState = _device.GetState(0);
 
         if (!_lastState.Connected)
             return new HashSet<string>();
@@ -105,7 +103,7 @@ internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSourc
             ? string.Join(",", new[] { "AnalogUp","AnalogDown","AnalogLeft","AnalogRight" }
                 .Where(identifiers.Contains))
             : "none";
-        Logger.Log($"[XInput] LX={_lastState.ThumbLX} LY={_lastState.ThumbLY} dz={dz} mode={mode} → {analog}");
+        Logger.Log($"[Gamepad] LX={_lastState.ThumbLX} LY={_lastState.ThumbLY} dz={dz} mode={mode} → {analog}");
         _lastLoggedLX   = _lastState.ThumbLX;
         _lastLoggedLY   = _lastState.ThumbLY;
         _lastHadAnalog  = hasAnalog;
@@ -113,7 +111,7 @@ internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSourc
 
     public MenuNavInput GetMenuNav(AppConfig config)
     {
-        var curr = _stateProvider?.Invoke() ?? XInputHelper.GetState(0);
+        var curr = _device.GetState(0);
         var prev = _prevMenuState;
 
         _prevMenuState = curr.Connected ? curr : default;
@@ -152,13 +150,13 @@ internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSourc
 
     public void FlushEdges()
     {
-        var state = _stateProvider?.Invoke() ?? XInputHelper.GetState(0);
+        var state = _device.GetState(0);
         _prevBindingState = state.Connected ? state : default;
     }
 
     public string? PollAnyButtonPressed()
     {
-        var curr = _stateProvider?.Invoke() ?? XInputHelper.GetState(0);
+        var curr = _device.GetState(0);
         var prev = _prevBindingState;
 
         if (!curr.Connected) { _prevBindingState = default; return null; }
@@ -202,7 +200,7 @@ internal sealed class XInputSource : IInputSource, IMenuNavSource, IBindingSourc
 
     public bool AnyJustPressed()
     {
-        var curr = _stateProvider?.Invoke() ?? XInputHelper.GetState(0);
+        var curr = _device.GetState(0);
         var prev = _prevAnyState;
 
         if (!curr.Connected) { _prevAnyState = default; return false; }

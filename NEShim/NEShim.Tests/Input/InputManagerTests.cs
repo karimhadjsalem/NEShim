@@ -13,8 +13,9 @@ namespace NEShim.Tests.Input;
 internal class InputManagerTests
 {
     private KeyboardInputSource _keyboard = null!;
-    private IInputSource        _mockXInput = null!;
+    private IInputSource        _mockGamepadSource = null!;
     private IInputSource        _mockSteam  = null!;
+    private IGamepadDevice      _stubDevice = null!;
     private InputManager        _manager    = null!;
     private AppConfig           _config     = null!;
 
@@ -23,20 +24,27 @@ internal class InputManagerTests
     {
         _keyboard = new KeyboardInputSource();
 
-        _mockXInput = Substitute.For<IInputSource>();
-        _mockXInput.IsAvailable.Returns(false);
-        _mockXInput.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        _mockGamepadSource = Substitute.For<IInputSource>();
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _mockGamepadSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
 
         _mockSteam = Substitute.For<IInputSource>();
         _mockSteam.IsAvailable.Returns(false);
         _mockSteam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
 
+        _stubDevice = Substitute.For<IGamepadDevice>();
+        _stubDevice.GetState(Arg.Any<uint>()).Returns(default(GamepadState));
+
         _manager = new InputManager(
-            _keyboard, _mockXInput, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            _keyboard, _mockGamepadSource, _mockSteam,
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(),
+            _stubDevice);
 
         _config = new AppConfig();
     }
+
+    [TearDown]
+    public void TearDown() => _stubDevice?.Dispose();
 
     // ── Keyboard mapping ────────────────────────────────────────────────────────
 
@@ -93,14 +101,14 @@ internal class InputManagerTests
     // ── Source orchestration ────────────────────────────────────────────────────
 
     [Test]
-    public void PollSnapshot_AvailableXInputSource_XInputMapperCalled()
+    public void PollSnapshot_AvailableGamepadSource_SDL3GamepadMapperCalled()
     {
         var mockXMapper = Substitute.For<IInputMapper>();
         var manager = new InputManager(
-            _keyboard, _mockXInput, _mockSteam,
-            new KeyboardMapper(), mockXMapper, new SteamInputMapper());
+            _keyboard, _mockGamepadSource, _mockSteam,
+            new KeyboardMapper(), mockXMapper, new SteamInputMapper(), _stubDevice);
 
-        _mockXInput.IsAvailable.Returns(true);
+        _mockGamepadSource.IsAvailable.Returns(true);
 
         manager.PollSnapshot(_config);
 
@@ -111,14 +119,14 @@ internal class InputManagerTests
     }
 
     [Test]
-    public void PollSnapshot_UnavailableXInputSource_XInputMapperNotCalled()
+    public void PollSnapshot_UnavailableGamepadSource_SDL3GamepadMapperNotCalled()
     {
         var mockXMapper = Substitute.For<IInputMapper>();
         var manager = new InputManager(
-            _keyboard, _mockXInput, _mockSteam,
-            new KeyboardMapper(), mockXMapper, new SteamInputMapper());
+            _keyboard, _mockGamepadSource, _mockSteam,
+            new KeyboardMapper(), mockXMapper, new SteamInputMapper(), _stubDevice);
 
-        // _mockXInput.IsAvailable defaults to false
+        // _mockGamepadSource.IsAvailable defaults to false
         manager.PollSnapshot(_config);
 
         mockXMapper.DidNotReceive().Map(
@@ -132,12 +140,12 @@ internal class InputManagerTests
     [Test]
     public void PollSnapshot_ControllerWasConnectedNowDisconnected_FiresGamepadDisconnected()
     {
-        _mockXInput.IsAvailable.Returns(true);
+        _mockGamepadSource.IsAvailable.Returns(true);
         _manager.PollSnapshot(_config); // wasConnected = true
 
         bool fired = false;
         _manager.GamepadDisconnected += () => fired = true;
-        _mockXInput.IsAvailable.Returns(false);
+        _mockGamepadSource.IsAvailable.Returns(false);
         _manager.PollSnapshot(_config);
 
         Assert.That(fired, Is.True);
@@ -156,7 +164,7 @@ internal class InputManagerTests
     [Test]
     public void PollSnapshot_ControllerStillConnected_GamepadDisconnectedNotFired()
     {
-        _mockXInput.IsAvailable.Returns(true);
+        _mockGamepadSource.IsAvailable.Returns(true);
         _manager.PollSnapshot(_config);
 
         bool fired = false;
@@ -172,13 +180,13 @@ internal class InputManagerTests
         int count = 0;
         _manager.GamepadDisconnected += () => count++;
 
-        _mockXInput.IsAvailable.Returns(true);
+        _mockGamepadSource.IsAvailable.Returns(true);
         _manager.PollSnapshot(_config); // connected
 
-        _mockXInput.IsAvailable.Returns(false);
+        _mockGamepadSource.IsAvailable.Returns(false);
         _manager.PollSnapshot(_config); // disconnected → fires
 
-        _mockXInput.IsAvailable.Returns(true);
+        _mockGamepadSource.IsAvailable.Returns(true);
         _manager.PollSnapshot(_config); // reconnected → no fire
 
         Assert.That(count, Is.EqualTo(1));
@@ -297,7 +305,7 @@ internal class InputManagerTests
     }
 
     [Test]
-    public void PollMenuNav_XInputAndSteam_Unioned()
+    public void PollMenuNav_GamepadAndSteam_Unioned()
     {
         var xInput = Substitute.For<IInputSource, IMenuNavSource>();
         xInput.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
@@ -309,7 +317,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, xInput, steam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         var nav = manager.PollMenuNav(_config);
 
@@ -325,7 +333,7 @@ internal class InputManagerTests
         Assert.That(_manager.PollAnyGamepadButtonPressed(), Is.Null);
     }
 
-    // ── GetHeldSliderDir (keyboard path only — XInput/Steam are static globals) ─
+    // ── GetHeldSliderDir (keyboard path only — Gamepad/Steam are static globals) ─
 
     [Test]
     public void GetHeldSliderDir_NoInput_ReturnsBothFalse()
@@ -367,7 +375,7 @@ internal class InputManagerTests
     [Test]
     public void PollAnyControllerButton_WhenSourceDoesNotImplementAnyButtonSource_ReturnsFalse()
     {
-        // _mockXInput is IInputSource only, not IAnyButtonSource
+        // _mockGamepadSource is IInputSource only, not IAnyButtonSource
         Assert.That(_manager.PollAnyControllerButton(), Is.False);
     }
 
@@ -380,7 +388,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, anySource, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         Assert.That(manager.PollAnyControllerButton(), Is.True);
     }
@@ -394,7 +402,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, anySource, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         Assert.That(manager.PollAnyControllerButton(), Is.False);
     }
@@ -404,7 +412,7 @@ internal class InputManagerTests
     [Test]
     public void FlushBindingEdges_WhenSourceDoesNotImplementIBindingSource_IsNoOp()
     {
-        // _mockXInput is IInputSource only — FlushBindingEdges must not throw
+        // _mockGamepadSource is IInputSource only — FlushBindingEdges must not throw
         Assert.DoesNotThrow(() => _manager.FlushBindingEdges());
     }
 
@@ -416,7 +424,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         manager.FlushBindingEdges();
 
@@ -434,7 +442,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         Assert.That(manager.PollAnyGamepadButtonPressed(), Is.EqualTo("B"));
     }
@@ -448,7 +456,7 @@ internal class InputManagerTests
 
         var manager = new InputManager(
             _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
 
         Assert.That(manager.PollAnyGamepadButtonPressed(), Is.Null);
     }

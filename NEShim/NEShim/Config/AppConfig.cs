@@ -131,10 +131,10 @@ public sealed class AppConfig
 
     public Dictionary<string, InputBinding> InputMappings { get; set; } = new()
     {
-        ["P1 Up"]     = new InputBinding("W",         "DPadUp"),
-        ["P1 Down"]   = new InputBinding("S",         "DPadDown"),
-        ["P1 Left"]   = new InputBinding("A",         "DPadLeft"),
-        ["P1 Right"]  = new InputBinding("D",         "DPadRight"),
+        ["P1 Up"]     = new InputBinding("W",         "DPadUp")    { GamepadButton2 = "AnalogUp" },
+        ["P1 Down"]   = new InputBinding("S",         "DPadDown")  { GamepadButton2 = "AnalogDown" },
+        ["P1 Left"]   = new InputBinding("A",         "DPadLeft")  { GamepadButton2 = "AnalogLeft" },
+        ["P1 Right"]  = new InputBinding("D",         "DPadRight") { GamepadButton2 = "AnalogRight" },
         ["P1 A"]      = new InputBinding("Period", "A"),
         ["P1 B"]      = new InputBinding("Comma",  "B"),
         ["P1 Start"]  = new InputBinding("Return", "Y"),

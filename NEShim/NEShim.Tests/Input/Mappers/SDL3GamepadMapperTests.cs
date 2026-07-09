@@ -6,22 +6,22 @@ using NEShim.Input.Mappers;
 namespace NEShim.Tests.Input.Mappers;
 
 [TestFixture]
-internal class XInputMapperTests
+internal class SDL3GamepadMapperTests
 {
-    private XInputMapper _mapper = null!;
-    private AppConfig    _config = null!;
+    private SDL3GamepadMapper _mapper = null!;
+    private AppConfig         _config = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _mapper = new XInputMapper();
+        _mapper = new SDL3GamepadMapper();
         _config = new AppConfig();
     }
 
     private static ImmutableHashSet<string>.Builder NewBuilder()
         => ImmutableHashSet.CreateBuilder<string>();
 
-    // ── Analog identifiers (hardcoded mapping) ──────────────────────────────────
+    // ── Analog identifiers (via GamepadButton2 in default config) ───────────────
 
     [Test]
     public void Map_AnalogUp_MapsToP1Up()
@@ -55,12 +55,21 @@ internal class XInputMapperTests
         Assert.That(builder.Contains("P1 Right"), Is.True);
     }
 
-    // ── Digital buttons (config-mapped) ────────────────────────────────────────
+    [Test]
+    public void Map_AnalogUp_WhenGamepadButton2Cleared_NotMapped()
+    {
+        // Removing GamepadButton2 from an action removes the analog binding for that action.
+        _config.InputMappings["P1 Up"] = new InputBinding("W", "DPadUp"); // no GamepadButton2
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "AnalogUp" }, _config, builder);
+        Assert.That(builder.Contains("P1 Up"), Is.False);
+    }
+
+    // ── Digital buttons (config-mapped via GamepadButton) ──────────────────────
 
     [Test]
     public void Map_ConfiguredDigitalButton_MapsToNesButton()
     {
-        // Default: P1 Up → DPadUp
         var builder = NewBuilder();
         _mapper.Map(new HashSet<string> { "DPadUp" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"), Is.True);
@@ -86,7 +95,6 @@ internal class XInputMapperTests
     [Test]
     public void Map_DigitalAndAnalogSameDirection_BothMapToSameButton()
     {
-        // DPadUp → P1 Up (digital) and AnalogUp → P1 Up (analog) — deduped by builder
         var builder = NewBuilder();
         _mapper.Map(new HashSet<string> { "DPadUp", "AnalogUp" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"), Is.True);
@@ -99,7 +107,6 @@ internal class XInputMapperTests
         _config.InputMappings["P1 Start"] = new InputBinding("Return", "Start");
         var builder = NewBuilder();
         _mapper.Map(new HashSet<string> { "Start" }, _config, builder);
-        // OverrideStartBindingProtection = false → Start is blocked from NES mapping
         Assert.That(builder.Contains("P1 Start"), Is.False);
     }
 
@@ -119,5 +126,18 @@ internal class XInputMapperTests
         var builder = NewBuilder();
         _mapper.Map(new HashSet<string> { "UnknownButton" }, _config, builder);
         Assert.That(builder, Is.Empty);
+    }
+
+    // ── GamepadButton2 does not apply Start protection ─────────────────────────
+
+    [Test]
+    public void Map_GamepadButton2_FiresWithoutStartProtectionCheck()
+    {
+        // GamepadButton2 is for analog identifiers; the Start-protection guard is
+        // only on GamepadButton. Verify that GamepadButton2 fires unconditionally.
+        _config.InputMappings["P1 A"] = new InputBinding("Period", null) { GamepadButton2 = "A" };
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "A" }, _config, builder);
+        Assert.That(builder.Contains("P1 A"), Is.True);
     }
 }

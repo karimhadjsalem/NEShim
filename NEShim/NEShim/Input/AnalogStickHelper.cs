@@ -1,8 +1,8 @@
 namespace NEShim.Input;
 
 /// <summary>
-/// Cardinal-mode analog stick helpers shared by XInputSource (gameplay) and
-/// XInputSource.GetMenuNav (menu navigation).
+/// Cardinal-mode analog stick helpers shared by SDL3GamepadSource (gameplay) and
+/// SDL3GamepadSource.GetMenuNav (menu navigation).
 /// Each method returns true only when its axis is the dominant one, preventing
 /// accidental diagonal NES inputs when the stick is pushed diagonally.
 /// </summary>

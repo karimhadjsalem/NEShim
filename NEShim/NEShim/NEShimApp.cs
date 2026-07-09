@@ -23,6 +23,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private AppConfig?        _config;
     private IEmulationCore?   _host;
     private IInputReader?     _input;
+    private IGamepadDevice?   _gamepadDevice;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;
@@ -327,7 +328,15 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeInput()
     {
-        _input = new InputManager();
+        _gamepadDevice = new SDL3GamepadDevice();
+        _input = new InputManager(
+            new Input.Sources.KeyboardInputSource(),
+            new Input.Sources.SDL3GamepadSource(_gamepadDevice),
+            new Input.Sources.SteamInputSource(),
+            new Input.Mappers.KeyboardMapper(),
+            new Input.Mappers.SDL3GamepadMapper(),
+            new Input.Mappers.SteamInputMapper(),
+            _gamepadDevice);
         _sdlHost.KeyDown += key => _input.OnKeyDown(key);
         _sdlHost.KeyUp   += key => _input.OnKeyUp(key);
         _sdlHost.KeyDown += OnKeyDown;
@@ -770,7 +779,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _mainMenuScreen?.Dispose();
         FlagImageLoader.Dispose();
         ControllerSprites.Dispose();
-        XInputHelper.Dispose();
+        _gamepadDevice?.Dispose();
         _audio?.Dispose();
         _host?.Dispose();
         SteamManager.Shutdown();

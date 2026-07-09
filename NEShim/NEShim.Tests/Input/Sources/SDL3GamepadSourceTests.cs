@@ -1,3 +1,4 @@
+using NSubstitute;
 using NEShim.Config;
 using NEShim.Input;
 using NEShim.Input.Sources;
@@ -5,16 +6,16 @@ using NEShim.Input.Sources;
 namespace NEShim.Tests.Input.Sources;
 
 [TestFixture]
-internal class XInputSourceTests
+internal class SDL3GamepadSourceTests
 {
     private AppConfig _config = null!;
 
     [SetUp]
     public void SetUp() => _config = new AppConfig(); // GamepadDeadzone=8000, AnalogStickMode="Cardinal"
 
-    private static XInputHelper.GamepadState NotConnected() => default;
+    private static GamepadState NotConnected() => default;
 
-    private static XInputHelper.GamepadState Connected(
+    private static GamepadState Connected(
         bool dpadUp = false, bool dpadDown = false, bool dpadLeft = false, bool dpadRight = false,
         bool a = false, bool b = false, bool x = false, bool y = false,
         bool start = false, bool back = false,
@@ -32,12 +33,19 @@ internal class XInputSourceTests
             ThumbLX       = thumbLX,       ThumbLY        = thumbLY,
         };
 
+    private static SDL3GamepadSource MakeSource(GamepadState state)
+    {
+        var device = Substitute.For<IGamepadDevice>();
+        device.GetState(Arg.Any<uint>()).Returns(state);
+        return new SDL3GamepadSource(device);
+    }
+
     // ── IsAvailable ─────────────────────────────────────────────────────────────
 
     [Test]
     public void IsAvailable_WhenNotConnected_ReturnsFalse()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         source.GetActiveIdentifiers(_config);
         Assert.That(source.IsAvailable, Is.False);
     }
@@ -45,7 +53,7 @@ internal class XInputSourceTests
     [Test]
     public void IsAvailable_WhenConnected_ReturnsTrue()
     {
-        var source = new XInputSource(() => Connected());
+        var source = MakeSource(Connected());
         source.GetActiveIdentifiers(_config);
         Assert.That(source.IsAvailable, Is.True);
     }
@@ -55,21 +63,21 @@ internal class XInputSourceTests
     [Test]
     public void GetActiveIdentifiers_NotConnected_ReturnsEmpty()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         Assert.That(source.GetActiveIdentifiers(_config), Is.Empty);
     }
 
     [Test]
     public void GetActiveIdentifiers_DPadUp_IncludesDPadUp()
     {
-        var source = new XInputSource(() => Connected(dpadUp: true));
+        var source = MakeSource(Connected(dpadUp: true));
         Assert.That(source.GetActiveIdentifiers(_config), Contains.Item("DPadUp"));
     }
 
     [Test]
     public void GetActiveIdentifiers_AllDigitalButtons_AllIncluded()
     {
-        var source = new XInputSource(() => Connected(
+        var source = MakeSource(Connected(
             dpadUp: true, dpadDown: true, dpadLeft: true, dpadRight: true,
             a: true, b: true, x: true, y: true,
             start: true, back: true,
@@ -92,7 +100,7 @@ internal class XInputSourceTests
     public void GetActiveIdentifiers_CardinalMode_StickUpYDominant_IncludesAnalogUp()
     {
         // Y=10000 > dz=8000, |Y| >= |X| → cardinal selects Up only
-        var source = new XInputSource(() => Connected(thumbLY: 10000));
+        var source = MakeSource(Connected(thumbLY: 10000));
         var ids = source.GetActiveIdentifiers(_config);
 
         Assert.That(ids, Contains.Item("AnalogUp"));
@@ -104,7 +112,7 @@ internal class XInputSourceTests
     public void GetActiveIdentifiers_CardinalMode_XDominant_AnalogUpSuppressed()
     {
         // X=15000 > Y=10000 → right axis dominates; AnalogUp is suppressed
-        var source = new XInputSource(() => Connected(thumbLX: 15000, thumbLY: 10000));
+        var source = MakeSource(Connected(thumbLX: 15000, thumbLY: 10000));
         var ids = source.GetActiveIdentifiers(_config);
 
         Assert.That(ids, Does.Not.Contain("AnalogUp"));
@@ -114,7 +122,7 @@ internal class XInputSourceTests
     [Test]
     public void GetActiveIdentifiers_BelowDeadzone_NoAnalogIdentifier()
     {
-        var source = new XInputSource(() => Connected(thumbLX: 1000, thumbLY: 1000));
+        var source = MakeSource(Connected(thumbLX: 1000, thumbLY: 1000));
         var ids = source.GetActiveIdentifiers(_config);
 
         Assert.That(ids, Does.Not.Contain("AnalogUp"));
@@ -129,7 +137,7 @@ internal class XInputSourceTests
     public void GetActiveIdentifiers_DiagonalMode_BothAxesAboveDeadzone_BothPresent()
     {
         _config.AnalogStickMode = "Diagonal";
-        var source = new XInputSource(() => Connected(thumbLX: 10000, thumbLY: 10000));
+        var source = MakeSource(Connected(thumbLX: 10000, thumbLY: 10000));
         var ids = source.GetActiveIdentifiers(_config);
 
         Assert.That(ids, Contains.Item("AnalogUp"));
@@ -141,7 +149,7 @@ internal class XInputSourceTests
     [Test]
     public void GetMenuNav_DPadUp_OnFirstPress_ReturnsUp()
     {
-        var source = new XInputSource(() => Connected(dpadUp: true));
+        var source = MakeSource(Connected(dpadUp: true));
         var nav = source.GetMenuNav(_config);
         Assert.That(nav.Up, Is.True);
     }
@@ -149,7 +157,7 @@ internal class XInputSourceTests
     [Test]
     public void GetMenuNav_DPadUp_HeldSecondFrame_ReturnsFalse()
     {
-        var source = new XInputSource(() => Connected(dpadUp: true));
+        var source = MakeSource(Connected(dpadUp: true));
         source.GetMenuNav(_config); // frame 1: edge consumed
         var nav = source.GetMenuNav(_config); // frame 2: held
         Assert.That(nav.Up, Is.False);
@@ -158,14 +166,14 @@ internal class XInputSourceTests
     [Test]
     public void GetMenuNav_NotConnected_ReturnsDefault()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         Assert.That(source.GetMenuNav(_config).Any, Is.False);
     }
 
     [Test]
     public void GetMenuNav_Confirm_A_EdgeTriggered()
     {
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         var nav = source.GetMenuNav(_config);
         Assert.That(nav.Confirm, Is.True);
     }
@@ -173,7 +181,7 @@ internal class XInputSourceTests
     [Test]
     public void GetMenuNav_Back_B_EdgeTriggered()
     {
-        var source = new XInputSource(() => Connected(b: true));
+        var source = MakeSource(Connected(b: true));
         var nav = source.GetMenuNav(_config);
         Assert.That(nav.Back, Is.True);
     }
@@ -183,9 +191,7 @@ internal class XInputSourceTests
     [Test]
     public void FlushEdges_WhenButtonHeld_SubsequentPollSeesThatButtonAlreadySeen()
     {
-        // Flush with A pressed → prev = A pressed. Immediately polling should return null
-        // because A is not a new edge (curr == prev).
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         source.FlushEdges();
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
@@ -193,7 +199,7 @@ internal class XInputSourceTests
     [Test]
     public void FlushEdges_WhenNotConnected_SubsequentPollStillReturnsNull()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         source.FlushEdges();
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
@@ -203,21 +209,21 @@ internal class XInputSourceTests
     [Test]
     public void PollAnyButtonPressed_NotConnected_ReturnsNull()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
 
     [Test]
     public void PollAnyButtonPressed_AJustPressed_ReturnsA()
     {
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("A"));
     }
 
     [Test]
     public void PollAnyButtonPressed_AHeld_ReturnsNull()
     {
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         source.PollAnyButtonPressed(); // edge consumed
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
@@ -225,26 +231,25 @@ internal class XInputSourceTests
     [Test]
     public void PollAnyButtonPressed_EachDigitalButton_ReturnsItsName()
     {
-        // One fresh source per button to avoid edge-detection interference.
-        var cases = new (Func<XInputHelper.GamepadState> state, string expected)[]
+        var cases = new (GamepadState state, string expected)[]
         {
-            (() => Connected(b: true),             "B"),
-            (() => Connected(x: true),             "X"),
-            (() => Connected(y: true),             "Y"),
-            (() => Connected(start: true),         "Start"),
-            (() => Connected(back: true),          "Back"),
-            (() => Connected(leftShoulder: true),  "LeftShoulder"),
-            (() => Connected(rightShoulder: true), "RightShoulder"),
-            (() => Connected(leftThumb: true),     "LeftThumb"),
-            (() => Connected(rightThumb: true),    "RightThumb"),
-            (() => Connected(dpadDown: true),      "DPadDown"),
-            (() => Connected(dpadLeft: true),      "DPadLeft"),
-            (() => Connected(dpadRight: true),     "DPadRight"),
-            (() => Connected(dpadUp: true),        "DPadUp"),
+            (Connected(b: true),             "B"),
+            (Connected(x: true),             "X"),
+            (Connected(y: true),             "Y"),
+            (Connected(start: true),         "Start"),
+            (Connected(back: true),          "Back"),
+            (Connected(leftShoulder: true),  "LeftShoulder"),
+            (Connected(rightShoulder: true), "RightShoulder"),
+            (Connected(leftThumb: true),     "LeftThumb"),
+            (Connected(rightThumb: true),    "RightThumb"),
+            (Connected(dpadDown: true),      "DPadDown"),
+            (Connected(dpadLeft: true),      "DPadLeft"),
+            (Connected(dpadRight: true),     "DPadRight"),
+            (Connected(dpadUp: true),        "DPadUp"),
         };
         foreach (var (state, expected) in cases)
         {
-            var source = new XInputSource(state);
+            var source = MakeSource(state);
             Assert.That(source.PollAnyButtonPressed(), Is.EqualTo(expected), $"Expected {expected}");
         }
     }
@@ -252,36 +257,35 @@ internal class XInputSourceTests
     [Test]
     public void PollAnyButtonPressed_AnalogUpAboveBindingThreshold_ReturnsAnalogUp()
     {
-        // BindingAnalogThreshold = 19660 (60% of 32767). Use 20000 to be safely above.
-        var source = new XInputSource(() => Connected(thumbLY: 20000));
+        var source = MakeSource(Connected(thumbLY: 20000));
         Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogUp"));
     }
 
     [Test]
     public void PollAnyButtonPressed_AnalogDownAboveBindingThreshold_ReturnsAnalogDown()
     {
-        var source = new XInputSource(() => Connected(thumbLY: -20000));
+        var source = MakeSource(Connected(thumbLY: -20000));
         Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogDown"));
     }
 
     [Test]
     public void PollAnyButtonPressed_AnalogLeftAboveBindingThreshold_ReturnsAnalogLeft()
     {
-        var source = new XInputSource(() => Connected(thumbLX: -20000));
+        var source = MakeSource(Connected(thumbLX: -20000));
         Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogLeft"));
     }
 
     [Test]
     public void PollAnyButtonPressed_AnalogRightAboveBindingThreshold_ReturnsAnalogRight()
     {
-        var source = new XInputSource(() => Connected(thumbLX: 20000));
+        var source = MakeSource(Connected(thumbLX: 20000));
         Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogRight"));
     }
 
     [Test]
     public void PollAnyButtonPressed_AnalogHeld_ReturnsNull()
     {
-        var source = new XInputSource(() => Connected(thumbLY: 20000));
+        var source = MakeSource(Connected(thumbLY: 20000));
         source.PollAnyButtonPressed(); // edge consumed
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
@@ -289,8 +293,7 @@ internal class XInputSourceTests
     [Test]
     public void PollAnyButtonPressed_AnalogBelowBindingThreshold_ReturnsNull()
     {
-        // 10000 < BindingAnalogThreshold (19660) — should not register as a press
-        var source = new XInputSource(() => Connected(thumbLY: 10000));
+        var source = MakeSource(Connected(thumbLY: 10000));
         Assert.That(source.PollAnyButtonPressed(), Is.Null);
     }
 
@@ -299,21 +302,21 @@ internal class XInputSourceTests
     [Test]
     public void AnyJustPressed_NotConnected_ReturnsFalse()
     {
-        var source = new XInputSource(() => NotConnected());
+        var source = MakeSource(NotConnected());
         Assert.That(source.AnyJustPressed(), Is.False);
     }
 
     [Test]
     public void AnyJustPressed_ButtonJustPressed_ReturnsTrue()
     {
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         Assert.That(source.AnyJustPressed(), Is.True);
     }
 
     [Test]
     public void AnyJustPressed_ButtonHeld_ReturnsFalse()
     {
-        var source = new XInputSource(() => Connected(a: true));
+        var source = MakeSource(Connected(a: true));
         source.AnyJustPressed(); // edge consumed
         Assert.That(source.AnyJustPressed(), Is.False);
     }
@@ -321,15 +324,14 @@ internal class XInputSourceTests
     [Test]
     public void AnyJustPressed_AnalogMovedAboveThreshold_ReturnsTrue()
     {
-        // AnyInputAnalogThreshold = 8000. Use 10000 to be above it.
-        var source = new XInputSource(() => Connected(thumbLX: 10000));
+        var source = MakeSource(Connected(thumbLX: 10000));
         Assert.That(source.AnyJustPressed(), Is.True);
     }
 
     [Test]
     public void AnyJustPressed_AnalogHeld_ReturnsFalse()
     {
-        var source = new XInputSource(() => Connected(thumbLX: 10000));
+        var source = MakeSource(Connected(thumbLX: 10000));
         source.AnyJustPressed();
         Assert.That(source.AnyJustPressed(), Is.False);
     }
@@ -337,8 +339,7 @@ internal class XInputSourceTests
     [Test]
     public void AnyJustPressed_AnalogBelowThreshold_ReturnsFalse()
     {
-        // 5000 < AnyInputAnalogThreshold (8000) — should not trigger
-        var source = new XInputSource(() => Connected(thumbLX: 5000));
+        var source = MakeSource(Connected(thumbLX: 5000));
         Assert.That(source.AnyJustPressed(), Is.False);
     }
 
@@ -346,8 +347,11 @@ internal class XInputSourceTests
     public void AnyJustPressed_DisconnectWhileHolding_ReturnsFalse()
     {
         bool connected = true;
-        var source = new XInputSource(() => connected ? Connected(a: true) : NotConnected());
-        source.AnyJustPressed(); // first call: edge
+        var device = Substitute.For<IGamepadDevice>();
+        device.GetState(Arg.Any<uint>()).Returns(_ => connected ? Connected(a: true) : NotConnected());
+        var source = new SDL3GamepadSource(device);
+
+        source.AnyJustPressed(); // first call: edge consumed
         connected = false;
         Assert.That(source.AnyJustPressed(), Is.False);
     }
