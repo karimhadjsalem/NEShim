@@ -25,14 +25,6 @@ using NEShim.Achievements;
 //                  3. achievementPublicKey in config.json in the package directory
 // ─────────────────────────────────────────────────────────────────────────────
 
-if (args.Length >= 1 && args[0] == "--gen-controller-sprites")
-{
-    string outDir = args.Length >= 2 ? args[1] : Path.Combine(Directory.GetCurrentDirectory(), "controller-sprites");
-    Console.WriteLine($"Generating controller sprites → {outDir}");
-    NEShim.SealAchievements.ControllerSpriteGenerator.Generate(outDir);
-    Console.WriteLine("Done.");
-    return 0;
-}
 
 if (args.Length >= 1 && args[0] == "--validate")
 {

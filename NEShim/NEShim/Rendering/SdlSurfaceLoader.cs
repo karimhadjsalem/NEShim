@@ -1,14 +1,12 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using SDL3;
 
 namespace NEShim.Rendering;
 
 /// <summary>
 /// Converts PNG images (from files or embedded-resource streams) into SDL_Surface* handles
-/// using System.Drawing.Bitmap as a decoder. Surfaces use PixelFormat.ARGB8888 (packed,
-/// A=bits31-24 B=bits7-0), which on little-endian stores bytes [B,G,R,A] — matching
-/// GDI+ Format32bppArgb and D3D11 B8G8R8A8_UNorm with no byte-swap needed.
+/// using SDL3_image (IMG_Load / IMG_Load_IO). SDL_image decodes the PNG and returns a
+/// surface in native format; SDL.CreateTextureFromSurface converts as needed at blit time.
 /// </summary>
 internal static class SdlSurfaceLoader
 {
@@ -16,8 +14,25 @@ internal static class SdlSurfaceLoader
     {
         try
         {
-            using var bitmap = new Bitmap(stream);
-            return FromBitmap(bitmap);
+            byte[] buffer = ReadToBytes(stream);
+            var handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+            try
+            {
+                IntPtr io = SDL.IOFromConstMem(handle.AddrOfPinnedObject(), (UIntPtr)buffer.Length);
+                if (io == IntPtr.Zero)
+                {
+                    Logger.Log($"[SdlSurfaceLoader] IOFromConstMem failed: {SDL.GetError()}");
+                    return IntPtr.Zero;
+                }
+                IntPtr surface = Image.LoadIO(io, true);
+                if (surface == IntPtr.Zero)
+                    Logger.Log($"[SdlSurfaceLoader] LoadIO failed: {SDL.GetError()}");
+                return surface;
+            }
+            finally
+            {
+                handle.Free();
+            }
         }
         catch (Exception ex)
         {
@@ -30,8 +45,10 @@ internal static class SdlSurfaceLoader
     {
         try
         {
-            using var bitmap = new Bitmap(path);
-            return FromBitmap(bitmap);
+            IntPtr surface = Image.Load(path);
+            if (surface == IntPtr.Zero)
+                Logger.Log($"[SdlSurfaceLoader] Failed to load '{path}': {SDL.GetError()}");
+            return surface;
         }
         catch (Exception ex)
         {
@@ -40,45 +57,11 @@ internal static class SdlSurfaceLoader
         }
     }
 
-    private static unsafe IntPtr FromBitmap(Bitmap bmp)
+    private static byte[] ReadToBytes(Stream stream)
     {
-        Bitmap? converted = bmp.PixelFormat != PixelFormat.Format32bppArgb
-            ? bmp.Clone(new Rectangle(0, 0, bmp.Width, bmp.Height), PixelFormat.Format32bppArgb)
-            : null;
-        Bitmap source = converted ?? bmp;
-        try
-        {
-            IntPtr surface = SDL.CreateSurface(source.Width, source.Height, SDL.PixelFormat.ARGB8888);
-            if (surface == IntPtr.Zero) return IntPtr.Zero;
-
-            var bitmapData = source.LockBits(
-                new Rectangle(0, 0, source.Width, source.Height),
-                ImageLockMode.ReadOnly,
-                PixelFormat.Format32bppArgb);
-            try
-            {
-                SDL.Surface* surf = (SDL.Surface*)surface;
-                if (surf->Pixels == IntPtr.Zero)
-                {
-                    SDL.DestroySurface(surface);
-                    return IntPtr.Zero;
-                }
-                int sourceStride = Math.Abs(bitmapData.Stride);
-                int destStride   = surf->Pitch;
-                byte* dest = (byte*)surf->Pixels;
-                byte* src  = (byte*)bitmapData.Scan0;
-                for (int row = 0; row < source.Height; row++)
-                    Buffer.MemoryCopy(src + row * sourceStride, dest + row * destStride, destStride, destStride);
-            }
-            finally
-            {
-                source.UnlockBits(bitmapData);
-            }
-            return surface;
-        }
-        finally
-        {
-            converted?.Dispose();
-        }
+        if (stream is MemoryStream ms) return ms.ToArray();
+        using var tmp = new MemoryStream();
+        stream.CopyTo(tmp);
+        return tmp.ToArray();
     }
 }
