@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net9.0-windows</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>seal-achievements</AssemblyName>
@@ -10,10 +10,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="System.Drawing.Common" Version="9.0.3" />
     </ItemGroup>
 
 
