@@ -8,6 +8,31 @@ namespace NEShim.Tests.GameLoop;
 [TestFixture]
 internal class RenderCoordinatorTests
 {
+    /// <summary>
+    /// Concrete test double for IFrameRenderer — avoids Castle DynamicProxy's inability to
+    /// intercept ReadOnlySpan&lt;int&gt; parameters, letting the SubmitFrame marshal lambda run.
+    /// </summary>
+    private sealed class RecordingRenderer : IFrameRenderer
+    {
+        public bool UploadFrameCalled { get; private set; }
+        public bool TickCalled        { get; private set; }
+        public bool OwnsFrameSurface  => false;
+
+        public void UploadFrame(ReadOnlySpan<int> pixels, int w, int h)    => UploadFrameCalled = true;
+        public void Tick(bool vsync)                                        => TickCalled = true;
+        public void Resize(int w, int h)                                    { }
+        public void UpdateFpsOverlay(bool show, float fps)                  { }
+        public void SetSidebars(IntPtr left, IntPtr right)                  { }
+        public void ShowToast(string text)                                  { }
+        public void ShowAchievementNotification(string name)                { }
+        public void SetMenuSceneProvider(IMenuSceneProvider? provider)      { }
+        public void MarkOverlayDirty()                                      { }
+        public void SetPictureAdjust(int b, int c, int s, int h)           { }
+        public void SetOverscanMode(OverscanMode overscan)                  { }
+        public event EventHandler? DeviceLost                               { add { } remove { } }
+        public void Dispose()                                               { }
+    }
+
     private IFrameRenderer _renderer = null!;
     private FrameBuffer    _buffer   = null!;
 
@@ -69,6 +94,35 @@ internal class RenderCoordinatorTests
         coordinator.ShowToast("hello");
 
         _renderer.Received(1).ShowToast("hello");
+    }
+
+    // ---- SubmitFrame — marshal lambda (UploadFrame + Tick + afterPresented) ----
+
+    [Test]
+    public void SubmitFrame_WithSynchronousMarshal_CallsUploadFrameAndTick()
+    {
+        // Uses a concrete RecordingRenderer because NSubstitute cannot intercept
+        // ReadOnlySpan<int> parameters (Castle DynamicProxy limitation).
+        var renderer = new RecordingRenderer();
+        var coordinator = new RenderCoordinator(_buffer, renderer, SynchronousMarshal);
+
+        coordinator.SubmitFrame(MakeFrame(), showFps: false, currentFps: 60f, afterPresented: null);
+
+        Assert.That(renderer.UploadFrameCalled, Is.True);
+        Assert.That(renderer.TickCalled,        Is.True);
+    }
+
+    [Test]
+    public void SubmitFrame_WithAfterPresentedCallback_InvokesCallback()
+    {
+        var renderer = new RecordingRenderer();
+        var coordinator = new RenderCoordinator(_buffer, renderer, SynchronousMarshal);
+        bool callbackInvoked = false;
+
+        coordinator.SubmitFrame(MakeFrame(), showFps: false, currentFps: 60f,
+            afterPresented: () => callbackInvoked = true);
+
+        Assert.That(callbackInvoked, Is.True);
     }
 
     // ---- UpdateRenderer ----

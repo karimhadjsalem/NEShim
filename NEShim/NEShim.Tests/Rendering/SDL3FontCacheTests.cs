@@ -78,4 +78,64 @@ internal class SDL3FontCacheTests
         var files = SDL3FontCache.CandidateFilenames("unknown", bold: true, italic: false);
         Assert.That(files[0], Is.EqualTo("segoeuib.ttf"));
     }
+
+    // ---- CandidateFilenames: Arial italic / bold-italic ----
+
+    [Test]
+    public void CandidateFilenames_Arial_Italic_PrefersAriali()
+    {
+        var files = SDL3FontCache.CandidateFilenames("arial", bold: false, italic: true);
+        Assert.That(files[0], Is.EqualTo("ariali.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_Arial_Italic_FallsBackToArial()
+    {
+        var files = SDL3FontCache.CandidateFilenames("arial", bold: false, italic: true);
+        Assert.That(files, Contains.Item("arial.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_Arial_BoldItalic_PrefersArialbi()
+    {
+        var files = SDL3FontCache.CandidateFilenames("arial", bold: true, italic: true);
+        Assert.That(files[0], Is.EqualTo("arialbi.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_Arial_BoldItalic_FallsBackToArialbd()
+    {
+        var files = SDL3FontCache.CandidateFilenames("arial", bold: true, italic: true);
+        Assert.That(files, Contains.Item("arialbd.ttf"));
+    }
+
+    // ---- CandidateFilenames: unknown family italic / bold-italic ----
+
+    [Test]
+    public void CandidateFilenames_UnknownFamily_Italic_FallsBackToSegoeuii()
+    {
+        var files = SDL3FontCache.CandidateFilenames("Tahoma", bold: false, italic: true);
+        Assert.That(files[0], Is.EqualTo("segoeuii.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_UnknownFamily_Italic_IncludesArialiFallback()
+    {
+        var files = SDL3FontCache.CandidateFilenames("Tahoma", bold: false, italic: true);
+        Assert.That(files, Contains.Item("ariali.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_UnknownFamily_BoldItalic_FallsBackToSegoeuiz()
+    {
+        var files = SDL3FontCache.CandidateFilenames("Tahoma", bold: true, italic: true);
+        Assert.That(files[0], Is.EqualTo("segoeuiz.ttf"));
+    }
+
+    [Test]
+    public void CandidateFilenames_UnknownFamily_BoldItalic_IncludesArialBoldFallbacks()
+    {
+        var files = SDL3FontCache.CandidateFilenames("Tahoma", bold: true, italic: true);
+        Assert.That(files, Contains.Item("arialbi.ttf"));
+    }
 }

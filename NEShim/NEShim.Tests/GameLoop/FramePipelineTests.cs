@@ -5,6 +5,7 @@ using NEShim.GameLoop;
 using NEShim.Input;
 using NEShim.Saves;
 using NSubstitute;
+using System.IO;
 
 namespace NEShim.Tests.GameLoop;
 
@@ -124,5 +125,29 @@ internal class FramePipelineTests
     {
         var pipeline = CreatePipeline();
         Assert.That(pipeline.CurrentFps, Is.EqualTo(0f));
+    }
+
+    // ---- Timing log (Logger.IsEnabled branch) ----
+
+    [Test]
+    public void RunFrame_WithLoggingEnabled_DoesNotThrow()
+    {
+        // Exercises the timingEnabled branch: t0, tAfterRunFrame, workTicks calculations.
+        // The fast mock core ensures workTicks stays below SlowFrameThresholdTicks,
+        // so the slow-frame log line does not run — but all surrounding lines do.
+        string tempPath = Path.Combine(Path.GetTempPath(), $"neshim-test-{Guid.NewGuid()}.log");
+        Logger.Reset(tempPath);
+        Logger.Enable();
+        try
+        {
+            var pipeline = CreatePipeline();
+            Assert.DoesNotThrow(
+                () => pipeline.RunFrame(InputSnapshot.Empty, _config, afterPresented: null));
+        }
+        finally
+        {
+            Logger.Instance.Dispose();
+            try { File.Delete(tempPath); } catch { }
+        }
     }
 }

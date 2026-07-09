@@ -21,18 +21,21 @@ internal sealed class InputProcessor
 
     /// <summary>
     /// Tracks timing for continuous left/right slider movement when a direction is held.
-    /// Fires after an initial delay then at a fixed repeat interval.
+    /// Fires after an initial delay then at a fixed repeat interval, accelerating after 1 s.
     /// </summary>
     private struct SliderRepeatTracker
     {
-        private const long InitialDelayMs         = 400;
-        private const long SlowRepeatIntervalMs   =  80;  // ~12 Hz
-        private const long FastRepeatIntervalMs   =  30;  // ~33 Hz
-        private const long AccelerationThresholdMs = 1000; // total hold time before fast phase
+        internal const long InitialDelayMs          = 400;
+        internal const long SlowRepeatIntervalMs    =  80;  // ~12 Hz
+        internal const long FastRepeatIntervalMs    =  30;  // ~33 Hz
+        internal const long AccelerationThresholdMs = 1000; // total hold time before fast phase
 
         private int  _heldDirection; // -1 = left, 0 = none, +1 = right
         private long _holdStartTick;
         private long _nextFireTick;
+
+        // Overridable for unit tests; null means Environment.TickCount64.
+        internal Func<long>? NowProvider;
 
         /// <summary>
         /// Advances the tracker for the current frame. Returns a synthetic nav input when
@@ -49,7 +52,7 @@ internal sealed class InputProcessor
                 return null;
             }
 
-            long now = Environment.TickCount64;
+            long now = NowProvider != null ? NowProvider() : Environment.TickCount64;
 
             if (direction != _heldDirection)
             {
@@ -69,6 +72,9 @@ internal sealed class InputProcessor
                 : new MenuNavInput { Right = true };
         }
     }
+
+    // Test seam: injects a controllable time source into the slider repeat tracker.
+    internal Func<long>? SliderTrackerNowProvider { set => _sliderRepeat.NowProvider = value; }
 
     /// <summary>
     /// True for the frame on which the controller-disconnect overlay was dismissed.

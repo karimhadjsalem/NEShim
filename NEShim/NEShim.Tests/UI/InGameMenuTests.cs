@@ -2508,4 +2508,65 @@ internal class InGameMenuTests
         menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Video));
     }
+
+    // ---- ControllerDisconnectedHandler ----
+
+    [Test]
+    public void ControllerDisconnected_GetTitle_ReturnsEmpty()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        Assert.That(menu.GetTitle(), Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ControllerDisconnected_HandleKey_ReturnsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        bool consumed = menu.HandleKey(SDL.Keycode.Return);
+        Assert.That(consumed, Is.False);
+    }
+
+    // ---- VideoPicture: ColorDisplayName for each mode ----
+
+    [TestCase("Warm",               "Warm")]
+    [TestCase("Greyscale",          "Greyscale")]
+    [TestCase("NesColorCorrection", "NES Colors")]
+    [TestCase("Cool",               "Cool")]
+    [TestCase("PhosphorAmber",      "Amber Mono")]
+    [TestCase("PhosphorGreen",      "Green Mono")]
+    public void VideoPicture_GetItems_ShowsLocalizedColorName_ForMode(string configValue, string expectedLabel)
+    {
+        _config.VideoColorFilter = configValue;
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPictureScreen(menu);
+        // Item 0 is "Color Preset: <display-name>"
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain(expectedLabel));
+    }
+
+    // ---- VideoPicture: FormatPct with non-zero values ----
+
+    [Test]
+    public void VideoPicture_BrightnessSlider_WhenPositive_ShowsPlusPrefix()
+    {
+        _config.VideoBrightness = 50;
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPictureScreen(menu);
+        var slider = menu.GetCurrentSliderData(1); // Brightness is index 1
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("+50"));
+    }
+
+    [Test]
+    public void VideoPicture_BrightnessSlider_WhenNegative_ShowsMinusPrefix()
+    {
+        _config.VideoBrightness = -30;
+        var menu = CreateMenu();
+        NEShim.Platform.PlatformDetector.SetD3D11Active(true);
+        OpenVideoPictureScreen(menu);
+        var slider = menu.GetCurrentSliderData(1);
+        Assert.That(slider!.Value.ValueText, Is.EqualTo("-30"));
+    }
 }

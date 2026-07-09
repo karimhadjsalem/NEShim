@@ -10,3 +10,4 @@ NEShim/NEShim.sln.DotSettings.user
 /NEShim/TestResults
 /CoverageReport
 /CoverageResults
+**/coverage.cobertura.xml

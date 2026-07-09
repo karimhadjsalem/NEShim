@@ -324,4 +324,132 @@ internal class InputManagerTests
     {
         Assert.That(_manager.PollAnyGamepadButtonPressed(), Is.Null);
     }
+
+    // ── GetHeldSliderDir (keyboard path only — XInput/Steam are static globals) ─
+
+    [Test]
+    public void GetHeldSliderDir_NoInput_ReturnsBothFalse()
+    {
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_LeftArrowDown_ReturnsLeftTrue()
+    {
+        _manager.OnKeyDown(SDL.Keycode.Left);
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.True);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_RightArrowDown_ReturnsRightTrue()
+    {
+        _manager.OnKeyDown(SDL.Keycode.Right);
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(right, Is.True);
+        Assert.That(left,  Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_AfterKeyUp_ReturnsFalse()
+    {
+        _manager.OnKeyDown(SDL.Keycode.Left);
+        _manager.OnKeyUp(SDL.Keycode.Left);
+        var (left, _) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left, Is.False);
+    }
+
+    // ── PollAnyControllerButton ──────────────────────────────────────────────────
+
+    [Test]
+    public void PollAnyControllerButton_WhenSourceDoesNotImplementAnyButtonSource_ReturnsFalse()
+    {
+        // _mockXInput is IInputSource only, not IAnyButtonSource
+        Assert.That(_manager.PollAnyControllerButton(), Is.False);
+    }
+
+    [Test]
+    public void PollAnyControllerButton_WithAnyButtonSource_ReturnsTrue_WhenButtonJustPressed()
+    {
+        var anySource = Substitute.For<IInputSource, IAnyButtonSource>();
+        anySource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IAnyButtonSource)anySource).AnyJustPressed().Returns(true);
+
+        var manager = new InputManager(
+            _keyboard, anySource, _mockSteam,
+            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+
+        Assert.That(manager.PollAnyControllerButton(), Is.True);
+    }
+
+    [Test]
+    public void PollAnyControllerButton_WithAnyButtonSource_ReturnsFalse_WhenNoPress()
+    {
+        var anySource = Substitute.For<IInputSource, IAnyButtonSource>();
+        anySource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IAnyButtonSource)anySource).AnyJustPressed().Returns(false);
+
+        var manager = new InputManager(
+            _keyboard, anySource, _mockSteam,
+            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+
+        Assert.That(manager.PollAnyControllerButton(), Is.False);
+    }
+
+    // ── FlushBindingEdges ────────────────────────────────────────────────────────
+
+    [Test]
+    public void FlushBindingEdges_WhenSourceDoesNotImplementIBindingSource_IsNoOp()
+    {
+        // _mockXInput is IInputSource only — FlushBindingEdges must not throw
+        Assert.DoesNotThrow(() => _manager.FlushBindingEdges());
+    }
+
+    [Test]
+    public void FlushBindingEdges_WithBindingSource_CallsFlushEdgesOnce()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var manager = new InputManager(
+            _keyboard, bindingSource, _mockSteam,
+            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+
+        manager.FlushBindingEdges();
+
+        ((IBindingSource)bindingSource).Received(1).FlushEdges();
+    }
+
+    // ── PollAnyGamepadButtonPressed with IBindingSource ──────────────────────────
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_WithBindingSource_DelegatesToPollAnyButtonPressed()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns("B");
+
+        var manager = new InputManager(
+            _keyboard, bindingSource, _mockSteam,
+            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(), Is.EqualTo("B"));
+    }
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_WithBindingSource_WhenNoPress_ReturnsNull()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns((string?)null);
+
+        var manager = new InputManager(
+            _keyboard, bindingSource, _mockSteam,
+            new KeyboardMapper(), new XInputMapper(), new SteamInputMapper());
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(), Is.Null);
+    }
 }

@@ -134,4 +134,20 @@ internal class SteamInputManagerTests
         foreach (var (action, nesButton) in SteamInputManager.ActionToNesButton)
             Assert.That(SteamInputManager.NesButtonToAction[nesButton], Is.EqualTo(action));
     }
+
+    // ---- AnyMenuActionActive / GetMenuHeldLeftRight ----
+
+    [Test]
+    public void AnyMenuActionActive_WhenUnavailable_ReturnsFalse()
+    {
+        Assert.That(SteamInputManager.AnyMenuActionActive(), Is.False);
+    }
+
+    [Test]
+    public void GetMenuHeldLeftRight_WhenUnavailable_ReturnsBothFalse()
+    {
+        var (left, right) = SteamInputManager.GetMenuHeldLeftRight();
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
+    }
 }

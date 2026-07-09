@@ -279,4 +279,124 @@ internal class InputProcessorTests
         // No repeat should fire — only edge nav (none here) should dispatch
         _menuInput.DidNotReceive().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
     }
+
+    // ---- SliderRepeatTracker — time-controlled paths ----
+
+    // Helpers for time-controlled repeat tests.
+    private long _fakeNow;
+    private Func<long> FakeClock => () => _fakeNow;
+
+    private InputProcessor CreateProcessorWithFakeClock(InGameMenu menu)
+    {
+        var processor = CreateProcessor(menu);
+        processor.SliderTrackerNowProvider = FakeClock;
+        return processor;
+    }
+
+    [Test]
+    public void PollPausedMenuInput_AfterInitialDelay_LeftRepeatFires()
+    {
+        _fakeNow = 1000;
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((true, false));
+        var processor = CreateProcessorWithFakeClock(CreateMenu());
+
+        processor.PollPausedMenuInput(_config); // arms timer: next fire = 1000 + 400 = 1400
+
+        _fakeNow = 1400; // exactly at the boundary
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
+    }
+
+    [Test]
+    public void PollPausedMenuInput_AfterInitialDelay_RightRepeatFires()
+    {
+        _fakeNow = 0;
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((false, true));
+        var processor = CreateProcessorWithFakeClock(CreateMenu());
+
+        processor.PollPausedMenuInput(_config); // arms: next fire = 400
+
+        _fakeNow = 400;
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Right));
+    }
+
+    [Test]
+    public void PollPausedMenuInput_DirectionChange_ResetsTimer()
+    {
+        _fakeNow = 0;
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((true, false)); // Left
+        var processor = CreateProcessorWithFakeClock(CreateMenu());
+
+        processor.PollPausedMenuInput(_config); // arms Left timer at t=0, fires at 400
+
+        // Switch to Right before Left fires
+        _fakeNow = 300;
+        _input.GetHeldSliderDir(_config).Returns((false, true));
+        processor.PollPausedMenuInput(_config); // direction change: resets, Right fires at 300+400=700
+
+        // At t=400 Left would have fired, but direction changed — should NOT fire Left
+        _fakeNow = 400;
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.DidNotReceive().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
+    }
+
+    [Test]
+    public void PollPausedMenuInput_AfterAccelerationThreshold_UsesShortInterval()
+    {
+        // Slow interval is 80ms, fast interval is 30ms. After 1000ms total hold,
+        // subsequent repeats should fire every 30ms instead of 80ms.
+        _fakeNow = 0;
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((true, false));
+        var processor = CreateProcessorWithFakeClock(CreateMenu());
+
+        processor.PollPausedMenuInput(_config); // arms: fires at 400
+
+        // First slow repeat fires at t=400, sets next fire = 400+80=480
+        _fakeNow = 400;
+        processor.PollPausedMenuInput(_config);
+
+        // Jump to t=1000 (total hold ≥ AccelerationThresholdMs).
+        // The previous _nextFireTick was 480, so this fires and enters the fast phase.
+        _fakeNow = 1000;
+        processor.PollPausedMenuInput(_config); // fires; next = 1000 + 30 = 1030
+
+        _menuInput.ClearReceivedCalls();
+
+        // At t=1030 a fast repeat should fire (30ms interval)
+        _fakeNow = 1030;
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received(1).HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
+    }
+
+    [Test]
+    public void PollPausedMenuInput_SliderRepeat_StopsWhenDirectionReleased()
+    {
+        _fakeNow = 0;
+        _menuInput.IsWaitingForGamepadButton.Returns(false);
+        _input.PollMenuNav(_config).Returns(default(MenuNavInput));
+        _input.GetHeldSliderDir(_config).Returns((true, false));
+        var processor = CreateProcessorWithFakeClock(CreateMenu());
+
+        processor.PollPausedMenuInput(_config); // arms
+
+        // Release the key
+        _input.GetHeldSliderDir(_config).Returns((false, false));
+        _fakeNow = 500; // past initial delay, but direction released
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.DidNotReceive().HandleGamepadNav(Arg.Is<MenuNavInput>(n => n.Left));
+    }
 }

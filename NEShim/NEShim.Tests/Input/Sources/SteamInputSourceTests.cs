@@ -44,4 +44,21 @@ internal class SteamInputSourceTests
     {
         Assert.That(_source.GetMenuNav(_config).Any, Is.False);
     }
+
+    // ── AnyJustPressed ──────────────────────────────────────────────────────────
+
+    [Test]
+    public void AnyJustPressed_WhenSteamNotAvailable_ReturnsFalse()
+    {
+        // SteamInputManager.AnyMenuActionActive() returns false when Steam is not running.
+        Assert.That(_source.AnyJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void AnyJustPressed_CalledTwice_WhenSteamNotAvailable_AlwaysFalse()
+    {
+        // Verifies the edge-detection state doesn't incorrectly flip when Steam is absent.
+        _source.AnyJustPressed();
+        Assert.That(_source.AnyJustPressed(), Is.False);
+    }
 }

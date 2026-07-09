@@ -177,4 +177,178 @@ internal class XInputSourceTests
         var nav = source.GetMenuNav(_config);
         Assert.That(nav.Back, Is.True);
     }
+
+    // ── FlushEdges ──────────────────────────────────────────────────────────────
+
+    [Test]
+    public void FlushEdges_WhenButtonHeld_SubsequentPollSeesThatButtonAlreadySeen()
+    {
+        // Flush with A pressed → prev = A pressed. Immediately polling should return null
+        // because A is not a new edge (curr == prev).
+        var source = new XInputSource(() => Connected(a: true));
+        source.FlushEdges();
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    [Test]
+    public void FlushEdges_WhenNotConnected_SubsequentPollStillReturnsNull()
+    {
+        var source = new XInputSource(() => NotConnected());
+        source.FlushEdges();
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    // ── PollAnyButtonPressed ────────────────────────────────────────────────────
+
+    [Test]
+    public void PollAnyButtonPressed_NotConnected_ReturnsNull()
+    {
+        var source = new XInputSource(() => NotConnected());
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AJustPressed_ReturnsA()
+    {
+        var source = new XInputSource(() => Connected(a: true));
+        Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("A"));
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AHeld_ReturnsNull()
+    {
+        var source = new XInputSource(() => Connected(a: true));
+        source.PollAnyButtonPressed(); // edge consumed
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_EachDigitalButton_ReturnsItsName()
+    {
+        // One fresh source per button to avoid edge-detection interference.
+        var cases = new (Func<XInputHelper.GamepadState> state, string expected)[]
+        {
+            (() => Connected(b: true),             "B"),
+            (() => Connected(x: true),             "X"),
+            (() => Connected(y: true),             "Y"),
+            (() => Connected(start: true),         "Start"),
+            (() => Connected(back: true),          "Back"),
+            (() => Connected(leftShoulder: true),  "LeftShoulder"),
+            (() => Connected(rightShoulder: true), "RightShoulder"),
+            (() => Connected(leftThumb: true),     "LeftThumb"),
+            (() => Connected(rightThumb: true),    "RightThumb"),
+            (() => Connected(dpadDown: true),      "DPadDown"),
+            (() => Connected(dpadLeft: true),      "DPadLeft"),
+            (() => Connected(dpadRight: true),     "DPadRight"),
+            (() => Connected(dpadUp: true),        "DPadUp"),
+        };
+        foreach (var (state, expected) in cases)
+        {
+            var source = new XInputSource(state);
+            Assert.That(source.PollAnyButtonPressed(), Is.EqualTo(expected), $"Expected {expected}");
+        }
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogUpAboveBindingThreshold_ReturnsAnalogUp()
+    {
+        // BindingAnalogThreshold = 19660 (60% of 32767). Use 20000 to be safely above.
+        var source = new XInputSource(() => Connected(thumbLY: 20000));
+        Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogUp"));
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogDownAboveBindingThreshold_ReturnsAnalogDown()
+    {
+        var source = new XInputSource(() => Connected(thumbLY: -20000));
+        Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogDown"));
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogLeftAboveBindingThreshold_ReturnsAnalogLeft()
+    {
+        var source = new XInputSource(() => Connected(thumbLX: -20000));
+        Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogLeft"));
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogRightAboveBindingThreshold_ReturnsAnalogRight()
+    {
+        var source = new XInputSource(() => Connected(thumbLX: 20000));
+        Assert.That(source.PollAnyButtonPressed(), Is.EqualTo("AnalogRight"));
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogHeld_ReturnsNull()
+    {
+        var source = new XInputSource(() => Connected(thumbLY: 20000));
+        source.PollAnyButtonPressed(); // edge consumed
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    [Test]
+    public void PollAnyButtonPressed_AnalogBelowBindingThreshold_ReturnsNull()
+    {
+        // 10000 < BindingAnalogThreshold (19660) — should not register as a press
+        var source = new XInputSource(() => Connected(thumbLY: 10000));
+        Assert.That(source.PollAnyButtonPressed(), Is.Null);
+    }
+
+    // ── AnyJustPressed ──────────────────────────────────────────────────────────
+
+    [Test]
+    public void AnyJustPressed_NotConnected_ReturnsFalse()
+    {
+        var source = new XInputSource(() => NotConnected());
+        Assert.That(source.AnyJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void AnyJustPressed_ButtonJustPressed_ReturnsTrue()
+    {
+        var source = new XInputSource(() => Connected(a: true));
+        Assert.That(source.AnyJustPressed(), Is.True);
+    }
+
+    [Test]
+    public void AnyJustPressed_ButtonHeld_ReturnsFalse()
+    {
+        var source = new XInputSource(() => Connected(a: true));
+        source.AnyJustPressed(); // edge consumed
+        Assert.That(source.AnyJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void AnyJustPressed_AnalogMovedAboveThreshold_ReturnsTrue()
+    {
+        // AnyInputAnalogThreshold = 8000. Use 10000 to be above it.
+        var source = new XInputSource(() => Connected(thumbLX: 10000));
+        Assert.That(source.AnyJustPressed(), Is.True);
+    }
+
+    [Test]
+    public void AnyJustPressed_AnalogHeld_ReturnsFalse()
+    {
+        var source = new XInputSource(() => Connected(thumbLX: 10000));
+        source.AnyJustPressed();
+        Assert.That(source.AnyJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void AnyJustPressed_AnalogBelowThreshold_ReturnsFalse()
+    {
+        // 5000 < AnyInputAnalogThreshold (8000) — should not trigger
+        var source = new XInputSource(() => Connected(thumbLX: 5000));
+        Assert.That(source.AnyJustPressed(), Is.False);
+    }
+
+    [Test]
+    public void AnyJustPressed_DisconnectWhileHolding_ReturnsFalse()
+    {
+        bool connected = true;
+        var source = new XInputSource(() => connected ? Connected(a: true) : NotConnected());
+        source.AnyJustPressed(); // first call: edge
+        connected = false;
+        Assert.That(source.AnyJustPressed(), Is.False);
+    }
 }

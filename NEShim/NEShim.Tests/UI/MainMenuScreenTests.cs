@@ -2114,4 +2114,39 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
     }
+
+    // ---- Main handler GetItems / GetTitle (exercises MainHandler.GetItems body) ----
+
+    [Test]
+    public void Main_GetCurrentItems_ReturnsFourItems()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void Main_GetCurrentItems_WhenNoSave_ResumeLabelHasNoSaveSuffix()
+    {
+        using var screen = CreateScreen();
+        string[] items = screen.GetCurrentItems();
+        // CanResume = false → label appends SlotNoSave
+        Assert.That(items[1], Does.Contain(new NEShim.Localization.LocalizationData().SlotNoSave));
+    }
+
+    [Test]
+    public void Main_GetCurrentItems_WhenSaveExists_ResumeLabelHasNoSuffix()
+    {
+        _saves.SlotExists(0).Returns(true);
+        using var screen = CreateScreen();
+        string[] items = screen.GetCurrentItems();
+        // CanResume = true → label is just the resume string, no SlotNoSave suffix
+        Assert.That(items[1], Does.Not.Contain(new NEShim.Localization.LocalizationData().SlotNoSave));
+    }
+
+    [Test]
+    public void Main_GetTitle_ContainsMenu()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.GetTitle(), Does.Contain("MENU"));
+    }
 }
