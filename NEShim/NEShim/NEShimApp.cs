@@ -100,8 +100,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private void InitializeWindowAndD3DHook()
     {
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
@@ -154,8 +154,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _overlayRenderer?.Dispose();
         _overlayRenderer = null;
 
-        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_config!.ForceRenderer, _sdlHost);
-        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _config!.ForceRenderer);
+        _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
+        _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
         _renderer.DeviceLost += OnD3DDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);

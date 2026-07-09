@@ -52,6 +52,8 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         }
     }
 
+    public IntPtr SdlWindow => _window;
+
     public int ClientWidth  => _clientWidth;
     public int ClientHeight => _clientHeight;
 

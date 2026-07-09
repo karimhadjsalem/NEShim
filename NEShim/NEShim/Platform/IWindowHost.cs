@@ -9,6 +9,9 @@ internal interface IWindowHost
     /// <summary>Native window handle (HWND). Required to create the D3D11 swap chain.</summary>
     IntPtr Handle { get; }
 
+    /// <summary>SDL_Window* pointer. Required to create the SDL3 hardware renderer.</summary>
+    IntPtr SdlWindow { get; }
+
     /// <summary>Current client-area width in pixels.</summary>
     int ClientWidth { get; }
 
