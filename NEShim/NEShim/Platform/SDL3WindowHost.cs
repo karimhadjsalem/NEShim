@@ -33,7 +33,7 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
 
     public SDL3WindowHost(string title, int width, int height)
     {
-        if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events))
+        if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events | SDL.InitFlags.Audio))
             throw new InvalidOperationException($"SDL_Init failed: {SDL.GetError()}");
 
         _window = SDL.CreateWindow(title, width, height, SDL.WindowFlags.Resizable | SDL.WindowFlags.Hidden);

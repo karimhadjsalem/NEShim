@@ -34,6 +34,7 @@ internal static class PlatformDetector
 
     private static bool DetectWine()
     {
+        if (!OperatingSystem.IsWindows()) return false;
         try
         {
             IntPtr ntdll = GetModuleHandle("ntdll.dll");

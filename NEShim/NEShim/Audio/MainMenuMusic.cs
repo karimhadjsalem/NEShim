@@ -1,44 +1,42 @@
 using System.Diagnostics.CodeAnalysis;
-using NAudio.Wave;
-using NAudio.CoreAudioApi;
+using System.Runtime.InteropServices;
+using SDL3;
 
 namespace NEShim.Audio;
 
 /// <summary>
-/// Plays a looping audio file (MP3, WAV, or any NAudio-supported format) on the
-/// pre-game main menu with smooth fade in / fade out transitions.
+/// Plays a looping WAV file on the main menu with smooth fade-in / fade-out transitions.
+/// Uses SDL3 audio: SDL_LoadWAV decodes the file; a background thread streams chunks
+/// into an SDL_AudioStream that the device consumes.
 ///
-/// Fade in : 1.0 second  — starts at volume 0, ramps to master volume.
-/// Fade out: 0.5 seconds — ramps to 0 then stops playback.
+/// Fade in : 1.0 second  — ramps gain from 0 to master volume.
+/// Fade out: 0.5 seconds — ramps gain to 0, then pauses the device.
 ///
 /// Volume is split into two independent concerns:
-///   _fadeLevel   — 0–1 fade progress driven by the timer
+///   _fadeLevel    — 0–1 fade progress driven by the timer
 ///   _masterVolume — 0–1 user-controlled multiplier (SetMasterVolume)
-///   _reader.Volume = _fadeLevel × _masterVolume at every tick
-/// This separation ensures that changing master volume during a fade works correctly
-/// and does not interfere with the fade state machine.
+///   SDL stream gain = _fadeLevel × _masterVolume at every tick
 ///
-/// Looping is handled inside the sample provider so playback never needs to restart,
-/// avoiding the WaveOut callback-thread re-entry issue.
+/// Music file must be in WAV format (SDL_LoadWAV limitation). For playback of OGG or
+/// other compressed formats, add an external decoder and feed raw PCM to the stream.
 ///
-/// Thread safety: fade ticks run on a timer thread; all public methods are safe to
-/// call from the UI thread at any time.
+/// Thread safety: fade ticks run on a timer thread; stream pushes run on a dedicated
+/// background thread. All public methods are safe to call from the UI thread.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal sealed class MainMenuMusic : IDisposable
 {
-    private AudioFileReader?        _reader;
-    private AudioFileReaderSource? _readerSource;
-    private LoopingSampleProvider? _looper;
-    private WasapiOut?            _output;
-    private System.Timers.Timer?  _fadeTimer;
-    private volatile bool         _disposed;
+    private byte[]?                _audioData;
+    private IntPtr                 _audioStream = IntPtr.Zero;
+    private Thread?                _streamThread;
+    private volatile bool          _stopStreaming;
+    private volatile int           _streamPosition;
+    private bool                   _isPlaying;
+    private System.Timers.Timer?   _fadeTimer;
+    private volatile bool          _disposed;
 
-    // Fade state: _fadeLevel tracks 0→1 progress; _reader.Volume = _fadeLevel × _masterVolume
     private float   _fadeLevel;
     private float   _masterVolume = 1.0f;
-
-    // Signed fade delta per tick — positive = fade in, negative = fade out
     private float   _volumeStep;
     private Action? _onFadeOutComplete;
 
@@ -49,29 +47,49 @@ internal sealed class MainMenuMusic : IDisposable
     private static readonly float FadeInStep  = 1.0f / (FadeInSeconds  * 1000f / FadeTickMs);
     private static readonly float FadeOutStep = 1.0f / (FadeOutSeconds * 1000f / FadeTickMs);
 
+    private const int MusicChunkBytes       = 4096;
+    private const int StreamQueueThreshold  = MusicChunkBytes * 8;
+
+    // Pre-allocated streaming chunk buffer.
+    private readonly byte[] _streamChunk = new byte[MusicChunkBytes];
+
     public MainMenuMusic(string filePath, bool autoStart = true)
     {
         try
         {
-            _reader       = new AudioFileReader(filePath) { Volume = 0f };
-            _readerSource = new AudioFileReaderSource(_reader);
-            _looper       = new LoopingSampleProvider(_readerSource);
-            _output  = new WasapiOut(AudioClientShareMode.Shared, 200);
-            _output.Init(_looper);
+            if (!SDL.LoadWAV(filePath, out SDL.AudioSpec wavSpec, out IntPtr rawBuf, out uint rawLen))
+                throw new InvalidOperationException($"SDL_LoadWAV failed: {SDL.GetError()}");
+
+            _audioData = new byte[(int)rawLen];
+            Marshal.Copy(rawBuf, _audioData, 0, (int)rawLen);
+            SDL.Free(rawBuf);
+
+            _audioStream = SDL.OpenAudioDeviceStream(
+                SDL.AudioDeviceDefaultPlayback, ref wavSpec, null, IntPtr.Zero);
+            if (_audioStream == IntPtr.Zero)
+                throw new InvalidOperationException($"SDL_OpenAudioDeviceStream failed: {SDL.GetError()}");
+
+            SDL.SetAudioStreamGain(_audioStream, 0f);
 
             _fadeTimer = new System.Timers.Timer(FadeTickMs) { AutoReset = true };
             _fadeTimer.Elapsed += OnFadeTick;
 
+            _streamThread = new Thread(StreamLoop)
+            {
+                IsBackground = true,
+                Name         = "MusicStream",
+            };
+            _streamThread.Start();
+
             if (autoStart)
             {
-                _output.Play();
+                SDL.ResumeAudioStreamDevice(_audioStream);
+                _isPlaying = true;
                 StartFadeIn();
             }
         }
         catch
         {
-            // Clean up any partially-constructed resources before re-throwing
-            // so CreateMainMenuMusic can catch and degrade gracefully
             DisposeResources();
             throw;
         }
@@ -80,26 +98,28 @@ internal sealed class MainMenuMusic : IDisposable
     // ---- Public API ----
 
     /// <summary>
-    /// Restarts playback (seeking to start) and fades in.
-    /// Safe to call when already playing — reverses any active fade out.
+    /// Restarts playback from the beginning and fades in.
+    /// Safe to call when already playing — reverses any active fade-out.
     /// </summary>
     public void FadeIn()
     {
-        if (_disposed || _reader == null || _output == null) return;
+        if (_disposed || _audioStream == IntPtr.Zero) return;
 
-        if (_output.PlaybackState != PlaybackState.Playing)
+        if (!_isPlaying)
         {
-            _reader.Position = 0;
-            _fadeLevel       = 0f;
-            _reader.Volume   = 0f;
-            _output.Play();
+            _streamPosition = 0;
+            _fadeLevel      = 0f;
+            SDL.SetAudioStreamGain(_audioStream, 0f);
+            SDL.ClearAudioStream(_audioStream); // discard any stale queued data
+            SDL.ResumeAudioStreamDevice(_audioStream);
+            _isPlaying = true;
         }
 
         StartFadeIn();
     }
 
     /// <summary>
-    /// Fades volume to zero over 0.5 seconds then stops playback.
+    /// Fades volume to zero over 0.5 seconds then pauses playback.
     /// <paramref name="onComplete"/> fires on the timer thread when the fade finishes.
     /// </summary>
     public void FadeOut(Action? onComplete = null)
@@ -113,26 +133,29 @@ internal sealed class MainMenuMusic : IDisposable
     /// <summary>
     /// Suspends playback without losing position or resetting the fade level.
     /// Call <see cref="Resume"/> to continue from the same point.
-    /// Designed for Steam overlay open/close — does nothing if not currently playing.
     /// </summary>
     public void Pause()
     {
-        if (_disposed || _output == null) return;
+        if (_disposed || _audioStream == IntPtr.Zero) return;
         _fadeTimer?.Stop();
-        if (_output.PlaybackState == PlaybackState.Playing)
-            _output.Pause();
+        if (_isPlaying)
+        {
+            SDL.PauseAudioStreamDevice(_audioStream);
+            _isPlaying = false;
+        }
     }
 
     /// <summary>
     /// Resumes playback from where <see cref="Pause"/> left off and fades back in.
-    /// Does nothing if the output was not paused (e.g. music was never started or was stopped).
+    /// Does nothing if the output was not paused.
     /// </summary>
     public void Resume()
     {
-        if (_disposed || _output == null) return;
-        if (_output.PlaybackState == PlaybackState.Paused)
+        if (_disposed || _audioStream == IntPtr.Zero) return;
+        if (!_isPlaying)
         {
-            _output.Play();
+            SDL.ResumeAudioStreamDevice(_audioStream);
+            _isPlaying = true;
             StartFadeIn();
         }
     }
@@ -142,20 +165,19 @@ internal sealed class MainMenuMusic : IDisposable
     {
         if (_disposed) return;
         _fadeTimer?.Stop();
-        _output?.Stop();
+        if (_audioStream != IntPtr.Zero) SDL.PauseAudioStreamDevice(_audioStream);
+        _isPlaying = false;
     }
 
     /// <summary>
     /// Sets the master volume multiplier (0–1).
-    /// The current fade level is preserved; the audible output adjusts immediately.
-    /// Changing master volume during a fade-in or fade-out works correctly because
-    /// fade progress (<c>_fadeLevel</c>) is tracked independently of <c>_reader.Volume</c>.
+    /// The current fade level is preserved; audible output adjusts immediately.
     /// </summary>
     public void SetMasterVolume(float masterVolume)
     {
         _masterVolume = Math.Clamp(masterVolume, 0f, 1f);
-        if (_disposed || _reader == null) return;
-        _reader.Volume = _fadeLevel * _masterVolume;
+        if (_disposed || _audioStream == IntPtr.Zero) return;
+        SDL.SetAudioStreamGain(_audioStream, _fadeLevel * _masterVolume);
     }
 
     // ---- Internal ----
@@ -169,11 +191,11 @@ internal sealed class MainMenuMusic : IDisposable
 
     private void OnFadeTick(object? sender, System.Timers.ElapsedEventArgs e)
     {
-        if (_disposed || _reader == null) return;
+        if (_disposed || _audioStream == IntPtr.Zero) return;
 
         float next = Math.Clamp(_fadeLevel + _volumeStep, 0f, 1f);
-        _fadeLevel     = next;
-        _reader.Volume = _fadeLevel * _masterVolume;
+        _fadeLevel = next;
+        SDL.SetAudioStreamGain(_audioStream, _fadeLevel * _masterVolume);
 
         bool reachedTarget = _volumeStep >= 0f ? next >= 1f : next <= 0f;
         if (!reachedTarget) return;
@@ -182,10 +204,50 @@ internal sealed class MainMenuMusic : IDisposable
 
         if (_volumeStep < 0f) // fade-out completed
         {
-            _output?.Stop();
+            SDL.PauseAudioStreamDevice(_audioStream);
+            _isPlaying = false;
             var callback = _onFadeOutComplete;
             _onFadeOutComplete = null;
             callback?.Invoke();
+        }
+    }
+
+    // Background thread: pushes looping WAV chunks into the SDL audio stream.
+    private void StreamLoop()
+    {
+        while (!_stopStreaming)
+        {
+            IntPtr stream = _audioStream;
+            byte[]? data  = _audioData;
+
+            if (stream == IntPtr.Zero || data == null || data.Length == 0)
+            {
+                Thread.Sleep(10);
+                continue;
+            }
+
+            int queued = SDL.GetAudioStreamQueued(stream);
+            if (queued > StreamQueueThreshold)
+            {
+                Thread.Sleep(5);
+                continue;
+            }
+
+            int from      = _streamPosition;
+            int available = data.Length - from;
+            int toPush    = Math.Min(available, MusicChunkBytes);
+
+            if (toPush > 0)
+            {
+                Buffer.BlockCopy(data, from, _streamChunk, 0, toPush);
+                SDL.PutAudioStreamData(stream, _streamChunk, toPush);
+                int newPos    = from + toPush;
+                _streamPosition = newPos >= data.Length ? 0 : newPos;
+            }
+            else
+            {
+                _streamPosition = 0;
+            }
         }
     }
 
@@ -198,20 +260,20 @@ internal sealed class MainMenuMusic : IDisposable
 
     private void DisposeResources()
     {
+        _stopStreaming = true;
+        _streamThread?.Join(millisecondsTimeout: 100);
+        _streamThread = null;
+
         _fadeTimer?.Stop();
         _fadeTimer?.Dispose();
         _fadeTimer = null;
 
-        _output?.Stop();
-        _output?.Dispose();
-        _output = null;
+        if (_audioStream != IntPtr.Zero)
+        {
+            SDL.DestroyAudioStream(_audioStream);
+            _audioStream = IntPtr.Zero;
+        }
 
-        // _looper and _readerSource hold no resources — _reader is the owner
-        _looper       = null;
-        _readerSource = null;
-
-        _reader?.Dispose();
-        _reader = null;
+        _audioData = null;
     }
-
 }

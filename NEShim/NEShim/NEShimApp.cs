@@ -770,6 +770,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _mainMenuScreen?.Dispose();
         FlagImageLoader.Dispose();
         ControllerSprites.Dispose();
+        XInputHelper.Dispose();
         _audio?.Dispose();
         _host?.Dispose();
         SteamManager.Shutdown();

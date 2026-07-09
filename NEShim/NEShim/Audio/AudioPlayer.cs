@@ -1,41 +1,49 @@
-using NAudio.Wave;
+using System.Runtime.InteropServices;
+using SDL3;
 
 namespace NEShim.Audio;
 
 /// <summary>
-/// Bridges the NES APU's sync audio output to a real-time audio device via NAudio.
+/// Bridges the NES APU's sync audio output to a real-time audio device via SDL3.
 ///
 /// Producer: emulation thread calls Enqueue() each frame.
-/// Consumer: NAudio's driver thread calls Read() to pull samples.
+/// Consumer: SDL3 audio thread fires OnAudioGetCallback, which calls Read().
 ///
 /// An <see cref="AudioRingBuffer"/> decouples the two threads.
 /// Audio processing (filtering, volume) is delegated to an <see cref="IAudioProcessor"/>
 /// that can be swapped at runtime without stopping the audio device.
 /// When paused, Read() fills with silence.
 /// </summary>
-internal sealed class AudioPlayer : IWaveProvider, IDisposable
+internal sealed class AudioPlayer : IDisposable
 {
-    // 44100 Hz, 16-bit, stereo — matches NES APU output (mono duplicated to stereo)
-    public WaveFormat WaveFormat { get; } = new WaveFormat(44100, 16, 2);
+    private const int SampleRate      = 44100;
+    private const int ChannelCount    = 2;
+    private const int BitsPerSampleCount = 16;
 
-    private readonly AudioRingBuffer _ringBuffer;
-    private readonly object          _ringLock = new();
+    // Replaces NAudio.Wave.WaveFormat for unit-test compatibility.
+    internal readonly struct OutputFormat
+    {
+        public int SampleRate    { get; } = AudioPlayer.SampleRate;
+        public int BitsPerSample { get; } = BitsPerSampleCount;
+        public int Channels      { get; } = ChannelCount;
+        public OutputFormat() { }
+    }
 
-    private volatile bool _paused;
-    private IWavePlayer? _device;
+    public OutputFormat WaveFormat { get; } = new();
 
-    // Active processor — volatile so swaps from the UI thread are immediately visible
-    // to the NAudio driver thread calling Read().
-    private volatile IAudioProcessor _processor;
-
-    // 3-band EQ applied after the processor. Allocated once and reused; gains are
-    // updated via SetEq(). Reads from the NAudio thread are safe: SetGains only
-    // updates float fields, which are atomic on naturally-aligned .NET memory.
+    private readonly AudioRingBuffer  _ringBuffer;
+    private readonly object           _ringLock = new();
+    private volatile bool             _paused;
+    private IntPtr                    _audioStream = IntPtr.Zero;
+    private volatile IAudioProcessor  _processor;
     private readonly AudioEqProcessor _eq = new();
+    private float                     _volume = 1.0f;
 
-    // Master volume in [0, 1]. float reads on naturally-aligned .NET memory are atomic;
-    // worst case is one call of Read() using a stale value, which is acceptable.
-    private float _volume = 1.0f;
+    // Pre-allocated callback buffer; grows on demand if SDL ever requests a larger chunk.
+    private byte[]                    _callbackBuffer = new byte[8192];
+
+    // Held as a field to prevent the delegate from being collected during playback.
+    private SDL.AudioStreamCallback?  _getCallbackDelegate;
 
     public AudioPlayer(int bufferFrames = 3) : this(bufferFrames, new NesFilterProcessor()) { }
 
@@ -45,36 +53,25 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _processor  = processor;
     }
 
-    /// <summary>
-    /// Starts audio output. <paramref name="deviceName"/> is accepted but ignored —
-    /// the current implementation always opens the default WASAPI device.
-    /// </summary>
+    /// <summary>Starts audio output on the default SDL3 playback device.</summary>
     public void Start(string deviceName = "")
     {
-        try
+        _getCallbackDelegate = OnAudioGetCallback;
+        var spec = new SDL.AudioSpec
         {
-            var device = new WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, 50);
-            device.Init(this);
-            device.Play();
-            _device = device;
-            Logger.Log("[Audio] WASAPI device started.");
-        }
-        catch (Exception wasapiEx)
+            Format   = SDL.AudioFormat.AudioS16LE,
+            Channels = ChannelCount,
+            Freq     = SampleRate,
+        };
+        _audioStream = SDL.OpenAudioDeviceStream(
+            SDL.AudioDeviceDefaultPlayback, ref spec, _getCallbackDelegate, IntPtr.Zero);
+        if (_audioStream == IntPtr.Zero)
         {
-            Logger.Log($"[Audio] WASAPI failed ({wasapiEx.Message}) — falling back to WaveOut.");
-            try
-            {
-                var device = new WaveOutEvent { DesiredLatency = 100 };
-                device.Init(this);
-                device.Play();
-                _device = device;
-                Logger.Log("[Audio] WaveOut device started.");
-            }
-            catch (Exception waveOutEx)
-            {
-                Logger.Log($"[Audio] WaveOut also failed ({waveOutEx.Message}) — running silent.");
-            }
+            Logger.Log($"[Audio] SDL_OpenAudioDeviceStream failed: {SDL.GetError()}");
+            return;
         }
+        SDL.ResumeAudioStreamDevice(_audioStream);
+        Logger.Log("[Audio] SDL3 audio device started.");
     }
 
     /// <summary>
@@ -104,18 +101,29 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
     /// <summary>Called by the emulation thread after each FrameAdvance.</summary>
     public void Enqueue(short[] samples, int sampleCount)
     {
-        // sampleCount is mono samples; samples[] is already interleaved stereo (L,R,L,R,...)
-        int stereoSamples = sampleCount * 2; // already stereo pairs in the array
+        int stereoSamples = sampleCount * 2;
         if (stereoSamples > samples.Length) stereoSamples = samples.Length;
-
         lock (_ringLock)
             _ringBuffer.Enqueue(samples, stereoSamples);
     }
 
-    /// <summary>Called by NAudio's driver thread.</summary>
-    public int Read(byte[] buffer, int offset, int count)
+    // Fired by SDL3 audio thread when the stream needs more data.
+    private void OnAudioGetCallback(IntPtr userdata, IntPtr stream, int additionalAmount, int totalAmount)
     {
-        int shortCount = count / 2; // count is in bytes; each sample is 2 bytes
+        if (additionalAmount <= 0) return;
+        if (_callbackBuffer.Length < additionalAmount)
+            _callbackBuffer = new byte[additionalAmount];
+        Read(_callbackBuffer, 0, additionalAmount);
+        SDL.PutAudioStreamData(stream, _callbackBuffer, additionalAmount);
+    }
+
+    /// <summary>
+    /// Fills <paramref name="buffer"/> with processed audio from the ring buffer.
+    /// Exposed as internal for unit tests; also called by the SDL3 audio callback.
+    /// </summary>
+    internal int Read(byte[] buffer, int offset, int count)
+    {
+        int shortCount = count / 2;
         int i = 0;
 
         if (!_paused)
@@ -126,9 +134,6 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
 
             lock (_ringLock)
             {
-                // Consume stereo pairs (L, R) from the ring.
-                // NES is mono so L == R in the ring; we read L, discard R,
-                // and let the processor produce the filtered (L, R) output pair.
                 while (i + 1 < shortCount && _ringBuffer.TryDequeueMonoL(out short rawL))
                 {
                     var (filtL, filtR) = proc.Process(rawL);
@@ -150,7 +155,6 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
             }
         }
 
-        // Fill remainder with silence
         while (i < shortCount)
         {
             buffer[offset + i * 2]     = 0;
@@ -166,20 +170,24 @@ internal sealed class AudioPlayer : IWaveProvider, IDisposable
         _paused = paused;
         if (paused)
         {
-            // Drain buffer so we don't play stale audio on resume
+            if (_audioStream != IntPtr.Zero) SDL.PauseAudioStreamDevice(_audioStream);
+
             lock (_ringLock)
                 _ringBuffer.Drain();
 
-            // Reset processor state so the first sample after resume starts clean.
-            // Without this, a large DC offset in the filter memory would cause a pop.
             _processor.ResetState();
             _eq.ResetState();
+        }
+        else
+        {
+            if (_audioStream != IntPtr.Zero) SDL.ResumeAudioStreamDevice(_audioStream);
         }
     }
 
     public void Dispose()
     {
-        _device?.Stop();
-        _device?.Dispose();
+        if (_audioStream == IntPtr.Zero) return;
+        SDL.DestroyAudioStream(_audioStream);
+        _audioStream = IntPtr.Zero;
     }
 }

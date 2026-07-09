@@ -1,49 +1,20 @@
-using System.Runtime.InteropServices;
+using SDL3;
 
 namespace NEShim.Input;
 
 /// <summary>
-/// Minimal P/Invoke wrapper for XInput. Uses xinput1_4.dll (present on Windows 8+).
+/// Provides cross-platform gamepad state via the SDL3 gamepad API.
+/// Wraps SDL_GetGamepadButton / SDL_GetGamepadAxis into the same GamepadState
+/// data contract that XInputSource and InputManager depend on for polling.
+/// <para>
+/// Axis convention note: SDL3 LeftY is -32768 (up) .. 32767 (down). ThumbLY is negated
+/// so that positive values map to "up", matching the XInput convention that
+/// AnalogStickHelper and all config bindings expect.
+/// </para>
 /// </summary>
 internal static class XInputHelper
 {
-    private const uint ERROR_DEVICE_NOT_CONNECTED = 1167;
-
-    [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
-    private static extern uint XInputGetState(uint dwUserIndex, out XINPUT_STATE pState);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct XINPUT_STATE
-    {
-        public uint dwPacketNumber;
-        public XINPUT_GAMEPAD Gamepad;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct XINPUT_GAMEPAD
-    {
-        public ushort wButtons;
-        public byte bLeftTrigger;
-        public byte bRightTrigger;
-        public short sThumbLX;
-        public short sThumbLY;
-    }
-
-    // wButtons bitmask values
-    private const ushort XINPUT_GAMEPAD_DPAD_UP        = 0x0001;
-    private const ushort XINPUT_GAMEPAD_DPAD_DOWN       = 0x0002;
-    private const ushort XINPUT_GAMEPAD_DPAD_LEFT       = 0x0004;
-    private const ushort XINPUT_GAMEPAD_DPAD_RIGHT      = 0x0008;
-    private const ushort XINPUT_GAMEPAD_START           = 0x0010;
-    private const ushort XINPUT_GAMEPAD_BACK            = 0x0020;
-    private const ushort XINPUT_GAMEPAD_LEFT_THUMB      = 0x0040;
-    private const ushort XINPUT_GAMEPAD_RIGHT_THUMB     = 0x0080;
-    private const ushort XINPUT_GAMEPAD_LEFT_SHOULDER   = 0x0100;
-    private const ushort XINPUT_GAMEPAD_RIGHT_SHOULDER  = 0x0200;
-    private const ushort XINPUT_GAMEPAD_A               = 0x1000;
-    private const ushort XINPUT_GAMEPAD_B               = 0x2000;
-    private const ushort XINPUT_GAMEPAD_X               = 0x4000;
-    private const ushort XINPUT_GAMEPAD_Y               = 0x8000;
+    private static IntPtr _gamepad = IntPtr.Zero;
 
     public struct GamepadState
     {
@@ -58,30 +29,28 @@ internal static class XInputHelper
 
     public static GamepadState GetState(uint userIndex = 0)
     {
-        uint result = XInputGetState(userIndex, out var state);
-        if (result == ERROR_DEVICE_NOT_CONNECTED)
-            return default; // Connected = false
+        IntPtr pad = EnsureGamepadOpen(userIndex);
+        if (pad == IntPtr.Zero) return default;
 
-        ushort buttons = state.Gamepad.wButtons;
         return new GamepadState
         {
-            Connected      = true,
-            DPadUp         = (buttons & XINPUT_GAMEPAD_DPAD_UP)       != 0,
-            DPadDown       = (buttons & XINPUT_GAMEPAD_DPAD_DOWN)      != 0,
-            DPadLeft       = (buttons & XINPUT_GAMEPAD_DPAD_LEFT)      != 0,
-            DPadRight      = (buttons & XINPUT_GAMEPAD_DPAD_RIGHT)     != 0,
-            Start          = (buttons & XINPUT_GAMEPAD_START)          != 0,
-            Back           = (buttons & XINPUT_GAMEPAD_BACK)           != 0,
-            LeftShoulder   = (buttons & XINPUT_GAMEPAD_LEFT_SHOULDER)  != 0,
-            RightShoulder  = (buttons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0,
-            LeftThumb      = (buttons & XINPUT_GAMEPAD_LEFT_THUMB)     != 0,
-            RightThumb     = (buttons & XINPUT_GAMEPAD_RIGHT_THUMB)    != 0,
-            A              = (buttons & XINPUT_GAMEPAD_A)              != 0,
-            B              = (buttons & XINPUT_GAMEPAD_B)              != 0,
-            X              = (buttons & XINPUT_GAMEPAD_X)              != 0,
-            Y              = (buttons & XINPUT_GAMEPAD_Y)              != 0,
-            ThumbLX        = state.Gamepad.sThumbLX,
-            ThumbLY        = state.Gamepad.sThumbLY,
+            Connected     = true,
+            DPadUp        = SDL.GetGamepadButton(pad, SDL.GamepadButton.DPadUp),
+            DPadDown      = SDL.GetGamepadButton(pad, SDL.GamepadButton.DPadDown),
+            DPadLeft      = SDL.GetGamepadButton(pad, SDL.GamepadButton.DPadLeft),
+            DPadRight     = SDL.GetGamepadButton(pad, SDL.GamepadButton.DPadRight),
+            Start         = SDL.GetGamepadButton(pad, SDL.GamepadButton.Start),
+            Back          = SDL.GetGamepadButton(pad, SDL.GamepadButton.Back),
+            LeftShoulder  = SDL.GetGamepadButton(pad, SDL.GamepadButton.LeftShoulder),
+            RightShoulder = SDL.GetGamepadButton(pad, SDL.GamepadButton.RightShoulder),
+            LeftThumb     = SDL.GetGamepadButton(pad, SDL.GamepadButton.LeftStick),
+            RightThumb    = SDL.GetGamepadButton(pad, SDL.GamepadButton.RightStick),
+            A             = SDL.GetGamepadButton(pad, SDL.GamepadButton.South),
+            B             = SDL.GetGamepadButton(pad, SDL.GamepadButton.East),
+            X             = SDL.GetGamepadButton(pad, SDL.GamepadButton.West),
+            Y             = SDL.GetGamepadButton(pad, SDL.GamepadButton.North),
+            ThumbLX       = SDL.GetGamepadAxis(pad, SDL.GamepadAxis.LeftX),
+            ThumbLY       = (short)-SDL.GetGamepadAxis(pad, SDL.GamepadAxis.LeftY),
         };
     }
 
@@ -107,5 +76,27 @@ internal static class XInputHelper
             "Y"             => state.Y,
             _ => false,
         };
+    }
+
+    internal static void Dispose()
+    {
+        if (_gamepad == IntPtr.Zero) return;
+        SDL.CloseGamepad(_gamepad);
+        _gamepad = IntPtr.Zero;
+    }
+
+    private static IntPtr EnsureGamepadOpen(uint userIndex)
+    {
+        if (_gamepad != IntPtr.Zero && SDL.GamepadConnected(_gamepad))
+            return _gamepad;
+
+        if (_gamepad != IntPtr.Zero) { SDL.CloseGamepad(_gamepad); _gamepad = IntPtr.Zero; }
+
+        var ids = SDL.GetGamepads(out int count);
+        if (ids is null || count == 0) return IntPtr.Zero;
+
+        uint targetId = userIndex < (uint)count ? ids[userIndex] : ids[0];
+        _gamepad = SDL.OpenGamepad(targetId);
+        return _gamepad;
     }
 }
