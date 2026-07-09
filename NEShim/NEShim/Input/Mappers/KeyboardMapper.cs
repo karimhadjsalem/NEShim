@@ -25,7 +25,7 @@ internal sealed class KeyboardMapper : IInputMapper
         foreach (var (nesButton, binding) in config.InputMappings)
         {
             if (binding.Key is null) continue;
-            if (!Enum.TryParse<SDL.Keycode>(binding.Key, ignoreCase: true, out var key)) continue;
+            if (!KeycodeParser.TryParse(binding.Key, out var key)) continue;
             if (pressedKeys.Contains(key))
                 target.Add(nesButton);
         }

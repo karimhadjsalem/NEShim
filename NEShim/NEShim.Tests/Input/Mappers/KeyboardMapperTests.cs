@@ -118,6 +118,17 @@ internal class KeyboardMapperTests
     }
 
     [Test]
+    public void Map_LegacyEnterKeyName_MappedAsReturn()
+    {
+        // Old WinForms configs store "Enter"; SDL3 calls the same key "Return".
+        // KeycodeParser adapts the config name so the binding still fires.
+        _config.InputMappings["P1 Start"] = new InputBinding("Enter", null);
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "Return" }, _config, builder);
+        Assert.That(builder.Contains("P1 Start"), Is.True);
+    }
+
+    [Test]
     public void ParseKey_CommonMovementKeys_ParseCorrectly()
     {
         foreach (var key in new[] { "Up", "Down", "Left", "Right", "Space", "Escape" })

@@ -155,7 +155,7 @@ internal sealed class InputManager : IInputReader
         // Keyboard hotkeys
         foreach (var (action, keyName) in config.HotkeyMappings)
         {
-            if (!Enum.TryParse<SDL.Keycode>(keyName, out var key)) continue;
+            if (!KeycodeParser.TryParse(keyName, out var key)) continue;
             if (curr.Contains(key) && !_prevHotkeyKeys.Contains(key))
                 HotkeyFired?.Invoke(action);
         }
