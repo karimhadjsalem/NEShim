@@ -16,7 +16,7 @@
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
           <Include>[NEShim]*</Include>
-          <Exclude>[NEShim]NEShim.Rendering.SDL3PaintContext,[NEShim]NEShim.UI.MenuRenderer,[NEShim]NEShim.UI.MainMenuRenderer,[NEShim]NEShim.Rendering.OverlayRenderer,[NEShim]NEShim.Rendering.SdlSurfaceLoader,[NEShim]NEShim.Localization.FlagImageLoader,[NEShim]NEShim.Audio.AudioFileReaderSource</Exclude>
+          <Exclude>[NEShim]NEShim.Rendering.SDL3PaintContext,[NEShim]NEShim.Rendering.ControllerSprites,[NEShim]NEShim.UI.MenuRenderer,[NEShim]NEShim.UI.MainMenuRenderer,[NEShim]NEShim.Rendering.OverlayRenderer,[NEShim]NEShim.Rendering.SdlSurfaceLoader,[NEShim]NEShim.Localization.FlagImageLoader,[NEShim]NEShim.Audio.AudioFileReaderSource</Exclude>
         </Configuration>
       </DataCollector>
     </DataCollectors>

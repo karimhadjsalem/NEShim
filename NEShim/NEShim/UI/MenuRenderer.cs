@@ -225,14 +225,14 @@ internal static class MenuRenderer
 
     private static void DrawControllerSprite(SDL3PaintContext ctx, SDL.FRect area, string? activeButton, string label, string fontFamily)
     {
-        IntPtr sprite = ControllerSprites.Get(activeButton);
         float ctrlW = area.W;
         float ctrlH = ctrlW / ControllerAspect;
         if (ctrlH > area.H) { ctrlH = area.H; ctrlW = ctrlH * ControllerAspect; }
         float ox = area.X + (area.W - ctrlW) * 0.5f;
         float oy = area.Y + (area.H - ctrlH) * 0.5f;
         var ctrlRect = new SDL.Rect { X = (int)ox, Y = (int)oy, W = (int)ctrlW, H = (int)ctrlH };
-        ctx.BlitSurface(sprite, null, ctrlRect);
+        ctx.BlitSurface(ControllerSprites.Base, null, ctrlRect);
+        ControllerSprites.DrawHighlight(ctx, ctrlRect, activeButton);
 
         float labelGap = oy - area.Y;
         if (labelGap >= 12f)

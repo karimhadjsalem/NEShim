@@ -4,61 +4,79 @@ using SDL3;
 namespace NEShim.Rendering;
 
 /// <summary>
-/// Provides pre-rendered NES controller PNG sprites loaded from embedded resources.
-/// One SDL surface per highlight state (none + 8 button names).
+/// Provides the base NES controller surface and draws per-button highlights at runtime.
+/// One SDL surface for the base image; highlights are drawn over it by <see cref="DrawHighlight"/>.
 /// </summary>
 internal static class ControllerSprites
 {
-    private static readonly IntPtr[] _surfaces = LoadAll();
+    private static IntPtr _base = LoadBase();
 
-    internal static int GetVariantIndex(string? activeButton) => activeButton switch
+    private static readonly SDL.Color HighlightColor = new() { R = 55, G = 110, B = 195, A = 190 };
+
+    internal static IntPtr Base => _base;
+
+    internal static void DrawHighlight(SDL3PaintContext ctx, SDL.Rect ctrlRect, string? activeButton)
     {
-        "P1 Up"     => 1,
-        "P1 Down"   => 2,
-        "P1 Left"   => 3,
-        "P1 Right"  => 4,
-        "P1 A"      => 5,
-        "P1 B"      => 6,
-        "P1 Start"  => 7,
-        "P1 Select" => 8,
-        _           => 0,
-    };
+        if (activeButton is null) return;
 
-    internal static IntPtr Get(string? activeButton) => _surfaces[GetVariantIndex(activeButton)];
+        float aw = ctrlRect.W, ah = ctrlRect.H;
+        float ox = ctrlRect.X, oy = ctrlRect.Y;
 
-    internal static void Dispose()
-    {
-        for (int i = 0; i < _surfaces.Length; i++)
+        float dcx  = ox + 0.173f * aw, dcy  = oy + 0.500f * ah;
+        float armT = 0.058f * aw,      armL = 0.090f * aw;
+        float pad  = 0.010f * aw,      halfT = armT * 0.5f;
+
+        float cpX   = ox + 0.356f * aw,  cpW  = 0.258f * aw;
+        float baseY = oy + 0.622f * ah;
+        float pillY = baseY - 0.035f * ah + 0.188f * ah * 0.33f;
+        float pillW = 0.090f * aw,        pillH = 0.070f * ah;
+        float selCx = cpX + cpW * 0.25f,  staCx = cpX + cpW * 0.75f;
+
+        float btnR = 0.048f * aw;
+        float bcx  = ox + 0.722f * aw, bcy = oy + 0.636f * ah;
+        float acx  = ox + 0.862f * aw, acy = oy + 0.636f * ah;
+
+        switch (activeButton)
         {
-            if (_surfaces[i] != IntPtr.Zero)
-                SDL.DestroySurface(_surfaces[i]);
-            _surfaces[i] = IntPtr.Zero;
+            case "P1 Up":
+                ctx.FillRect(new SDL.FRect { X = dcx - halfT - pad, Y = dcy - armL - pad, W = armT + 2f * pad, H = armL - halfT + 2f * pad }, HighlightColor);
+                break;
+            case "P1 Down":
+                ctx.FillRect(new SDL.FRect { X = dcx - halfT - pad, Y = dcy + halfT - pad, W = armT + 2f * pad, H = armL - halfT + 2f * pad }, HighlightColor);
+                break;
+            case "P1 Left":
+                ctx.FillRect(new SDL.FRect { X = dcx - armL - pad, Y = dcy - halfT - pad, W = armL - halfT + 2f * pad, H = armT + 2f * pad }, HighlightColor);
+                break;
+            case "P1 Right":
+                ctx.FillRect(new SDL.FRect { X = dcx + halfT - pad, Y = dcy - halfT - pad, W = armL - halfT + 2f * pad, H = armT + 2f * pad }, HighlightColor);
+                break;
+            case "P1 Select":
+                ctx.FillRect(new SDL.FRect { X = selCx - pillW * 0.5f - pad, Y = pillY - pillH * 0.33f, W = pillW + 2f * pad, H = pillH + 2f * pad }, HighlightColor);
+                break;
+            case "P1 Start":
+                ctx.FillRect(new SDL.FRect { X = staCx - pillW * 0.5f - pad, Y = pillY - pillH * 0.33f, W = pillW + 2f * pad, H = pillH + 2f * pad }, HighlightColor);
+                break;
+            case "P1 B":
+                ctx.FillEllipse(bcx, bcy, btnR + pad, btnR + pad, HighlightColor);
+                break;
+            case "P1 A":
+                ctx.FillEllipse(acx, acy, btnR + pad, btnR + pad, HighlightColor);
+                break;
         }
     }
 
-    private static IntPtr[] LoadAll()
+    internal static void Dispose()
     {
-        string[] resourceNames =
-        [
-            "NEShim.Assets.controllers.controller_none.png",
-            "NEShim.Assets.controllers.controller_p1_up.png",
-            "NEShim.Assets.controllers.controller_p1_down.png",
-            "NEShim.Assets.controllers.controller_p1_left.png",
-            "NEShim.Assets.controllers.controller_p1_right.png",
-            "NEShim.Assets.controllers.controller_p1_a.png",
-            "NEShim.Assets.controllers.controller_p1_b.png",
-            "NEShim.Assets.controllers.controller_p1_start.png",
-            "NEShim.Assets.controllers.controller_p1_select.png",
-        ];
+        if (_base != IntPtr.Zero)
+            SDL.DestroySurface(_base);
+        _base = IntPtr.Zero;
+    }
 
-        var assembly = Assembly.GetExecutingAssembly();
-        var result = new IntPtr[resourceNames.Length];
-        for (int i = 0; i < resourceNames.Length; i++)
-        {
-            using var stream = assembly.GetManifestResourceStream(resourceNames[i])
-                ?? throw new InvalidOperationException($"Embedded resource not found: {resourceNames[i]}");
-            result[i] = SdlSurfaceLoader.LoadFromStream(stream);
-        }
-        return result;
+    private static IntPtr LoadBase()
+    {
+        const string resourceName = "NEShim.Assets.controllers.controller_none.png";
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");
+        return SdlSurfaceLoader.LoadFromStream(stream);
     }
 }

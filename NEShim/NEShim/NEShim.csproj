@@ -36,30 +36,6 @@
         <EmbeddedResource Include="Assets\controllers\controller_none.png">
             <LogicalName>NEShim.Assets.controllers.controller_none.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_up.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_up.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_down.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_down.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_left.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_left.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_right.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_right.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_a.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_a.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_b.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_b.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_start.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_start.png</LogicalName>
-        </EmbeddedResource>
-        <EmbeddedResource Include="Assets\controllers\controller_p1_select.png">
-            <LogicalName>NEShim.Assets.controllers.controller_p1_select.png</LogicalName>
-        </EmbeddedResource>
         <EmbeddedResource Include="Assets\flags\english.png">
             <LogicalName>NEShim.Assets.flags.english.png</LogicalName>
         </EmbeddedResource>

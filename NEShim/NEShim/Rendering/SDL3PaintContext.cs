@@ -59,6 +59,20 @@ internal sealed class SDL3PaintContext
         SDL.RenderLine(_renderer, x1, y1, x2, y2);
     }
 
+    internal void FillEllipse(float cx, float cy, float rx, float ry, SDL.Color color)
+    {
+        SetRenderColor(color);
+        int iRy = (int)MathF.Ceiling(ry);
+        for (int dy = -iRy; dy <= iRy; dy++)
+        {
+            float t = dy / ry;
+            if (t * t >= 1f) continue;
+            float halfW = rx * MathF.Sqrt(1f - t * t);
+            var row = new SDL.FRect { X = cx - halfW, Y = cy + dy, W = halfW * 2f, H = 1f };
+            SDL.RenderFillRect(_renderer, ref row);
+        }
+    }
+
     // ---- Text ----
 
     internal (float w, float h) MeasureText(string text, string fontFamily, float ptSize, bool bold, bool italic = false)
