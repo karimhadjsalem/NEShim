@@ -767,31 +767,40 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         if (surface == IntPtr.Zero) return;
 
-        SDL.Surface* surf = (SDL.Surface*)surface;
-        int surfW = surf->Width;
-        int surfH = surf->Height;
-        if (surfW <= 0 || surfH <= 0) return;
+        // Image.Load returns the PNG in whatever format the decoder chooses (often RGBA8888
+        // on Windows). Convert to ARGB8888 so the pixel bytes land as [B,G,R,A] in memory,
+        // matching B8G8R8A8_UNorm that D3D11 expects. Without this, red and blue are swapped.
+        IntPtr converted = SDL.ConvertSurface(surface, SDL.PixelFormat.ARGB8888);
+        if (converted == IntPtr.Zero) return;
 
-        if (surf->Pixels == IntPtr.Zero) return;
+        try
+        {
+            SDL.Surface* surf = (SDL.Surface*)converted;
+            int surfW = surf->Width;
+            int surfH = surf->Height;
+            if (surfW <= 0 || surfH <= 0 || surf->Pixels == IntPtr.Zero) return;
 
-        surfaceSize = (surfW, surfH);
-        int srcStride = surf->Pitch;
-        // SDL ARGB8888 stores [B,G,R,A] — same layout as B8G8R8A8_UNorm, no byte-swap needed.
-        var initData = new SubresourceData(surf->Pixels, (uint)srcStride, 0);
-        tex = _device.CreateTexture2D(
-            new Texture2DDescription
-            {
-                Width             = (uint)surfW,
-                Height            = (uint)surfH,
-                MipLevels         = 1,
-                ArraySize         = 1,
-                Format            = Format.B8G8R8A8_UNorm,
-                SampleDescription = new SampleDescription(1, 0),
-                Usage             = ResourceUsage.Immutable,
-                BindFlags         = BindFlags.ShaderResource,
-            },
-            new[] { initData });
-        srv = _device.CreateShaderResourceView(tex);
+            surfaceSize = (surfW, surfH);
+            var initData = new SubresourceData(surf->Pixels, (uint)surf->Pitch, 0);
+            tex = _device.CreateTexture2D(
+                new Texture2DDescription
+                {
+                    Width             = (uint)surfW,
+                    Height            = (uint)surfH,
+                    MipLevels         = 1,
+                    ArraySize         = 1,
+                    Format            = Format.B8G8R8A8_UNorm,
+                    SampleDescription = new SampleDescription(1, 0),
+                    Usage             = ResourceUsage.Immutable,
+                    BindFlags         = BindFlags.ShaderResource,
+                },
+                new[] { initData });
+            srv = _device.CreateShaderResourceView(tex);
+        }
+        finally
+        {
+            SDL.DestroySurface(converted);
+        }
     }
 
     // ---- Overlay rendering (scene + FPS, toast, achievement) ---------------------------
