@@ -141,6 +141,64 @@
             <LogicalName>NEShim.Rendering.Shaders.PictureAdjust.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
+        <!-- SPIR-V bytecode for SDL_GPU path (Vulkan/Linux, Metal/macOS).
+             Compiled from Shaders/Gpu/*.hlsl by the CompileSpirvShaders target below
+             using the standalone DXC from the Microsoft.Direct3D.DXC NuGet package.
+             Pre-compiled .spv files are checked in so builds work without DXC available. -->
+        <None Include="Rendering\Shaders\Gpu\Passthrough.vs.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\Passthrough.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\CrtScanlines.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\CrtPhosphor.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\CrtScreen.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\Jinc2.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\Xbr.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\MagneticDistortion.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\PhosphorPersistence.ps.hlsl" />
+        <None Include="Rendering\Shaders\Gpu\PictureAdjust.ps.hlsl" />
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\Passthrough.vs.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.Passthrough.vs.spv</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\Passthrough.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.Passthrough.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtScanlines.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtScanlines.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtPhosphor.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtPhosphor.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\NtscComposite.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.NtscComposite.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtScreen.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtScreen.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\Jinc2.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.Jinc2.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\Xbr.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.Xbr.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\MagneticDistortion.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.MagneticDistortion.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\PhosphorPersistence.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.PhosphorPersistence.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Gpu\PictureAdjust.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Gpu.PictureAdjust.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
     </ItemGroup>
 
     <!-- Compile HLSL shaders to DXBC bytecode before building.
@@ -206,6 +264,63 @@
         <Exec Command="&quot;$(_FxcPath)&quot; /nologo /T ps_5_0 /E main /Fo &quot;$(_ShaderDir)\PictureAdjust.ps.cso&quot; &quot;$(_ShaderDir)\PictureAdjust.ps.hlsl&quot;"
               CustomErrorRegularExpression="error X"
               Condition="'$(_SkipShaderCompile)' != 'true'" />
+    </Target>
+
+    <!-- Compile SDL_GPU HLSL shaders to SPIR-V for the Vulkan/Linux and Metal/macOS render paths.
+         Requires dxc.exe from the Microsoft.Direct3D.DXC NuGet package (standalone DXC with SPIR-V
+         codegen enabled — the Windows SDK dxc.exe lacks SPIR-V support).
+         Pre-compiled .spv files are checked in and used when DXC is not found. -->
+    <Target Name="CompileSpirvShaders" BeforeTargets="CoreCompile"
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.vs.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScanlines.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtPhosphor.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\NtscComposite.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScreen.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Jinc2.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Xbr.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\MagneticDistortion.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PhosphorPersistence.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PictureAdjust.ps.spv">
+        <PropertyGroup>
+            <!-- Prefer the standalone DXC from the Microsoft.Direct3D.DXC NuGet package
+                 (must be restored via "dotnet restore" or by adding it as a PackageReference).
+                 The NuGet package is NOT referenced directly in this project to avoid adding a
+                 runtime dependency — it is a build-time-only tool. Restore it in a side project
+                 or with "dotnet restore" against a packages.lock.json to get the DXC path. -->
+            <_SpirvDxcPath Condition="Exists('$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe')">$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe</_SpirvDxcPath>
+            <_SpirvDxcFoundAtKnownPath Condition="'$(_SpirvDxcPath)' != ''">true</_SpirvDxcFoundAtKnownPath>
+            <_SpirvGpuDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu</_SpirvGpuDir>
+            <!-- Skip recompilation when DXC is not available and pre-compiled SPVs already exist. -->
+            <_SkipSpirvCompile Condition="'$(_SpirvDxcFoundAtKnownPath)' != 'true' And Exists('$(_SpirvGpuDir)\Passthrough.ps.spv') And Exists('$(_SpirvGpuDir)\CrtScanlines.ps.spv')">true</_SkipSpirvCompile>
+        </PropertyGroup>
+        <Message Text="[CompileSpirvShaders] DXC with SPIR-V support not found — using pre-compiled SPVs from source control."
+                 Condition="'$(_SkipSpirvCompile)' == 'true'"
+                 Importance="High" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T vs_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Passthrough.vs.spv&quot; &quot;$(_SpirvGpuDir)\Passthrough.vs.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Passthrough.ps.spv&quot; &quot;$(_SpirvGpuDir)\Passthrough.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtScanlines.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtScanlines.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtPhosphor.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtPhosphor.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\NtscComposite.ps.spv&quot; &quot;$(_SpirvGpuDir)\NtscComposite.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtScreen.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtScreen.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Jinc2.ps.spv&quot; &quot;$(_SpirvGpuDir)\Jinc2.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Xbr.ps.spv&quot; &quot;$(_SpirvGpuDir)\Xbr.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\MagneticDistortion.ps.spv&quot; &quot;$(_SpirvGpuDir)\MagneticDistortion.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\PhosphorPersistence.ps.spv&quot; &quot;$(_SpirvGpuDir)\PhosphorPersistence.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\PictureAdjust.ps.spv&quot; &quot;$(_SpirvGpuDir)\PictureAdjust.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
     </Target>
 
     <ItemGroup>
