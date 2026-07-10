@@ -13,14 +13,16 @@
 
     <ItemGroup>
         <PackageReference Include="SDL3-CS" Version="3.*" />
+        <PackageReference Include="SDL3-CS.MacOS" Version="3.4.12" />
+        <PackageReference Include="SDL3-CS.MacOS.Image" Version="3.4.4.5" />
         <!-- Windows: SDL3 native DLL bundles -->
         <PackageReference Include="SDL3-CS.Windows" Version="3.*" Condition="'$(OS)' == 'Windows_NT'" />
         <PackageReference Include="SDL3-CS.Windows.TTF" Version="3.*" Condition="'$(OS)' == 'Windows_NT'" />
         <PackageReference Include="SDL3-CS.Windows.Image" Version="3.*" Condition="'$(OS)' == 'Windows_NT'" />
         <!-- Linux: SDL3 native .so bundles -->
-        <PackageReference Include="SDL3-CS.Linux" Version="3.*" Condition="'$(OS)' != 'Windows_NT'" />
+        <PackageReference Include="SDL3-CS.Linux" Version="3.4.12" Condition="'$(OS)' != 'Windows_NT'" />
         <PackageReference Include="SDL3-CS.Linux.TTF" Version="3.*" Condition="'$(OS)' != 'Windows_NT'" />
-        <PackageReference Include="SDL3-CS.Linux.Image" Version="3.*" Condition="'$(OS)' != 'Windows_NT'" />
+        <PackageReference Include="SDL3-CS.Linux.Image" Version="3.4.4.5" Condition="'$(OS)' != 'Windows_NT'" />
         <!-- D3D11 renderer (Windows-only) -->
         <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" Condition="'$(OS)' == 'Windows_NT'" />
         <Reference Include="Steamworks.NET">
