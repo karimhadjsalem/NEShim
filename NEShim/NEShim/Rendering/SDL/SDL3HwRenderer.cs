@@ -77,6 +77,9 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     internal SDL3HwRenderer(IntPtr sdlWindow, int nesWidth, int nesHeight)
     {
+        if (sdlWindow == IntPtr.Zero)
+            throw new ArgumentException("SDL window handle must be non-zero.", nameof(sdlWindow));
+
         _nesWidth  = nesWidth;
         _nesHeight = nesHeight;
 
