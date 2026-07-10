@@ -11,7 +11,7 @@ internal sealed class NtscCompositeSdlFilter : ISdlFilter
     public float           PixelAspectRatio        => NesPixelAspect;
     public string?         PixelShaderResourceName => "NEShim.Rendering.Shaders.Vulkan.NtscComposite.ps.spv";
 
-    public void NotifyFrame(int frameCount) => _frameParity = frameCount & 1;
+    public void NotifyFrame(long frameCount) => _frameParity = (int)(frameCount & 1);
 
     public void WriteUniformData(Span<float> buffer, int nesWidth, int nesHeight)
     {

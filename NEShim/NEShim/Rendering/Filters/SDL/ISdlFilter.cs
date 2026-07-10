@@ -32,5 +32,5 @@ internal interface ISdlFilter
     /// </summary>
     void WriteUniformData(Span<float> buffer, int nesWidth, int nesHeight) { }
 
-    void NotifyFrame(int frameCount) { }
+    void NotifyFrame(long frameCount) { }
 }

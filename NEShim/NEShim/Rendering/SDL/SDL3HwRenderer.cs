@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using SDL3;
 using NEShim.Rendering.Filters;
+using NEShim.Rendering.MotionEffects;
 
 namespace NEShim.Rendering;
 
@@ -60,7 +61,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private ISdlFilter     _activeFilter      = new PixelPerfectSdlFilter();
     private SdlGpuRenderState? _filterRenderState;
     private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
-    private int   _frameCount;
+    private long  _frameCount;
+
+    // Active motion effect state
+    private IMotionEffect      _activeMotionEffect      = new NoneMotionEffect();
+    private SdlGpuRenderState? _motionEffectRenderState;
+    private IntPtr             _motionEffectTexture;
+    private bool               _hasShaderMotionEffect;
 
     // Picture adjust state
     private float _brightness;
@@ -229,12 +236,32 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         int displayHeight = _contentHeight - overscanTop * 2;
         var src = new SDL.FRect { X = 0, Y = overscanTop, W = _contentWidth, H = displayHeight };
 
-        _activeFilter.NotifyFrame(_frameCount++);
+        long frame = _frameCount++;
+        _activeFilter.NotifyFrame(frame);
 
-        if (_hasPictureAdjust && _pictureAdjustTexture != IntPtr.Zero && _pictureAdjustRenderState is not null)
-            DrawNesFrameTwoPass(src, dest);
-        else
-            DrawNesFrameDirect(src, dest);
+        // Apply CPU-space offset from the motion effect (converts clip-space dx/dy to pixels).
+        var (offsetDx, offsetDy) = _activeMotionEffect.GetFrameOffset(frame);
+        if (offsetDx != 0f || offsetDy != 0f)
+            dest = new SDL.FRect
+            {
+                X = dest.X + offsetDx * _viewportWidth  / 2f,
+                Y = dest.Y + offsetDy * _viewportHeight / 2f,
+                W = dest.W,
+                H = dest.H,
+            };
+
+        bool hasPa = _hasPictureAdjust
+                  && _pictureAdjustTexture    != IntPtr.Zero
+                  && _pictureAdjustRenderState is not null;
+        bool hasMeShader = _hasShaderMotionEffect
+                        && _motionEffectTexture    != IntPtr.Zero
+                        && _motionEffectRenderState is not null
+                        && _motionEffectRenderState.IsValid;
+
+        if      (hasMeShader && hasPa) DrawNesFrameThreePass(src, dest);
+        else if (hasMeShader)          DrawNesFrameWithMotionEffect(src, dest);
+        else if (hasPa)                DrawNesFrameTwoPass(src, dest);
+        else                           DrawNesFrameDirect(src, dest);
     }
 
     private void DrawNesFrameDirect(SDL.FRect src, SDL.FRect dest)
@@ -250,28 +277,81 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.SetRenderTarget(_sdlRenderer, _pictureAdjustTexture);
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
         SDL.RenderClear(_sdlRenderer);
-
-        int texW = _viewportWidth;
-        int texH = _viewportHeight;
-        var texDest = new SDL.FRect { X = dest.X, Y = dest.Y, W = dest.W, H = dest.H };
         ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref texDest);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
         _filterRenderState?.Clear();
-
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
         // Pass 2: intermediate texture + picture-adjust shader → screen.
-        var uniforms = new float[UniformFloats];
+        ApplyPictureAdjustPass(_pictureAdjustTexture);
+    }
+
+    private void DrawNesFrameWithMotionEffect(SDL.FRect src, SDL.FRect dest)
+    {
+        // Pass 1: NES texture + filter shader → motion-effect intermediate.
+        SDL.SetRenderTarget(_sdlRenderer, _motionEffectTexture);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+        ApplyFilterRenderState();
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        _filterRenderState?.Clear();
+        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+
+        // Pass 2: motion-effect intermediate + ME shader → screen.
+        ApplyMotionEffectRenderState();
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, ref fullRect, ref fullRect);
+        _motionEffectRenderState!.Clear();
+    }
+
+    private void DrawNesFrameThreePass(SDL.FRect src, SDL.FRect dest)
+    {
+        // Pass 1: NES texture + filter shader → motion-effect intermediate.
+        SDL.SetRenderTarget(_sdlRenderer, _motionEffectTexture);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+        ApplyFilterRenderState();
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        _filterRenderState?.Clear();
+        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+
+        // Pass 2: motion-effect intermediate + ME shader → picture-adjust intermediate.
+        SDL.SetRenderTarget(_sdlRenderer, _pictureAdjustTexture);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+        ApplyMotionEffectRenderState();
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, ref fullRect, ref fullRect);
+        _motionEffectRenderState!.Clear();
+        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+
+        // Pass 3: picture-adjust intermediate + PA shader → screen.
+        ApplyPictureAdjustPass(_pictureAdjustTexture);
+    }
+
+    private void ApplyPictureAdjustPass(IntPtr sourceTexture)
+    {
+        Span<float> uniforms = stackalloc float[UniformFloats];
         uniforms[0] = _brightness;
         uniforms[1] = _contrast;
         uniforms[2] = _saturation;
         uniforms[3] = _hue;
         _pictureAdjustRenderState!.Apply(uniforms);
-
-        var fullSrc  = new SDL.FRect { X = 0, Y = 0, W = texW, H = texH };
-        var fullDest = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _pictureAdjustTexture, ref fullSrc, ref fullDest);
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, sourceTexture, ref fullRect, ref fullRect);
         _pictureAdjustRenderState!.Clear();
+    }
+
+    private void ApplyMotionEffectRenderState()
+    {
+        if (_motionEffectRenderState is null || !_motionEffectRenderState.IsValid) return;
+        SDL.SetTextureScaleMode(_motionEffectTexture,
+            (_activeMotionEffect is ISdlMotionEffect sdlEffect && sdlEffect.UseLinearSampler)
+                ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+        Span<float> uniforms = stackalloc float[UniformFloats];
+        _activeMotionEffect.WriteShaderParams(uniforms, _contentWidth, _contentHeight);
+        uniforms[3] = (float)_activeColorMode;
+        _motionEffectRenderState.Apply(uniforms);
     }
 
     private void ApplyFilterRenderState()
@@ -368,6 +448,8 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _viewportHeight = Math.Max(height, 1);
         CreateOverlayResources();
         SyncPictureAdjustTexture();
+        SyncMotionEffectTexture();
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
         Logger.Log($"[SDL3HwRenderer] Resized to {_viewportWidth}×{_viewportHeight}.");
     }
 
@@ -420,12 +502,39 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetColorFilter(VideoColorFilterMode mode) => _activeColorMode = mode;
 
-    public void SetMotionEffect(VideoMotionEffectMode mode) { }
+    public void SetMotionEffect(VideoMotionEffectMode mode)
+    {
+        _motionEffectRenderState?.Dispose();
+        _motionEffectRenderState = null;
+        _hasShaderMotionEffect   = false;
+        _activeMotionEffect      = SdlMotionEffectFactory.Create(mode);
+        _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
+
+        if (_isGpuRenderer
+            && _activeMotionEffect is ISdlMotionEffect sdlEffect
+            && sdlEffect.SpvResourceName is { } spvName)
+        {
+            _hasShaderMotionEffect = true;
+            SyncMotionEffectTexture();
+            _motionEffectRenderState = new SdlGpuRenderState(
+                _sdlRenderer, _gpuDevice,
+                spvName,
+                sdlEffect.NumFragmentSamplers,
+                sdlEffect.NumFragmentUniformBuffers);
+        }
+        else
+        {
+            SyncMotionEffectTexture();
+        }
+    }
 
     public void Dispose()
     {
         _filterRenderState?.Dispose();
         _filterRenderState = null;
+        _motionEffectRenderState?.Dispose();
+        _motionEffectRenderState = null;
+        if (_motionEffectTexture  != IntPtr.Zero) { SDL.DestroyTexture(_motionEffectTexture);  _motionEffectTexture  = IntPtr.Zero; }
         _pictureAdjustRenderState?.Dispose();
         _pictureAdjustRenderState = null;
         if (_pictureAdjustTexture != IntPtr.Zero) { SDL.DestroyTexture(_pictureAdjustTexture); _pictureAdjustTexture = IntPtr.Zero; }
@@ -463,6 +572,18 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         }
         // Blend so transparent pixels outside the letterbox don't overwrite sidebar textures.
         SDL.SetTextureBlendMode(_pictureAdjustTexture, SDL.BlendMode.Blend);
+    }
+
+    private void SyncMotionEffectTexture()
+    {
+        if (_motionEffectTexture != IntPtr.Zero) { SDL.DestroyTexture(_motionEffectTexture); _motionEffectTexture = IntPtr.Zero; }
+        if (!_hasShaderMotionEffect || !_isGpuRenderer) return;
+        _motionEffectTexture = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
+            SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
+        if (_motionEffectTexture != IntPtr.Zero)
+            SDL.SetTextureBlendMode(_motionEffectTexture, SDL.BlendMode.Blend);
+        else
+            Logger.Log($"[SDL3HwRenderer] Failed to create motion-effect texture: {SDL.GetError()}");
     }
 
     private void SyncPictureAdjustRenderState()
