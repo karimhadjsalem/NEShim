@@ -287,6 +287,12 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetOverscanMode(OverscanMode mode) => _overscanMode = mode;
 
+    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode) { }
+    public void SetFilter(Filters.ID3D11Filter filter)          { }
+    public void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
+    public void SetColorFilter(VideoColorFilterMode mode)       { }
+    public void SetMotionEffect(VideoMotionEffectMode mode)     { }
+
     public void Dispose()
     {
         DisposeOverlayResources();

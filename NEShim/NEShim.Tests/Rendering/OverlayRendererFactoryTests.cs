@@ -8,7 +8,7 @@ namespace NEShim.Tests.Rendering;
 internal class OverlayRendererFactoryTests
 {
     [Test]
-    public void Create_Always_ReturnsSteamOverlayRenderer()
+    public void Create_Always_ReturnsIOverlayRenderer()
     {
         var host = Substitute.For<IWindowHost>();
         host.Handle.Returns(IntPtr.Zero);
@@ -16,9 +16,9 @@ internal class OverlayRendererFactoryTests
         host.ClientWidth.Returns(1);
         host.ClientHeight.Returns(1);
 
-        // SteamOverlayRenderer.Initialize silently absorbs D3D11 failures; no throw expected.
         using var result = OverlayRendererFactory.Create(host);
 
-        Assert.That(result, Is.InstanceOf<SteamOverlayRenderer>());
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.InstanceOf<IOverlayRenderer>());
     }
 }

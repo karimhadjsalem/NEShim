@@ -1,9 +1,11 @@
+using BizHawk.Common;
 using System.Runtime.InteropServices;
 
 namespace NEShim.Platform;
 
 /// <summary>
-/// Detects whether the process is running under Wine/Proton or on Steam Deck hardware.
+/// Detects platform capabilities and encapsulates platform-specific startup/teardown
+/// that would otherwise leak OS checks into higher-level code.
 /// Properties are evaluated once at startup; there is no runtime cost after initialisation.
 /// </summary>
 internal static class PlatformDetector
@@ -31,6 +33,26 @@ internal static class PlatformDetector
     internal static bool IsD3D11Active { get; private set; }
 
     internal static void SetD3D11Active(bool value) => IsD3D11Active = value;
+
+    /// <summary>
+    /// Raises the Windows multimedia timer resolution to 1 ms so that Thread.Sleep and
+    /// Stopwatch-based frame timing have sub-millisecond granularity. No-op on Linux/macOS
+    /// where the kernel scheduler already provides sufficient resolution.
+    /// Call once at process startup; pair with <see cref="EndHighResolutionTiming"/>.
+    /// </summary>
+    internal static void BeginHighResolutionTiming()
+    {
+        if (OperatingSystem.IsWindows()) Win32Imports.timeBeginPeriod(1);
+    }
+
+    /// <summary>
+    /// Restores the Windows multimedia timer resolution changed by
+    /// <see cref="BeginHighResolutionTiming"/>. No-op on Linux/macOS.
+    /// </summary>
+    internal static void EndHighResolutionTiming()
+    {
+        if (OperatingSystem.IsWindows()) Win32Imports.timeEndPeriod(1);
+    }
 
     private static bool DetectWine()
     {

@@ -1,6 +1,3 @@
-using Vortice.Direct3D11;
-using Vortice.DXGI;
-
 namespace NEShim.Rendering;
 
 /// <summary>
@@ -11,16 +8,16 @@ namespace NEShim.Rendering;
 internal interface IOverlayRenderer : IDisposable
 {
     /// <summary>
-    /// The D3D11 device. Shared with <see cref="D3D11Renderer"/>.
+    /// The D3D11 device native pointer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed or this is a null implementation.
     /// </summary>
-    ID3D11Device? Device { get; }
+    nint? Device { get; }
 
     /// <summary>
-    /// The DXGI swap chain. Shared with <see cref="D3D11Renderer"/>.
+    /// The DXGI swap chain native pointer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed or this is a null implementation.
     /// </summary>
-    IDXGISwapChain? SwapChain { get; }
+    nint? SwapChain { get; }
 
     /// <summary>
     /// Gives Steam's overlay hook a Present frame to intercept.

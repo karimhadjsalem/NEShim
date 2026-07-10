@@ -132,16 +132,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             ConfigLoader.Save(_config);
         }
 
-        if (_renderer is Rendering.D3D11Renderer d3d)
-        {
-            d3d.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
-            d3d.SetMotionEffect(motionMode);
-            d3d.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
-            var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
-            d3d.SetOverlayFilter(overlayMode.HasValue
-                ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
-                : null);
-        }
+        var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
+        _renderer?.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
+        _renderer?.SetMotionEffect(motionMode);
+        _renderer?.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
+        _renderer?.SetOverlayFilter(overlayMode.HasValue
+            ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
+            : null);
     }
 
     private void OnD3DDeviceLost(object? sender, EventArgs e)
@@ -416,29 +413,25 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onVideoFilterChanged: mode =>
             {
                 _config!.VideoFilter = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
+                _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
                 ConfigLoader.Save(_config);
             },
             onVideoColorFilterChanged: mode =>
             {
                 _config!.VideoColorFilter = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetColorFilter(mode);
+                _renderer?.SetColorFilter(mode);
                 ConfigLoader.Save(_config);
             },
             onVideoMotionEffectChanged: mode =>
             {
                 _config!.VideoMotionEffect = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetMotionEffect(mode);
+                _renderer?.SetMotionEffect(mode);
                 ConfigLoader.Save(_config);
             },
             onOverscanModeChanged: overscan =>
@@ -450,8 +443,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
-                if (_renderer is Rendering.D3D11Renderer d3dPic)
-                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
+                _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
                 ConfigLoader.Save(_config!);
             },
             onAudioEqChanged: (bass, mid, treble) =>
@@ -521,29 +513,25 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onVideoFilterChanged: mode =>
             {
                 _config!.VideoFilter = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
                 ConfigLoader.Save(_config);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
+                _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
                 ConfigLoader.Save(_config);
             },
             onVideoColorFilterChanged: mode =>
             {
                 _config!.VideoColorFilter = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetColorFilter(mode);
+                _renderer?.SetColorFilter(mode);
                 ConfigLoader.Save(_config);
             },
             onVideoMotionEffectChanged: mode =>
             {
                 _config!.VideoMotionEffect = mode.ToString();
-                if (_renderer is Rendering.D3D11Renderer d3d)
-                    d3d.SetMotionEffect(mode);
+                _renderer?.SetMotionEffect(mode);
                 ConfigLoader.Save(_config);
             },
             onOverscanModeChanged: overscan =>
@@ -555,8 +543,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
-                if (_renderer is Rendering.D3D11Renderer d3dPic)
-                    d3dPic.SetPictureAdjust(brightness, contrast, saturation, hue);
+                _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
                 ConfigLoader.Save(_config!);
             },
             onAudioEqChanged: (bass, mid, treble) =>

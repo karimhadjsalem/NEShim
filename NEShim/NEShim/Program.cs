@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using BizHawk.Common;
 using NEShim.Platform;
 using SDL3;
 using Steamworks;
@@ -21,11 +20,18 @@ static class Program
             uint.TryParse(File.ReadAllText(appIdPath).Trim(), out uint appId) &&
             appId != 0)
         {
-            if (SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
-                return;
+            try
+            {
+                if (SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
+                    return;
+            }
+            catch (DllNotFoundException)
+            {
+                // Steam native library not present on this platform — skip restart check.
+            }
         }
 
-        Win32Imports.timeBeginPeriod(1);
+        PlatformDetector.BeginHighResolutionTiming();
         try
         {
             using var sdlHost = new SDL3WindowHost("NEShim", 1024, 672);
@@ -37,7 +43,7 @@ static class Program
         }
         finally
         {
-            Win32Imports.timeEndPeriod(1);
+            PlatformDetector.EndHighResolutionTiming();
         }
     }
 

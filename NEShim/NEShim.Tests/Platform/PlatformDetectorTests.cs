@@ -53,4 +53,14 @@ internal class PlatformDetectorTests
         PlatformDetector.SetD3D11Active(false);
         Assert.That(PlatformDetector.IsD3D11Active, Is.False);
     }
+
+    // ---- High-resolution timing ----
+
+    [Test]
+    public void BeginHighResolutionTiming_DoesNotThrow()
+        => Assert.That(PlatformDetector.BeginHighResolutionTiming, Throws.Nothing);
+
+    [Test]
+    public void EndHighResolutionTiming_DoesNotThrow()
+        => Assert.That(PlatformDetector.EndHighResolutionTiming, Throws.Nothing);
 }

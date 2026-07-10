@@ -26,16 +26,16 @@ internal sealed class SteamOverlayRenderer : IOverlayRenderer
     private bool            _presentFailureLogged;
 
     /// <summary>
-    /// The D3D11 device created by this renderer. Shared with <see cref="D3D11Renderer"/>.
+    /// The D3D11 device native pointer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed.
     /// </summary>
-    public ID3D11Device? Device => _device;
+    public nint? Device    => _device?.NativePointer;
 
     /// <summary>
-    /// The DXGI swap chain created by this renderer. Shared with <see cref="D3D11Renderer"/>.
+    /// The DXGI swap chain native pointer. Shared with <see cref="D3D11Renderer"/>.
     /// Null if initialisation failed.
     /// </summary>
-    public IDXGISwapChain? SwapChain => _swapChain;
+    public nint? SwapChain => _swapChain?.NativePointer;
 
     /// <summary>
     /// Creates the D3D11 device and swap chain bound to <paramref name="hwnd"/>.

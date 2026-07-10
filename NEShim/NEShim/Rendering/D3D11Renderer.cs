@@ -139,11 +139,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public event EventHandler? DeviceLost;
 
-    internal D3D11Renderer(ID3D11Device device, IDXGISwapChain swapChain, int nesWidth, int nesHeight)
+    internal D3D11Renderer(nint devicePtr, nint swapChainPtr, int nesWidth, int nesHeight)
     {
-        _device        = device;
-        _swapChain     = swapChain;
-        _context       = device.ImmediateContext;
+        _device        = new ID3D11Device(devicePtr);
+        _swapChain     = new IDXGISwapChain(swapChainPtr);
+        _context       = _device.ImmediateContext;
         _nesHeight     = nesHeight;
         _contentWidth  = nesWidth;
         _contentHeight = nesHeight;
@@ -154,10 +154,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // directly to B8G8R8A8_UNorm with no byte swapping required.
         CreateNesTexture(nesWidth);
 
-        using var backBuffer = swapChain.GetBuffer<ID3D11Texture2D>(0);
-        _renderTargetView = device.CreateRenderTargetView(backBuffer);
+        using var backBuffer = _swapChain.GetBuffer<ID3D11Texture2D>(0);
+        _renderTargetView = _device.CreateRenderTargetView(backBuffer);
 
-        var swapDesc = swapChain.Description;
+        var swapDesc = _swapChain.Description;
         _viewportWidth  = (int)swapDesc.BufferDescription.Width;
         _viewportHeight = (int)swapDesc.BufferDescription.Height;
 
@@ -168,7 +168,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             float[] placeholder = new float[6 * 4]; // 6 vertices × (pos_xy + uv)
             fixed (float* p = placeholder)
             {
-                device.CreateBuffer(
+                _device.CreateBuffer(
                     new BufferDescription
                     {
                         ByteWidth      = (uint)(placeholder.Length * sizeof(float)),
@@ -188,8 +188,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // DXVK on Proton compiles these DXBC bytecodes to SPIR-V at first launch
         // and caches them in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
         // The passthrough shaders are trivially simple, so first-launch compile is near-instant.
-        _vertexShader              = device.CreateVertexShader(vsBytes);
-        _passthroughPixelShader    = device.CreatePixelShader(psBytes);
+        _vertexShader              = _device.CreateVertexShader(vsBytes);
+        _passthroughPixelShader    = _device.CreatePixelShader(psBytes);
         _activePixelShader         = _passthroughPixelShader;
         _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.PictureAdjust.ps.cso");
 
@@ -200,7 +200,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             float[] zeros = new float[4];
             fixed (float* p = zeros)
             {
-                device.CreateBuffer(
+                _device.CreateBuffer(
                     new BufferDescription
                     {
                         ByteWidth      = (uint)(4 * sizeof(float)),
@@ -214,7 +214,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             }
         }
 
-        _inputLayout = device.CreateInputLayout(
+        _inputLayout = _device.CreateInputLayout(
             new[]
             {
                 new InputElementDescription("POSITION", 0, Format.R32G32_Float, 0, 0, InputClassification.PerVertexData, 0),
@@ -224,7 +224,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         // Point-clamp sampler — preserves hard NES pixel edges.
         // Clamping prevents edge wrap artefacts on the NES texture boundary.
-        _pointSamplerState = device.CreateSamplerState(new SamplerDescription
+        _pointSamplerState = _device.CreateSamplerState(new SamplerDescription
         {
             Filter         = Filter.MinMagMipPoint,
             AddressU       = TextureAddressMode.Clamp,
@@ -236,7 +236,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         });
 
         // Linear-clamp sampler — bilinear interpolation for smooth scaling.
-        _linearSamplerState = device.CreateSamplerState(new SamplerDescription
+        _linearSamplerState = _device.CreateSamplerState(new SamplerDescription
         {
             Filter         = Filter.MinMagMipLinear,
             AddressU       = TextureAddressMode.Clamp,
@@ -260,9 +260,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
             BlendOperationAlpha   = BlendOperation.Add,
             RenderTargetWriteMask = ColorWriteEnable.All,
         };
-        _alphaBlendState = device.CreateBlendState(blendDesc);
+        _alphaBlendState = _device.CreateBlendState(blendDesc);
 
-        _scissorRasterizerState = device.CreateRasterizerState(new RasterizerDescription
+        _scissorRasterizerState = _device.CreateRasterizerState(new RasterizerDescription
         {
             FillMode        = Vortice.Direct3D11.FillMode.Solid,
             CullMode        = CullMode.None,

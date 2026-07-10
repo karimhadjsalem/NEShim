@@ -72,4 +72,37 @@ internal interface IFrameRenderer : IDisposable
     /// on the next rendered frame. Implemented by both D3D11Renderer and GdiRenderer.
     /// </summary>
     void SetOverscanMode(OverscanMode overscan);
+
+    /// <summary>
+    /// Sets the active video filter and establishes initial rendering options at startup.
+    /// No-op when the renderer does not support HLSL filters (SDL3HwRenderer).
+    /// </summary>
+    void InitializeRenderingOptions(
+        Filters.ID3D11Filter filter,
+        OverscanMode         overscan,
+        VideoColorFilterMode colorMode = VideoColorFilterMode.None) { }
+
+    /// <summary>
+    /// Changes the structural video filter applied to the NES frame quad.
+    /// No-op when the renderer does not support HLSL filters.
+    /// </summary>
+    void SetFilter(Filters.ID3D11Filter filter) { }
+
+    /// <summary>
+    /// Sets or clears the two-pass overlay filter.
+    /// No-op when the renderer does not support HLSL filters.
+    /// </summary>
+    void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
+
+    /// <summary>
+    /// Sets the colour-grade mode applied after structural filtering.
+    /// No-op when the renderer does not support HLSL filters.
+    /// </summary>
+    void SetColorFilter(VideoColorFilterMode mode) { }
+
+    /// <summary>
+    /// Sets the motion effect applied to the NES frame quad.
+    /// No-op when the renderer does not support motion effects.
+    /// </summary>
+    void SetMotionEffect(VideoMotionEffectMode mode) { }
 }
