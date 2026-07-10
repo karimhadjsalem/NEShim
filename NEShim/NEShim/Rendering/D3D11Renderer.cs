@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using SDL3;
@@ -182,8 +182,8 @@ internal sealed class D3D11Renderer : IFrameRenderer
             }
         }
 
-        byte[] vsBytes = LoadShaderResource("NEShim.Rendering.Shaders.Passthrough.vs.cso");
-        byte[] psBytes = LoadShaderResource("NEShim.Rendering.Shaders.Passthrough.ps.cso");
+        byte[] vsBytes = LoadShaderResource("NEShim.Rendering.Shaders.Dx11.Passthrough.vs.cso");
+        byte[] psBytes = LoadShaderResource("NEShim.Rendering.Shaders.Dx11.Passthrough.ps.cso");
 
         // DXVK on Proton compiles these DXBC bytecodes to SPIR-V at first launch
         // and caches them in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
@@ -191,7 +191,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _vertexShader              = _device.CreateVertexShader(vsBytes);
         _passthroughPixelShader    = _device.CreatePixelShader(psBytes);
         _activePixelShader         = _passthroughPixelShader;
-        _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.PictureAdjust.ps.cso");
+        _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.Dx11.PictureAdjust.ps.cso");
 
         // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
         // Always present — every pixel shader reads from b0.
@@ -1205,3 +1205,4 @@ internal sealed class D3D11Renderer : IFrameRenderer
         }
     }
 }
+

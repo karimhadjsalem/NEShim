@@ -6,7 +6,7 @@
 // SDL_CreateGPURenderState (which provides only one SDL renderer texture).
 // It requires a full SDL_GPU graphics pipeline with two sampler inputs.
 // NumSamplers=2 in SDL_GPUShaderCreateInfo.
-#include "../ColorGrade.hlsli"
+#include "../Dx11/ColorGrade.hlsli"
 
 [[vk::binding(0, 2)]] Texture2D    currentFrame;
 [[vk::binding(0, 2)]] SamplerState frameSampler;

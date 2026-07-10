@@ -92,126 +92,126 @@
          The SDK wildcard patterns pick up all files in subdirectories and can cause
          duplicate EmbeddedResource items that strip LogicalName during deduplication. -->
     <ItemGroup>
-        <EmbeddedResource Remove="Rendering\Shaders\**\*" />
-        <None Remove="Rendering\Shaders\**\*" />
+        <EmbeddedResource Remove="Rendering\Shaders\Dx11\**\*" />
+        <None Remove="Rendering\Shaders\Dx11\**\*" />
         <!-- HLSL sources: visible in the solution but not compiled into the assembly -->
-        <None Include="Rendering\Shaders\Passthrough.vs.hlsl" />
-        <None Include="Rendering\Shaders\Passthrough.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtScanlines.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtPhosphor.ps.hlsl" />
-        <None Include="Rendering\Shaders\NtscComposite.ps.hlsl" />
-        <None Include="Rendering\Shaders\Jinc2.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtScreen.ps.hlsl" />
-        <None Include="Rendering\Shaders\MagneticDistortion.ps.hlsl" />
-        <None Include="Rendering\Shaders\Xbr.ps.hlsl" />
-        <None Include="Rendering\Shaders\PhosphorPersistence.ps.hlsl" />
-        <None Include="Rendering\Shaders\PictureAdjust.ps.hlsl" />
-        <None Include="Rendering\Shaders\ColorGrade.hlsli" />
+        <None Include="Rendering\Shaders\Dx11\Passthrough.vs.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Passthrough.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtScanlines.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtPhosphor.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Jinc2.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtScreen.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\MagneticDistortion.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Xbr.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\PhosphorPersistence.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\PictureAdjust.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\ColorGrade.hlsli" />
         <!-- Compiled shader bytecode — produced by CompileShaders target below.
              DXVK on Proton translates this DXBC bytecode to SPIR-V on first launch
              and caches it in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
              No runtime fxc dependency; compilation happens at build time only. -->
-        <EmbeddedResource Include="Rendering\Shaders\Passthrough.vs.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Passthrough.vs.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Passthrough.vs.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Passthrough.vs.cso</LogicalName>
         </EmbeddedResource>
         <!-- WithCulture=false prevents MSBuild from treating ".ps" as the Pashto
              culture code and splitting this into a satellite assembly. -->
-        <EmbeddedResource Include="Rendering\Shaders\Passthrough.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Passthrough.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Passthrough.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Passthrough.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtScanlines.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtScanlines.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtScanlines.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtScanlines.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtPhosphor.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtPhosphor.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtPhosphor.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtPhosphor.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\NtscComposite.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.NtscComposite.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\NtscComposite.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.NtscComposite.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Jinc2.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Jinc2.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Jinc2.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Jinc2.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtScreen.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtScreen.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtScreen.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtScreen.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\MagneticDistortion.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.MagneticDistortion.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\MagneticDistortion.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.MagneticDistortion.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Xbr.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Xbr.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Xbr.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Xbr.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\PhosphorPersistence.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.PhosphorPersistence.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\PhosphorPersistence.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.PhosphorPersistence.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\PictureAdjust.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.PictureAdjust.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\PictureAdjust.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.PictureAdjust.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
         <!-- SPIR-V bytecode for SDL_GPU path (Vulkan/Linux, Metal/macOS).
              Compiled from Shaders/Gpu/*.hlsl by the CompileSpirvShaders target below
              using the standalone DXC from the Microsoft.Direct3D.DXC NuGet package.
              Pre-compiled .spv files are checked in so builds work without DXC available. -->
-        <None Include="Rendering\Shaders\Gpu\Passthrough.vs.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\Passthrough.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\CrtScanlines.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\CrtPhosphor.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\NtscComposite.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\CrtScreen.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\Jinc2.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\Xbr.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\MagneticDistortion.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\PhosphorPersistence.ps.hlsl" />
-        <None Include="Rendering\Shaders\Gpu\PictureAdjust.ps.hlsl" />
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\Passthrough.vs.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.Passthrough.vs.spv</LogicalName>
+        <None Include="Rendering\Shaders\Vulkan\Passthrough.vs.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Passthrough.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtScanlines.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtPhosphor.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtScreen.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Jinc2.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Xbr.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\MagneticDistortion.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\PhosphorPersistence.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\PictureAdjust.ps.hlsl" />
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Passthrough.vs.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Passthrough.vs.spv</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\Passthrough.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.Passthrough.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Passthrough.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Passthrough.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtScanlines.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtScanlines.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtScanlines.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtScanlines.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtPhosphor.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtPhosphor.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtPhosphor.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtPhosphor.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\NtscComposite.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.NtscComposite.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\NtscComposite.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.NtscComposite.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\CrtScreen.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.CrtScreen.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtScreen.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtScreen.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\Jinc2.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.Jinc2.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Jinc2.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Jinc2.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\Xbr.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.Xbr.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Xbr.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Xbr.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\MagneticDistortion.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.MagneticDistortion.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\MagneticDistortion.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.MagneticDistortion.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\PhosphorPersistence.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.PhosphorPersistence.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\PhosphorPersistence.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.PhosphorPersistence.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Gpu\PictureAdjust.ps.spv">
-            <LogicalName>NEShim.Rendering.Shaders.Gpu.PictureAdjust.ps.spv</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\PictureAdjust.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.PictureAdjust.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
     </ItemGroup>
@@ -222,8 +222,8 @@
          developer with a local Windows SDK modifies the .hlsl sources.
          On CI runners (no Windows SDK installed), the checked-in CSOs are used as-is. -->
     <Target Name="CompileShaders" BeforeTargets="CoreCompile"
-            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
-            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScreen.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\MagneticDistortion.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Xbr.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\PhosphorPersistence.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\PictureAdjust.ps.cso">
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\NtscComposite.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Jinc2.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScreen.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\MagneticDistortion.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Xbr.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PhosphorPersistence.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PictureAdjust.ps.cso">
         <PropertyGroup>
             <!-- Try common Windows SDK paths. $(WindowsSDKVersion) has no trailing backslash,
                  so we add one explicitly between the version segment and "x64". -->
@@ -236,7 +236,7 @@
                  the skip-logic below — they'll compile, which is fine. -->
             <_FxcFoundAtKnownPath Condition="'$(_FxcPath)' != ''">true</_FxcFoundAtKnownPath>
             <_FxcPath Condition="'$(_FxcPath)' == ''">fxc.exe</_FxcPath>
-            <_ShaderDir>$(MSBuildProjectDirectory)\Rendering\Shaders</_ShaderDir>
+            <_ShaderDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11</_ShaderDir>
             <!-- Skip recompilation when fxc was not found at a known SDK path AND the
                  pre-compiled CSOs already exist from source control. This keeps CI builds
                  working without a Windows SDK install. If CSOs are missing AND fxc is
@@ -286,8 +286,8 @@
          codegen enabled — the Windows SDK dxc.exe lacks SPIR-V support).
          Pre-compiled .spv files are checked in and used when DXC is not found. -->
     <Target Name="CompileSpirvShaders" BeforeTargets="CoreCompile"
-            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
-            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.vs.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Passthrough.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScanlines.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtPhosphor.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\NtscComposite.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\CrtScreen.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Jinc2.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\Xbr.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\MagneticDistortion.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PhosphorPersistence.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu\PictureAdjust.ps.spv">
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.vs.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScanlines.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtPhosphor.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\NtscComposite.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScreen.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Jinc2.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Xbr.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\MagneticDistortion.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PhosphorPersistence.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PictureAdjust.ps.spv">
         <PropertyGroup>
             <!-- Prefer the standalone DXC from the Microsoft.Direct3D.DXC NuGet package
                  (must be restored via "dotnet restore" or by adding it as a PackageReference).
@@ -296,7 +296,7 @@
                  or with "dotnet restore" against a packages.lock.json to get the DXC path. -->
             <_SpirvDxcPath Condition="Exists('$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe')">$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe</_SpirvDxcPath>
             <_SpirvDxcFoundAtKnownPath Condition="'$(_SpirvDxcPath)' != ''">true</_SpirvDxcFoundAtKnownPath>
-            <_SpirvGpuDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Gpu</_SpirvGpuDir>
+            <_SpirvGpuDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan</_SpirvGpuDir>
             <!-- Skip recompilation when DXC is not available and pre-compiled SPVs already exist. -->
             <_SkipSpirvCompile Condition="'$(_SpirvDxcFoundAtKnownPath)' != 'true' And Exists('$(_SpirvGpuDir)\Passthrough.ps.spv') And Exists('$(_SpirvGpuDir)\CrtScanlines.ps.spv')">true</_SkipSpirvCompile>
         </PropertyGroup>

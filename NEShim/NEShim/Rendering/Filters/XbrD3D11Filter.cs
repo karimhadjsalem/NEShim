@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.Filters;
+﻿namespace NEShim.Rendering.Filters;
 
 /// <summary>
 /// xBRZ edge-preserving upscaler.
@@ -16,7 +16,7 @@ internal sealed class XbrD3D11Filter : ID3D11Filter
     public bool            UseLinearSampler => false;
 
     public string? PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.Xbr.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.Xbr.ps.cso";
 
     public void WriteBaseParams(Span<float> buffer, int nesWidth, int nesHeight)
     {
@@ -24,3 +24,4 @@ internal sealed class XbrD3D11Filter : ID3D11Filter
         buffer[1] = nesHeight;
     }
 }
+

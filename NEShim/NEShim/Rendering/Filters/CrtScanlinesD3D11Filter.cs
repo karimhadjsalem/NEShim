@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.Filters;
+﻿namespace NEShim.Rendering.Filters;
 
 internal sealed class CrtScanlinesD3D11Filter : ID3D11Filter
 {
@@ -9,7 +9,7 @@ internal sealed class CrtScanlinesD3D11Filter : ID3D11Filter
     public float           PixelAspectRatio => NesPixelAspect;
 
     public string? PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.CrtScanlines.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.CrtScanlines.ps.cso";
 
     public void WriteBaseParams(Span<float> buffer, int nesWidth, int nesHeight)
     {
@@ -18,3 +18,4 @@ internal sealed class CrtScanlinesD3D11Filter : ID3D11Filter
         buffer[2] = ScanlineIntensity;
     }
 }
+

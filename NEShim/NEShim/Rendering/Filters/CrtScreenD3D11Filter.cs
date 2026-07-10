@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.Filters;
+﻿namespace NEShim.Rendering.Filters;
 
 internal sealed class CrtScreenD3D11Filter : ID3D11Filter
 {
@@ -13,7 +13,7 @@ internal sealed class CrtScreenD3D11Filter : ID3D11Filter
     public bool            UseLinearSampler => true;
 
     public string? PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.CrtScreen.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.CrtScreen.ps.cso";
 
     public void WriteBaseParams(Span<float> buffer, int nesWidth, int nesHeight)
     {
@@ -22,3 +22,4 @@ internal sealed class CrtScreenD3D11Filter : ID3D11Filter
         buffer[2] = VignetteStrength;
     }
 }
+

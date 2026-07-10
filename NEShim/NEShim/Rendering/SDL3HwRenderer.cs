@@ -1,21 +1,25 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using SDL3;
+using NEShim.Rendering.Filters;
 
 namespace NEShim.Rendering;
 
 /// <summary>
-/// Hardware-accelerated renderer backed by <c>SDL_CreateRenderer</c>.
+/// Hardware-accelerated renderer backed by SDL_CreateGPURenderer (preferred) or SDL_CreateRenderer (fallback).
 /// Selects Vulkan on Linux, Metal on macOS, D3D11 on Windows.
 /// Used as the primary renderer when D3D11 direct-init is unavailable (e.g. on Linux).
 ///
-/// Does not support D3D11 pixel-shader video filters or motion effects — those require
-/// the <see cref="D3D11Renderer"/> path. Picture adjust and overlay are fully supported.
+/// When the GPU renderer is active, SPIR-V pixel-shader filters are applied via SDL_GPURenderState.
+/// Picture adjust is implemented as a two-pass render-to-texture.
+/// Motion effects are not supported on this path.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal sealed class SDL3HwRenderer : IFrameRenderer
 {
     private readonly IntPtr _sdlRenderer;
+    private readonly IntPtr _gpuDevice;
+    private readonly bool   _isGpuRenderer;
     private readonly int    _nesWidth;
     private readonly int    _nesHeight;
     private          IntPtr _nesTexture;
@@ -33,14 +37,15 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private (int W, int H) _rightSidebarSize;
     private bool           _hasSidebars;
 
-    private int         _contentWidth;
-    private int         _contentHeight;
-    private int         _viewportWidth;
-    private int         _viewportHeight;
+    private int          _contentWidth;
+    private int          _contentHeight;
+    private int          _viewportWidth;
+    private int          _viewportHeight;
     private OverscanMode _overscanMode = OverscanMode.Overscan;
 
-    private const int OverscanCropRows = 8;
-    private const float StandardPAR    = 8f / 7f;
+    private const int   OverscanCropRows = 8;
+    private const float StandardPAR      = 8f / 7f;
+    private const int   UniformFloats    = 4;
 
     private IMenuSceneProvider? _menuSceneProvider;
 
@@ -51,6 +56,21 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     private bool _vsync;
 
+    // Active filter state
+    private IGpuFilter     _activeFilter      = new PixelPerfectVulkanFilter();
+    private GpuRenderState? _filterRenderState;
+    private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
+    private int   _frameCount;
+
+    // Picture adjust state
+    private float _brightness;
+    private float _contrast   = 1f;
+    private float _saturation = 1f;
+    private float _hue;
+    private bool  _hasPictureAdjust;
+    private IntPtr         _pictureAdjustTexture;
+    private GpuRenderState? _pictureAdjustRenderState;
+
     public bool OwnsFrameSurface => true;
 
     public event EventHandler? DeviceLost;
@@ -60,9 +80,18 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _nesWidth  = nesWidth;
         _nesHeight = nesHeight;
 
-        _sdlRenderer = SDL.CreateRenderer(sdlWindow, null);
-        if (_sdlRenderer == IntPtr.Zero)
-            throw new InvalidOperationException($"SDL_CreateRenderer failed: {SDL.GetError()}");
+        // Prefer SDL_GPU renderer (enables SPIR-V filter support); fall back to plain SDL renderer.
+        IntPtr renderer = TryCreateGpuRenderer(sdlWindow, out IntPtr gpuDevice);
+        if (renderer == IntPtr.Zero)
+        {
+            renderer = SDL.CreateRenderer(sdlWindow, null);
+            if (renderer == IntPtr.Zero)
+                throw new InvalidOperationException($"SDL_CreateRenderer failed: {SDL.GetError()}");
+            Logger.Log("[SDL3HwRenderer] GPU renderer unavailable; using plain SDL renderer (no shader filters).");
+        }
+        _sdlRenderer   = renderer;
+        _gpuDevice     = gpuDevice;
+        _isGpuRenderer = gpuDevice != IntPtr.Zero;
 
         SDL.SetRenderVSync(_sdlRenderer, 1);
         _vsync = true;
@@ -74,7 +103,31 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _nesTexture = CreateNesTexture();
         CreateOverlayResources();
 
-        Logger.Log($"[SDL3HwRenderer] Initialised ({nesWidth}×{nesHeight}, ARGB8888). Renderer: SDL hardware.");
+        Logger.Log($"[SDL3HwRenderer] Initialised ({nesWidth}×{nesHeight}, ARGB8888). " +
+                   $"GPU filters: {(_isGpuRenderer ? "enabled" : "disabled")}.");
+    }
+
+    private static IntPtr TryCreateGpuRenderer(IntPtr sdlWindow, out IntPtr gpuDevice)
+    {
+        gpuDevice = IntPtr.Zero;
+        try
+        {
+            IntPtr renderer = SDL.CreateGPURenderer(sdlWindow, new IntPtr((int)SDL.GPUShaderFormat.SPIRV));
+            if (renderer == IntPtr.Zero) return IntPtr.Zero;
+            gpuDevice = SDL.GetGPURendererDevice(renderer);
+            if (gpuDevice == IntPtr.Zero)
+            {
+                SDL.DestroyRenderer(renderer);
+                return IntPtr.Zero;
+            }
+            Logger.Log("[SDL3HwRenderer] GPU renderer created (SPIR-V).");
+            return renderer;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SDL3HwRenderer] GPU renderer creation threw: {ex.Message}");
+            return IntPtr.Zero;
+        }
     }
 
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) => _menuSceneProvider = provider;
@@ -171,9 +224,64 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         int overscanTop   = ComputeOverscanTop();
         int displayHeight = _contentHeight - overscanTop * 2;
-
         var src = new SDL.FRect { X = 0, Y = overscanTop, W = _contentWidth, H = displayHeight };
+
+        _activeFilter.NotifyFrame(_frameCount++);
+
+        if (_hasPictureAdjust && _pictureAdjustTexture != IntPtr.Zero && _pictureAdjustRenderState is not null)
+            DrawNesFrameTwoPass(src, dest);
+        else
+            DrawNesFrameDirect(src, dest);
+    }
+
+    private void DrawNesFrameDirect(SDL.FRect src, SDL.FRect dest)
+    {
+        ApplyFilterRenderState();
         SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        _filterRenderState?.Clear();
+    }
+
+    private void DrawNesFrameTwoPass(SDL.FRect src, SDL.FRect dest)
+    {
+        // Pass 1: NES texture + filter shader → picture-adjust intermediate.
+        SDL.SetRenderTarget(_sdlRenderer, _pictureAdjustTexture);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+
+        int texW = _viewportWidth;
+        int texH = _viewportHeight;
+        var texDest = new SDL.FRect { X = dest.X, Y = dest.Y, W = dest.W, H = dest.H };
+        ApplyFilterRenderState();
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref texDest);
+        _filterRenderState?.Clear();
+
+        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+
+        // Pass 2: intermediate texture + picture-adjust shader → screen.
+        var uniforms = new float[UniformFloats];
+        uniforms[0] = _brightness;
+        uniforms[1] = _contrast;
+        uniforms[2] = _saturation;
+        uniforms[3] = _hue;
+        _pictureAdjustRenderState!.Apply(uniforms);
+
+        var fullSrc  = new SDL.FRect { X = 0, Y = 0, W = texW, H = texH };
+        var fullDest = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _pictureAdjustTexture, ref fullSrc, ref fullDest);
+        _pictureAdjustRenderState!.Clear();
+    }
+
+    private void ApplyFilterRenderState()
+    {
+        if (_filterRenderState is null || !_filterRenderState.IsValid) return;
+
+        SDL.SetTextureScaleMode(_nesTexture, _activeFilter.UseLinearSampler
+            ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+
+        Span<float> uniforms = stackalloc float[UniformFloats];
+        _activeFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
+        uniforms[3] = (float)_activeColorMode;
+        _filterRenderState.Apply(uniforms);
     }
 
     // ---- Sidebar draw ------------------------------------------------------------------
@@ -256,6 +364,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _viewportWidth  = Math.Max(width,  1);
         _viewportHeight = Math.Max(height, 1);
         CreateOverlayResources();
+        SyncPictureAdjustTexture();
         Logger.Log($"[SDL3HwRenderer] Resized to {_viewportWidth}×{_viewportHeight}.");
     }
 
@@ -283,22 +392,95 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void ShowAchievementNotification(string name) => ShowToast(name);
 
-    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue) { }
+    public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
+    {
+        _brightness = brightness * 0.002f;
+        _contrast   = 1f + contrast   * 0.01f;
+        _saturation = 1f + saturation * 0.01f;
+        _hue        = hue * (float)Math.PI / 100f;
+        _hasPictureAdjust = _brightness != 0f || _contrast != 1f || _saturation != 1f || _hue != 0f;
+        SyncPictureAdjustRenderState();
+    }
 
     public void SetOverscanMode(OverscanMode mode) => _overscanMode = mode;
 
-    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode) { }
-    public void SetFilter(Filters.ID3D11Filter filter)          { }
+    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode)
+    {
+        _overscanMode    = overscan;
+        _activeColorMode = colorMode;
+        ApplyGpuFilter(GpuFilterFactory.Create(filter.FilterMode));
+    }
+
+    public void SetFilter(Filters.ID3D11Filter filter) => ApplyGpuFilter(GpuFilterFactory.Create(filter.FilterMode));
+
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
-    public void SetColorFilter(VideoColorFilterMode mode)       { }
-    public void SetMotionEffect(VideoMotionEffectMode mode)     { }
+
+    public void SetColorFilter(VideoColorFilterMode mode) => _activeColorMode = mode;
+
+    public void SetMotionEffect(VideoMotionEffectMode mode) { }
 
     public void Dispose()
     {
+        _filterRenderState?.Dispose();
+        _filterRenderState = null;
+        _pictureAdjustRenderState?.Dispose();
+        _pictureAdjustRenderState = null;
+        if (_pictureAdjustTexture != IntPtr.Zero) { SDL.DestroyTexture(_pictureAdjustTexture); _pictureAdjustTexture = IntPtr.Zero; }
         DisposeOverlayResources();
         DisposeSidebarTextures();
         if (_nesTexture   != IntPtr.Zero) { SDL.DestroyTexture(_nesTexture); _nesTexture = IntPtr.Zero; }
         SDL.DestroyRenderer(_sdlRenderer);
+    }
+
+    // ---- GPU filter helpers ------------------------------------------------------------
+
+    private void ApplyGpuFilter(IGpuFilter filter)
+    {
+        _filterRenderState?.Dispose();
+        _filterRenderState = null;
+        _activeFilter = filter;
+        if (!_isGpuRenderer || filter.PixelShaderResourceName is null) return;
+        _filterRenderState = new GpuRenderState(
+            _sdlRenderer, _gpuDevice,
+            filter.PixelShaderResourceName,
+            filter.NumFragmentSamplers,
+            filter.NumFragmentUniformBuffers);
+    }
+
+    private void SyncPictureAdjustTexture()
+    {
+        if (_pictureAdjustTexture != IntPtr.Zero) { SDL.DestroyTexture(_pictureAdjustTexture); _pictureAdjustTexture = IntPtr.Zero; }
+        if (!_isGpuRenderer || !_hasPictureAdjust) return;
+        _pictureAdjustTexture = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
+            SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
+        if (_pictureAdjustTexture == IntPtr.Zero)
+        {
+            Logger.Log($"[SDL3HwRenderer] Failed to create picture-adjust texture: {SDL.GetError()}");
+            return;
+        }
+        // Blend so transparent pixels outside the letterbox don't overwrite sidebar textures.
+        SDL.SetTextureBlendMode(_pictureAdjustTexture, SDL.BlendMode.Blend);
+    }
+
+    private void SyncPictureAdjustRenderState()
+    {
+        if (!_isGpuRenderer) return;
+        bool needTexture = _hasPictureAdjust;
+        bool hasTexture  = _pictureAdjustTexture != IntPtr.Zero;
+        if (needTexture && !hasTexture) SyncPictureAdjustTexture();
+        else if (!needTexture && hasTexture)
+        {
+            SDL.DestroyTexture(_pictureAdjustTexture);
+            _pictureAdjustTexture = IntPtr.Zero;
+        }
+
+        if (!_hasPictureAdjust) { _pictureAdjustRenderState?.Dispose(); _pictureAdjustRenderState = null; return; }
+        if (_pictureAdjustRenderState is not null) return;
+        _pictureAdjustRenderState = new GpuRenderState(
+            _sdlRenderer, _gpuDevice,
+            "NEShim.Rendering.Shaders.Vulkan.PictureAdjust.ps.spv",
+            numFragmentSamplers:     1,
+            numFragmentUniformBuffers: 1);
     }
 
     // ---- Resource helpers --------------------------------------------------------------

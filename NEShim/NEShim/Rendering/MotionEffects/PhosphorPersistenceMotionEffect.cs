@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.MotionEffects;
+﻿namespace NEShim.Rendering.MotionEffects;
 
 /// <summary>
 /// Simulates CRT phosphor persistence by temporally accumulating frames.
@@ -13,7 +13,7 @@ internal sealed class PhosphorPersistenceMotionEffect : IMotionEffect
 
     public VideoMotionEffectMode EffectMode          => VideoMotionEffectMode.PhosphorPersistence;
     public string?               PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.PhosphorPersistence.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.PhosphorPersistence.ps.cso";
     public bool                  UseLinearSampler    => true;
     public bool                  NeedsTemporalBuffer => true;
 
@@ -24,3 +24,4 @@ internal sealed class PhosphorPersistenceMotionEffect : IMotionEffect
         buffer[0] = DecayFactor;
     }
 }
+

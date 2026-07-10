@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.Filters;
+﻿namespace NEShim.Rendering.Filters;
 
 internal sealed class NtscCompositeD3D11Filter : ID3D11Filter
 {
@@ -11,7 +11,7 @@ internal sealed class NtscCompositeD3D11Filter : ID3D11Filter
     public float           PixelAspectRatio => NesPixelAspect;
 
     public string? PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.NtscComposite.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.NtscComposite.ps.cso";
 
     public void NotifyFrame(int frameCount) => _frameParity = frameCount & 1;
 
@@ -22,3 +22,4 @@ internal sealed class NtscCompositeD3D11Filter : ID3D11Filter
         buffer[2] = ChromaStrength;
     }
 }
+

@@ -36,7 +36,7 @@ internal class BilinearD3D11FilterTests
     public void PixelShaderResourceName_IsJinc2Cso()
     {
         Assert.That(((ID3D11Filter)_filter).PixelShaderResourceName,
-            Is.EqualTo("NEShim.Rendering.Shaders.Jinc2.ps.cso"));
+            Is.EqualTo("NEShim.Rendering.Shaders.Dx11.Jinc2.ps.cso"));
     }
 
     [Test]

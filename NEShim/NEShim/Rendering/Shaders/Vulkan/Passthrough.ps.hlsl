@@ -1,7 +1,7 @@
 // SDL_GPU binding layout — fragment stage:
 //   set=2, binding=0 → combined image sampler (nesTexture + nesSampler)
 //   set=3, binding=0 → uniform buffer (FilterParams)
-#include "../ColorGrade.hlsli"
+#include "../Dx11/ColorGrade.hlsli"
 
 [[vk::binding(0, 2)]] Texture2D    nesTexture;
 [[vk::binding(0, 2)]] SamplerState nesSampler;
