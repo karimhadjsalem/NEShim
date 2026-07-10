@@ -1,10 +1,10 @@
 namespace NEShim.Rendering.Filters;
 
 /// <summary>
-/// Encapsulates the rendering behaviour for a single SDL_GPU / Vulkan video filter mode.
-/// Mirrors <see cref="ID3D11Filter"/> for the non-D3D11 render path.
+/// Encapsulates the rendering behaviour for a single SDL_GPU / SPIR-V video filter mode.
+/// Mirrors <see cref="ID3D11Filter"/> for the SDL render path.
 /// </summary>
-internal interface IGpuFilter
+internal interface ISdlFilter
 {
     VideoFilterMode FilterMode       { get; }
 

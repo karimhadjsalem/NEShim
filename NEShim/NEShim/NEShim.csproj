@@ -14,10 +14,10 @@
     <!-- Windows-only files: D3D11 renderer, Steam overlay, and their factory implementations.
          Each factory has a platform-neutral sibling (.cs) compiled on non-Windows instead. -->
     <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
-        <Compile Remove="Rendering\D3D11Renderer.cs" />
-        <Compile Remove="Rendering\SteamOverlayRenderer.cs" />
-        <Compile Remove="Rendering\OverlayRendererFactory.Windows.cs" />
-        <Compile Remove="Rendering\RendererFactory.Windows.cs" />
+        <Compile Remove="Rendering\Dx11\D3D11Renderer.cs" />
+        <Compile Remove="Rendering\Dx11\SteamOverlayRenderer.cs" />
+        <Compile Remove="Rendering\Dx11\OverlayRendererFactory.Windows.cs" />
+        <Compile Remove="Rendering\Dx11\RendererFactory.Windows.cs" />
     </ItemGroup>
     <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
         <Compile Remove="Rendering\OverlayRendererFactory.cs" />

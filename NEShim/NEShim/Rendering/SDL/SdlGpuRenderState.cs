@@ -10,7 +10,7 @@ namespace NEShim.Rendering;
 /// Created once per active filter; disposed when the filter changes.
 /// </summary>
 [ExcludeFromCodeCoverage]
-internal sealed class GpuRenderState : IDisposable
+internal sealed class SdlGpuRenderState : IDisposable
 {
     // Matches SDL_GPURenderStateCreateInfo layout (SDL 3.4.0+).
     [StructLayout(LayoutKind.Sequential)]
@@ -35,7 +35,7 @@ internal sealed class GpuRenderState : IDisposable
     /// <summary>
     /// Loads the SPIR-V shader from an embedded resource and creates the GPU render state.
     /// </summary>
-    internal GpuRenderState(
+    internal SdlGpuRenderState(
         IntPtr sdlRenderer,
         IntPtr gpuDevice,
         string resourceName,
@@ -50,7 +50,7 @@ internal sealed class GpuRenderState : IDisposable
         _renderState = CreateRenderState(sdlRenderer, _shader, numFragmentSamplers, numFragmentUniformBuffers);
         if (_renderState == IntPtr.Zero)
         {
-            Logger.Log($"[GpuRenderState] CreateGPURenderState failed for '{resourceName}': {SDL.GetError()}");
+            Logger.Log($"[SdlGpuRenderState] CreateGPURenderState failed for '{resourceName}': {SDL.GetError()}");
             SDL.ReleaseGPUShader(_gpuDevice, _shader);
             _shader = IntPtr.Zero;
         }
@@ -91,7 +91,7 @@ internal sealed class GpuRenderState : IDisposable
         byte[]? spv = LoadEmbeddedResource(resourceName);
         if (spv is null)
         {
-            Logger.Log($"[GpuRenderState] Embedded SPIR-V resource '{resourceName}' not found.");
+            Logger.Log($"[SdlGpuRenderState] Embedded SPIR-V resource '{resourceName}' not found.");
             return IntPtr.Zero;
         }
 
@@ -114,7 +114,7 @@ internal sealed class GpuRenderState : IDisposable
             };
             IntPtr shader = SDL.CreateGPUShader(gpuDevice, ref shaderInfo);
             if (shader == IntPtr.Zero)
-                Logger.Log($"[GpuRenderState] CreateGPUShader failed for '{resourceName}': {SDL.GetError()}");
+                Logger.Log($"[SdlGpuRenderState] CreateGPUShader failed for '{resourceName}': {SDL.GetError()}");
             return shader;
         }
         finally

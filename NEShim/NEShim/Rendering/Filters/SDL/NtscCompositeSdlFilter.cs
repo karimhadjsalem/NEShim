@@ -1,6 +1,6 @@
 namespace NEShim.Rendering.Filters;
 
-internal sealed class NtscCompositeVulkanFilter : IGpuFilter
+internal sealed class NtscCompositeSdlFilter : ISdlFilter
 {
     private const float NesPixelAspect = 8f / 7f;
     private const float ChromaStrength = 0.75f;

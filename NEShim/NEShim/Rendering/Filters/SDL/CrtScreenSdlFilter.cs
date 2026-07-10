@@ -1,6 +1,6 @@
 namespace NEShim.Rendering.Filters;
 
-internal sealed class CrtScreenVulkanFilter : IGpuFilter
+internal sealed class CrtScreenSdlFilter : ISdlFilter
 {
     private const float BarrelStrength   = 0.12f;
     private const float ChromaStrength   = 0.006f;

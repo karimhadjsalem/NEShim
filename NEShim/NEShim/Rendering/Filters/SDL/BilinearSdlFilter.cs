@@ -1,6 +1,6 @@
 namespace NEShim.Rendering.Filters;
 
-internal sealed class BilinearVulkanFilter : IGpuFilter
+internal sealed class BilinearSdlFilter : ISdlFilter
 {
     private const float NesPixelAspect = 8f / 7f;
 

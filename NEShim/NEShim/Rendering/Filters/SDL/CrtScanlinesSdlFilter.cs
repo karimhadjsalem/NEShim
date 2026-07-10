@@ -1,6 +1,6 @@
 namespace NEShim.Rendering.Filters;
 
-internal sealed class CrtScanlinesVulkanFilter : IGpuFilter
+internal sealed class CrtScanlinesSdlFilter : ISdlFilter
 {
     private const float NesPixelAspect    = 8f / 7f;
     private const float ScanlineIntensity = 0.45f;

@@ -57,8 +57,8 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private bool _vsync;
 
     // Active filter state
-    private IGpuFilter     _activeFilter      = new PixelPerfectVulkanFilter();
-    private GpuRenderState? _filterRenderState;
+    private ISdlFilter     _activeFilter      = new PixelPerfectSdlFilter();
+    private SdlGpuRenderState? _filterRenderState;
     private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
     private int   _frameCount;
 
@@ -69,7 +69,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private float _hue;
     private bool  _hasPictureAdjust;
     private IntPtr         _pictureAdjustTexture;
-    private GpuRenderState? _pictureAdjustRenderState;
+    private SdlGpuRenderState? _pictureAdjustRenderState;
 
     public bool OwnsFrameSurface => true;
 
@@ -408,10 +408,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     {
         _overscanMode    = overscan;
         _activeColorMode = colorMode;
-        ApplyGpuFilter(GpuFilterFactory.Create(filter.FilterMode));
+        ApplyGpuFilter(SdlFilterFactory.Create(filter.FilterMode));
     }
 
-    public void SetFilter(Filters.ID3D11Filter filter) => ApplyGpuFilter(GpuFilterFactory.Create(filter.FilterMode));
+    public void SetFilter(Filters.ID3D11Filter filter) => ApplyGpuFilter(SdlFilterFactory.Create(filter.FilterMode));
 
     public void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
 
@@ -434,13 +434,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     // ---- GPU filter helpers ------------------------------------------------------------
 
-    private void ApplyGpuFilter(IGpuFilter filter)
+    private void ApplyGpuFilter(ISdlFilter filter)
     {
         _filterRenderState?.Dispose();
         _filterRenderState = null;
         _activeFilter = filter;
         if (!_isGpuRenderer || filter.PixelShaderResourceName is null) return;
-        _filterRenderState = new GpuRenderState(
+        _filterRenderState = new SdlGpuRenderState(
             _sdlRenderer, _gpuDevice,
             filter.PixelShaderResourceName,
             filter.NumFragmentSamplers,
@@ -476,7 +476,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         if (!_hasPictureAdjust) { _pictureAdjustRenderState?.Dispose(); _pictureAdjustRenderState = null; return; }
         if (_pictureAdjustRenderState is not null) return;
-        _pictureAdjustRenderState = new GpuRenderState(
+        _pictureAdjustRenderState = new SdlGpuRenderState(
             _sdlRenderer, _gpuDevice,
             "NEShim.Rendering.Shaders.Vulkan.PictureAdjust.ps.spv",
             numFragmentSamplers:     1,

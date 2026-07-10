@@ -1,6 +1,6 @@
 namespace NEShim.Rendering.Filters;
 
-internal sealed class XbrVulkanFilter : IGpuFilter
+internal sealed class XbrSdlFilter : ISdlFilter
 {
     private const float NesPixelAspect = 8f / 7f;
 
