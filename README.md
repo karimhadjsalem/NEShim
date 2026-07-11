@@ -2,6 +2,34 @@
 
 A full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows or Linux application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
+NEShim is built to make classic NES games feel native on modern platforms. Instead of acting as a general-purpose emulator, NEShim provides a complete application host around the original ROM — menus, localization, Steam integration, audio/video customization, save systems, and a polished player experience — all without altering the game itself. It’s a turnkey way to ship NES titles on Steam with modern expectations and professional presentation.
+
+
+
+## Why NEShim?
+
+NEShim is built for one purpose: to make it easy to ship NES games on modern platforms with the features players expect and the workflow publishers need. It is not just an emulator — it is a complete, commercial‑ready application host built around BizHawk’s cycle‑accurate NES core.
+
+For players, NEShim delivers a polished, modern experience:
+- Native Steam support — achievements, overlay, Steam Input, Steam Deck compatibility  
+- A rich video pipeline — CRT effects, NTSC composite, sharp pixel modes, motion effects, color grading, and presets  
+- A full audio chain — eight audio filters plus a 3‑band EQ  
+- In‑game menus, save states, battery RAM, and ten built‑in languages  
+- Native Windows and Linux builds with no ROM patching or external frontend required
+
+For publishers, NEShim provides a turnkey distribution platform:
+- Self‑contained executables for Windows x64 and Linux x64  
+- Steamworks integration (achievements, overlay, input, language detection)  
+- A complete UI layer — main menu, in‑game menu, configuration screens, localization system  
+- A stable configuration model (`config.json` + `user.json`) that preserves player preferences across updates  
+- ECDSA‑signed achievements with dedicated sealing tools (CLI + GUI)  
+- A modern rendering architecture (D3D11 on Windows, SDL_GPU/Vulkan on Linux) with a deep, extensible filter stack  
+- Zero ROM modification — all features layer cleanly on top of the original game
+
+NEShim’s mission is simple:  
+**Enable classic NES games to ship on Steam as polished, modern, native applications — with professional features, accurate emulation, and no changes to the original ROM.**
+
+---
 
 ### Full Documentation
 https://karimhadjsalem.github.io/NEShim/
