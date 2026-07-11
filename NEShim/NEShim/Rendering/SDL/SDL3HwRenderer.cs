@@ -8,12 +8,18 @@ namespace NEShim.Rendering;
 
 /// <summary>
 /// Hardware-accelerated renderer backed by SDL_CreateGPURenderer (preferred) or SDL_CreateRenderer (fallback).
-/// Selects Vulkan on Linux, Metal on macOS, D3D11 on Windows.
-/// Used as the primary renderer when D3D11 direct-init is unavailable (e.g. on Linux).
+/// Selects Vulkan on Linux, D3D11 on Windows (when used as the SDL_GPU fallback path).
+/// Used as the primary renderer on Linux and as the Windows fallback when D3D11 direct-init is unavailable.
 ///
-/// When the GPU renderer is active, SPIR-V pixel-shader filters are applied via SDL_GPURenderState.
-/// Picture adjust is implemented as a two-pass render-to-texture.
-/// Motion effects are not supported on this path.
+/// When the GPU renderer is active (<see cref="_isGpuRenderer"/> true):
+/// - Structural filters are applied via SPIR-V shaders and SDL_GPURenderState (SdlFilterFactory → ISdlFilter).
+/// - Color effects share ColorGrade.hlsli with the D3D11 path; the colorMode uniform is written identically.
+/// - CRT Jitter, Scanline Bob, and Magnetic Distortion motion effects are fully supported (SdlMotionEffectFactory).
+/// - PhosphorPersistence (Screen Glow) demotes to None — it requires a ping-pong temporal buffer not
+///   expressible via SDL_GPURenderState.
+/// - Video Overlay (second-pass filter slot) is not supported; SetOverlayFilter is a no-op.
+/// - Picture adjust (brightness/contrast/saturation/hue) is implemented as a two-pass render-to-texture.
+/// When the GPU renderer is unavailable, SDL_CreateRenderer is used with no shader support.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal sealed class SDL3HwRenderer : IFrameRenderer

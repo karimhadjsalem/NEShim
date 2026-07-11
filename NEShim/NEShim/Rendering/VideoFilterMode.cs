@@ -14,8 +14,7 @@ public enum VideoFilterMode
 
 public static class VideoFilterModeParser
 {
-    // Filters available in each rendering mode. Order defines the menu cycle sequence (most likely used first).
-    public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear];
+    // Filters supported by both D3D11 (DXBC) and SDL_GPU (SPIR-V). Order defines the menu cycle sequence.
     public static readonly VideoFilterMode[] D3D11Supported =
         [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite, VideoFilterMode.Xbr];
 

@@ -119,14 +119,11 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         var colorMode = Rendering.VideoColorFilterModeParser.Parse(_config.VideoColorFilter);
         var motionMode= Rendering.VideoMotionEffectModeParser.Parse(_config.VideoMotionEffect);
 
-        var supported = Platform.PlatformDetector.IsD3D11Active
-            ? Rendering.VideoFilterModeParser.D3D11Supported
-            : Rendering.VideoFilterModeParser.GdiSupported;
+        var supported = Rendering.VideoFilterModeParser.D3D11Supported;
 
         if (!supported.Contains(mode))
         {
-            Logger.Log($"[Renderer] VideoFilter '{_config.VideoFilter}' is not supported in " +
-                       $"{(Platform.PlatformDetector.IsD3D11Active ? "D3D11" : "GDI+")} mode; " +
+            Logger.Log($"[Renderer] VideoFilter '{_config.VideoFilter}' is not supported by the active renderer; " +
                        $"falling back to PixelPerfect.");
             mode = Rendering.VideoFilterMode.PixelPerfect;
             _config.VideoFilter = mode.ToString();

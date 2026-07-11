@@ -243,72 +243,37 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Note: SDL3-CS bundles SDL3.dll (the SDL3 native runtime library), which is
-distributed under the zlib license. SDL3 is Copyright (C) 1997-2024 Sam Lantinga.
+Note: SDL3-CS and its platform-native bundle packages (`SDL3-CS.Windows`,
+`SDL3-CS.Linux`, `SDL3-CS.MacOS`) bundle the SDL3 native runtime library
+(`SDL3.dll` / `libSDL3.so` / `libSDL3.dylib`), which is distributed under the
+zlib license. SDL3 is Copyright (C) 1997-2024 Sam Lantinga.
 
 ---
 
-## SDL3-CS.Windows.Image (SDL3_image bindings)
+## SDL3-CS *.Image (SDL3_image bindings)
 
 https://github.com/flibitijibibo/SDL3-CS
 
-MIT License
+Covers: `SDL3-CS.Windows.Image`, `SDL3-CS.Linux.Image`, `SDL3-CS.MacOS.Image`.
+Same MIT License as SDL3-CS; copyright (c) 2013-2024 Ethan Lee and contributors.
 
-Copyright (c) 2013-2024 Ethan Lee and contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-Note: SDL3-CS.Windows.Image bundles SDL3_image.dll (the SDL_image native library),
-which is distributed under the zlib license. SDL_image is Copyright (C) 1997-2024
+Note: Each platform-native Image package bundles the SDL3_image native library
+(`SDL3_image.dll` / `libSDL3_image.so` / `libSDL3_image.dylib`), which is
+distributed under the zlib license. SDL_image is Copyright (C) 1997-2024
 Sam Lantinga.
 
 ---
 
-## SDL3-CS.Windows.TTF (SDL3_ttf bindings)
+## SDL3-CS *.TTF (SDL3_ttf bindings)
 
 https://github.com/flibitijibibo/SDL3-CS
 
-MIT License
+Covers: `SDL3-CS.Windows.TTF`, `SDL3-CS.Linux.TTF`.
+Same MIT License as SDL3-CS; copyright (c) 2013-2024 Ethan Lee and contributors.
 
-Copyright (c) 2013-2024 Ethan Lee and contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-Note: SDL3-CS.Windows.TTF bundles SDL3_ttf.dll (the SDL_ttf native font rendering
-library), which is distributed under the zlib license.
-SDL_ttf is Copyright (C) 1997-2024 Sam Lantinga.
+Note: Each platform-native TTF package bundles the SDL3_ttf native font rendering
+library (`SDL3_ttf.dll` / `libSDL3_ttf.so`), which is distributed under the
+zlib license. SDL_ttf is Copyright (C) 1997-2024 Sam Lantinga.
 SDL_ttf uses the FreeType font rendering engine:
   Portions of this software are copyright © 2024 The FreeType Project
   (https://www.freetype.org). All rights reserved.

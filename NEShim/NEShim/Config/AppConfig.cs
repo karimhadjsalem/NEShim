@@ -37,10 +37,9 @@ public sealed class AppConfig
     public bool ShowFps { get; set; } = false;
 
     // Structural video filter applied to the NES framebuffer before display.
-    // GDI+ mode:  "PixelPerfect", "Bilinear"
-    // D3D11 mode: "PixelPerfect", "Bilinear", "CrtScanlines", "CrtPhosphor", "NtscComposite"
-    // If a D3D11-only filter is active when D3D11 is unavailable, NEShim falls back to
-    // "PixelPerfect" at startup and saves the change to config.json.
+    // All filters ("PixelPerfect", "Bilinear", "CrtScanlines", "CrtPhosphor", "NtscComposite",
+    // "CrtScreen", "Xbr") work on both D3D11 (DXBC) and SDL_GPU (SPIR-V).
+    // If a filter is set but no GPU renderer is available, NEShim logs a warning and falls back to "PixelPerfect".
     // "NearestNeighbour" is a deprecated alias — migrated to "PixelPerfect" at load time.
     public string VideoFilter { get; set; } = "PixelPerfect";
 
@@ -52,25 +51,24 @@ public sealed class AppConfig
     // Legacy values "NTSC" and "Auto" map to "Overscan"; "None" maps to "Normal".
     public string OverscanMode { get; set; } = "Normal";
 
-    // D3D11-only screen-space motion effect applied to the NES frame quad each frame.
-    // "None"      — no motion effect.
-    // "CrtJitter" — subtle per-frame drift simulating CRT TV hold instability.
-    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
+    // Per-frame motion effect applied to the NES frame quad.
+    // "None", "CrtJitter", "ScanlineBob", "MagneticDistortion" — available on D3D11 and SDL_GPU.
+    // "PhosphorPersistence" — D3D11 only; demotes to None on SDL_GPU (requires ping-pong temporal buffer).
     public string VideoMotionEffect { get; set; } = "None";
 
-    // D3D11-only second-pass overlay filter stacked on top of VideoFilter.
-    // Only CrtScanlines, CrtPhosphor, and CrtScreen are valid overlay values.
+    // Second-pass overlay filter stacked on top of VideoFilter (D3D11 only).
+    // Only "CrtScanlines", "CrtPhosphor", and "CrtScreen" are valid overlay values.
     // "None" disables the overlay (single-pass pipeline).
-    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
+    // SetOverlayFilter is a no-op on SDL_GPU; this field is stored but has no visual effect.
     public string VideoFilterOverlay { get; set; } = "None";
 
-    // D3D11-only colour grade applied on top of the structural video filter.
+    // Colour grade applied on top of the structural video filter.
+    // Available on both D3D11 and SDL_GPU/Vulkan.
     // "None"               — no color adjustment.
     // "Warm"               — slight amber tint mimicking an aged CRT phosphor.
     // "Greyscale"          — convert to greyscale using BT.601 luma weights.
     // "NesColorCorrection" — approximate 2C02 composite → sRGB colour correction.
     // "Cool"               — blue-green tint approximating the D93 9300K CRT white point.
-    // Stored in config in GDI+ mode but has no visual effect until D3D11 is available.
     public string VideoColorFilter { get; set; } = "None";
 
     // Deprecated — use VideoFilter: "Bilinear" instead.
@@ -106,7 +104,8 @@ public sealed class AppConfig
     public int AudioEqTreble { get; set; } = 0;
 
     // Brightness/Contrast/Saturation/Hue picture adjustments (-100..100; 0 = neutral).
-    // Applied as a D3D11 post-process pass after the structural filter.
+    // Applied as a post-process pass after all structural, overlay, and motion effect passes.
+    // Available on both D3D11 and SDL_GPU. When all four are 0 the pass is skipped entirely.
     public int VideoBrightness { get; set; } = 0;
     public int VideoContrast   { get; set; } = 0;
     public int VideoSaturation { get; set; } = 0;
@@ -179,10 +178,9 @@ public sealed class AppConfig
     // When true, diagnostic output is appended to neshim.log next to the executable.
     public bool EnableLogging { get; set; } = false;
 
-    // Forces a specific rendering backend, bypassing automatic selection.
-    // "auto"  — try D3D11 first; fall back to GDI+ if init fails (default)
-    // "d3d11" — same as "auto"; documents intent but still falls back to GDI+ if D3D11 init throws
-    // "gdi"   — always use GDI+ (useful when diagnosing D3D11-specific issues)
+    // Retained for forward-compatibility with publisher config.json files.
+    // The GDI+ rendering path was removed; this field is read but has no effect.
+    // D3D11 is always attempted first on Windows; SDL_GPU is the fallback.
     public string ForceRenderer { get; set; } = "auto";
 
     // Controls the NES region used for emulation. Affects CPU clock rate, PPU scanline

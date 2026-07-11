@@ -85,44 +85,6 @@ internal class VideoFilterModeParserTests
         Assert.That(VideoFilterModeParser.D3D11Supported, Contains.Item(VideoFilterMode.CrtScreen));
     }
 
-    // ---- GdiSupported ----
-
-    [Test]
-    public void GdiSupported_ContainsTwoEntries()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported.Length, Is.EqualTo(2));
-    }
-
-    [Test]
-    public void GdiSupported_ContainsBilinear()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported, Contains.Item(VideoFilterMode.Bilinear));
-    }
-
-    [Test]
-    public void GdiSupported_ContainsPixelPerfect()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported, Contains.Item(VideoFilterMode.PixelPerfect));
-    }
-
-    [Test]
-    public void GdiSupported_DoesNotContainCrtScanlines()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.CrtScanlines));
-    }
-
-    [Test]
-    public void GdiSupported_DoesNotContainCrtPhosphor()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.CrtPhosphor));
-    }
-
-    [Test]
-    public void GdiSupported_DoesNotContainNtscComposite()
-    {
-        Assert.That(VideoFilterModeParser.GdiSupported, Does.Not.Contain(VideoFilterMode.NtscComposite));
-    }
-
     // ---- OverlaySupported ----
 
     [Test]

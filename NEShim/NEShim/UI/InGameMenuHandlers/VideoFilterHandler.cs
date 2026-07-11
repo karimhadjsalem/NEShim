@@ -1,4 +1,3 @@
-using NEShim.Platform;
 using NEShim.Rendering;
 
 namespace NEShim.UI;
@@ -7,10 +6,7 @@ internal sealed partial class InGameMenu
 {
     private sealed class VideoFilterHandler : ScreenHandler
     {
-        private VideoFilterMode[] FilterOptions =>
-            PlatformDetector.IsD3D11Active
-                ? VideoFilterModeParser.D3D11Supported
-                : VideoFilterModeParser.GdiSupported;
+        private VideoFilterMode[] FilterOptions => VideoFilterModeParser.D3D11Supported;
 
         private int BackIndex => FilterOptions.Length;
 
