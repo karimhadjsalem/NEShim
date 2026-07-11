@@ -80,7 +80,9 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public bool OwnsFrameSurface => true;
 
+#pragma warning disable CS0067
     public event EventHandler? DeviceLost;
+#pragma warning restore CS0067
 
     internal SDL3HwRenderer(IntPtr sdlWindow, int nesWidth, int nesHeight)
     {
@@ -267,7 +269,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private void DrawNesFrameDirect(SDL.FRect src, SDL.FRect dest)
     {
         ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
     }
 
@@ -278,7 +280,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
         SDL.RenderClear(_sdlRenderer);
         ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
@@ -293,14 +295,14 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
         SDL.RenderClear(_sdlRenderer);
         ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
         // Pass 2: motion-effect intermediate + ME shader → screen.
         ApplyMotionEffectRenderState();
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, ref fullRect, ref fullRect);
+        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
         _motionEffectRenderState!.Clear();
     }
 
@@ -311,7 +313,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
         SDL.RenderClear(_sdlRenderer);
         ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, ref src, ref dest);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
@@ -321,7 +323,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.RenderClear(_sdlRenderer);
         ApplyMotionEffectRenderState();
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, ref fullRect, ref fullRect);
+        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
         _motionEffectRenderState!.Clear();
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
@@ -338,7 +340,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         uniforms[3] = _hue;
         _pictureAdjustRenderState!.Apply(uniforms);
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, sourceTexture, ref fullRect, ref fullRect);
+        SDL.RenderTexture(_sdlRenderer, sourceTexture, in fullRect, in fullRect);
         _pictureAdjustRenderState!.Clear();
     }
 
@@ -377,7 +379,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         {
             var dst = new SDL.FRect { X = 0, Y = 0, W = sidebarW, H = _viewportHeight };
             var src = ComputeCoverSrcFRect(_leftSidebarSize, sidebarW, _viewportHeight);
-            SDL.RenderTexture(_sdlRenderer, _leftSidebarTex, ref src, ref dst);
+            SDL.RenderTexture(_sdlRenderer, _leftSidebarTex, in src, in dst);
         }
 
         float rightX = nesDest.X + nesDest.W;
@@ -386,7 +388,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         {
             var dst = new SDL.FRect { X = rightX, Y = 0, W = rightW, H = _viewportHeight };
             var src = ComputeCoverSrcFRect(_rightSidebarSize, rightW, _viewportHeight);
-            SDL.RenderTexture(_sdlRenderer, _rightSidebarTex, ref src, ref dst);
+            SDL.RenderTexture(_sdlRenderer, _rightSidebarTex, in src, in dst);
         }
     }
 
@@ -420,7 +422,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         }
 
         var fullDest = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _overlayTexture, IntPtr.Zero, ref fullDest);
+        SDL.RenderTexture(_sdlRenderer, _overlayTexture, IntPtr.Zero, in fullDest);
     }
 
     private void RenderOverlayBitmap()

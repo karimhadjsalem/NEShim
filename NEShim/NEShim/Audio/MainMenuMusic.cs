@@ -65,7 +65,7 @@ internal sealed class MainMenuMusic : IDisposable
             SDL.Free(rawBuf);
 
             _audioStream = SDL.OpenAudioDeviceStream(
-                SDL.AudioDeviceDefaultPlayback, ref wavSpec, null, IntPtr.Zero);
+                SDL.AudioDeviceDefaultPlayback, in wavSpec, null, IntPtr.Zero);
             if (_audioStream == IntPtr.Zero)
                 throw new InvalidOperationException($"SDL_OpenAudioDeviceStream failed: {SDL.GetError()}");
 

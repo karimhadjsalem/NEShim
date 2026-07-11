@@ -589,7 +589,7 @@ internal sealed partial class MainMenuScreen : IDisposable
 
         uint black = SDL.MapSurfaceRGB(cached, 0, 0, 0);
         SDL.FillSurfaceRect(cached, IntPtr.Zero, black);
-        SDL.BlitSurfaceScaled(Background, IntPtr.Zero, cached, ref srcRect, SDL.ScaleMode.Linear);
+        SDL.BlitSurfaceScaled(Background, IntPtr.Zero, cached, in srcRect, SDL.ScaleMode.Linear);
 
         _scaledBackground = cached;
         _scaledBoundsSize = (bounds.W, bounds.H);

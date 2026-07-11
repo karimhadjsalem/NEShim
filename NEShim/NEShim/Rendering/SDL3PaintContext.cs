@@ -36,7 +36,7 @@ internal sealed class SDL3PaintContext
     internal void FillRect(SDL.FRect rect, SDL.Color color)
     {
         SetRenderColor(color);
-        SDL.RenderFillRect(_renderer, ref rect);
+        SDL.RenderFillRect(_renderer, in rect);
     }
 
     internal void DrawRect(SDL.FRect rect, SDL.Color color, float thickness)
@@ -47,10 +47,10 @@ internal sealed class SDL3PaintContext
         var bottom = new SDL.FRect { X = rect.X,              Y = rect.Y + rect.H - t, W = rect.W,      H = t };
         var left   = new SDL.FRect { X = rect.X,              Y = rect.Y + t,          W = t,           H = rect.H - t * 2 };
         var right  = new SDL.FRect { X = rect.X + rect.W - t, Y = rect.Y + t,          W = t,           H = rect.H - t * 2 };
-        SDL.RenderFillRect(_renderer, ref top);
-        SDL.RenderFillRect(_renderer, ref bottom);
-        SDL.RenderFillRect(_renderer, ref left);
-        SDL.RenderFillRect(_renderer, ref right);
+        SDL.RenderFillRect(_renderer, in top);
+        SDL.RenderFillRect(_renderer, in bottom);
+        SDL.RenderFillRect(_renderer, in left);
+        SDL.RenderFillRect(_renderer, in right);
     }
 
     internal void DrawLine(float x1, float y1, float x2, float y2, SDL.Color color)
@@ -69,7 +69,7 @@ internal sealed class SDL3PaintContext
             if (t * t >= 1f) continue;
             float halfW = rx * MathF.Sqrt(1f - t * t);
             var row = new SDL.FRect { X = cx - halfW, Y = cy + dy, W = halfW * 2f, H = 1f };
-            SDL.RenderFillRect(_renderer, ref row);
+            SDL.RenderFillRect(_renderer, in row);
         }
     }
 
@@ -146,11 +146,11 @@ internal sealed class SDL3PaintContext
             if (srcFRect.HasValue)
             {
                 var srcF = srcFRect.Value;
-                SDL.RenderTexture(_renderer, texture, ref srcF, ref dstFRect);
+                SDL.RenderTexture(_renderer, texture, in srcF, in dstFRect);
             }
             else
             {
-                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, ref dstFRect);
+                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstFRect);
             }
         }
         finally { SDL.DestroyTexture(texture); }
@@ -190,7 +190,7 @@ internal sealed class SDL3PaintContext
             try
             {
                 var dstF = new SDL.FRect { X = x, Y = y, W = textW, H = textH };
-                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, ref dstF);
+                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstF);
             }
             finally { SDL.DestroyTexture(texture); }
         }

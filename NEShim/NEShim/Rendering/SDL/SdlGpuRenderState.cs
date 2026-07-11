@@ -112,7 +112,7 @@ internal sealed class SdlGpuRenderState : IDisposable
                 NumUniformBuffers  = numUniformBuffers,
                 Props              = 0,
             };
-            IntPtr shader = SDL.CreateGPUShader(gpuDevice, ref shaderInfo);
+            IntPtr shader = SDL.CreateGPUShader(gpuDevice, in shaderInfo);
             if (shader == IntPtr.Zero)
                 Logger.Log($"[SdlGpuRenderState] CreateGPUShader failed for '{resourceName}': {SDL.GetError()}");
             return shader;

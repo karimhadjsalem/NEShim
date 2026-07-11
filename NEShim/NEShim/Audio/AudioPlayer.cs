@@ -64,7 +64,7 @@ internal sealed class AudioPlayer : IDisposable
             Freq     = SampleRate,
         };
         _audioStream = SDL.OpenAudioDeviceStream(
-            SDL.AudioDeviceDefaultPlayback, ref spec, _getCallbackDelegate, IntPtr.Zero);
+            SDL.AudioDeviceDefaultPlayback, in spec, _getCallbackDelegate, IntPtr.Zero);
         if (_audioStream == IntPtr.Zero)
         {
             Logger.Log($"[Audio] SDL_OpenAudioDeviceStream failed: {SDL.GetError()}");
