@@ -829,10 +829,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
         if (_overlaySrv is null) return;
 
-        // The overlay is GDI+-rendered content (menus, frozen frame, HUD). Draw it through
-        // the passthrough shader so structural filters (scanlines, NTSC) are not applied to
-        // the 2D overlay bitmap. Color grade (colorMode) is still applied via the cbuffer
-        // because the passthrough shader reads it.
+        // Draw through passthrough shader so structural filters (scanlines, NTSC) are not
+        // applied to the 2D overlay bitmap. Zero colorMode so color-grade effects (grayscale,
+        // sepia, etc.) do not bleed into the menu or HUD — they apply to the NES viewport only.
+        UpdateFilterCbuffer(colorModeOverride: 0f);
         _context.PSSetShader(_passthroughPixelShader);
         _context.OMSetBlendState(_alphaBlendState);
         _context.PSSetShaderResource(0, _overlaySrv);
@@ -978,9 +978,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         WriteQuadToVB(-1f, 1f, 1f, -1f);
         _context.Draw(6, 0);
 
-        // Restore filter cbuffer so DrawOverlay sees the correct colorMode.
         _context.PSSetShader(_activePixelShader);
-        UpdateFilterCbuffer();
     }
 
     private void DisposeSidebarResources()
