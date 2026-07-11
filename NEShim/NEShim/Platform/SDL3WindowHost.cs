@@ -11,25 +11,17 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
     private bool _quit;
     private int _clientWidth;
     private int _clientHeight;
+    private readonly int _initialWidth;
+    private readonly int _initialHeight;
+    private readonly IntPtr _hwnd;
     private readonly ConcurrentQueue<Action> _marshalQueue = new();
+    private readonly Action<Action> _marshalDelegate;
 
     public event Action<int, int>? Resized;
-    public event Action<bool>? FocusChanged;
+    public event Action<bool>?     FocusChanged;
 
     internal event Action<SDL.Keycode>? KeyDown;
     internal event Action<SDL.Keycode>? KeyUp;
-
-    event Action<int, int>? IWindowHost.Resized
-    {
-        add    => Resized    += value;
-        remove => Resized    -= value;
-    }
-
-    event Action<bool>? IWindowHost.FocusChanged
-    {
-        add    => FocusChanged += value;
-        remove => FocusChanged -= value;
-    }
 
     public SDL3WindowHost(string title, int width, int height)
     {
@@ -41,23 +33,22 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
             throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL.GetError()}");
 
         SDL.GetWindowSizeInPixels(_window, out _clientWidth, out _clientHeight);
+        _initialWidth  = width;
+        _initialHeight = height;
+
+        uint props = SDL.GetWindowProperties(_window);
+        _hwnd = SDL.GetPointerProperty(props, SDL.Props.WindowWin32HWNDPointer, IntPtr.Zero);
+
+        _marshalDelegate = action => _marshalQueue.Enqueue(action);
     }
 
-    public IntPtr Handle
-    {
-        get
-        {
-            uint props = SDL.GetWindowProperties(_window);
-            return SDL.GetPointerProperty(props, SDL.Props.WindowWin32HWNDPointer, IntPtr.Zero);
-        }
-    }
-
+    public IntPtr Handle    => _hwnd;
     public IntPtr SdlWindow => _window;
 
     public int ClientWidth  => _clientWidth;
     public int ClientHeight => _clientHeight;
 
-    public Action<Action> MarshalToMainThread => action => _marshalQueue.Enqueue(action);
+    public Action<Action> MarshalToMainThread => _marshalDelegate;
 
     public void SetTitle(string title) => SDL.SetWindowTitle(_window, title);
 
@@ -66,7 +57,7 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         SDL.SetWindowFullscreen(_window, fullscreen);
         if (!fullscreen)
         {
-            SDL.SetWindowSize(_window, 1024, 672);
+            SDL.SetWindowSize(_window, _initialWidth, _initialHeight);
             SDL.SetWindowPosition(_window, (int)SDL.WindowPosCentered(), (int)SDL.WindowPosCentered());
         }
     }
@@ -82,14 +73,14 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         while (!_quit)
         {
             while (SDL.PollEvent(out var sdlEvent))
-                HandleSdlEvent(ref sdlEvent);
+                HandleSdlEvent(in sdlEvent);
             while (_marshalQueue.TryDequeue(out var action))
                 action();
             onIdle();
         }
     }
 
-    private void HandleSdlEvent(ref SDL.Event sdlEvent)
+    private void HandleSdlEvent(in SDL.Event sdlEvent)
     {
         switch ((SDL.EventType)sdlEvent.Type)
         {
