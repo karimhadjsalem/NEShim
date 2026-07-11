@@ -54,11 +54,16 @@ In `config.json`, set `windowTitle` to your game's name:
 
 ---
 
-## 4. `steam_api64.dll`
+## 4. Steamworks native library
 
-`steam_api64.dll` is **not** included in the NEShim release package. Before uploading to Steam, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version. The current build targets **Steamworks.NET 2025.163.0**.
+The Steamworks native library is **not** included in the NEShim release package. Before uploading to Steam, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version. The current build targets **Steamworks.NET 2025.163.0**.
 
-Include it in your Steam depot when uploading; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
+| Platform | File |
+|---|---|
+| Windows (`NEShim-win-x64`) | `steam_api64.dll` |
+| Linux (`NEShim-linux-x64`) | `libsteam_api.so` |
+
+Include the appropriate file in each platform's Steam depot; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
 If you ever need to upgrade to a newer Steamworks.NET version, use the copy bundled inside the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is pre-matched to the wrapper version.
 
@@ -246,7 +251,7 @@ Before uploading to Steam:
 
 ## Steam Deck
 
-NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility. See the [Steam Deck guide](steamdeck.md) for a full description of what is applied automatically on Deck.
+NEShim runs on Steam Deck natively via the Linux x64 build (SDL_GPU/Vulkan path) or via Proton using the Windows x64 build (D3D11/DXVK path). No configuration changes are required for either path. See the [Steam Deck guide](steamdeck.md) for a full description of what is applied automatically on Deck.
 
 ---
 
@@ -255,7 +260,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. No 
 - [ ] `NEShim.exe` renamed to `MyGame.exe` (only the exe; all other `NEShim.*` files stay as-is)
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
-- [ ] `steam_api64.dll` copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory and included in your Steam depot
+- [ ] Steamworks native library copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory (`steam_api64.dll` for Windows, `libsteam_api.so` for Linux) and included in the corresponding Steam depots
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded — player preferences live in AppData `user.json`, which Steam cannot touch)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
@@ -276,15 +281,17 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. No 
 
 ## Deployed file layout
 
+### Windows (`NEShim-win-x64`)
+
 ```
 MyGame/
 ├── MyGame.exe                  ← renamed from NEShim.exe (only the exe can be renamed)
 ├── NEShim.dll                  ← must keep this name; baked into the app host
-├── NEShim.deps.json            ← must keep this name
-├── NEShim.runtimeconfig.json   ← must keep this name
+├── NEShim.deps.json
+├── NEShim.runtimeconfig.json
 ├── NEShim.AchievementSigning.dll
 ├── BizHawk.dll
-├── steam_api64.dll             ← from Steamworks.NET release zip; must be included in your depot
+├── steam_api64.dll             ← from Steamworks.NET release zip; include in your Windows depot
 ├── steam_appid.txt
 ├── game_actions_1234560.vdf
 ├── controller_bindings/
@@ -308,3 +315,10 @@ MyGame/
 │   └── menu_theme.mp3
 └── [.NET runtime files...]
 ```
+
+### Linux (`NEShim-linux-x64`)
+
+The layout is identical, with these differences:
+- No `.exe` extension: the executable is `NEShim` (or `MyGame` if renamed)
+- `libsteam_api.so` replaces `steam_api64.dll`
+- The `.NET runtime files` include Linux-specific binaries

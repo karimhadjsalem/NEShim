@@ -16,13 +16,14 @@ This page describes the internal design of NEShim for contributors and anyone ex
 
 | Project | Target | Purpose |
 |---|---|---|
-| `NEShim` | `net9.0-windows` | Main application — Windows Forms shell, Steam wiring, game loop |
+| `NEShim` | `net9.0` | Main application — SDL3 windowing + rendering, Steam wiring, game loop (Windows x64 + Linux x64) |
 | `NEShim.AchievementSigning` | `net9.0` | Shared library — `AchievementDef` type, ECDSA-P256 signing/verification logic |
-| `NEShim.SealAchievements` | `net9.0` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` |
-| `NEShim.Tests` | `net9.0-windows` | NUnit test suite |
+| `NEShim.SealAchievements` | `net9.0` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` (Windows + Linux) |
+| `NEShim.SealAchievementsUI` | `net9.0-windows` | Developer GUI tool — Windows Forms UI for the sealer (Windows only) |
+| `NEShim.Tests` | `net9.0` | NUnit test suite |
 | `BizHawk` | `net8.0` | NES emulation core, adapted from the BizHawk multi-system emulator |
 
-`NEShim.AchievementSigning` targets `net9.0` (no Windows dependency) so it can be referenced by both the main app and the sealer tool without pulling in Windows Forms.
+`NEShim` targets `net9.0` (cross-platform) with platform-specific files selected at build time via MSBuild `<Compile Remove>` conditions: D3D11 renderer, Steam overlay renderer, and their factory implementations are excluded on non-Windows; the SDL_GPU renderer factory and null overlay renderer are excluded on Windows.
 
 ---
 
@@ -33,13 +34,13 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `IFrameRenderer` strategy (`D3D11Renderer` primary / `GdiRenderer` fallback), `IMenuSceneProvider` pull interface, `IGraphicsScaler` (GDI+ interpolation strategy — GDI+ path only), `FrameBuffer` (double-buffer), `GamePanel` (GDI+ fallback surface), `D3DOverlayHook` (Steam overlay swap chain) |
-| `NEShim.Audio` | `AudioPlayer` (NAudio ring-buffer bridge), audio processors, main menu music |
-| `NEShim.Input` | `InputManager` (keyboard + XInput), `InputSnapshot`, `XInputHelper` |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (Windows: `D3D11Renderer` primary / `SDL3HwRenderer` fallback; Linux: `SDL3HwRenderer` via SDL_GPU/Vulkan), `IMenuSceneProvider` pull interface, `SDL3PaintContext` (cross-platform paint surface — wraps an SDL_Surface for menu/HUD rendering), `SDL3FontCache` (SDL3_ttf font lifecycle; keyed by family+size; dispose-tracked), `SdlSurfaceLoader` (cross-platform image loader using SDL3_image), `IOverlayRenderer` (Windows: `SteamOverlayRenderer`; Linux: `NullOverlayRenderer`), `OverlayRenderer` (stateless static helpers — `DrawFps(SDL3PaintContext, rect, fps)` and `DrawToast(SDL3PaintContext, rect, text)` — called by both renderers), `FrameBuffer` (double-buffer), `D3DOverlayHook` (Windows: D3D11 device + swap chain bound to SDL HWND); **D3D11 subsystems** (`Rendering/Filters/Dx11/`): `ID3D11Filter` + 7 implementations, `D3D11FilterFactory`; **SDL subsystems** (`Rendering/Filters/SDL/`, `Rendering/MotionEffects/SDL/`, `Rendering/SDL/`): `ISdlFilter` (mirrors `ID3D11Filter` for SPIR-V; exposes `PixelShaderResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`, `WriteUniformData`), `SdlGpuRenderState` (wraps one SDL_GPUShader + SDL_GPURenderState pair; `Apply(Span<float>)` uploads uniforms; `Clear()` restores default pipeline; created per active filter, disposed on filter change), `SdlFilterFactory` (maps `VideoFilterMode` → `ISdlFilter`), `ISdlMotionEffect` (extends `IMotionEffect`; adds `SpvResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`), `SdlMotionEffectFactory` (maps `VideoMotionEffectMode` → `IMotionEffect`; `PhosphorPersistence` → `NoneMotionEffect` with log entry); **shared** (`Filters/`, `MotionEffects/`): `IMotionEffect`, `MotionEffectFactory` (D3D11 path), `VideoFilterMode`, `VideoColorFilterMode`, `VideoMotionEffectMode` |
+| `NEShim.Audio` | `AudioPlayer` (SDL3 audio stream bridge — `SDL.OpenAudioDeviceStream` + callback), 8 `IAudioProcessor` implementations, `AudioEqProcessor`, `MainMenuMusic` |
+| `NEShim.Input` | `InputManager`, `InputSnapshot`; `SDL3GamepadDevice`, `SDL3GamepadSource`, `SDL3GamepadMapper`; `SteamInputSource`, `SteamInputMapper`; `KeyboardInputSource`, `KeyboardMapper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
-| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`ntdll.dll::wine_get_version`), SteamDeck env var (`$SteamDeck == "1"`), `IsD3D11Active` (set once at startup — gates D3D11-only video filter availability) |
-| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer`; `IMenuInputTarget` (gamepad dispatch interface implemented by `MainForm`) |
-| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, UI-thread tick; `SteamInputManager` — action sets |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), SteamDeck detection (`IsSteamDeck`), `IsD3D11Active` (set once at startup), `ConfigureVideoDriverForSteamOverlay()` (Linux: sets `SDL_VIDEODRIVER=x11` before `SDL_Init`), `BeginHighResolutionTiming`/`EndHighResolutionTiming`; `SDL3WindowHost` — SDL3 window lifecycle, event loop, marshal queue; `MenuScale` — font/layout scale factor |
+| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` (stateless `Draw(SDL3PaintContext, SDL.Rect, state)` entry points); `IMenuInputTarget` (gamepad dispatch interface implemented by `NEShimApp`) |
+| `NEShim.Steam` | `SteamManager` — init, overlay callbacks, main-thread tick; `SteamInputManager` — action sets |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
 
 ---
@@ -48,29 +49,39 @@ This page describes the internal design of NEShim for contributors and anyone ex
 
 ```
 Program.cs
-  └─ Application.Run(new MainForm())
-       └─ MainForm.OnFormLoad()
-            └─ MainForm.InitializeEmulator()
-                 1. Load config.json → AppConfig
-                 2. Load ROM, compute SHA1
-                 3. EmulatorHost.Load() → wraps NES core
-                 4. AchievementConfigLoader.Load(romHash) → verify sigs → AchievementManager?
-                 5. SaveRamManager.LoadFromDisk()
-                 6. SaveStateManager
-                 7. FrameBuffer + GamePanel (GDI+ fallback surface; permanently hidden in D3D11 mode)
-                 8. InputManager + keyboard event wiring
-                 9. AudioPlayer + audio processors
-                 9a. MainMenuScreen + MainMenuMusic
-                 10. InGameMenu
-                 11. EmulationThread (starts paused at MainMenu)
-                 12. SteamManager.Initialize() → overlay callback wired; UI-thread timer started (~60 Hz)
-                 13. SetWindowMode() → then D3DOverlayHook.Initialize(Handle, Width, Height)
-                 14. D3D11Renderer constructed (reuses device + swap chain from D3DOverlayHook, if available)
-                     PlatformDetector.IsD3D11Active set accordingly
-                 15. audio.Start(), emulationThread.Start()
+  ├─ PlatformDetector.BeginHighResolutionTiming()
+  ├─ SteamAPI.RestartAppIfNecessary(appId)   — exits if not launched via Steam
+  └─ new SDL3WindowHost("NEShim", 1024, 672)
+       └─ PlatformDetector.ConfigureVideoDriverForSteamOverlay()  [Linux only: SDL_VIDEODRIVER=x11]
+       └─ SDL.Init(Video | Events | Audio | Gamepad)
+       └─ SDL.CreateWindow(...)
+  └─ new NEShimApp(sdlHost).Run()
+       └─ NEShimApp.InitializeEmulator()
+            1. InitializeConfig()           — ConfigLoader.Load() → AppConfig
+            2. InitializeEmulatorCore()    — BizHawkEmulationCore.LoadRom(); AchievementManager?
+            3. InitializeSaveSystems()     — SaveManager (states + SRAM)
+            4. InitializeRendering()       — FrameBuffer; load sidebar SDL_Surfaces
+            5. InitializeInput()           — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input)
+            6. InitializeAudio()           — AudioPlayer (SDL3 audio stream)
+            7. InitializeSteam()           — SteamManager.Initialize() → overlay callback wired
+            8. InitializeWindowAndD3DHook()
+               ├─ SetWindowMode()
+               ├─ OverlayRendererFactory.Create()
+               │    Windows: SteamOverlayRenderer (D3DOverlayHook wraps SDL HWND)
+               │    Linux:   NullOverlayRenderer
+               └─ RendererFactory.Create()
+                    Windows: D3D11Renderer (primary) / SDL3HwRenderer (fallback via SDL_GPU)
+                    Linux:   SDL3HwRenderer (SDL_GPU/Vulkan)
+                    → PlatformDetector.IsD3D11Active set accordingly
+            9. ShowLogo() / FinishInitialization()
+               └─ InitializeMainMenu(), InitializeInGameMenu()
+               └─ EmulationThread.Start() [starts paused at MainMenu]
+               └─ AudioPlayer.Start()
+  └─ sdlHost.RunLoop(NEShimApp.OnIdle)       — SDL event loop (main thread)
+  └─ NEShimApp.Shutdown()
 ```
 
-All components are wired together in `MainForm.InitializeEmulator()` which owns construction, event subscription, and lifetime management. There is no dependency injection container — wiring is explicit and centralised.
+All components are wired together in `NEShimApp.InitializeEmulator()` which owns construction, event subscription, and lifetime management. There is no dependency injection container — wiring is explicit and centralised.
 
 ---
 
@@ -78,13 +89,14 @@ All components are wired together in `MainForm.InitializeEmulator()` which owns 
 
 NEShim uses two threads:
 
-### UI thread (Windows Forms message pump)
+### Main thread (SDL event loop)
 
-- Owns all `WinForms` controls including `GamePanel`.
-- Receives keyboard events (`OnKeyDown`, `OnKeyUp`) and forwards them to `InputManager`.
-- Processes repaint requests (`GamePanel.OnPaint`).
-- Handles `WM_ACTIVATEAPP` (focus lost → pause reason).
-- `MainForm.OnFormClosing` stops the emulation thread and writes persistence files.
+- Runs `SDL3WindowHost.RunLoop(NEShimApp.OnIdle)` — polls `SDL.PollEvent` until the event queue is drained, drains the `MarshalToMainThread` action queue, then calls `OnIdle`.
+- Receives SDL keyboard and window events; forwards keyboard events to `InputManager`.
+- Receives SDL gamepad events (`SDL_EVENT_GAMEPAD_ADDED/REMOVED`) for hot-plug detection.
+- `SDL_EVENT_WINDOW_FOCUS_LOST` → `SetPauseReason(FocusLost, true)`; `SDL_EVENT_WINDOW_FOCUS_GAINED` → clears it.
+- `NEShimApp.Shutdown()` stops the emulation thread and writes persistence files.
+- `SteamManager.Tick()` is called from `OnIdle` when the emulation loop is paused, keeping the Steam overlay hook alive.
 
 ### Emulation thread (`EmulationThread.Loop`)
 
@@ -99,20 +111,18 @@ Per-frame sequence:
 6. `EmulatorHost.RunFrame()` — advance NES by one frame
 7. `AchievementManager.Tick()` — evaluate memory triggers
 8. `FrameBuffer.WriteBack()` + `FrameBuffer.Swap()` — copy video to front buffer
-9. **Frame dispatch (non-blocking, via `BeginInvoke` to UI thread):**
-   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` then `D3D11Renderer.DrawAndPresent(vsync: true)` — upload and present are batched in the same `BeginInvoke` call so Present fires immediately after the texture is ready, with no clock drift. After `Present()` returns, `SteamManager.RunCallbacksAfterPresent()` is invoked immediately within the same lambda (see [Steam overlay: Gamescope callback timing](#gamescope-callback-timing) below).
-   - GDI+ fallback: `GamePanel.UpdateFrame()` — copies pixels into Bitmap and calls Invalidate; `GdiRenderer.Tick()` — `D3DOverlayHook.Present()` for Steam overlay heartbeat.
+9. **Frame dispatch (non-blocking, via `MarshalToMainThread`):**
+   - D3D11 active: `D3D11Renderer.UploadFrame(FrontBuffer)` then `D3D11Renderer.DrawAndPresent(vsync: true)` — upload and present are enqueued together in the same `MarshalToMainThread` action so Present fires immediately after the texture is ready, with no clock drift. After `Present()` returns, `SteamManager.RunCallbacksAfterPresent()` is invoked immediately within the same action (see [Steam overlay: Gamescope callback timing](#gamescope-callback-timing) below).
+   - SDL3HwRenderer fallback (Windows) or primary (Linux): `SDL3HwRenderer.UploadFrame()` + `SDL3HwRenderer.Tick()` via SDL_GPU/Vulkan.
 10. `AudioPlayer.Enqueue()` — push audio samples to ring buffer
 11. FPS tracking
 12. Frame timing — sleep + spin to hit the target timestamp
 
-The **steamTimer** (~60 Hz, UI thread) calls `SteamManager.Tick()` (→ `SteamAPI.RunCallbacks()`) every tick, but only calls `Renderer.Tick()` when the emulation loop is **paused**. During gameplay, Present is driven by the `BeginInvoke` batch above, keeping it tightly coupled to frame production. When paused (menus, overlay, focus lost), no `BeginInvoke` calls are arriving, so the steamTimer drives Present to keep the Steam overlay hook alive.
-
 Steam requires callbacks to be dispatched on the same thread that called `SteamAPI.Init()`.
 
 **Cross-thread rules:**
-- The emulation thread never calls WinForms methods directly — always via `BeginInvoke`.
-- `InputManager._pressedKeys` is protected by a lock (keyboard events fire on the UI thread; reads happen on the emulation thread).
+- The emulation thread never calls SDL or main-thread APIs directly — always via `MarshalToMainThread` (a `ConcurrentQueue<Action>` drained by the SDL event loop).
+- `InputManager._pressedKeys` is protected by a lock (keyboard events arrive on the main thread via SDL events; reads happen on the emulation thread).
 - `FrameBuffer` is protected by a `SpinLock` at swap time.
 - `_pauseReasonBits` is a `volatile int` updated with CAS (`Interlocked.CompareExchange`) from either thread.
 
@@ -126,7 +136,7 @@ Steam requires callbacks to be dispatched on the same thread that called `SteamA
 |---|---|---|---|
 | 1 | `Menu` | In-game pause menu opened, or controller disconnected mid-game | Menu closed / disconnect overlay dismissed |
 | 2 | `Overlay` | Steam overlay opened | Overlay closed |
-| 4 | `FocusLost` | Window loses focus (`WM_ACTIVATEAPP`) | Window gains focus |
+| 4 | `FocusLost` | Window loses focus (`SDL_EVENT_WINDOW_FOCUS_LOST`) | Window gains focus (`SDL_EVENT_WINDOW_FOCUS_GAINED`) |
 | 8 | `MainMenu` | App starts / user returns to main menu | User picks New Game or Resume |
 | 16 | `DeviceLost` | D3D11 device removed (GPU driver reset, suspend/resume) | D3D11 reinitialised successfully |
 
@@ -137,17 +147,17 @@ Steam requires callbacks to be dispatched on the same thread that called `SteamA
 ## Frame buffer (double-buffer)
 
 ```
-Emulation thread          UI thread (paint)
-─────────────────         ──────────────────
+Emulation thread          Main thread (MarshalToMainThread action)
+─────────────────         ──────────────────────────────────────────
 WriteBack(pixels)  →  [back buffer]
 Swap()             ←──── SpinLock ────→  FrontBuffer (read only)
                           │
-                    GamePanel.OnPaint reads FrontBuffer
+                    Renderer.UploadFrame reads FrontBuffer
 ```
 
-`WriteBack` copies the NES pixel array into the back buffer. `Swap` atomically flips `_frontIndex` under a `SpinLock`. The paint thread always reads from `FrontBuffer` — it never touches the back buffer.
+`WriteBack` copies the NES pixel array into the back buffer. `Swap` atomically flips `_frontIndex` under a `SpinLock`. The renderer always reads from `FrontBuffer` — it never touches the back buffer.
 
-When the pause menu is open, the emulation loop does not run `RunFrame`, so the front buffer holds the last frame before the pause. In D3D11 mode the NES texture persists in the GPU between frames; the last rendered frame is visible beneath the semi-transparent menu overlay without any extra copy.
+When the pause menu is open, the emulation loop does not run `RunFrame`, so the front buffer holds the last frame before the pause. In D3D11 and SDL_GPU modes the NES texture persists in the GPU between frames; the last rendered frame is visible beneath the semi-transparent menu overlay without any extra copy.
 
 ---
 
@@ -158,11 +168,11 @@ Both menus follow the same two-class pattern:
 | Class | Responsibility |
 |---|---|
 | `InGameMenu` | Owns state (`Current`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad). Drives transitions. Fires events. |
-| `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(Graphics, Rectangle, InGameMenu)`. Creates and disposes all GDI+ resources within the call. |
+| `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(SDL3PaintContext, SDL.Rect, InGameMenu)`. Creates and disposes all SDL3 resources within the call. |
 | `MainMenuScreen` | Same as `InGameMenu` but for the pre-game menu. |
 | `MainMenuRenderer` | Same as `MenuRenderer` for the pre-game menu. |
 
-**Rule:** Never put rendering logic inside a state machine. Never put state mutation inside a renderer. This separation makes both independently testable — the state machines are tested without a graphics context; the renderers are not tested (they are pure GDI+ drawing).
+**Rule:** Never put rendering logic inside a state machine. Never put state mutation inside a renderer. This separation makes both independently testable — the state machines are tested without a graphics context; the renderers are not tested (they are pure SDL3 drawing).
 
 ### Per-screen handler pattern
 
@@ -176,13 +186,14 @@ Handlers are nested private classes and therefore have full access to all privat
 
 ## Audio
 
-### Ring buffer bridge
+### SDL3 audio stream bridge
 
-`AudioPlayer` bridges the emulation thread (producer) and the NAudio driver thread (consumer) via a `short[]` ring buffer.
+`AudioPlayer` bridges the emulation thread (producer) and the SDL3 audio callback (consumer) via a `short[]` ring buffer.
 
 - **Producer:** `EmulationThread` calls `Enqueue(samples, count)` each frame.
-- **Consumer:** NAudio's driver thread calls `Read(buffer, offset, count)` to pull samples.
-- **Pause:** When `SetPaused(true)` is called, `Read` fills with silence and the ring buffer is drained to prevent stale audio playing on resume. The processor state is also reset to avoid a pop from DC offset in the filter memory.
+- **Consumer:** SDL3's audio callback (`OnAudioGetCallback`) calls `Read()` then `SDL.PutAudioStreamData(stream, buffer, length)` to push samples to the device.
+- **Device:** Opened with `SDL.OpenAudioDeviceStream(SDL.AudioDeviceDefaultPlayback, in spec, callback, userData)`.
+- **Pause:** `SetPaused(true)` calls `SDL.PauseAudioStreamDevice`; `SetPaused(false)` calls `SDL.ResumeAudioStreamDevice`. The ring buffer is drained on pause to prevent stale audio playing on resume. The processor state is also reset to avoid a pop from DC offset in the filter memory.
 
 ### Audio processors
 
@@ -208,27 +219,27 @@ The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`.
 
 ### Main menu music
 
-`MainMenuMusic` plays a looping audio file with smooth 1-second fade-in and 0.5-second fade-out transitions. Volume is split into `_fadeLevel` (0–1, driven by timer) and `_masterVolume` (user-controlled). The audible output is `_fadeLevel × _masterVolume`, so master volume changes during a fade behave correctly.
+`MainMenuMusic` plays a looping audio file via an SDL3 audio stream with smooth 1-second fade-in and 0.5-second fade-out transitions. Volume is split into `_fadeLevel` (0–1, driven by a timer) and `_masterVolume` (user-controlled). The audible output is `_fadeLevel × _masterVolume`, so master volume changes during a fade behave correctly.
 
-Looping is handled inside `LoopingSampleProvider` (an inner class) which seeks the source back to position 0 when it is exhausted. This avoids calling `Play()` from a WaveOut callback thread, which can cause re-entrancy issues.
+Looping is handled by seeking the decoded audio source back to position 0 when it is exhausted. Volume changes are applied by calling `SDL.SetAudioStreamGain` on the stream.
 
 ---
 
 ## Steam overlay
 
+### Windows (D3D11 path)
+
 Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present` at the vtable level — without that hook, `SteamUtils.IsOverlayEnabled()` stays `false` and Shift+Tab does nothing.
 
-**`D3DOverlayHook`** creates a D3D11 device and swap chain bound to `MainForm.Handle`. In D3D11 mode, `D3D11Renderer.DrawAndPresent()` calls `SwapChain.Present()` every ~16 ms, which Steam intercepts. In GDI+ fallback mode, `D3DOverlayHook.Present()` serves as a minimal heartbeat.
+**`D3DOverlayHook`** creates a D3D11 device and swap chain bound to the HWND obtained from `SDL3WindowHost.Handle` (`SDL.GetPointerProperty` on the SDL window). `D3D11Renderer.DrawAndPresent()` calls `SwapChain.Present()` every ~16 ms, which Steam intercepts. When D3D11 is unavailable and `SDL3HwRenderer` is the active renderer instead, no `D3DOverlayHook` device is created — the Steam overlay is not available on the Windows fallback path in that case.
 
 The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — see [Proton / Steam Deck notes](#proton--steam-deck-notes) below).
 
-### GamePanel visibility in D3D11 mode
+### Linux (SDL_GPU / LD_PRELOAD path)
 
-Steam renders its overlay UI directly into the swap chain's back buffer via the vtable hook. `GamePanel` is a GDI+ child control that DWM composites *above* the swap chain surface — so Steam's overlay content would be painted over by GDI+ if GamePanel were visible.
+On Linux, Steam injects its overlay via `LD_PRELOAD` (`steamoverlayvulkanlayer.so`), which hooks `vkQueuePresentKHR`. No D3D device or swap chain is needed. `NullOverlayRenderer` is the `IOverlayRenderer` implementation on Linux — it is a no-op that satisfies the interface without doing anything.
 
-In D3D11 mode, `GamePanel` is **permanently hidden** (`Visible = false`), including when the Steam overlay is active. All rendering — NES frames, logo splash, main menu, in-game menu, and HUD overlays — goes through `D3D11Renderer` via the swap chain. Making GamePanel visible when the overlay is open would place a GDI child window above the swap chain surface in DWM's Z-order, covering the overlay content — so it must remain hidden at all times.
-
-In GDI+ fallback mode, GamePanel stays visible at all times and handles all rendering through `OnPaint`.
+**`SDL_VIDEODRIVER=x11` requirement:** Steam's Vulkan overlay layer requires an XCB or Xlib window surface — it does not support the Wayland EGL surface SDL3 would otherwise create. `PlatformDetector.ConfigureVideoDriverForSteamOverlay()` sets `SDL_VIDEODRIVER=x11` before `SDL.Init()` on Linux, forcing SDL3 to use the X11 backend (which creates an Xlib surface compatible with the overlay layer). This is a Linux-only code path guarded by a runtime `OperatingSystem.IsLinux()` check. If Steam is not running, the environment variable has no effect.
 
 ### Gamescope callback timing
 
@@ -240,11 +251,11 @@ The fix: `SteamManager.RunCallbacksAfterPresent()` is called immediately after `
 
 ### Audio during overlay
 
-`SetPauseReason(Overlay, true)` mutes `AudioPlayer` (the NES APU ring-buffer bridge) and blocks the emulation loop. However, `MainMenuMusic` has its own independent `WasapiOut` device that `AudioPlayer` does not control. When the overlay opens on the main menu screen, `MainMenuMusic.Pause()` must be called separately; `MainMenuMusic.Resume()` is called when the overlay closes. This is wired in `MainForm`'s overlay callback alongside the `SetPauseReason` call.
+`SetPauseReason(Overlay, true)` mutes `AudioPlayer` (the NES APU SDL3 audio stream) and blocks the emulation loop. However, `MainMenuMusic` has its own independent SDL3 audio stream that `AudioPlayer` does not control. When the overlay opens on the main menu screen, `MainMenuMusic.Pause()` must be called separately; `MainMenuMusic.Resume()` is called when the overlay closes. This is wired in `NEShimApp`'s overlay callback alongside the `SetPauseReason` call.
 
 ### Initialisation order
 
-`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions. `D3D11Renderer` is constructed immediately after `D3DOverlayHook.Initialize()`. A `Form.Resize` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
+`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions — `Handle` is retrieved from `SDL3WindowHost.Handle`. `D3D11Renderer` is constructed immediately after `D3DOverlayHook.Initialize()`. An SDL `SDL_EVENT_WINDOW_RESIZED` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
 
 ### Proton / Steam Deck notes
 
@@ -257,11 +268,11 @@ DXVK is the Vulkan translation layer Proton uses for D3D11. Key behaviors:
 
 ### `SteamAPI.RestartAppIfNecessary`
 
-`Program.Main` calls `SteamAPI.RestartAppIfNecessary(appId)` before `Application.Run`. It reads the App ID from `steam_appid.txt`. If the game was launched directly (not via Steam), the call returns `true` and the process exits so Steam can relaunch it with `GameOverlayRenderer64.dll` already injected into the process before any D3D device is created.
+`Program.Main` calls `SteamAPI.RestartAppIfNecessary(appId)` before `new SDL3WindowHost(...)`. It reads the App ID from `steam_appid.txt`. If the game was launched directly (not via Steam), the call returns `true` and the process exits so Steam can relaunch it with the overlay library already injected — on Windows this is `GameOverlayRenderer64.dll` (hooks `IDXGISwapChain::Present`); on Linux it is `steamoverlayvulkanlayer.so` (injected via `LD_PRELOAD`, hooks `vkQueuePresentKHR`) — in both cases the library must be loaded before the graphics device is created.
 
 ---
 
-## D3D11 renderer and device loss
+## D3D11 renderer and device loss (Windows only)
 
 ### Ownership model
 
@@ -275,14 +286,14 @@ DXVK is the Vulkan translation layer Proton uses for D3D11. Key behaviors:
 | `ID3D11RenderTargetView` | `D3D11Renderer` (recreated on resize) |
 | Vertex buffer, VS, PS, input layout, sampler | `D3D11Renderer` |
 
-`D3D11Renderer.Dispose()` releases only the objects it owns. `D3DOverlayHook.Dispose()` is called after `D3D11Renderer.Dispose()` in `MainForm.OnFormClosing`.
+`D3D11Renderer.Dispose()` releases only the objects it owns. `D3DOverlayHook.Dispose()` is called after `D3D11Renderer.Dispose()` in `NEShimApp.Shutdown()`.
 
 ### Device loss recovery
 
 `D3D11Renderer.DrawAndPresent()` checks the `Present()` HRESULT for `DXGI_ERROR_DEVICE_REMOVED` (0x887A0005) and `DXGI_ERROR_DEVICE_RESET` (0x887A0007). If either occurs:
 
 1. `DeviceLost` event fires.
-2. `MainForm.OnD3DDeviceLost` handles it: sets `PauseReasons.DeviceLost`, disposes `D3D11Renderer` then `D3DOverlayHook`.
+2. `NEShimApp.OnD3DDeviceLost` handles it: sets `PauseReasons.DeviceLost`, disposes `D3D11Renderer` then `D3DOverlayHook`.
 3. Recreates `D3DOverlayHook` (new device + swap chain) and `D3D11Renderer`.
 4. If recreation succeeds, clears `PauseReasons.DeviceLost` to resume emulation.
 
@@ -292,31 +303,45 @@ Device loss is rare on desktop (typically caused by a GPU driver reset or suspen
 
 ## Rendering pipeline
 
-### D3D11 path (primary)
+### D3D11 path (Windows primary)
 
 ```
 NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
   └─ FrameBuffer.WriteBack + Swap (emulation thread)
-       └─ BeginInvoke (UI thread) — upload and present batched together:
+       └─ MarshalToMainThread — upload and present enqueued together:
             ├─ D3D11Renderer.UploadFrame
             │    └─ Map(WriteDiscard) → row-by-row copy respecting RowPitch
             └─ D3D11Renderer.DrawAndPresent(vsync: true)
                       ├─ SetupPipelineState — bind _activePixelShader (structural filter)
                       ├─ UpdateFilterCbuffer — write structural params + colorMode to b0
                       ├─ DrawSidebars — sidebar quads drawn via passthrough shader
-                      ├─ Draw letterboxed NES quad — active structural filter shader
-                      │    (output goes to _pictureAdjustRt instead of backbuffer when
-                      │     any picture adjustment is non-zero)
-                      ├─ DrawPictureAdjust (optional) — reads from _pictureAdjustRt,
-                      │    applies brightness/contrast/saturation, writes to backbuffer
-                      ├─ DrawOverlay — GDI+ Bitmap (menus / frozen frame / HUD)
+                      │
+                      ├─ [Pass 1] Draw letterboxed NES quad via structural filter shader
+                      │    • no overlay, no shader ME → write directly to backbuffer (or
+                      │      _pictureAdjustRt if any picture adjust is non-zero)
+                      │    • overlay active → write to _overlayRt (intermediate)
+                      │    • shader ME active → write to _motionEffectRt (intermediate)
+                      │    • both active → write to _overlayRt
+                      │
+                      ├─ [Pass 2, if overlay] Overlay filter reads from _overlayRt,
+                      │    writes to _motionEffectRt (if ME active) or backbuffer.
+                      │    colorMode applied here (deferred from Pass 1 which uses colorMode=0)
+                      │
+                      ├─ [Pass 2/3, if shader ME] ME pixel shader reads from _motionEffectRt,
+                      │    warps UV coordinates, writes to backbuffer (or _pictureAdjustRt)
+                      │
+                      ├─ [Final optional pass] DrawPictureAdjust — reads from _pictureAdjustRt,
+                      │    applies brightness/contrast/saturation/hue, writes to backbuffer.
+                      │    Skipped entirely when all four values are 0.
+                      │
+                      ├─ DrawOverlay — SDL3PaintContext surface (menus / frozen frame / HUD)
                       │    drawn via passthrough shader, alpha-blended over NES frame
                       └─ SwapChain.Present(syncInterval=1) — vsync on
 ```
 
 `D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, sampler, and filter constant buffer. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
 
-**D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `MainForm` implements `IMenuSceneProvider`, returning a paint delegate for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path). `GamePanel` is permanently hidden in D3D11 mode and plays no role in rendering.
+**D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `NEShimApp` implements `IMenuSceneProvider`, returning a paint delegate (`Action<SDL3PaintContext, SDL.Rect>`) for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path).
 
 ### Video filter architecture (D3D11)
 
@@ -365,52 +390,56 @@ DrawAndPresent                              — overlay quad drawn after NES qua
        └─ Draw fullscreen overlay quad alpha-blended over the NES frame
 ```
 
-**Texture format:** The overlay texture is `B8G8R8A8_UNorm` and viewport-sized (matches the swap chain, e.g. 1920×1080 at 1080p). GDI+'s `Format32bppArgb` stores bytes `[B,G,R,A]` — same layout, no byte-swapping.
+**Texture format:** The overlay texture is `B8G8R8A8_UNorm` and viewport-sized (matches the swap chain, e.g. 1920×1080 at 1080p). `SDL3PaintContext` renders into an SDL_Surface with `ARGB8888` format — bytes `[B,G,R,A]` in little-endian memory — same layout as `B8G8R8A8_UNorm`, no byte-swapping needed.
 
-**Alpha blending:** Straight alpha (`SourceBlend = SrcAlpha`, `DestBlend = InvSrcAlpha`). GDI+ `Graphics.Clear(Color.Transparent)` initialises alpha=0 across the bitmap; only pixels actively painted by the scene delegate or HUD renderers carry non-zero alpha. The blend equation is `out = src.rgb × src.a + dst.rgb × (1 − src.a)`.
+**Alpha blending:** Straight alpha (`SourceBlend = SrcAlpha`, `DestBlend = InvSrcAlpha`). `SDL3PaintContext.Clear(transparent)` initialises alpha=0 across the surface; only pixels actively painted by the scene delegate or HUD renderers carry non-zero alpha. The blend equation is `out = src.rgb × src.a + dst.rgb × (1 − src.a)`.
 
 **Conditional upload:** The overlay bitmap is re-rendered and re-uploaded only when `_overlayDirty == true`. All state changes that visually affect the overlay call `MarkOverlayDirty()`:
 - Scene transitions: menu open/close, logo start/tick, navigation key/gamepad input
 - Transient changes: `UpdateFpsOverlay`, `ShowToast`
 
-Static menu frames between inputs produce no GDI+ render and no GPU upload — the previously uploaded texture is simply re-composited by the quad draw. At 1080p (1920×1080×4 = ~8 MB), this matters: a static main menu screen costs one 8 MB upload on first display and nothing thereafter until the user presses a key.
+Static menu frames between inputs produce no SDL3PaintContext render and no GPU upload — the previously uploaded texture is simply re-composited by the quad draw. At 1080p (1920×1080×4 = ~8 MB), this matters: a static main menu screen costs one 8 MB upload on first display and nothing thereafter until the user presses a key.
 
-### GDI+ path (fallback)
+### SDL3HwRenderer path (Linux primary / Windows fallback)
 
-Used when D3D11 initialisation fails (no GPU, driver error).
+Used on Linux (always) and on Windows when D3D11 initialisation fails. Backed by SDL_GPU (SPIR-V/Vulkan on Linux; SPIR-V/D3D11 on Windows via SDL's GPU abstraction). On systems without Vulkan or GPU support, falls back to plain SDL rendering (`_isGpuRenderer = false`) with only Pixel Perfect and Bilinear available.
 
 ```
 NES pixel buffer (int[256×240], ARGB)
   └─ FrameBuffer.WriteBack + Swap
-       └─ BeginInvoke → GamePanel.UpdateFrame (UI thread)
-            └─ bitmap.LockBits → Marshal.Copy pixels into Bitmap
-                 └─ GamePanel.OnPaint
-                      ├─ If main menu visible → MainMenuRenderer.Draw()
-                      ├─ Compute letterbox rect (8:7 pixel aspect ratio)
-                      ├─ Draw sidebar images (optional)
-                      ├─ IGraphicsScaler.Configure(g) — set interpolation mode
-                      ├─ g.DrawImage(bitmap → letterboxed rect)
-                      ├─ If pause menu open → MenuRenderer.Draw() overlay
-                      ├─ Toast notification (if active)
-                      ├─ Achievement notification (if active, 5-second banner)
-                      └─ FPS overlay (if enabled)
+       └─ MarshalToMainThread → SDL3HwRenderer.UploadFrame + SDL3HwRenderer.Tick
+            └─ SDL.LockTexture → row-by-row pixel copy respecting pitch
+                 └─ SDL3HwRenderer.DrawAndPresent():
+                      ├─ SDL.RenderClear (black)
+                      ├─ DrawSidebars — cover-scaled sidebar textures
+                      ├─ DrawNesFrame — NES texture via active SPIR-V filter shader
+                      │    ├─ optional: shader motion effect pass
+                      │    └─ optional: picture adjust pass (render-to-texture)
+                      └─ DrawOverlay — SDL3PaintContext surface blit to overlay texture,
+                            alpha-blended over NES frame
 ```
 
-**Aspect ratio:** The NES outputs 256×240 pixels, but NES pixels are not square — the display aspect ratio is `256 × (8/7) : 240 ≈ 8:7 → 1.212`. `GamePanel` computes a letterboxed destination rectangle that fills the window while preserving this ratio, producing black (or artwork) bars on the sides for widescreen displays.
+**Filter abstraction layer (`ISdlFilter` / `SdlFilterFactory` / `SdlGpuRenderState`):**
 
-**Scalers** (`IGraphicsScaler`) configure GDI+ interpolation mode before `DrawImage` (GDI+ fallback only):
-- `NearestNeighborScaler` — pixel-perfect, no blur.
-- `BilinearScaler` — smooth scaling for a softer look.
+`SDL3HwRenderer.SetFilter(ID3D11Filter filter)` does not use the D3D11 filter object directly — it translates through `SdlFilterFactory.Create(filter.FilterMode)` to obtain an `ISdlFilter` implementation. `ISdlFilter` mirrors the `ID3D11Filter` contract but targets SPIR-V: it exposes `PixelShaderResourceName` (the embedded `.spv` resource name, or null for a passthrough draw), `WriteUniformData(Span<float> dst, int nesWidth, int nesHeight)` (writes the 4-float uniform block), `NumFragmentSamplers`, and `NumFragmentUniformBuffers`. The renderer wraps each active filter in a `SdlGpuRenderState` — a disposable object that creates the `SDL_GPUShader` and `SDL_GPURenderState` once and exposes `Apply(Span<float> uniformData)` (uploads uniforms to slot 0 and activates the render state) and `Clear()` (restores the default SDL pipeline). When the active filter changes, the old `SdlGpuRenderState` is disposed and a new one is created for the replacement filter.
 
-In D3D11 mode, the equivalent of point-clamp nearest-neighbour scaling is the `Filter.MinMagMipPoint` + `TextureAddressMode.Clamp` sampler in `D3D11Renderer`.
+**Motion effects (`ISdlMotionEffect` / `SdlMotionEffectFactory`):**
+
+Three motion effects are fully supported: **CRT Jitter**, **Scanline Bob**, and **Magnetic Distortion**. `SdlMotionEffectFactory.Create(mode)` returns the correct `IMotionEffect` implementation, or `NoneMotionEffect` for `PhosphorPersistence` (logged: "requires two texture samplers and cannot be expressed via SDL_GPURenderState"). Shader-backed effects (`MagneticDistortion`) additionally implement `ISdlMotionEffect`, which extends `IMotionEffect` with `SpvResourceName` (the embedded `.spv` resource name), `NumFragmentSamplers`, and `NumFragmentUniformBuffers`. When `SetMotionEffect` selects a shader-backed effect, the renderer allocates a `SdlGpuRenderState` for the motion effect shader and runs an additional render-to-texture pass. CPU quad-offset effects (CRT Jitter, Scanline Bob) use only `GetFrameOffset` — no extra pass or `SdlGpuRenderState`.
+
+**Aspect ratio:** `SDL3HwRenderer` computes a letterboxed destination rectangle preserving the 8:7 NES pixel aspect ratio (`256 × (8/7) : 240 ≈ 1.212`), producing black (or artwork) bars on the sides for widescreen displays.
+
+**Overlay:** Uses an SDL software renderer targeting an `SDL_Surface` (the `SDL3PaintContext`), uploaded to a streaming texture each dirty frame and composited with `SDL_SetTextureBlendMode(Blend)`.
+
+**Video Overlay not supported:** `SDL3HwRenderer.SetOverlayFilter()` is a no-op — two-pass overlay requires temporal intermediate textures and is D3D11-only. The `PhosphorPersistence` motion effect is similarly unavailable — see [Motion effects](filters.md#motion-effect).
 
 ### Renderer mode flag
 
-`PlatformDetector.IsD3D11Active` is set once at startup after `D3D11Renderer` is constructed:
-- `true` — D3D11 device available; `D3D11Renderer` is the active frame renderer.
-- `false` — D3D11 unavailable; GDI+ path is active.
+`PlatformDetector.IsD3D11Active` is set once at startup:
+- `true` — D3D11 device successfully initialised via `D3DOverlayHook`; `D3D11Renderer` is the active frame renderer. All video features are available: structural filters (DXBC), Video Overlay (two-pass D3D11 intermediate RT), color effects, all four motion effects including PhosphorPersistence (Screen Glow), picture adjustments, and presets.
+- `false` — `SDL3HwRenderer` is the active renderer (Linux always; Windows when D3D11 fails). Structural filters (SPIR-V via SDL_GPU), color effects, CRT Jitter / Scanline Bob / Magnetic Distortion motion effects, and picture adjustments are all fully supported. Video Overlay is not available (`SetOverlayFilter` is a no-op); PhosphorPersistence demotes to None (`SdlMotionEffectFactory` returns `NoneMotionEffect` with a log entry).
 
-The D3D11 structural filter list (`VideoFilterModeParser.D3D11Supported`) currently contains seven entries: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`, and `Xbr` (Sharp Pixel). `Bilinear` and `PixelPerfect` are also in `GdiSupported`; the remaining five are D3D11-only. The Video Filter sub-menu shows only the renderer-supported subset. The Color Effect sub-menu is **hidden entirely in GDI+ mode** — it does not appear in the Video settings screen. If a D3D11-only filter is loaded from `config.json` while GDI+ is active, NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
+The `VideoFilterModeParser.D3D11Supported` array lists all seven filters: `PixelPerfect`, `Bilinear`, `CrtScanlines`, `CrtPhosphor`, `NtscComposite`, `CrtScreen`, and `Xbr`. All seven have matching SPIR-V shaders and work on `SDL3HwRenderer` as well. If a shader filter is loaded from `config.json` but the active renderer cannot find the shader (e.g. GPU renderer unavailable), NEShim logs a warning, falls back to `PixelPerfect`, and saves the change to `config.json`.
 
 ---
 
@@ -431,7 +460,7 @@ BizHawk's `IStatable` serialises the full emulator state (CPU registers, RAM, PP
 `SaveRamManager` wraps `ISaveRam`:
 
 - `LoadFromDisk()` is called at startup, before the first frame. If no `.srm` file exists, the emulator starts with uninitialised save RAM (same as a fresh cartridge).
-- `SaveToDisk()` is called on exit, but only after the player has started a game session. Note: `ISaveRam.SaveRamModified` on the BizHawk NES core returns `true` for any cartridge that has a save RAM array, regardless of whether the game has written to it — it is not a write-tracking flag. The `_gameHasStarted` guard in `MainForm` is what prevents the SRM file from being created on first launch before any play.
+- `SaveToDisk()` is called on exit, but only after the player has started a game session. Note: `ISaveRam.SaveRamModified` on the BizHawk NES core returns `true` for any cartridge that has a save RAM array, regardless of whether the game has written to it — it is not a write-tracking flag. The `_gameHasStarted` guard in `NEShimApp` is what prevents the SRM file from being created on first launch before any play.
 
 ---
 
@@ -488,8 +517,8 @@ Key interfaces consumed:
 
 1. Create a class in the appropriate namespace (see the namespace map above).
 2. If it needs per-frame work, add it to `EmulationThread` — pass it through the constructor and call it in `Loop()`.
-3. If it needs UI-thread lifecycle work (e.g., disposal), wire it in `MainForm.InitializeEmulator()` and dispose in `OnFormClosing`.
-4. Use `BeginInvoke` to marshal any UI updates to the UI thread from the emulation thread.
+3. If it needs main-thread lifecycle work (e.g., disposal), wire it in `NEShimApp.InitializeEmulator()` and dispose in `NEShimApp.Shutdown()`.
+4. Use `MarshalToMainThread` to marshal any main-thread updates from the emulation thread.
 5. Write unit tests in `NEShim.Tests/` mirroring the source path. If the subsystem requires I/O, put tests in `NEShim.Tests/Integration/`.
 
 ---
@@ -498,41 +527,74 @@ Key interfaces consumed:
 
 1. Implement `IAudioProcessor` in `NEShim/Audio/`. Constructor must accept `int sampleRate = 44100` so tests can override it.
 2. Add a new value to `AudioFilterMode` in `NEShim/Audio/AudioFilterMode.cs`. Add the matching `Parse()` case and, if the name is multi-word, a `DisplayName()` case in `AudioFilterModeParser`.
-3. Add the new mode to the `CreateProcessor` switch in `MainForm.cs`.
+3. Add the new mode to the `CreateProcessor` switch in `NEShimApp.cs`.
 4. No menu changes are needed — both `SoundHandler` classes read `Enum.GetValues<AudioFilterMode>()` dynamically. The new mode appears automatically in the Audio Filter sub-screen of both the in-game pause menu and the main menu.
 
 ---
 
-## Adding a new D3D11 video filter (structural)
+## Adding a new video filter (structural)
 
-> **Requires Windows SDK:** writing a new shader requires `fxc.exe` to compile your `.hlsl` to a `.cso` file. Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/). The SDK is only needed when adding or modifying shaders — building the project without shader changes works fine without it, using the pre-compiled `.cso` files checked into source control.
+Both renderers share the same `VideoFilterMode` enum and menu. To support a new filter on both paths, touch both the D3D11 and SDL layers. Pre-compiled shader binaries (`.cso` and `.spv`) are checked into source control; no compiler tooling is needed on CI or when only the application code changes.
 
-1. Write a new `*.ps.hlsl` in `NEShim/Rendering/Shaders/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the standard `cbuffer FilterParams : register(b0)` layout (4 floats).
-2. Add its enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add the matching `Parse()` case, `DisplayName()` case, and append the value to `D3D11Supported`.
-3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/`. Implement `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (the embedded resource logical name), and `WriteBaseParams`. Override `UseLinearSampler => true` if the filter uses bilinear sampling (no structural shader needed in that case — set `PixelShaderResourceName` to null so the passthrough shader is used). Override `NotifyFrame(int frameCount)` only if the filter needs per-frame animated state (e.g. noise phase).
+> **Shader tooling:** modifying shader source requires `fxc.exe` (Windows 10 SDK) for DXBC (`.cso`) and `dxc.exe` (`Microsoft.Direct3D.DXC` NuGet) for SPIR-V (`.spv`). Standard builds use the pre-compiled files and do not require either tool.
+
+**Both paths (required for every new filter):**
+
+1. Add an enum value to `VideoFilterMode` in `NEShim/Rendering/VideoFilterMode.cs`. Add `Parse()` and `DisplayName()` cases in `VideoFilterModeParser`. Append the value to `D3D11Supported` (used by the menu for both renderers).
+2. Write `*.ps.hlsl` HLSL source in `NEShim/Rendering/Shaders/Dx11/`. The shader must `#include "ColorGrade.hlsli"` and call `ApplyColorGrade(color, colorMode)` as its final step. Use the 4-float `cbuffer FilterParams : register(b0)` layout.
+
+**D3D11 path (DXBC):**
+
+3. Create a class implementing `ID3D11Filter` in `NEShim/Rendering/Filters/Dx11/`. Provide `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (embedded `.cso` resource name; null → passthrough shader), and `WriteBaseParams`. Override `UseLinearSampler => true` for sampler-only filters (e.g. bilinear). Override `NotifyFrame(int)` only for animated filters (e.g. NTSC noise phase).
 4. Add the case to `D3D11FilterFactory.Create()`.
-5. Register the shader in `NEShim.csproj`: add the `.hlsl` as a `<None>` item, the `.cso` as an `<EmbeddedResource>` with the correct `<LogicalName>`, and add the `<Exec>` entry to the `CompileShaders` target.
-6. No menu changes are needed — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically. The new filter appears automatically.
+5. Register in `NEShim.csproj`: add `.hlsl` as `<None>`, compiled `.cso` as `<EmbeddedResource LogicalName="...">`, and add the `<Exec>` entry in the `CompileShaders` MSBuild target.
 
-> **Cbuffer constraint:** `b0` is fixed at 4 floats. Slots [0..2] are yours via `WriteBaseParams()`; slot [3] is the colour mode and is written by the renderer. If your filter needs more than 3 configuration floats, revisit the design rule in `CLAUDE.md` explicitly — do not add a second constant buffer silently.
+**SDL path (SPIR-V):**
+
+6. Compile the same HLSL to SPIR-V with `dxc.exe -spirv` targeting Vulkan binding annotations. Save the output as `*.ps.spv` in `NEShim/Rendering/Shaders/Vulkan/`.
+7. Create a class implementing `ISdlFilter` in `NEShim/Rendering/Filters/SDL/`. Provide `FilterMode`, `PixelAspectRatio`, `PixelShaderResourceName` (embedded `.spv` resource name; null → no shader pass), `NumFragmentSamplers`, `NumFragmentUniformBuffers`, and `WriteUniformData(Span<float>, nesWidth, nesHeight)`.
+8. Add the case to `SdlFilterFactory.Create()`.
+9. Register the `.spv` in `NEShim.csproj` as `<EmbeddedResource LogicalName="...">` following the same pattern as existing SPIR-V resources.
+
+**No menu changes are needed** — the Video Filter sub-menu reads `VideoFilterModeParser.D3D11Supported` dynamically; the new filter appears on both paths automatically.
+
+> **Cbuffer / uniform constraint:** `b0` is fixed at 4 floats. Slots [0..2] are yours via `WriteBaseParams()` / `WriteUniformData()`; slot [3] is the colour mode and is written by the renderer. If a filter genuinely needs more than 3 configuration floats, revise this rule explicitly in `CLAUDE.md` — do not add a second constant buffer silently.
+
+## Adding a new motion effect
+
+Motion effects implement `IMotionEffect` and are registered in two factories (one per renderer path).
+
+**CPU quad-offset effects** (no shader; simplest to add):
+
+1. Implement `IMotionEffect` in `NEShim/Rendering/MotionEffects/`. Override `GetFrameOffset(FrameLayout)` to return a `(dx, dy)` clip-space offset. Override `NotifyLayout(FrameLayout)` if the amplitude should scale with viewport size.
+2. Add a value to `VideoMotionEffectMode`. Add `Parse()` and `DisplayName()` cases in `VideoMotionEffectModeParser`.
+3. Add cases to `MotionEffectFactory.Create()` (D3D11) and `SdlMotionEffectFactory.Create()` (SDL). Both factories return the same implementation — CPU effects have no renderer-specific code.
+
+**Shader-backed effects** (additional render pass; requires `.hlsl` + `.spv`):
+
+4. Additionally implement `IMotionEffect.PixelShaderResourceName` (D3D11 `.cso` name) and `WriteShaderParams(Span<float>)`. The renderer allocates an intermediate RT and a dedicated pixel shader pass when this is non-null.
+5. For the SDL path, also implement `ISdlMotionEffect` (adds `SpvResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`). Compile the HLSL to `.spv` and embed it.
+6. Add both `.cso` and `.spv` as `<EmbeddedResource>` entries in `NEShim.csproj` following existing examples (e.g. `MagneticDistortion`).
+
+> **PhosphorPersistence cannot be implemented on SDL_GPU.** It requires two texture samplers bound simultaneously (ping-pong temporal buffer), which cannot be expressed via `SDL_GPURenderState`. If you add a similar temporal-accumulation effect, it must be D3D11-only: return it from `MotionEffectFactory.Create()` and return `NoneMotionEffect` (with a log entry) from `SdlMotionEffectFactory.Create()`.
 
 ## Adding a new color effect
 
-Color effects are cbuffer values consumed inside `ColorGrade.hlsli` — not separate shader files:
+Color effects are cbuffer values consumed inside `ColorGrade.hlsli` — not separate shader files. The include is shared between the DXBC (Dx11/) and SPIR-V (Vulkan/) shader trees, so a new color mode requires updating both compiled outputs.
 
 1. Add an enum value to `VideoColorFilterMode` in `NEShim/Rendering/VideoColorFilterMode.cs`. Add `Parse()` and `DisplayName()` cases in `VideoColorFilterModeParser`.
-2. Add the corresponding branch to `ApplyColorGrade()` in `NEShim/Rendering/Shaders/ColorGrade.hlsli`.
-3. Recompile all shaders that include `ColorGrade.hlsli` (all `.ps.hlsl` files in the Shaders directory) and commit the updated `.cso` files.
-4. No menu or renderer changes are needed — the Color Effect sub-menu reads `VideoColorFilterModeParser.AllModes` dynamically, and the renderer always passes `(float)_activeColorMode` into `cbuffer[3]`.
+2. Add the corresponding branch to `ApplyColorGrade()` in `NEShim/Rendering/Shaders/Dx11/ColorGrade.hlsli`.
+3. Recompile all DXBC shaders that include `ColorGrade.hlsli` (`fxc.exe`) and all SPIR-V shaders that include it (`dxc.exe -spirv`). Commit the updated `.cso` and `.spv` files.
+4. No menu or renderer changes are needed — the Color Effect sub-menu reads `VideoColorFilterModeParser.AllModes` dynamically, and the renderer always passes `(float)_activeColorMode` into the uniform buffer.
 
 ---
 
 ## Key design rules
 
 - **State machines** hold state and drive transitions; **renderers** draw. Never mix these.
-- **Components communicate upward** via C# events (`Opened`, `Closed`, `NewGameChosen`, etc.). Wiring is in `MainForm.InitializeEmulator()`.
+- **Components communicate upward** via C# events (`Opened`, `Closed`, `NewGameChosen`, etc.). Wiring is in `NEShimApp.InitializeEmulator()`.
 - **No BizHawk modifications** unless fixing a compatibility issue.
 - **No magic numbers** — give all dimensions, timing constants, and UI sizes a named `const`.
 - **Nullable reference types** are enabled. Use `?` annotations throughout. Avoid `!` except at genuine interop boundaries.
 - **Method length** — keep methods under ~30 lines. Extract named helpers.
-- **`IDisposable` discipline** — every `IDisposable` created inside a method must be in a `using` declaration. Classes that own `Bitmap`, audio, or host resources must implement `IDisposable`.
+- **`IDisposable` discipline** — every `IDisposable` created inside a method must be in a `using` declaration. Classes that own native resources (SDL surfaces, audio streams, D3D11 objects) must implement `IDisposable` and be disposed in `NEShimApp.Shutdown()`.

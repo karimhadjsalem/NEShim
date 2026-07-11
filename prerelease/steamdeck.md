@@ -7,7 +7,7 @@ nav_order: 8
 
 # Steam Deck
 
-NEShim runs on Steam Deck via Proton (DXVK). This page documents the changes that are applied automatically on Deck and the adjustments that improve the experience when packaging a game.
+NEShim runs on Steam Deck natively on Linux (SDL_GPU/Vulkan path) or via Proton (DXVK, D3D11 path). This page documents the changes that are applied automatically on Deck and the adjustments that improve the experience when packaging a game.
 
 ---
 
@@ -34,11 +34,11 @@ This only applies on first run. If `config.json` already exists (e.g., the user 
 
 ## Main menu rendering performance
 
-On Wine/Proton, main menu navigation appeared laggy — pressing a button took noticeably longer to update the screen than in-game menu navigation. The root cause was rendering throughput, not input detection speed: the background image was rescaled with high-quality bicubic interpolation on every render frame. Under Wine's GDI+ implementation this takes tens of milliseconds, reducing the visible update rate from 60 Hz to roughly 5–10 Hz.
+On Wine/Proton, main menu navigation appeared laggy — pressing a button took noticeably longer to update the screen than in-game menu navigation. The root cause was rendering throughput, not input detection speed: the background image was rescaled on every render frame. The cost of software-mode rescaling on each idle tick was enough to reduce the visible update rate from 60 Hz to roughly 5–10 Hz.
 
 The fix: `MainMenuScreen` caches the pre-scaled background bitmap at the current viewport size. The cache is built once on first display and rebuilt only when the viewport changes (e.g., toggling windowed/fullscreen). Each frame does a fast 1:1 pixel-copy blit of the cached bitmap instead of a full bicubic resample. Menu navigation now updates at 60 Hz.
 
-The menu present cycle is driven by the 16 ms Steam callback timer while the emulation loop is paused. Nav input is dispatched to the UI thread via `BeginInvoke` and marks the overlay dirty; the next timer tick presents the updated frame.
+The menu present cycle is driven by `SteamManager.Tick()` called from `NEShimApp.OnIdle` while the emulation loop is paused. Nav input is enqueued via `MarshalToMainThread` and marks the overlay dirty; the next idle tick presents the updated frame.
 
 ### Windowed mode and sidebars
 
@@ -71,12 +71,14 @@ NEShim uses `SwapEffect.FlipDiscard`, which is required for DXVK. The legacy `Di
 
 ---
 
-## Known differences from Windows
+## Known differences from Windows (Proton path)
+
+The native Linux build has no differences from Windows by design. If running via Proton:
 
 | Behavior | Notes |
 |---|---|
 | Steam overlay | Functions correctly. Steam's `GameOverlayRenderer64.dll` hooks `IDXGISwapChain::Present` and composites the overlay into the swap chain. |
-| XInput | The Steam Deck controller exposes itself as both XInput and Steam Input. NEShim reads both; Steam Input takes priority for menu navigation when native actions are configured. |
-| Timer precision | `WM_TIMER` is less precise under Wine/Proton. Main menu rendering uses a pre-scaled background cache so each frame completes in under 1 ms; the 16 ms Steam callback timer drives presents at 60 Hz while paused. |
-| Audio latency | WASAPI shared mode is used first; WaveOut is the fallback. Both work under Wine. WASAPI typically has lower latency. |
+| Gamepad | The Steam Deck controller is detected via SDL3 gamepad API. Steam Input takes priority for menu navigation when native actions are configured. |
+| Timer precision | The SDL idle loop is less precise under Wine/Proton than on Linux. Main menu rendering uses a pre-scaled background cache so each frame completes in under 1 ms; `SteamManager.Tick()` from the idle loop drives presents at ~60 Hz while paused. |
+| Audio | SDL3 audio output (`SDL.OpenAudioDeviceStream`) works correctly under Wine via PulseAudio or PipeWire. |
 | Performance testing | Always use the published build (`local-publish.ps1`) for framerate testing. Debug and framework-dependent builds show artificially poor framerates under Wine that are not representative of the release. |

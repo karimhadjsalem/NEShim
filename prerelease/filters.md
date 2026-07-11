@@ -16,16 +16,16 @@ NEShim has eight independent filter axes, all configurable at runtime via the in
 | Audio EQ | `audioEqBass` / `audioEqMid` / `audioEqTreble` | Settings → Sound → EQ | 3-band peaking equalizer applied after the audio filter |
 | Video Filter | `videoFilter` | Settings → Video → Video Filter | Primary structural transform applied to the NES pixel buffer |
 | Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
-| Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 only) |
-| Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 only) |
-| Picture Adjustments | `videoBrightness` / `videoContrast` / `videoSaturation` / `videoHue` | Settings → Video → Picture | Post-process brightness, contrast, saturation, and hue sliders applied after all other video passes (D3D11 only) |
-| Video Presets | `videoPreset` | Settings → Video → Presets | Coordinated preset bundles that apply multiple filter settings in one step (D3D11 only) |
+| Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 and SDL_GPU/Vulkan) |
+| Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 and SDL_GPU/Vulkan) |
+| Picture Adjustments | `videoBrightness` / `videoContrast` / `videoSaturation` / `videoHue` | Settings → Video → Picture | Post-process brightness, contrast, saturation, and hue sliders applied after all other video passes (D3D11 and SDL_GPU/Vulkan) |
+| Video Presets | `videoPreset` | Settings → Video → Presets | Coordinated preset bundles that apply multiple filter settings in one step (D3D11 and SDL_GPU/Vulkan) |
 
 ---
 
 ## Audio Filter
 
-Eight audio processors ship with NEShim, all operating on the 44.1 kHz mono output of the NES APU. The processor runs before the NAudio ring buffer and produces stereo output.
+Eight audio processors ship with NEShim, all operating on the 44.1 kHz mono output of the NES APU. The processor runs before the SDL3 audio stream and produces stereo output.
 
 | Filter | `audioFilter` value | Signal chain |
 |---|---|---|
@@ -64,21 +64,23 @@ The EQ stacks with the selected Audio Filter — audio flows through the filter 
 
 Controls how the 256×240 NES pixel buffer is scaled and stylised before display. The available options depend on the active rendering path.
 
-| Filter | `videoFilter` value | GDI+ | D3D11 | Description |
-|---|---|:---:|:---:|---|
-| Pixel Perfect | `"PixelPerfect"` | Yes | Yes | Nearest-neighbour scaling with 8:7 pixel aspect ratio correction. NES pixels were never square; this ratio (≈1.143) gives the correct display geometry on modern widescreen monitors. `"NearestNeighbour"` is a legacy alias. |
-| Smooth | `"Bilinear"` | Yes | Yes | Hann-windowed sinc reconstruction. A radially-symmetric kernel (16 samples in a 4×4 texel grid) weights each NES neighbour by a jinc-frequency sinc tapered with a Hann envelope, then normalises by the total weight. The sinc provides sharp edge reconstruction; the Hann window rolls the kernel smoothly to zero at its 2.44-texel support boundary, suppressing ringing without a second sinc lobe. GDI+ mode uses standard bilinear. |
-| CRT Scanlines | `"CrtScanlines"` | — | D3D11 only | Nearest-neighbour with a Gaussian scanline brightness profile. Each NES scanline peaks at full brightness at its centre and fades toward the row edges, recreating the electron-beam spot shape of a CRT phosphor screen. The gap between scanlines emerges from the falloff of adjacent rows rather than binary alternation, so the effect scales naturally — invisible at 1× zoom, increasingly visible as the display size grows. |
-| CRT Phosphor | `"CrtPhosphor"` | — | D3D11 only | CRT scanlines plus an aperture-grille phosphor mask. Each NES pixel is subdivided into three sub-columns (R/G/B dominant), mimicking the continuous vertical phosphor stripes of an aperture-grille CRT (e.g., Sony Trinitron). Stacks with any color effect. |
-| CRT Screen | `"CrtScreen"` | — | D3D11 only | Full-screen CRT simulation combining three effects in one pass: barrel distortion curves the image to match the convex surface of a CRT tube, per-channel chromatic aberration offsets R and B channel UVs independently so colour fringing appears at screen edges, and a radial vignette darkens the corners. UV wrapping is handled — pixels that fall outside [0,1] after warping are clamped to black, producing clean edge falloff. Stacks with any color effect. |
-| NTSC Composite | `"NtscComposite"` | — | D3D11 only | YIQ colour-space NTSC simulation running entirely on the GPU. A 5-tap chroma Gaussian blurs IQ components while keeping Y (luma) sharp, producing authentic chroma smearing and luma/chroma cross-talk at colour boundaries. Adds an animated analogue noise layer that shifts each frame, recreating the grain shimmer of a real composite signal. Output is 256 pixels wide (standard NES resolution). |
-| Sharp Pixel | `"Xbr"` | — | D3D11 only | xBRZ edge-preserving upscaler. Analyses a 5×5 pixel neighbourhood around each texel to classify edge direction and strength, then blends colours across detected edges using two-stage interpolation. Produces crisper diagonal edges and finer sub-pixel detail than Scale2x/EPX, without the colour bleed of HQx-family filters. Full-RGB comparison is used (not luminance-only) so palette entries with equal brightness but different hues are distinguished correctly. Maintains 8:7 pixel aspect ratio. |
+| Filter | `videoFilter` value | Shader renderer | Description |
+|---|---|:---:|---|
+| Pixel Perfect | `"PixelPerfect"` | Yes | Nearest-neighbour scaling with 8:7 pixel aspect ratio correction. NES pixels were never square; this ratio (≈1.143) gives the correct display geometry on modern widescreen monitors. `"NearestNeighbour"` is a legacy alias. |
+| Smooth | `"Bilinear"` | Yes | Hann-windowed sinc reconstruction. A radially-symmetric kernel (16 samples in a 4×4 texel grid) weights each NES neighbour by a jinc-frequency sinc tapered with a Hann envelope, then normalises by the total weight. The sinc provides sharp edge reconstruction; the Hann window rolls the kernel smoothly to zero at its 2.44-texel support boundary, suppressing ringing without a second sinc lobe. |
+| CRT Scanlines | `"CrtScanlines"` | Yes | Nearest-neighbour with a Gaussian scanline brightness profile. Each NES scanline peaks at full brightness at its centre and fades toward the row edges, recreating the electron-beam spot shape of a CRT phosphor screen. The gap between scanlines emerges from the falloff of adjacent rows rather than binary alternation, so the effect scales naturally — invisible at 1× zoom, increasingly visible as the display size grows. |
+| CRT Phosphor | `"CrtPhosphor"` | Yes | CRT scanlines plus an aperture-grille phosphor mask. Each NES pixel is subdivided into three sub-columns (R/G/B dominant), mimicking the continuous vertical phosphor stripes of an aperture-grille CRT (e.g., Sony Trinitron). Stacks with any color effect. |
+| CRT Screen | `"CrtScreen"` | Yes | Full-screen CRT simulation combining three effects in one pass: barrel distortion curves the image to match the convex surface of a CRT tube, per-channel chromatic aberration offsets R and B channel UVs independently so colour fringing appears at screen edges, and a radial vignette darkens the corners. UV wrapping is handled — pixels that fall outside [0,1] after warping are clamped to black, producing clean edge falloff. Stacks with any color effect. |
+| NTSC Composite | `"NtscComposite"` | Yes | YIQ colour-space NTSC simulation running entirely on the GPU. A 5-tap chroma Gaussian blurs IQ components while keeping Y (luma) sharp, producing authentic chroma smearing and luma/chroma cross-talk at colour boundaries. Adds an animated analogue noise layer that shifts each frame, recreating the grain shimmer of a real composite signal. Output is 256 pixels wide (standard NES resolution). |
+| Sharp Pixel | `"Xbr"` | Yes | xBRZ edge-preserving upscaler. Analyses a 5×5 pixel neighbourhood around each texel to classify edge direction and strength, then blends colours across detected edges using two-stage interpolation. Produces crisper diagonal edges and finer sub-pixel detail than Scale2x/EPX, without the colour bleed of HQx-family filters. Full-RGB comparison is used (not luminance-only) so palette entries with equal brightness but different hues are distinguished correctly. Maintains 8:7 pixel aspect ratio. |
+
+**Shader renderer** means D3D11 (Windows) or SDL_GPU/Vulkan (Linux). All filters ship with both DXBC (`.cso`) and SPIR-V (`.spv`) shader variants and work identically on both paths. On systems where the GPU renderer is unavailable (e.g. no Vulkan support), only Pixel Perfect and Bilinear are available.
 
 **Default value:** `"PixelPerfect"`
 
-The active rendering path is detected at startup and shown in `neshim.log` when `enableLogging` is true. It can be forced to GDI+ for debugging via `"forceRenderer": "gdi"` in `config.json`. The Video Filter sub-menu shows only the options supported by the current renderer — D3D11-only filters do not appear in GDI+ mode.
+The active rendering path is detected at startup and shown in `neshim.log` when `enableLogging` is true. The Video Filter sub-menu shows only the options supported by the current renderer.
 
-**Fallback behaviour:** if `config.json` specifies a D3D11-only filter but D3D11 is unavailable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback value back to `config.json`.
+**Fallback behaviour:** if `config.json` specifies a shader filter but the current renderer is not shader-capable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback value back to `config.json`.
 
 **Adding a new structural filter:** see the [Architecture guide — Adding a new D3D11 video filter](architecture.md#adding-a-new-d3d11-video-filter-structural).
 
@@ -86,7 +88,7 @@ The active rendering path is detected at startup and shown in `neshim.log` when 
 
 ## Video Overlay
 
-A second structural filter pass applied on top of the primary structural filter. D3D11 only — the option does not appear in GDI+ mode.
+A second structural filter pass applied on top of the primary structural filter. **D3D11 only** — not available on the SDL_GPU/Vulkan path.
 
 When a Video Overlay is selected, `D3D11Renderer` renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to the letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the swap chain backbuffer at the normal NES quad position. Color grading (`videoColorFilter`) is deferred to this second pass so it applies once to the combined result. When the overlay is `"None"` (default), the single-pass path is taken with identical output and no overhead.
 
@@ -101,7 +103,7 @@ The overlay slot accepts a subset of structural filters — those composable on 
 
 **Default value:** `"None"`
 
-**Conflict prevention:** the overlay option menu disables any filter that matches the active primary filter, preventing the same filter in both slots. Switching the primary Video Filter to a value that matches the current overlay also automatically resets the overlay to `None`. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
+**Conflict prevention (D3D11):** the overlay option menu disables any filter that matches the active primary filter, preventing the same filter in both slots. Switching the primary Video Filter to a value that matches the current overlay also automatically resets the overlay to `None`. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
 
 **UV note for overlay shaders:** the intermediate texture holds the upscaled primary frame. Overlay shaders receive UV coordinates spanning 0→1 over the letterbox area and use `nesHeight = 240` for scanline period calculations — the same values as in single-pass mode. Sampling an upscaled intermediate at these UVs gives sub-pixel scanline blending against a higher-resolution source, which generally produces better quality than the equivalent single-pass configuration.
 
@@ -109,7 +111,7 @@ The overlay slot accepts a subset of structural filters — those composable on 
 
 ## Color Effect
 
-A per-pixel color-grade transform applied after the structural video filter. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
+A per-pixel color-grade transform applied after the structural video filter. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux).
 
 | Effect | `videoColorFilter` value | Description |
 |---|---|---|
@@ -123,15 +125,13 @@ A per-pixel color-grade transform applied after the structural video filter. D3D
 
 **Default value:** `"None"`
 
-The Color Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mode and does not appear in the Video settings screen. The selection is not shown or persisted when GDI+ is active.
-
 **Adding a new color effect:** see the [Architecture guide — Adding a new color effect](architecture.md#adding-a-new-color-effect).
 
 ---
 
 ## Picture Adjustments
 
-Four independent post-process sliders applied after all structural filter, overlay, and motion effect passes, and before the overlay (menus, HUD). D3D11 only — the values are stored in `config.json` in GDI+ mode but have no visual effect until D3D11 is available. When all four are at their neutral values the pass is skipped entirely with no intermediate render target allocated.
+Four independent post-process sliders applied after all structural filter, overlay, and motion effect passes, and before the UI overlay (menus, HUD). Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux). When all four are at their neutral values the pass is skipped entirely with no intermediate render target allocated.
 
 | Adjustment | `config.json` field | Range | Default | Description |
 |---|---|:---:|:---:|---|
@@ -146,7 +146,7 @@ All four are adjustable at runtime via **Settings → Video → Picture** in bot
 
 ## Motion Effect
 
-A per-frame animated effect applied to the NES viewport. D3D11 only — the selection is stored in `config.json` in GDI+ mode but has no visual effect until D3D11 is available.
+A per-frame animated effect applied to the NES viewport. CRT Jitter, Scanline Bob, and Magnetic Distortion are available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux). Screen Glow (PhosphorPersistence) is D3D11 only — it requires a ping-pong pair of temporal texture samplers that cannot be expressed via SDL_GPURenderState; selecting it on the SDL_GPU path silently demotes to None.
 
 Two implementation models exist:
 
@@ -159,17 +159,15 @@ Two implementation models exist:
 | CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Horizontal and vertical amplitudes scale independently with viewport width and height respectively, keeping the physical pixel displacement constant across resolutions (calibrated at 1920×1080). |
 | Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude scales inversely with viewport height so the physical pixel displacement remains constant regardless of screen resolution (calibrated at 1080p). |
 | Magnetic Distortion | `"MagneticDistortion"` | Simulates magnetic interference on a CRT by warping UV coordinates in a pixel shader. A sine wave sweeps horizontally across the image each frame — each row is displaced by a different amount, so adjacent rows shift in opposite directions, matching the characteristic non-uniform warp of an external magnetic field deflecting the electron beam unevenly. The wave phase and amplitude evolve slowly over time for an organic feel. Pixels that warp past the horizontal texture boundary render as black, matching the edge roll-off seen on real CRTs. Runs as a shader pass (see above). |
-| Screen Glow | `"PhosphorPersistence"` | Simulates CRT phosphor persistence by temporally accumulating frames. Each output pixel blends the current frame with a faded copy of the previous output (65% retention per frame), producing a soft after-image trail that fades over approximately 10–15 frames. Runs as a shader pass with a ping-pong pair of intermediate render targets (see above). |
+| Screen Glow | `"PhosphorPersistence"` | Simulates CRT phosphor persistence by temporally accumulating frames. Each output pixel blends the current frame with a faded copy of the previous output (65% retention per frame), producing a soft after-image trail that fades over approximately 10–15 frames. Runs as a shader pass with a ping-pong pair of intermediate render targets (see above). **D3D11 only** — demotes to None on SDL_GPU/Vulkan. |
 
 **Default value:** `"None"`
-
-The Motion Effect sub-menu is **D3D11 only** — it is hidden entirely in GDI+ mode and does not appear in the Video settings screen.
 
 ---
 
 ## Video Presets
 
-Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. D3D11 only — the Presets entry does not appear in GDI+ mode.
+Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux). On the SDL_GPU path, the Video Overlay component of a preset is not applied (see [Video Overlay](#video-overlay) above), and the Phosphor preset's Screen Glow motion effect demotes to None (see [Motion Effect](#motion-effect) above). All other preset settings take effect.
 
 | Preset | `videoPreset` value | Video Filter | Video Overlay | Color Effect | Motion Effect |
 |---|---|---|---|---|---|
@@ -215,9 +213,16 @@ Any structural filter can be combined with any overlay filter, any color effect,
 
 ---
 
-## D3D11 shader architecture
+## Shader architecture
 
-CRT Scanlines, CRT Phosphor, CRT Screen, and NTSC Composite are implemented as DXBC pixel shaders compiled to `.cso` files and embedded as assembly resources. All color effects also run as shaders via a shared include. Smooth (Bilinear) uses `Jinc2.ps.cso` — a 16-sample radially-symmetric reconstruction filter. For each output pixel it evaluates a Hann-windowed sinc kernel over a 4×4 NES texel grid: each sample weight is `sinc_norm(r / r1) · hann(r)` where r1 = 1.2197 (first zero of the jinc function) and the Hann envelope `0.5 + 0.5·cos(π·r / r_max)` tapers the kernel smoothly to zero at the 2.44-texel support boundary. Weights are summed and the result is divided by their total, giving a properly normalised reconstruction with crisp edges and suppressed ringing. A linear-clamp sampler is used; the shader samples at exact texel centres so the sampler mode does not affect reconstruction quality.
+Every video filter ships with two compiled variants, both embedded as assembly resources:
+
+- **DXBC** (`.cso` files in `Rendering/Shaders/Dx11/`) — compiled by `fxc.exe` (Windows SDK); used by `D3D11Renderer` on Windows.
+- **SPIR-V** (`.spv` files in `Rendering/Shaders/Vulkan/`) — compiled by `dxc.exe` (`Microsoft.Direct3D.DXC` NuGet); used by `SDL3HwRenderer` on Linux and as the Windows fallback via SDL_GPU.
+
+Both variants are compiled from the same HLSL source and share the same color-grade include (`ColorGrade.hlsli`) and constant buffer layout, so the visual output is identical across platforms.
+
+CRT Scanlines, CRT Phosphor, CRT Screen, and NTSC Composite are pixel shaders. All color effects run via a shared include. Smooth (Bilinear) uses `Jinc2.ps.*` — a 16-sample radially-symmetric reconstruction filter. For each output pixel it evaluates a Hann-windowed sinc kernel over a 4x4 NES texel grid: each sample weight is `sinc_norm(r / r1) * hann(r)` where r1 = 1.2197 (first zero of the jinc function) and the Hann envelope tapers the kernel smoothly to zero at the 2.44-texel support boundary. Weights are summed and the result is divided by their total, giving a properly normalised reconstruction with crisp edges and suppressed ringing. A linear-clamp sampler is used; the shader samples at exact texel centres so the sampler mode does not affect reconstruction quality.
 
 ### Uniform constant buffer
 
@@ -248,8 +253,10 @@ The `colorMode` integer encodes all seven grades at fixed positions in the HLSL 
 `Passthrough.ps.cso` applies only the color grade, with no structural effect. It is bound in place of the active structural shader for two draw calls each frame:
 
 - **Sidebar quads** — so letterbox bar artwork is not distorted by scanlines or NTSC simulation. Color effects are also suppressed here (`colorMode=0`), so sidebar art is always displayed in its original colours regardless of the active Color Effect.
-- **Overlay quad** — so the GDI+-rendered overlay (menus, frozen frame background, HUD elements) is not affected by structural filters. The color grade still applies via `colorMode`, keeping the overlay tonally consistent with the NES frame.
+- **Overlay quad** — so the SDL3PaintContext-rendered overlay (menus, frozen frame background, HUD elements) is not affected by structural filters. The color grade still applies via `colorMode`, keeping the overlay tonally consistent with the NES frame.
 
-### DXVK / Proton
+### Proton / DXVK
 
-DXBC shaders are compiled to SPIR-V by DXVK on first launch and cached in Steam's shader cache directory. The shaders are simple (< 30 instructions each); compilation is near-instant.
+When running via Proton (Windows D3D11 path on Steam Deck), DXBC shaders are compiled to SPIR-V by DXVK on first launch and cached in Steam's shader cache. The shaders are simple (under 30 instructions each); compilation is near-instant. Subsequent launches use the cached SPIR-V.
+
+When running natively on Linux (SDL_GPU path), pre-compiled SPIR-V `.spv` files embedded in the assembly are used directly — no Proton, no DXVK, and no shader compilation step on first launch.

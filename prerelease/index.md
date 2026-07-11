@@ -9,7 +9,7 @@ permalink: /prerelease/
 
 # NEShim Documentation
 
-NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
+NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows or Linux application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
 ---
 
@@ -30,10 +30,11 @@ NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, w
 
 ## Requirements
 
-- Windows 10 or later (x64)
+- **Windows x64**: Windows 10 or later; D3D11 rendering path (SDL_GPU/Vulkan fallback if D3D11 unavailable)
+- **Linux x64**: SDL_GPU/Vulkan rendering path; runs natively on Ubuntu 22.04+, SteamOS, and other mainstream distros
 - .NET 9 runtime (bundled in self-contained publish)
 - Steam client — required for achievements and overlay; the emulator runs without it but Steam features are silently disabled
-- **`steam_api64.dll`** — the native Steamworks SDK DLL. Use the copy bundled inside the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — it is matched to the wrapper version. Must be placed alongside the executable. Not included in the repository (Valve SDK license). Games deployed through Steam receive it automatically via the Steam depot.
+- **Steamworks native library** — must be placed alongside the executable; not included in the repository (Valve SDK license). Use the matching copy from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases): `steam_api64.dll` (Windows) or `libsteam_api.so` (Linux). Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
@@ -62,13 +63,16 @@ dotnet build NEShim/NEShim.sln
 # Run tests
 dotnet test NEShim/NEShim.Tests/NEShim.Tests.csproj
 
-# Publish the game (self-contained, win-x64)
-dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -o publish/NEShim
+# Publish the game — Windows (self-contained, win-x64, with ReadyToRun)
+dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o publish/NEShim-win-x64
 
-# Publish the achievement sealer tool
-dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -c Release -r win-x64 --self-contained true -o publish/SealAchievements
+# Publish the game — Linux (cross-compiles from Windows, or run on Linux)
+dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r linux-x64 --self-contained true -p:PublishReadyToRun=true -o publish/NEShim-linux-x64
+
+# Or publish all platforms at once using the publish script:
+.\local-publish.ps1 1.0.0
 ```
 
-After publishing, copy `steam_api64.dll` from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe — it is not included in the repository. See the [publishing guide](publishing-source.md#5-steam_api64dll) for details.
+After publishing, copy the Steamworks native library from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe: `steam_api64.dll` for Windows, `libsteam_api.so` for Linux. See the [publishing guide](publishing-source.md#5-steam_api64dll) for details.
 
 See the [architecture guide](architecture.md) for a detailed walkthrough of the codebase.

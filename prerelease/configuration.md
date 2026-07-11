@@ -59,7 +59,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `audioBufferFrames` | integer | `3` | Size of the audio ring buffer in frames (~16.67 ms each). Increase if you hear crackling; decrease to reduce latency. Range: 1–8 is typical. |
-| `audioDevice` | string | `""` | Accepted but ignored. The audio system always tries WASAPI shared mode first, then falls back to WaveOut automatically. |
+| `audioDevice` | string | `""` | Accepted but not currently used — the audio system always opens the SDL3 default playback device (`SDL.AudioDeviceDefaultPlayback`). The field is retained for future device-selection support. |
 | `volume` | integer | `100` | Master volume for game audio (0–100). Adjustable in the Sound menu. |
 | `audioFilter` | string | `"Default"` (`"Saturation"` on Steam Deck first run) | Audio filter applied to the NES audio output. `"Default"` — standard NES filter chain (HP@37Hz → HP@39Hz → LP@14kHz). `"Warm"` — adds a LP@8kHz stage for warmer sound on modern speakers. `"PseudoStereo"` — Haas-effect stereo widening from the mono source. `"WarmStereo"` — PseudoStereo + Warm lowpass combined. `"Compression"` — soft look-ahead compression to even out DPCM channel spikes. `"BassBoost"` — additive low-shelf boost at 150 Hz (+4 dB DC, ~+2 dB at 150 Hz) on top of the standard NES filter, for fuller sound on bass-light speakers. `"Saturation"` — tanh soft-clip applied after the NES filter chain; super-linear below full scale (mild mid-level boost) with smooth limiting at peaks; **recommended for Steam Deck speakers**. `"DmcStabilizer"` — slew-rate limiter applied before the standard NES filter chain that softens large DMC sample-to-sample amplitude jumps, reducing audible pops and clicks from DPCM samples. Unknown values throw a startup error. |
 | `mainMenuMusicVolume` | integer | `100` | Volume for main menu music (0–100), independent of the game audio `volume` field. Setting one does not affect the other. |
@@ -76,16 +76,16 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `videoFilter` | string | `"PixelPerfect"` | Structural video filter applied to the NES framebuffer before display. `"NearestNeighbour"` / `"PixelPerfect"` — pixel-perfect nearest-neighbour scaling with 8:7 pixel aspect ratio correction (`"NearestNeighbour"` is a legacy alias for `"PixelPerfect"`). `"Bilinear"` — bilinear interpolation (GDI+ and D3D11). `"CrtScanlines"` — alternating scanline darkening shader (D3D11 only). `"CrtPhosphor"` — scanlines plus aperture-grille phosphor mask (D3D11 only). `"NtscComposite"` — NTSC composite simulation shader with chroma smearing and noise (D3D11 only). `"CrtScreen"` — barrel distortion, chromatic aberration, and vignette simulating a curved CRT screen (D3D11 only). `"Xbr"` — Sharp Pixel: Scale2x/EPX edge-preserving upscaler that sharpens pixel-art edges at sub-pixel precision without blurring flat regions (D3D11 only). If a D3D11-only filter is selected but D3D11 is unavailable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback to `user.json`. Unknown values throw a startup error. See [Filters](filters.md). |
-| `videoFilterOverlay` | string | `"None"` | Second-pass overlay filter rendered on top of the primary `videoFilter` using an intermediate render target (D3D11 only). Eligible values: `"None"` — no overlay (single-pass, zero overhead). `"CrtScanlines"`, `"CrtPhosphor"`, `"CrtScreen"` — composable effects that work on an already-scaled frame. Setting primary and overlay to the same filter is rejected by the menu. Stored but inactive in GDI+ mode. See [Filters](filters.md). |
-| `videoColorFilter` | string | `"None"` | Color-grade effect applied after the structural filter (D3D11 only; stored but inactive in GDI+ mode). `"None"` — no transform. `"Warm"` — slight amber tint with reduced blues. `"Greyscale"` — full desaturation using BT.601 luma coefficients. `"NesColorCorrection"` — small color-correction matrix for more accurate 2C02 → sRGB output. `"Cool"` — blue-green tint approximating the D93 9300K CRT white point. `"PhosphorAmber"` — amber phosphor tint. `"PhosphorGreen"` — green phosphor tint. Unknown values throw a startup error. See [Filters](filters.md). |
-| `videoMotionEffect` | string | `"None"` | Per-frame motion effect applied during emulation (D3D11 only; stored but inactive in GDI+ mode). `"None"` — no effect. `"CrtJitter"` — subtle frame-to-frame horizontal position jitter simulating CRT convergence instability. `"ScanlineBob"` — alternates the vertical offset of odd/even frames to simulate interlaced scanline bobbing. `"MagneticDistortion"` — per-pixel sine-wave UV warp simulating magnetic interference on a CRT; runs as a dedicated pixel shader pass using an intermediate render target. `"PhosphorPersistence"` — temporally accumulates frames with 65% per-frame retention to simulate CRT phosphor persistence, producing an after-image trail that fades over ~10–15 frames; runs as a shader pass with a ping-pong temporal buffer. Unknown values throw a startup error. |
+| `videoFilter` | string | `"PixelPerfect"` | Structural video filter applied to the NES framebuffer before display. `"NearestNeighbour"` / `"PixelPerfect"` — pixel-perfect nearest-neighbour scaling with 8:7 pixel aspect ratio correction (`"NearestNeighbour"` is a legacy alias for `"PixelPerfect"`). `"Bilinear"` — smooth pixel upscaling via a Jinc2 windowed-sinc filter (displayed as "Smooth" in the menu). `"CrtScanlines"` — alternating scanline darkening shader (shader renderer — D3D11 and SDL_GPU/Vulkan). `"CrtPhosphor"` — scanlines plus aperture-grille phosphor mask (shader renderer — D3D11 and SDL_GPU/Vulkan). `"NtscComposite"` — NTSC composite simulation shader with chroma smearing and noise (shader renderer — D3D11 and SDL_GPU/Vulkan). `"CrtScreen"` — barrel distortion, chromatic aberration, and vignette simulating a curved CRT screen (shader renderer — D3D11 and SDL_GPU/Vulkan). `"Xbr"` — Sharp Pixel: Scale2x/EPX edge-preserving upscaler that sharpens pixel-art edges at sub-pixel precision without blurring flat regions (shader renderer — D3D11 and SDL_GPU/Vulkan). Unknown values throw a startup error. See [Filters](filters.md). |
+| `videoFilterOverlay` | string | `"None"` | Second-pass overlay filter rendered on top of the primary `videoFilter` using an intermediate render target (D3D11 only). Eligible values: `"None"` — no overlay (single-pass, zero overhead). `"CrtScanlines"`, `"CrtPhosphor"`, `"CrtScreen"` — composable effects that work on an already-scaled frame. Setting primary and overlay to the same filter is rejected by the menu. See [Filters](filters.md). |
+| `videoColorFilter` | string | `"None"` | Color-grade effect applied after the structural filter (D3D11 and SDL_GPU/Vulkan). `"None"` — no transform. `"Warm"` — slight amber tint with reduced blues. `"Greyscale"` — full desaturation using BT.601 luma coefficients. `"NesColorCorrection"` — small color-correction matrix for more accurate 2C02 → sRGB output. `"Cool"` — blue-green tint approximating the D93 9300K CRT white point. `"PhosphorAmber"` — amber phosphor tint. `"PhosphorGreen"` — green phosphor tint. Unknown values throw a startup error. See [Filters](filters.md). |
+| `videoMotionEffect` | string | `"None"` | Per-frame motion effect applied during emulation (D3D11 and SDL_GPU/Vulkan; PhosphorPersistence is D3D11 only). `"None"` — no effect. `"CrtJitter"` — subtle frame-to-frame horizontal position jitter simulating CRT convergence instability. `"ScanlineBob"` — alternates the vertical offset of odd/even frames to simulate interlaced scanline bobbing. `"MagneticDistortion"` — per-pixel sine-wave UV warp simulating magnetic interference on a CRT; runs as a dedicated pixel shader pass using an intermediate render target. `"PhosphorPersistence"` — temporally accumulates frames with 65% per-frame retention to simulate CRT phosphor persistence, producing an after-image trail that fades over ~10–15 frames; runs as a shader pass with a ping-pong temporal buffer. D3D11 only — selecting this on SDL_GPU/Vulkan silently demotes to None. Unknown values throw a startup error. |
 | `overscanMode` | string | `"Normal"` | Controls how the NES PPU's 240-scanline output is cropped. `"Normal"` — display all 240 rows (default). `"Overscan"` — NTSC crop (top and bottom 8 rows hidden, 224 rows displayed); matches original NTSC TV output. `"Underscan"` — display all 240 rows but scale the image to 88% of the window, leaving a uniform black border on all sides. Legacy values `"Auto"` and `"NTSC"` map to `"Overscan"`; `"None"` maps to `"Normal"`. |
-| `videoBrightness` | integer | `0` | Additive brightness post-process applied after all structural filter passes (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
-| `videoContrast` | integer | `0` | Contrast post-process scaling RGB around mid-grey (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral (1× scale). Configurable via Settings → Video → Picture. |
-| `videoSaturation` | integer | `0` | Saturation post-process blending between greyscale (−100) and boosted colour (+100) (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
-| `videoHue` | integer | `0` | Hue rotation applied to all colours using Rodrigues' rotation around the grey axis (D3D11 only; stored but inactive in GDI+ mode). Range: −100 to +100 (−100 = −π rad ≈ full complementary inversion; +100 = +π rad). 0 = neutral. Configurable via Settings → Video → Picture. |
-| `videoPreset` | string | `"None"` | Name of the last-applied video preset (D3D11 only). `"None"` — no preset active. `"LivingRoom"`, `"Arcade"`, `"Sharp"`, `"Phosphor"` — built-in presets. Written by the Presets sub-menu; cleared to `"None"` automatically whenever any individual video setting is changed manually. See [Filters — Video Presets](filters.md#video-presets). |
+| `videoBrightness` | integer | `0` | Additive brightness post-process applied after all structural filter passes (D3D11 and SDL_GPU/Vulkan). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
+| `videoContrast` | integer | `0` | Contrast post-process scaling RGB around mid-grey (D3D11 and SDL_GPU/Vulkan). Range: −100 to +100. 0 = neutral (1× scale). Configurable via Settings → Video → Picture. |
+| `videoSaturation` | integer | `0` | Saturation post-process blending between greyscale (−100) and boosted colour (+100) (D3D11 and SDL_GPU/Vulkan). Range: −100 to +100. 0 = neutral. Configurable via Settings → Video → Picture. |
+| `videoHue` | integer | `0` | Hue rotation applied to all colours using Rodrigues' rotation around the grey axis (D3D11 and SDL_GPU/Vulkan). Range: −100 to +100 (−100 = −π rad ≈ full complementary inversion; +100 = +π rad). 0 = neutral. Configurable via Settings → Video → Picture. |
+| `videoPreset` | string | `"None"` | Name of the last-applied video preset. `"None"` — no preset active. `"LivingRoom"`, `"Arcade"`, `"Sharp"`, `"Phosphor"` — built-in presets. Written by the Presets sub-menu (hidden from the in-game menu when D3D11 is not active); cleared to `"None"` automatically whenever any individual video setting is changed manually. On SDL_GPU/Vulkan, the Video Overlay and Screen Glow components of a preset are not applied (see [Filters — Video Presets](filters.md#video-presets)); all other preset fields take effect. |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. The image is stretched to fill the entire window — design at your target resolution to avoid aspect-ratio distortion. **1920×1080** for 16:9 fullscreen; **1280×800** for Steam Deck fullscreen. See [Main menu background sizing](#main-menu-background-sizing) below. |
 | `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. See [Sidebar image sizing](#sidebar-image-sizing) below. |
@@ -140,16 +140,16 @@ The aspect ratio is constant across resolutions for a given configuration — on
   "P1 Down":   { "key": "S",          "gamepadButton": "DPadDown" },
   "P1 Left":   { "key": "A",          "gamepadButton": "DPadLeft" },
   "P1 Right":  { "key": "D",          "gamepadButton": "DPadRight" },
-  "P1 A":      { "key": "OemPeriod",  "gamepadButton": "A" },
-  "P1 B":      { "key": "OemComma",   "gamepadButton": "B" },
-  "P1 Start":  { "key": "Return",     "gamepadButton": "Y" },
-  "P1 Select": { "key": "RShiftKey",  "gamepadButton": "Back" }
+  "P1 A":      { "key": "Period",  "gamepadButton": "A" },
+  "P1 B":      { "key": "Comma",   "gamepadButton": "B" },
+  "P1 Start":  { "key": "Return",  "gamepadButton": "Y" },
+  "P1 Select": { "key": "RShift",  "gamepadButton": "Back" }
 }
 ```
 
-**Key names** are values from the `System.Windows.Forms.Keys` enum (e.g. `"W"`, `"Return"`, `"OemPeriod"`, `"Space"`, `"NumPad1"`). The in-game menu's keyboard rebind screen writes these for you.
+**Key names** are `SDL.Keycode` enum member names (e.g. `"W"`, `"Return"`, `"Period"`, `"Space"`, `"Kp1"`). The in-game menu's keyboard rebind screen writes these for you — there is no need to look up names manually. Common names: letter keys `"A"`–`"Z"`; arrow keys `"Up"`, `"Down"`, `"Left"`, `"Right"`; `"Return"`, `"Escape"`, `"Space"`, `"Backspace"`, `"LShift"`, `"RShift"`, `"Period"`, `"Comma"`, `"F1"`–`"F12"`, digit row `"Alpha0"`–`"Alpha9"`, numpad `"Kp0"`–`"Kp9"`. Note: these names differ from the old `System.Windows.Forms.Keys` names — `"OemPeriod"`, `"OemComma"`, `"RShiftKey"` are no longer valid; use `"Period"`, `"Comma"`, `"RShift"`.
 
-**Gamepad button names** for XInput are: `A`, `B`, `X`, `Y`, `Start`, `Back`, `LeftShoulder`, `RightShoulder`, `LeftThumb`, `RightThumb`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`. **`Start` is reserved by default** — it always opens/closes the pause menu and cannot be bound to a NES button. Set `overrideStartBindingProtection: true` to allow rebinding it.
+**Gamepad button names** for SDL3 are: `A`, `B`, `X`, `Y`, `Start`, `Back`, `LeftShoulder`, `RightShoulder`, `LeftThumb`, `RightThumb`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`. **`Start` is reserved by default** — it always opens/closes the pause menu and cannot be bound to a NES button. Set `overrideStartBindingProtection: true` to allow rebinding it.
 
 When a **Steam Input controller** is connected, the `gamepadButton` fields in this map are ignored for that controller. Input comes from the Steam Input action set instead. See [Input system — Steam Input](input.md#steam-input).
 
@@ -157,7 +157,7 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `gamepadDeadzone` | integer | `8000` | Analog stick deadzone threshold for XInput (raw axis value, ±32767 max). Increase if the character drifts without input. |
+| `gamepadDeadzone` | integer | `8000` | Analog stick deadzone threshold for SDL3 gamepad (raw axis value, ±32767 max). Increase if the character drifts without input. |
 
 ### Hotkey mappings
 
@@ -183,7 +183,7 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 
 ### Gamepad hotkey mappings
 
-`gamepadHotkeyMappings` maps action names to XInput button names for gamepad-triggered system shortcuts.
+`gamepadHotkeyMappings` maps action names to SDL3 button names for gamepad-triggered system shortcuts.
 
 ```json
 "gamepadHotkeyMappings": {
@@ -202,7 +202,6 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enableLogging` | boolean | `false` | When `true`, diagnostic output is appended to `neshim.log` in the executable directory. Useful for debugging startup, audio, or Steam handshake issues. **Do not ship with this enabled** — it creates a log file on the player's machine. |
-| `forceRenderer` | string | `"auto"` | Forces a specific rendering backend. `"auto"` — try D3D11 first, fall back to GDI+ if init fails (default). `"gdi"` — always use GDI+ (useful when isolating D3D11-specific issues). `"d3d11"` — prefer D3D11, still falls back to GDI+ if D3D11 init throws. Not exposed in any menu. |
 | `region` | string | `"Auto"` | NES emulation region. Controls CPU clock rate, PPU scanline timing, APU frame counter, and the VSync rate used by the frame-timing loop. `"Auto"` detects from the ROM's iNES header (correct for most ROMs). `"NTSC"` forces ~60.099 Hz; `"PAL"` forces ~50.007 Hz; `"Dendy"` forces ~49.99 Hz (Russian clone variant). |
 | `analogStickMode` | string | `"Cardinal"` | How the left analog stick maps to the NES D-pad when both axes exceed the deadzone simultaneously. `"Cardinal"` (default) — the dominant axis wins; only the axis with the larger absolute value registers. Prevents accidental diagonals in games with 4-directional movement. `"Diagonal"` — both axes register simultaneously, enabling true diagonal input for games with 8-directional movement. |
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `seal-achievements --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
@@ -235,10 +234,10 @@ This is a complete publisher configuration template. All fields are optional —
     "P1 Down":   { "key": "S",         "gamepadButton": "DPadDown" },
     "P1 Left":   { "key": "A",         "gamepadButton": "DPadLeft" },
     "P1 Right":  { "key": "D",         "gamepadButton": "DPadRight" },
-    "P1 A":      { "key": "OemPeriod", "gamepadButton": "A" },
-    "P1 B":      { "key": "OemComma",  "gamepadButton": "B" },
-    "P1 Start":  { "key": "Return",    "gamepadButton": "Y" },
-    "P1 Select": { "key": "RShiftKey", "gamepadButton": "Back" }
+    "P1 A":      { "key": "Period", "gamepadButton": "A" },
+    "P1 B":      { "key": "Comma",  "gamepadButton": "B" },
+    "P1 Start":  { "key": "Return", "gamepadButton": "Y" },
+    "P1 Select": { "key": "RShift", "gamepadButton": "Back" }
   },
   "gamepadHotkeyMappings": {
     "OpenMenu": "LeftShoulder"

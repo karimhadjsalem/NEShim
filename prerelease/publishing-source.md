@@ -36,7 +36,7 @@ The `.ico` file must contain at minimum: 16×16, 32×32, 48×48, and 256×256. M
 | Context | Mechanism | When it applies |
 |---|---|---|
 | Windows Explorer file icon, Steam library | Win32 resource embedded in the exe at publish time | `dotnet publish` (self-contained) builds only |
-| Taskbar, title bar, alt-tab thumbnail | `Form.Icon` loaded from the managed embedded resource at startup | All builds, including debug |
+| Taskbar, title bar, alt-tab thumbnail | Icon loaded from the managed embedded resource and set on the SDL window at startup | All builds, including debug |
 
 Both are driven from the same `icon.ico` file. In debug builds the exe file in Explorer will still show a generic icon, but the running application's taskbar and window icon will show your artwork.
 
@@ -71,13 +71,18 @@ This file is copied to the output directory at build time. During development it
 
 ---
 
-## 5. `steam_api64.dll`
+## 5. Steamworks native library
 
-`steam_api64.dll` is **not** stored in the repository (Valve SDK license). After `dotnet publish`, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version and must not be sourced separately from the Steamworks SDK partner dashboard. The current build targets **Steamworks.NET 2025.163.0**.
+The Steamworks native library is **not** stored in the repository (Valve SDK license). After `dotnet publish`, copy it from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory alongside the exe. Use the copy bundled with the wrapper — it is matched to the wrapper version and must not be sourced separately from the Steamworks SDK partner dashboard. The current build targets **Steamworks.NET 2025.163.0**.
 
-Include it in your Steam depot when uploading; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
+| Platform | File |
+|---|---|
+| Windows (`-r win-x64`) | `steam_api64.dll` |
+| Linux (`-r linux-x64`) | `libsteam_api.so` |
 
-If you ever need to upgrade Steamworks.NET, replace `lib/Steamworks.NET.dll` with the new version from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) and supply the matching `steam_api64.dll` from the same zip at packaging time — they must be kept in sync.
+Include the appropriate file in each platform's Steam depot; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
+
+If you ever need to upgrade Steamworks.NET, replace `lib/Steamworks.NET.dll` with the new version from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) and supply the matching native library from the same zip at packaging time — they must be kept in sync.
 
 ---
 
@@ -256,36 +261,52 @@ All artwork paths in `config.json` are relative to the executable directory.
 
 ### Shader compilation (pre-build requirement)
 
-NEShim's D3D11 renderer uses HLSL shaders for video filtering — a vertex/pixel passthrough pair plus one pixel shader per structural filter (`CrtScanlines.ps.hlsl`, `CrtPhosphor.ps.hlsl`, `NtscComposite.ps.hlsl`, `CrtScreen.ps.hlsl`). These are compiled to DXBC bytecode (`.cso` files) by MSBuild using `fxc.exe` from the Windows SDK **before** the C# build begins. The compiled bytecode is embedded in the assembly as a resource — no `.cso` files ship with the game.
+#### DXBC shaders (D3D11 / Windows)
 
-`fxc.exe` is automatically located by MSBuild at:
+NEShim's D3D11 renderer uses HLSL shaders compiled to DXBC bytecode (`.cso` files) by MSBuild using `fxc.exe` from the Windows SDK **before** the C# build begins. The compiled bytecode is embedded in the assembly as a resource.
 
-```
-$(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe
-```
-
-**If the Windows SDK is not installed**, MSBuild falls back to the pre-compiled `.cso` files that are checked into source control and the build succeeds. Shader recompilation is skipped entirely — a log message confirms this:
+`fxc.exe` is automatically located by MSBuild at `$(WindowsSdkDir)bin\$(WindowsSDKVersion)\x64\fxc.exe`. **If the Windows SDK is not installed**, MSBuild falls back to the pre-compiled `.cso` files checked into source control:
 
 ```
 [CompileShaders] fxc.exe not found at a Windows SDK path — using pre-compiled CSOs from source control.
 ```
 
-**The Windows SDK is only required if you have modified the `.hlsl` source files or are adding a new shader.** In those cases the `.cso` either doesn't exist or is stale, the skip condition is not met, and the build will fail if `fxc.exe` cannot be found. Install the **Windows 10 SDK** (any version ≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/) before making shader changes. For guidance on adding a new structural filter, see the [Architecture guide — Adding a new D3D11 video filter](architecture.md#adding-a-new-d3d11-video-filter-structural).
+**The Windows SDK is only required if you have modified `.hlsl` source files.** Install the **Windows 10 SDK** (≥ 10.0.19041) via the Visual Studio Installer or the standalone [Windows SDK download](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/) before making shader changes.
 
-On Proton/Steam Deck, DXVK compiles the DXBC bytecode to SPIR-V on first launch and caches it in `~/.local/share/Steam/steamapps/shadercache/<appid>/`. The passthrough shaders are trivially simple; first-launch compile is near-instant.
+On Proton/Steam Deck, DXVK compiles the DXBC bytecode to SPIR-V on first launch and caches it. The shaders are trivially simple; first-launch compile is near-instant.
+
+#### SPIR-V shaders (SDL_GPU / Linux)
+
+The SDL_GPU renderer (Linux) uses SPIR-V shaders (`.spv` files) compiled from the same HLSL source by `dxc.exe` via the `Microsoft.Direct3D.DXC` NuGet package. The `CompileSpirvShaders` MSBuild target runs `dxc.exe` automatically if the tool is available. Pre-compiled `.spv` files are checked into source control and used when `dxc.exe` is not found, following the same fallback pattern as DXBC shaders.
+
+**DXC is only required if you have modified `.hlsl` source files.** Standard builds use the pre-compiled `.spv` files and do not need DXC.
+
+### Publish commands
 
 ```bash
+# Windows — self-contained, ReadyToRun, win-x64
 dotnet publish NEShim/NEShim/NEShim.csproj \
   -c Release \
   -r win-x64 \
   --self-contained true \
   -p:PublishReadyToRun=true \
-  -o publish/MyGame
+  -o publish/MyGame-win-x64
+
+# Linux — self-contained, ReadyToRun, linux-x64
+dotnet publish NEShim/NEShim/NEShim.csproj \
+  -c Release \
+  -r linux-x64 \
+  --self-contained true \
+  -p:PublishReadyToRun=true \
+  -o publish/MyGame-linux-x64
+
+# Or publish all platforms at once using the publish script:
+.\local-publish.ps1 1.0.0
 ```
 
-`PublishReadyToRun` pre-compiles managed IL to native x64 code at build time. Without it, the .NET JIT compiles methods on first call at runtime — on Proton/Wine this is significantly more expensive because every JIT step calls `VirtualAlloc`/`VirtualProtect`, which Wine intercepts and translates. The result is noticeable frame spikes on first entry to each code path (ROM load, menu transitions, achievement unlocks). Always include this flag; **do not use plain `dotnet build` output for performance testing on Proton or Steam Deck**.
+`PublishReadyToRun` pre-compiles managed IL to native code at build time. Without it, the .NET JIT compiles methods on first call at runtime — on Proton/Wine this is significantly more expensive because every JIT step calls `VirtualAlloc`/`VirtualProtect`, which Wine intercepts and translates. The result is noticeable frame spikes on ROM load, menu transitions, and achievement unlocks. Always include this flag; **do not use plain `dotnet build` output for performance testing on Proton or Steam Deck**.
 
-After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into the output directory, then copy `steam_api64.dll` from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) alongside the exe (see [step 5](#5-steam_api64dll)).
+After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into each platform's output directory, then copy the matching Steamworks native library from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) alongside the exe (see [step 5](#5-steamworks-native-library)).
 
 ---
 
@@ -306,9 +327,11 @@ Before uploading to Steam:
 
 ## Steam Deck
 
-NEShim runs on Steam Deck via Proton with no configuration changes required. No additional steps are needed in your Steam depot or `config.json` to enable Steam Deck compatibility.
+NEShim runs on Steam Deck natively via the Linux x64 build (SDL_GPU/Vulkan path) or via Proton using the Windows x64 build (D3D11/DXVK path). No configuration changes are required for either path.
 
 **Use the published build for Deck testing, not a plain `dotnet build` output.** The `-p:PublishReadyToRun=true` flag in [step 14](#14-build-and-publish) makes a significant difference on Proton — without it, JIT overhead causes frame spikes that are not present in the shipped binary. Testing with `dotnet build` output and concluding there is a performance problem is a common mistake.
+
+For the native Linux build, copy the linux-x64 publish output to the Deck. No Proton layer is involved — the SDL_GPU/Vulkan renderer communicates directly with the GPU.
 
 
 ---
@@ -321,7 +344,7 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. No 
 - [ ] Signing keypair generated with `seal-achievements --gen-keypair`; public key set in `AchievementSigner.EmbeddedPublicKeyBase64` and solution rebuilt; private key stored outside source control
 - [ ] `steam_appid.txt` updated with your production App ID
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf` in source
-- [ ] `steam_api64.dll` copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory and included in your Steam depot
+- [ ] Steamworks native library copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory (`steam_api64.dll` for Windows, `libsteam_api.so` for Linux) and included in the corresponding Steam depots
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded — player preferences live in AppData `user.json`, which Steam cannot touch)
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
@@ -341,17 +364,17 @@ NEShim runs on Steam Deck via Proton with no configuration changes required. No 
 
 ## Deployed file layout
 
-If you set `<AssemblyName>MyGame</AssemblyName>`, the output will look like:
+If you set `<AssemblyName>MyGame</AssemblyName>`, the Windows x64 output will look like:
 
 ```
-MyGame/
+MyGame-win-x64/
 ├── MyGame.exe
 ├── MyGame.dll
 ├── MyGame.deps.json
 ├── MyGame.runtimeconfig.json
 ├── NEShim.AchievementSigning.dll
 ├── BizHawk.dll
-├── steam_api64.dll             ← from Steamworks.NET release zip; must be included in your Steam depot
+├── steam_api64.dll             ← from Steamworks.NET release zip; Windows depot only
 ├── steam_appid.txt
 ├── game_actions_1234560.vdf
 ├── controller_bindings/
@@ -375,5 +398,9 @@ MyGame/
 │   └── menu_theme.mp3
 └── [.NET runtime files...]
 ```
+
+The Linux x64 layout (`MyGame-linux-x64/`) is identical with two differences:
+- The executable has no `.exe` extension (`MyGame` or `NEShim`)
+- `libsteam_api.so` replaces `steam_api64.dll`
 
 Without `<AssemblyName>`, replace the top four entries with `MyGame.exe` (renamed manually) and `NEShim.dll`, `NEShim.deps.json`, `NEShim.runtimeconfig.json` (unchanged).

@@ -219,7 +219,7 @@ To confirm the fallback chain works, temporarily rename or remove a language fil
 
 ## Font support
 
-The `fontFamily` key in each language file controls the GDI+ font used to render all menu text. GDI+ resolves glyphs through Windows font fallback, so Latin, Cyrillic, and Greek scripts render correctly with `"Segoe UI"` (available on all supported Windows versions).
+The `fontFamily` key in each language file controls the font used to render all menu text via SDL3_ttf. SDL3_ttf resolves glyphs using the platform's font system, so Latin, Cyrillic, and Greek scripts render correctly with `"Segoe UI"` on Windows and equivalent system fonts on Linux.
 
 CJK languages ship with platform-specific font families:
 
@@ -229,7 +229,7 @@ CJK languages ship with platform-specific font families:
 | Korean | `"Malgun Gothic"` |
 | Simplified Chinese | `"Microsoft YaHei UI"` |
 
-If the specified font is not installed on the system, Windows will silently substitute a fallback that covers the required glyphs.
+If the specified font is not installed on the system, SDL3_ttf will substitute a system fallback font that covers the required glyphs.
 
 When adding a new CJK language, set `fontFamily` to the appropriate platform font for that script. For Traditional Chinese, `"Microsoft JhengHei UI"` is the recommended value.
 
@@ -237,7 +237,7 @@ When adding a new CJK language, set `fontFamily` to the appropriate platform fon
 
 ## RTL note
 
-Arabic and Hebrew characters render correctly through GDI+'s Unicode bidirectional algorithm without any code changes — text flows right-to-left within drawn strings automatically.
+Arabic and Hebrew characters render correctly through SDL3_ttf's Unicode bidirectional support without any code changes — text flows right-to-left within drawn strings automatically.
 
 Full layout mirroring (right-aligned panels, reversed navigation order) requires significant renderer restructuring and is not currently implemented. If you add an RTL language, menu text will display correctly but panel alignment and tab order will remain left-to-right.
 
