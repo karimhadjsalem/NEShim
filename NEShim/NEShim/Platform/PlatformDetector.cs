@@ -54,6 +54,20 @@ internal static class PlatformDetector
         if (OperatingSystem.IsWindows()) Win32Imports.timeEndPeriod(1);
     }
 
+    /// <summary>
+    /// Forces SDL3 to use X11 (via XWayland) on Linux so Steam's overlay Vulkan layer
+    /// can hook the swap chain. <c>steamoverlayvulkanlayer.so</c> intercepts
+    /// <c>vkQueuePresentKHR</c> for <c>VK_KHR_xcb_surface</c> and
+    /// <c>VK_KHR_xlib_surface</c> but not <c>VK_KHR_wayland_surface</c>. SDL3 prefers
+    /// Wayland on modern Linux; without this the overlay never appears (regression,
+    /// April 2026). Must be called before <c>SDL_Init</c>.
+    /// </summary>
+    internal static void ConfigureVideoDriverForSteamOverlay()
+    {
+        if (OperatingSystem.IsLinux())
+            Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", "x11");
+    }
+
     private static bool DetectWine()
     {
         if (!OperatingSystem.IsWindows()) return false;

@@ -90,6 +90,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         InitializeRendering();
         InitializeInput();
         InitializeAudio();
+        InitializeSteam();
         InitializeWindowAndD3DHook();
         if (_config!.NoLogo)
             FinishInitialization(achievements);
@@ -240,7 +241,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _logoScreen = null;
         _preloadTask?.Wait();
         _preloadTask = null;
-        var localization = InitializeSteamAndLocalization();
+        var localization = LoadLocalization();
         InitializeMainMenu(localization);
         InitializeInGameMenu(localization);
         InitializeEmulationStartup(achievements);
@@ -360,7 +361,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _                             => new NesFilterProcessor(),
     };
 
-    private LocalizationData InitializeSteamAndLocalization()
+    private void InitializeSteam()
     {
         SteamManager.Initialize(overlayActive =>
         {
@@ -375,7 +376,6 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             Logger.Log("[Platform] Wine/Proton detected.");
         if (PlatformDetector.IsSteamDeck)
             Logger.Log("[Platform] Steam Deck hardware detected.");
-        return LoadLocalization();
     }
 
     private void InitializeMainMenu(LocalizationData localization)

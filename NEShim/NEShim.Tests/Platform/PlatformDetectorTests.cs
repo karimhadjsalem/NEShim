@@ -5,8 +5,17 @@ namespace NEShim.Tests.Platform;
 [TestFixture]
 internal class PlatformDetectorTests
 {
+    private string? _savedVideoDriver;
+
+    [SetUp]
+    public void SetUp() => _savedVideoDriver = Environment.GetEnvironmentVariable("SDL_VIDEODRIVER");
+
     [TearDown]
-    public void TearDown() => PlatformDetector.SetD3D11Active(false);
+    public void TearDown()
+    {
+        PlatformDetector.SetD3D11Active(false);
+        Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", _savedVideoDriver);
+    }
 
     // ---- IsWine ----
 
@@ -63,4 +72,28 @@ internal class PlatformDetectorTests
     [Test]
     public void EndHighResolutionTiming_DoesNotThrow()
         => Assert.That(PlatformDetector.EndHighResolutionTiming, Throws.Nothing);
+
+    // ---- ConfigureVideoDriverForSteamOverlay ----
+
+    [Test]
+    public void ConfigureVideoDriverForSteamOverlay_DoesNotThrow()
+        => Assert.That(PlatformDetector.ConfigureVideoDriverForSteamOverlay, Throws.Nothing);
+
+    [Test]
+    public void ConfigureVideoDriverForSteamOverlay_WhenLinux_SetsX11VideoDriver()
+    {
+        Assume.That(OperatingSystem.IsLinux());
+        Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", null);
+        PlatformDetector.ConfigureVideoDriverForSteamOverlay();
+        Assert.That(Environment.GetEnvironmentVariable("SDL_VIDEODRIVER"), Is.EqualTo("x11"));
+    }
+
+    [Test]
+    public void ConfigureVideoDriverForSteamOverlay_WhenNotLinux_DoesNotChangeEnvVar()
+    {
+        Assume.That(!OperatingSystem.IsLinux());
+        string? before = Environment.GetEnvironmentVariable("SDL_VIDEODRIVER");
+        PlatformDetector.ConfigureVideoDriverForSteamOverlay();
+        Assert.That(Environment.GetEnvironmentVariable("SDL_VIDEODRIVER"), Is.EqualTo(before));
+    }
 }
