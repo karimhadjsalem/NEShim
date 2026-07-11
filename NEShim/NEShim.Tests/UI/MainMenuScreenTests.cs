@@ -622,12 +622,12 @@ internal class MainMenuScreenTests
     }
 
     [Test]
-    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode()
+    public void VideoFilter_GetCurrentItems_ReturnsEightItems()
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        // GDI mode: [PixelPerfect, Bilinear, Back]
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
+        // All D3D11Supported filters available on both D3D11 and SDL_GPU: 7 filters + Back = 8
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
     [Test]
@@ -728,15 +728,15 @@ internal class MainMenuScreenTests
         Assert.That(_config.VideoFilterOverlay, Is.EqualTo("CrtPhosphor"));
     }
 
-    // ---- VideoOverlay (GDI mode — overlay entry absent) ----
+    // ---- VideoOverlay (overlay entry absent from filter submenu) ----
 
     [Test]
-    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode_OverlayEntryAbsent()
+    public void VideoFilter_GetCurrentItems_ReturnsEightItems_OverlayEntryAbsent()
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        // GDI mode: [PixelPerfect, Bilinear, Back] — no overlay entry
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(3));
+        // 7 structural filters + Back; the overlay filter selector lives in its own submenu
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
     [Test]

@@ -988,12 +988,12 @@ internal class InGameMenuTests
     }
 
     [Test]
-    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode()
+    public void VideoFilter_GetCurrentItems_ReturnsEightItems()
     {
         var menu = CreateMenu();
         OpenVideoFilterSubMenu(menu);
-        // GDI mode: [PixelPerfect, Bilinear, Back]
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+        // All D3D11Supported filters available on both D3D11 and SDL_GPU: 7 filters + Back = 8
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
     [Test]
@@ -1098,12 +1098,12 @@ internal class InGameMenuTests
     // ---- VideoOverlay sub-menu (GDI mode — overlay entry absent) ----
 
     [Test]
-    public void VideoFilter_GetCurrentItems_ReturnsThreeItemsInGdiMode_OverlayEntryAbsent()
+    public void VideoFilter_GetCurrentItems_ReturnsEightItems_OverlayEntryAbsent()
     {
         var menu = CreateMenu();
         OpenVideoFilterSubMenu(menu);
-        // GDI mode: [PixelPerfect, Bilinear, Back] — no overlay entry
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(3));
+        // 7 structural filters + Back; the overlay filter selector lives in its own submenu
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(8));
     }
 
     // ---- VideoFilterModeParser overlay helpers ----
