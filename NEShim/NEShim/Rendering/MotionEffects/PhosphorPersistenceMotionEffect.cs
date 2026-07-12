@@ -2,10 +2,13 @@
 
 /// <summary>
 /// Simulates CRT phosphor persistence by temporally accumulating frames.
-/// Each output pixel is the current frame plus a decayed copy of the previous output,
+/// Each output pixel is max(current frame, decayed copy of the previous output),
 /// producing a soft after-image trail that fades over roughly 10–15 frames.
-/// The effect uses a ping-pong pair of intermediate render targets managed by
-/// D3D11Renderer; NeedsTemporalBuffer signals this requirement.
+/// The effect uses a ping-pong pair of intermediate render targets; NeedsTemporalBuffer
+/// signals this requirement. D3D11Renderer reads DecayFactor via WriteShaderParams into a
+/// 2-sampler pixel shader (PixelShaderResourceName); SDL3HwRenderer has no SPIR-V
+/// equivalent of that shader and instead reads the same DecayFactor to drive GPU blend
+/// compositing (SDL_ComposeCustomBlendMode Maximum op) — see SDL3HwRenderer.RunPhosphorPass.
 /// </summary>
 internal sealed class PhosphorPersistenceMotionEffect : IMotionEffect
 {

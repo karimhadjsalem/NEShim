@@ -87,8 +87,8 @@ internal interface IFrameRenderer : IDisposable
     void SetFilter(Filters.ID3D11Filter filter) { }
 
     /// <summary>
-    /// Sets or clears the two-pass overlay filter (D3D11 only).
-    /// SDL3HwRenderer's override is a no-op — overlay is not supported on SDL_GPU.
+    /// Sets or clears the two-pass overlay filter. Supported on both D3D11 and SDL_GPU
+    /// (SDL3HwRenderer translates via SdlFilterFactory, same as SetFilter).
     /// </summary>
     void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
 
@@ -99,9 +99,10 @@ internal interface IFrameRenderer : IDisposable
     void SetColorFilter(VideoColorFilterMode mode) { }
 
     /// <summary>
-    /// Sets the motion effect. CrtJitter, ScanlineBob, and MagneticDistortion are supported
-    /// on both D3D11 and SDL_GPU. PhosphorPersistence is D3D11 only; SDL3HwRenderer's
-    /// SdlMotionEffectFactory demotes it to None.
+    /// Sets the motion effect. All four modes (CrtJitter, ScanlineBob, MagneticDistortion,
+    /// PhosphorPersistence) are supported on both D3D11 and SDL_GPU. PhosphorPersistence has
+    /// no SPIR-V shader on the SDL_GPU path — SDL3HwRenderer reproduces it via GPU blend
+    /// compositing instead (see SDL3HwRenderer's class doc comment).
     /// </summary>
     void SetMotionEffect(VideoMotionEffectMode mode) { }
 }
