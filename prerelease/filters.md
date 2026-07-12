@@ -15,7 +15,7 @@ NEShim has eight independent filter axes, all configurable at runtime via the in
 | Audio Filter | `audioFilter` | Settings → Sound → Audio Filter | DSP processing applied to the NES mono audio output |
 | Audio EQ | `audioEqBass` / `audioEqMid` / `audioEqTreble` | Settings → Sound → EQ | 3-band peaking equalizer applied after the audio filter |
 | Video Filter | `videoFilter` | Settings → Video → Video Filter | Primary structural transform applied to the NES pixel buffer |
-| Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 only) |
+| Video Overlay | `videoFilterOverlay` | Settings → Video → Video Filter → Video Overlay | Second-pass structural filter stacked on top of the primary filter (D3D11 and SDL_GPU/Vulkan) |
 | Color Effect | `videoColorFilter` | Settings → Video → Color Effect | Color-grade applied after all structural passes (D3D11 and SDL_GPU/Vulkan) |
 | Motion Effect | `videoMotionEffect` | Settings → Video → Motion Effect | Per-frame screen-space displacement applied to the NES frame quad (D3D11 and SDL_GPU/Vulkan) |
 | Picture Adjustments | `videoBrightness` / `videoContrast` / `videoSaturation` / `videoHue` | Settings → Video → Picture | Post-process brightness, contrast, saturation, and hue sliders applied after all other video passes (D3D11 and SDL_GPU/Vulkan) |
@@ -88,9 +88,9 @@ The active rendering path is detected at startup and shown in `neshim.log` when 
 
 ## Video Overlay
 
-A second structural filter pass applied on top of the primary structural filter. **D3D11 only** — not available on the SDL_GPU/Vulkan path.
+A second structural filter pass applied on top of the primary structural filter. Available on both D3D11 and SDL_GPU/Vulkan.
 
-When a Video Overlay is selected, `D3D11Renderer` renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to the letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the swap chain backbuffer at the normal NES quad position. Color grading (`videoColorFilter`) is deferred to this second pass so it applies once to the combined result. When the overlay is `"None"` (default), the single-pass path is taken with identical output and no overhead.
+When a Video Overlay is selected, the renderer renders the primary filter to an intermediate `B8G8R8A8_UNorm` render target sized to the letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the final frame at the normal NES quad position. Color grading (`videoColorFilter`) is deferred to this second pass so it applies once to the combined result. When the overlay is `"None"` (default), the single-pass path is taken with identical output and no overhead. On D3D11 this is `D3D11Renderer`'s `_overlayRt` intermediate; on SDL_GPU it is `SDL3HwRenderer`'s `_overlayFilterTexture`, composed with a single-sampler `SdlGpuRenderState` pass — the same underlying mechanism SDL_GPU already used for the motion-effect and picture-adjust passes, since a two-pass sequential composite only ever needs one texture sampler per draw.
 
 The overlay slot accepts a subset of structural filters — those composable on top of an already-scaled frame:
 
@@ -103,7 +103,7 @@ The overlay slot accepts a subset of structural filters — those composable on 
 
 **Default value:** `"None"`
 
-**Conflict prevention (D3D11):** the overlay option menu disables any filter that matches the active primary filter, preventing the same filter in both slots. Switching the primary Video Filter to a value that matches the current overlay also automatically resets the overlay to `None`. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
+**Conflict prevention:** on both rendering paths, the overlay option menu disables any filter that matches the active primary filter, preventing the same filter in both slots. Switching the primary Video Filter to a value that matches the current overlay also automatically resets the overlay to `None`. Config values edited directly in `config.json` are not validated; a duplicate selection produces no useful visual difference from a single pass.
 
 **UV note for overlay shaders:** the intermediate texture holds the upscaled primary frame. Overlay shaders receive UV coordinates spanning 0→1 over the letterbox area and use `nesHeight = 240` for scanline period calculations — the same values as in single-pass mode. Sampling an upscaled intermediate at these UVs gives sub-pixel scanline blending against a higher-resolution source, which generally produces better quality than the equivalent single-pass configuration.
 
@@ -146,12 +146,13 @@ All four are adjustable at runtime via **Settings → Video → Picture** in bot
 
 ## Motion Effect
 
-A per-frame animated effect applied to the NES viewport. CRT Jitter, Scanline Bob, and Magnetic Distortion are available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux). Screen Glow (PhosphorPersistence) is D3D11 only — it requires a ping-pong pair of temporal texture samplers that cannot be expressed via SDL_GPURenderState; selecting it on the SDL_GPU path silently demotes to None.
+A per-frame animated effect applied to the NES viewport. All four effects — CRT Jitter, Scanline Bob, Magnetic Distortion, and Screen Glow — are available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux).
 
-Two implementation models exist:
+Three implementation models exist:
 
 - **CPU quad-offset** (CRT Jitter, Scanline Bob): the displacement is computed on the CPU each frame and written into the vertex buffer quad corners as a clip-space offset. A scissor rect prevents the displaced quad from bleeding into sidebars or letterbox areas. No additional render pass; the overhead is a few ALU instructions before the existing `Draw(6, 0)` call.
-- **Shader pass** (Magnetic Distortion): the structural filter (and overlay filter, if active) is rendered into an intermediate letterbox-sized render target first, then a dedicated pixel shader reads from that intermediate and warps pixels per-UV as it renders to the backbuffer. This adds one render pass to the pipeline when active.
+- **Shader pass** (Magnetic Distortion): the structural filter (and overlay filter, if active) is rendered into an intermediate letterbox-sized render target first, then a dedicated pixel shader reads from that intermediate and warps pixels per-UV as it renders to the backbuffer. This adds one render pass to the pipeline when active. Identical on D3D11 and SDL_GPU.
+- **Temporal accumulation** (Screen Glow): needs the *previous frame's output* as a second input, not just the current frame — a genuine two-sampler shader on D3D11. `SDL_GPURenderState` only binds one texture sampler per draw (no public API exists to bind a second, unlike D3D11's `PSSetShaderResource` slot 1), so SDL_GPU reproduces the same result without a shader at all — see the Screen Glow row below.
 
 | Effect | `videoMotionEffect` value | Description |
 |---|---|---|
@@ -159,7 +160,7 @@ Two implementation models exist:
 | CRT Jitter | `"CrtJitter"` | Simulates the subtle hold instability of an aging CRT TV. A bounded, non-repeating horizontal (and minimal vertical) offset is derived each frame from the product of two sinusoids at irrational-ratio frequencies. The signal changes sign every 3–6 frames at 60 Hz, reading as nervous micro-jitter rather than slow sway. Horizontal and vertical amplitudes scale independently with viewport width and height respectively, keeping the physical pixel displacement constant across resolutions (calibrated at 1920×1080). |
 | Scanline Bob | `"ScanlineBob"` | Alternates the NES frame quad vertically each frame, producing a subtle vertical bob at 30 Hz. Recreates the interlace artifact seen on CRT displays that rendered alternating fields at half the frame rate. The amplitude scales inversely with viewport height so the physical pixel displacement remains constant regardless of screen resolution (calibrated at 1080p). |
 | Magnetic Distortion | `"MagneticDistortion"` | Simulates magnetic interference on a CRT by warping UV coordinates in a pixel shader. A sine wave sweeps horizontally across the image each frame — each row is displaced by a different amount, so adjacent rows shift in opposite directions, matching the characteristic non-uniform warp of an external magnetic field deflecting the electron beam unevenly. The wave phase and amplitude evolve slowly over time for an organic feel. Pixels that warp past the horizontal texture boundary render as black, matching the edge roll-off seen on real CRTs. Runs as a shader pass (see above). |
-| Screen Glow | `"PhosphorPersistence"` | Simulates CRT phosphor persistence by temporally accumulating frames. Each output pixel blends the current frame with a faded copy of the previous output (65% retention per frame), producing a soft after-image trail that fades over approximately 10–15 frames. Runs as a shader pass with a ping-pong pair of intermediate render targets (see above). **D3D11 only** — demotes to None on SDL_GPU/Vulkan. |
+| Screen Glow | `"PhosphorPersistence"` | Simulates CRT phosphor persistence by temporally accumulating frames. Each output pixel is `max(current frame, previous output × 0.65)`, producing a soft after-image trail that fades over approximately 10–15 frames. Uses a ping-pong pair of intermediate render targets (see above). D3D11 reads both textures in one 2-sampler pixel shader pass. SDL_GPU has no way to bind a second sampler through `SDL_GPURenderState`, so it reproduces the identical formula with two ordinary single-sampler draws into the ping-pong buffer: the current frame drawn first, then the history buffer drawn on top with `SDL_SetTextureColorModFloat` pre-scaling its RGB by the 0.65 decay factor and a custom `SDL_ComposeCustomBlendMode` blend (`Maximum` operation) combining it with what's already there — GPU fixed-function blending standing in for the shader's `max()` call, with no CPU pixel work and no SPIR-V shader involved. |
 
 **Default value:** `"None"`
 
@@ -167,7 +168,7 @@ Two implementation models exist:
 
 ## Video Presets
 
-Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux). On the SDL_GPU path, the Video Overlay component of a preset is not applied (see [Video Overlay](#video-overlay) above), and the Phosphor preset's Screen Glow motion effect demotes to None (see [Motion Effect](#motion-effect) above). All other preset settings take effect.
+Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux), including the Video Overlay and Screen Glow components — every preset setting takes effect identically on both rendering paths.
 
 | Preset | `videoPreset` value | Video Filter | Video Overlay | Color Effect | Motion Effect |
 |---|---|---|---|---|---|
