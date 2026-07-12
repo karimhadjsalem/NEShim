@@ -44,7 +44,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
 - **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
-- **Graphics** — platform-adaptive rendering: D3D11 on Windows (with SDL_GPU/Vulkan fallback), SDL_GPU/Vulkan on Linux. D3D11 and SDL_GPU both support seven structural filters (Pixel Perfect, Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), six color effects, three motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion), **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets**; D3D11 also adds a **Video Overlay** second-filter slot and **Screen Glow** temporal motion effect (both require temporal textures not available via SDL_GPURenderState) — all independently stackable; see [Filters](#filters) below
+- **Graphics** — platform-adaptive rendering: D3D11 on Windows (with SDL_GPU/Vulkan fallback), SDL_GPU/Vulkan on Linux. D3D11 and SDL_GPU both support seven structural filters (Pixel Perfect, Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), a **Video Overlay** second-filter slot, **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets** — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and SDL3 gamepad support (XInput, DualShock, Switch Pro, Steam Deck controller) with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck / Linux** — runs natively on Linux x64 (SDL_GPU/Vulkan path) and on Steam Deck natively or via Proton with no configuration changes required
@@ -123,9 +123,9 @@ Both paths support **Color Effects** that stack on top of any structural filter:
 
 If `config.json` specifies a filter not supported by the active renderer, NEShim logs a warning, falls back to Pixel Perfect, and saves the fallback to `user.json`.
 
-### Video Overlay (D3D11 only)
+### Video Overlay
 
-A second structural filter pass applied on top of the primary structural filter. When active, `D3D11Renderer` renders the primary filter to an intermediate render target at letterbox pixel dimensions, then renders the overlay filter reading from that intermediate into the final swap chain buffer. Color grading is deferred to the second pass so it is applied only once to the combined image.
+A second structural filter pass applied on top of the primary structural filter, available on both D3D11 and SDL_GPU. When active, the primary filter renders to an intermediate render target at letterbox pixel dimensions, then the overlay filter reads from that intermediate and renders the final composited frame. Color grading is deferred to the second pass so it is applied only once to the combined image.
 
 Overlay-eligible filters: **CRT Scanlines**, **CRT Phosphor**, **CRT Screen**. Any primary filter can be paired with any eligible overlay filter — for example, Smooth (Jinc2 reconstruction) as the base with CRT Scanlines as the overlay, or Pixel Perfect with CRT Screen for barrel distortion around sharp pixels. The menu prevents selecting the same filter in both slots; switching the primary filter to one that matches the current overlay automatically resets the overlay to None. With no overlay selected (default `"None"`), rendering is identical to the single-pass path with no overhead.
 
@@ -141,7 +141,7 @@ Filter and overscan changes take effect immediately while the game is running �
 
 ### Video Presets
 
-Four built-in presets apply a coordinated combination of filter settings in one step via **Settings → Video → Presets**. Presets are available on both rendering paths; the in-game Video menu hides the Presets entry when D3D11 is inactive, but they are always accessible via the main menu and `config.json`. On SDL_GPU, the Video Overlay and Screen Glow components of a preset are not applied (see the per-feature notes above).
+Four built-in presets apply a coordinated combination of filter settings in one step via **Settings → Video → Presets**. Presets, along with Video Overlay, Motion Effect, and Picture, are available on both rendering paths; the in-game Video menu hides these entries only in the rare case where neither D3D11 nor the SDL_GPU shader path is active (SDL's plain-renderer fallback, no GPU device found), but the settings are always accessible via the main menu and `config.json`.
 
 | Preset | Video Filter | Video Overlay | Color Effect | Motion Effect |
 |---|---|---|---|---|
@@ -160,7 +160,7 @@ Selecting any individual filter after applying a preset clears the preset name b
 | CRT Jitter | D3D11 and SDL_GPU | Micro-pixel translation simulating hold instability on an aging CRT |
 | Scanline Bob | D3D11 and SDL_GPU | 30 Hz vertical oscillation mimicking interlaced scanline wobble |
 | Magnetic Distortion | D3D11 and SDL_GPU | Per-pixel sine-wave UV warp simulating a magnetic field deflecting the CRT electron beam unevenly |
-| Screen Glow | D3D11 only | Temporal frame accumulation (65% per-frame retention) simulating CRT phosphor persistence; demotes to None on SDL_GPU |
+| Screen Glow | D3D11 and SDL_GPU | Temporal frame accumulation (65% per-frame retention) simulating CRT phosphor persistence. D3D11 uses a 2-sampler pixel shader; SDL_GPU (which can only bind one sampler per draw) reproduces the same `max(current, previous × decay)` result via GPU blend compositing instead |
 
 Motion effects compose with all structural filters, the Video Overlay slot, and color effects.
 
@@ -172,7 +172,7 @@ Four independent sliders available under **Settings → Video → Picture**: **B
 
 Every structural filter ships as two compiled shader variants: **DXBC** (`.cso`) for D3D11 and **SPIR-V** (`.spv`) for SDL_GPU, both embedded as assembly resources and compiled from the same HLSL source. The D3D11 side uses `ID3D11Filter` + `D3D11FilterFactory`; the SDL side uses `ISdlFilter` + `SdlFilterFactory` + `SdlGpuRenderState` (one SDL_GPUShader + SDL_GPURenderState pair per active filter, created on filter change). Both interfaces share the same 4-float uniform layout: structural params at `[0..2]`, color mode at `[3]`. A shared `ColorGrade.hlsli` include applies the active Color Effect in every shader, so any filter + color effect combination works without shader permutations.
 
-Motion effects implement `IMotionEffect`. CPU quad-offset effects (CRT Jitter, Scanline Bob) need only `GetFrameOffset` — no extra pass, no shader. Shader-backed effects (Magnetic Distortion) additionally implement `ISdlMotionEffect` on the SDL side and return a non-null `PixelShaderResourceName` on the D3D11 side, causing the renderer to allocate an intermediate render target and run a dedicated warp pass. See the [Architecture guide](https://karimhadjsalem.github.io/NEShim/) for step-by-step instructions on adding new filters and motion effects to both paths.
+Motion effects implement `IMotionEffect`. CPU quad-offset effects (CRT Jitter, Scanline Bob) need only `GetFrameOffset` — no extra pass, no shader. Shader-backed effects (Magnetic Distortion) additionally implement `ISdlMotionEffect` on the SDL side and return a non-null `PixelShaderResourceName` on the D3D11 side, causing the renderer to allocate an intermediate render target and run a dedicated warp pass. Screen Glow (PhosphorPersistence) is a special case: D3D11 renders it as a genuine 2-sampler shader pass, but `SDL_GPURenderState` can only bind one texture per draw, so on SDL_GPU the renderer instead detects `IMotionEffect.NeedsTemporalBuffer` and reproduces the same accumulation formula with two single-sampler draws composited via a custom `SDL_ComposeCustomBlendMode` (Maximum op) — no SPIR-V shader involved. See the [Architecture guide](https://karimhadjsalem.github.io/NEShim/) for step-by-step instructions on adding new filters and motion effects to both paths.
 
 ---
 

@@ -12,7 +12,11 @@ namespace NEShim.Tests.Rendering;
 internal class RendererFactoryTests
 {
     [TearDown]
-    public void TearDown() => PlatformDetector.SetD3D11Active(false);
+    public void TearDown()
+    {
+        PlatformDetector.SetD3D11Active(false);
+        PlatformDetector.SetSdlGpuRendererActive(false);
+    }
 
     [Test]
     public void Create_WhenDeviceIsNull_DoesNotSetD3D11Active()
@@ -24,6 +28,18 @@ internal class RendererFactoryTests
         try { RendererFactory.Create(overlay, 256, 240, windowHost)?.Dispose(); }
         catch (Exception) { }
         Assert.That(PlatformDetector.IsD3D11Active, Is.False);
+    }
+
+    [Test]
+    public void Create_WhenDeviceIsNull_DoesNotSetSdlGpuRendererActive()
+    {
+        using var overlay    = new NullOverlayRenderer();
+        var       windowHost = new NullWindowHost();
+        // SDL3HwRenderer's constructor throws before RendererFactory reaches the
+        // SetSdlGpuRendererActive call — the flag must never be set on the throw path.
+        try { RendererFactory.Create(overlay, 256, 240, windowHost)?.Dispose(); }
+        catch (Exception) { }
+        Assert.That(PlatformDetector.IsSdlGpuRendererActive, Is.False);
     }
 
     private sealed class NullWindowHost : IWindowHost
