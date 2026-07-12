@@ -15,10 +15,19 @@ namespace NEShim.Rendering;
 /// - Structural filters are applied via SPIR-V shaders and SDL_GPURenderState (SdlFilterFactory → ISdlFilter).
 /// - Color effects share ColorGrade.hlsli with the D3D11 path; the colorMode uniform is written identically.
 /// - CRT Jitter, Scanline Bob, and Magnetic Distortion motion effects are fully supported (SdlMotionEffectFactory).
-/// - PhosphorPersistence (Screen Glow) demotes to None — it requires a ping-pong temporal buffer not
-///   expressible via SDL_GPURenderState.
-/// - Video Overlay (second-pass filter slot) is not supported; SetOverlayFilter is a no-op.
+/// - Video Overlay (second-pass filter slot: CrtScanlines/CrtPhosphor/CrtScreen) is supported as an
+///   additional sequential pass, mirroring the D3D11 overlay slot.
+/// - PhosphorPersistence (Screen Glow) is supported without a shader: SDL_GPURenderState only binds one
+///   texture sampler per draw (no public API exists to bind a second, unlike D3D11's PSSetShaderResource
+///   slot 1), so the D3D11 shader's <c>max(current, previous * decay)</c> formula is instead reproduced
+///   with two single-sampler draws into a ping-pong accumulation texture using a custom
+///   <see cref="SDL.ComposeCustomBlendMode"/> (Maximum op) plus <see cref="SDL.SetTextureColorModFloat"/>
+///   for the decay scale — GPU fixed-function blending, no CPU pixel work.
 /// - Picture adjust (brightness/contrast/saturation/hue) is implemented as a two-pass render-to-texture.
+/// - All four post-filter stages (Overlay, Motion Effect shader / Phosphor accumulation, Picture Adjust)
+///   are optional and composable; see DrawNesFrame for the cascading-target pipeline that chains
+///   whichever are active in a fixed order, deferring colour-grade application to whichever stage is
+///   the last colour-aware one in the chain.
 /// When the GPU renderer is unavailable, SDL_CreateRenderer is used with no shader support.
 /// </summary>
 [ExcludeFromCodeCoverage]
@@ -69,11 +78,29 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
     private long  _frameCount;
 
+    // Active overlay filter state (two-pass overlay: CrtScanlines/CrtPhosphor/CrtScreen
+    // composited as a second pass on top of the primary structural filter).
+    private Filters.ISdlFilter? _activeOverlayFilter;
+    private SdlGpuRenderState?  _overlayFilterRenderState;
+    private IntPtr              _overlayFilterTexture;
+    private bool                _hasOverlayFilter;
+
     // Active motion effect state
     private IMotionEffect      _activeMotionEffect      = new NoneMotionEffect();
     private SdlGpuRenderState? _motionEffectRenderState;
     private IntPtr             _motionEffectTexture;
     private bool               _hasShaderMotionEffect;
+
+    // Phosphor persistence: temporal accumulation via GPU blend compositing (ping-pong pair)
+    // instead of a 2-sampler shader — see class doc comment for why.
+    private bool   _hasPhosphorPersistence;
+    private IntPtr _phosphorTexA;
+    private IntPtr _phosphorTexB;
+    private bool   _phosphorUseA = true;
+
+    private static readonly SDL.BlendMode MaximumBlendMode = SDL.ComposeCustomBlendMode(
+        SDL.BlendFactor.One, SDL.BlendFactor.One, SDL.BlendOperation.Maximum,
+        SDL.BlendFactor.One, SDL.BlendFactor.One, SDL.BlendOperation.Maximum);
 
     // Picture adjust state
     private float _brightness;
@@ -239,6 +266,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     // ---- NES frame draw ----------------------------------------------------------------
 
+    // Pipeline: [structural filter] -> [overlay?] -> [motion-effect shader or phosphor
+    // accumulation?] -> [picture adjust?] -> backbuffer. Each optional stage renders into
+    // whichever later stage is active next (cascading target selection below), or straight
+    // to the backbuffer if it's the last one running. Colour grading is applied by whichever
+    // of {filter, overlay, motion-effect shader} is the last colour-aware stage in the chain
+    // — phosphor accumulation and picture adjust are colour-blind post-processes and never
+    // apply it themselves.
     private void DrawNesFrame(SDL.FRect dest)
     {
         if (_nesTexture == IntPtr.Zero) return;
@@ -249,6 +283,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         long frame = _frameCount++;
         _activeFilter.NotifyFrame(frame);
+        _activeOverlayFilter?.NotifyFrame(frame);
 
         // Apply CPU-space offset from the motion effect (converts clip-space dx/dy to pixels).
         var (offsetDx, offsetDy) = _activeMotionEffect.GetFrameOffset(frame);
@@ -261,83 +296,144 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
                 H = dest.H,
             };
 
-        bool hasPa = _hasPictureAdjust
-                  && _pictureAdjustTexture    != IntPtr.Zero
-                  && _pictureAdjustRenderState is not null;
+        bool hasOverlay  = _hasOverlayFilter
+                        && _overlayFilterTexture     != IntPtr.Zero
+                        && _overlayFilterRenderState is { IsValid: true };
         bool hasMeShader = _hasShaderMotionEffect
-                        && _motionEffectTexture    != IntPtr.Zero
-                        && _motionEffectRenderState is not null
-                        && _motionEffectRenderState.IsValid;
+                        && _motionEffectTexture     != IntPtr.Zero
+                        && _motionEffectRenderState is { IsValid: true };
+        bool hasPhosphor = _hasPhosphorPersistence
+                        && _motionEffectTexture != IntPtr.Zero
+                        && _phosphorTexA        != IntPtr.Zero
+                        && _phosphorTexB        != IntPtr.Zero;
+        bool hasPa       = _hasPictureAdjust
+                        && _pictureAdjustTexture    != IntPtr.Zero
+                        && _pictureAdjustRenderState is not null;
 
-        if      (hasMeShader && hasPa) DrawNesFrameThreePass(src, dest);
-        else if (hasMeShader)          DrawNesFrameWithMotionEffect(src, dest);
-        else if (hasPa)                DrawNesFrameTwoPass(src, dest);
-        else                           DrawNesFrameDirect(src, dest);
+        IntPtr motionTarget  = hasPa ? _pictureAdjustTexture : IntPtr.Zero;
+        IntPtr overlayTarget = (hasMeShader || hasPhosphor) ? _motionEffectTexture : motionTarget;
+        IntPtr filterTarget  = hasOverlay ? _overlayFilterTexture : overlayTarget;
+
+        bool filterAppliesColorMode  = !hasOverlay && !hasMeShader;
+        bool overlayAppliesColorMode = hasOverlay  && !hasMeShader;
+
+        RunFilterPass(src, dest, filterTarget, filterAppliesColorMode);
+
+        if (hasOverlay)
+            RunOverlayPass(overlayTarget, overlayAppliesColorMode);
+
+        if (hasMeShader)
+            RunMotionEffectShaderPass(motionTarget);
+        else if (hasPhosphor)
+            RunPhosphorPass(motionTarget);
+
+        if (hasPa)
+            ApplyPictureAdjustPass(_pictureAdjustTexture);
     }
 
-    private void DrawNesFrameDirect(SDL.FRect src, SDL.FRect dest)
+    // NES texture -> structural filter -> targetTexture (or straight to the backbuffer when
+    // targetTexture is Zero).
+    private void RunFilterPass(SDL.FRect src, SDL.FRect dest, IntPtr targetTexture, bool applyColorMode)
     {
-        ApplyFilterRenderState();
+        bool toIntermediate = targetTexture != IntPtr.Zero;
+        if (toIntermediate)
+        {
+            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
+            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+            SDL.RenderClear(_sdlRenderer);
+        }
+        ApplyFilterRenderState(applyColorMode);
         SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
+        if (toIntermediate)
+            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
     }
 
-    private void DrawNesFrameTwoPass(SDL.FRect src, SDL.FRect dest)
+    // Overlay intermediate -> overlay filter shader -> targetTexture (or backbuffer).
+    private void RunOverlayPass(IntPtr targetTexture, bool applyColorMode)
     {
-        // Pass 1: NES texture + filter shader → picture-adjust intermediate.
-        SDL.SetRenderTarget(_sdlRenderer, _pictureAdjustTexture);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-        ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
-        _filterRenderState?.Clear();
-        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
-
-        // Pass 2: intermediate texture + picture-adjust shader → screen.
-        ApplyPictureAdjustPass(_pictureAdjustTexture);
+        bool toIntermediate = targetTexture != IntPtr.Zero;
+        if (toIntermediate)
+        {
+            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
+            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+            SDL.RenderClear(_sdlRenderer);
+        }
+        SDL.SetTextureScaleMode(_overlayFilterTexture,
+            _activeOverlayFilter!.UseLinearSampler ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+        Span<float> uniforms = stackalloc float[UniformFloats];
+        _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
+        uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
+        _overlayFilterRenderState!.Apply(uniforms);
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _overlayFilterTexture, in fullRect, in fullRect);
+        _overlayFilterRenderState.Clear();
+        if (toIntermediate)
+            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
     }
 
-    private void DrawNesFrameWithMotionEffect(SDL.FRect src, SDL.FRect dest)
+    // Motion-effect intermediate -> ME shader -> targetTexture (or backbuffer). Always the
+    // last colour-aware stage when active, so colour mode is never deferred here.
+    private void RunMotionEffectShaderPass(IntPtr targetTexture)
     {
-        // Pass 1: NES texture + filter shader → motion-effect intermediate.
-        SDL.SetRenderTarget(_sdlRenderer, _motionEffectTexture);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-        ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
-        _filterRenderState?.Clear();
-        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
-
-        // Pass 2: motion-effect intermediate + ME shader → screen.
+        bool toIntermediate = targetTexture != IntPtr.Zero;
+        if (toIntermediate)
+        {
+            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
+            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+            SDL.RenderClear(_sdlRenderer);
+        }
         ApplyMotionEffectRenderState();
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
         _motionEffectRenderState!.Clear();
+        if (toIntermediate)
+            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
     }
 
-    private void DrawNesFrameThreePass(SDL.FRect src, SDL.FRect dest)
+    // Temporal phosphor blend: accumulates writeTex = max(current frame, history * decay)
+    // using GPU fixed-function blending (no shader — see class doc comment), then composites
+    // the result into targetTexture (or the backbuffer). Swaps the ping-pong roles each call.
+    // Colour mode was already applied upstream (filter or overlay pass) when this stage is
+    // active, since phosphor accumulation has no shader of its own to apply it.
+    private void RunPhosphorPass(IntPtr targetTexture)
     {
-        // Pass 1: NES texture + filter shader → motion-effect intermediate.
-        SDL.SetRenderTarget(_sdlRenderer, _motionEffectTexture);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-        ApplyFilterRenderState();
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
-        _filterRenderState?.Clear();
-        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
-
-        // Pass 2: motion-effect intermediate + ME shader → picture-adjust intermediate.
-        SDL.SetRenderTarget(_sdlRenderer, _pictureAdjustTexture);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-        ApplyMotionEffectRenderState();
+        IntPtr historyTex = _phosphorUseA ? _phosphorTexA : _phosphorTexB;
+        IntPtr writeTex   = _phosphorUseA ? _phosphorTexB : _phosphorTexA;
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+
+        SDL.SetRenderTarget(_sdlRenderer, writeTex);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+
         SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
-        _motionEffectRenderState!.Clear();
+
+        Span<float> decayParams = stackalloc float[UniformFloats];
+        _activeMotionEffect.WriteShaderParams(decayParams, _contentWidth, _contentHeight);
+        float decay = decayParams[0];
+        SDL.SetTextureColorModFloat(historyTex, decay, decay, decay);
+        SDL.SetTextureBlendMode(historyTex, MaximumBlendMode);
+        SDL.RenderTexture(_sdlRenderer, historyTex, in fullRect, in fullRect);
+
         SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
 
-        // Pass 3: picture-adjust intermediate + PA shader → screen.
-        ApplyPictureAdjustPass(_pictureAdjustTexture);
+        // Composite the accumulated frame. writeTex may have last served as the decayed
+        // history source under the opposite ping-pong role, so its blend mode and colour
+        // mod must be reset explicitly rather than trusted to be at their defaults.
+        bool toIntermediate = targetTexture != IntPtr.Zero;
+        if (toIntermediate)
+        {
+            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
+            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+            SDL.RenderClear(_sdlRenderer);
+        }
+        SDL.SetTextureColorModFloat(writeTex, 1f, 1f, 1f);
+        SDL.SetTextureBlendMode(writeTex, SDL.BlendMode.Blend);
+        SDL.RenderTexture(_sdlRenderer, writeTex, in fullRect, in fullRect);
+        if (toIntermediate)
+            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+
+        _phosphorUseA = !_phosphorUseA;
     }
 
     private void ApplyPictureAdjustPass(IntPtr sourceTexture)
@@ -365,7 +461,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _motionEffectRenderState.Apply(uniforms);
     }
 
-    private void ApplyFilterRenderState()
+    private void ApplyFilterRenderState(bool applyColorMode)
     {
         if (_filterRenderState is null || !_filterRenderState.IsValid) return;
 
@@ -374,7 +470,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         Span<float> uniforms = stackalloc float[UniformFloats];
         _activeFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
-        uniforms[3] = (float)_activeColorMode;
+        uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
         _filterRenderState.Apply(uniforms);
     }
 
@@ -458,8 +554,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _viewportWidth  = Math.Max(width,  1);
         _viewportHeight = Math.Max(height, 1);
         CreateOverlayResources();
+        SyncOverlayFilterTexture();
         SyncPictureAdjustTexture();
         SyncMotionEffectTexture();
+        SyncPhosphorTextures();
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
         Logger.Log($"[SDL3HwRenderer] Resized to {_viewportWidth}×{_viewportHeight}.");
     }
@@ -509,7 +607,30 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetFilter(Filters.ID3D11Filter filter) => ApplyGpuFilter(SdlFilterFactory.Create(filter.FilterMode));
 
-    public void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
+    public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
+    {
+        _overlayFilterRenderState?.Dispose();
+        _overlayFilterRenderState = null;
+        _activeOverlayFilter      = null;
+        _hasOverlayFilter         = false;
+
+        if (overlay is not null && _isGpuRenderer)
+        {
+            var filter = SdlFilterFactory.Create(overlay.FilterMode);
+            _activeOverlayFilter = filter;
+            _hasOverlayFilter    = true;
+            if (filter.PixelShaderResourceName is { } resourceName)
+            {
+                _overlayFilterRenderState = new SdlGpuRenderState(
+                    _sdlRenderer, _gpuDevice,
+                    resourceName,
+                    filter.NumFragmentSamplers,
+                    filter.NumFragmentUniformBuffers);
+            }
+        }
+
+        SyncOverlayFilterTexture();
+    }
 
     public void SetColorFilter(VideoColorFilterMode mode) => _activeColorMode = mode;
 
@@ -518,34 +639,44 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _motionEffectRenderState?.Dispose();
         _motionEffectRenderState = null;
         _hasShaderMotionEffect   = false;
+        _hasPhosphorPersistence  = false;
         _activeMotionEffect      = SdlMotionEffectFactory.Create(mode);
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
 
-        if (_isGpuRenderer
+        if (_isGpuRenderer && _activeMotionEffect.NeedsTemporalBuffer)
+        {
+            // PhosphorPersistence: no shader on this path — handled via blend compositing
+            // in RunPhosphorPass. See class doc comment.
+            _hasPhosphorPersistence = true;
+        }
+        else if (_isGpuRenderer
             && _activeMotionEffect is ISdlMotionEffect sdlEffect
             && sdlEffect.SpvResourceName is { } spvName)
         {
             _hasShaderMotionEffect = true;
-            SyncMotionEffectTexture();
             _motionEffectRenderState = new SdlGpuRenderState(
                 _sdlRenderer, _gpuDevice,
                 spvName,
                 sdlEffect.NumFragmentSamplers,
                 sdlEffect.NumFragmentUniformBuffers);
         }
-        else
-        {
-            SyncMotionEffectTexture();
-        }
+
+        SyncMotionEffectTexture();
+        SyncPhosphorTextures();
     }
 
     public void Dispose()
     {
         _filterRenderState?.Dispose();
         _filterRenderState = null;
+        _overlayFilterRenderState?.Dispose();
+        _overlayFilterRenderState = null;
+        if (_overlayFilterTexture != IntPtr.Zero) { SDL.DestroyTexture(_overlayFilterTexture); _overlayFilterTexture = IntPtr.Zero; }
         _motionEffectRenderState?.Dispose();
         _motionEffectRenderState = null;
         if (_motionEffectTexture  != IntPtr.Zero) { SDL.DestroyTexture(_motionEffectTexture);  _motionEffectTexture  = IntPtr.Zero; }
+        if (_phosphorTexA != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexA); _phosphorTexA = IntPtr.Zero; }
+        if (_phosphorTexB != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexB); _phosphorTexB = IntPtr.Zero; }
         _pictureAdjustRenderState?.Dispose();
         _pictureAdjustRenderState = null;
         if (_pictureAdjustTexture != IntPtr.Zero) { SDL.DestroyTexture(_pictureAdjustTexture); _pictureAdjustTexture = IntPtr.Zero; }
@@ -588,13 +719,55 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private void SyncMotionEffectTexture()
     {
         if (_motionEffectTexture != IntPtr.Zero) { SDL.DestroyTexture(_motionEffectTexture); _motionEffectTexture = IntPtr.Zero; }
-        if (!_hasShaderMotionEffect || !_isGpuRenderer) return;
+        if ((!_hasShaderMotionEffect && !_hasPhosphorPersistence) || !_isGpuRenderer) return;
         _motionEffectTexture = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
             SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
         if (_motionEffectTexture != IntPtr.Zero)
             SDL.SetTextureBlendMode(_motionEffectTexture, SDL.BlendMode.Blend);
         else
             Logger.Log($"[SDL3HwRenderer] Failed to create motion-effect texture: {SDL.GetError()}");
+    }
+
+    private void SyncOverlayFilterTexture()
+    {
+        if (_overlayFilterTexture != IntPtr.Zero) { SDL.DestroyTexture(_overlayFilterTexture); _overlayFilterTexture = IntPtr.Zero; }
+        if (!_hasOverlayFilter || !_isGpuRenderer) return;
+        _overlayFilterTexture = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
+            SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
+        if (_overlayFilterTexture != IntPtr.Zero)
+            SDL.SetTextureBlendMode(_overlayFilterTexture, SDL.BlendMode.Blend);
+        else
+            Logger.Log($"[SDL3HwRenderer] Failed to create overlay filter texture: {SDL.GetError()}");
+    }
+
+    private void SyncPhosphorTextures()
+    {
+        if (_phosphorTexA != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexA); _phosphorTexA = IntPtr.Zero; }
+        if (_phosphorTexB != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexB); _phosphorTexB = IntPtr.Zero; }
+        if (!_hasPhosphorPersistence || !_isGpuRenderer) return;
+
+        _phosphorTexA = CreatePhosphorAccumulationTexture();
+        _phosphorTexB = CreatePhosphorAccumulationTexture();
+        _phosphorUseA = true;
+
+        if (_phosphorTexA == IntPtr.Zero || _phosphorTexB == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] Failed to create phosphor accumulation textures: {SDL.GetError()}");
+    }
+
+    // Creates a viewport-sized accumulation buffer and clears it to transparent black so
+    // the first frame's history term contributes nothing to max(current, history * decay).
+    private IntPtr CreatePhosphorAccumulationTexture()
+    {
+        IntPtr tex = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
+            SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
+        if (tex == IntPtr.Zero) return tex;
+
+        SDL.SetTextureBlendMode(tex, SDL.BlendMode.Blend);
+        SDL.SetRenderTarget(_sdlRenderer, tex);
+        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+        SDL.RenderClear(_sdlRenderer);
+        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        return tex;
     }
 
     private void SyncPictureAdjustRenderState()

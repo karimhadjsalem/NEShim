@@ -35,19 +35,19 @@ internal class SdlMotionEffectFactoryTests
     }
 
     [Test]
-    public void Create_PhosphorPersistence_ReturnsNoneMotionEffect()
+    public void Create_PhosphorPersistence_ReturnsPhosphorPersistenceMotionEffect()
     {
-        // PhosphorPersistence requires two texture samplers — incompatible with
-        // SDL_GPURenderState. Factory must demote to None rather than throw.
+        // No SDL_GPU shader for this effect — SDL3HwRenderer detects NeedsTemporalBuffer
+        // and reproduces the D3D11 shader's blend via GPU blend compositing instead.
         var effect = SdlMotionEffectFactory.Create(VideoMotionEffectMode.PhosphorPersistence);
-        Assert.That(effect, Is.InstanceOf<NoneMotionEffect>());
+        Assert.That(effect, Is.InstanceOf<PhosphorPersistenceMotionEffect>());
     }
 
     [Test]
-    public void Create_PhosphorPersistence_ReturnsNoneEffectMode()
+    public void Create_PhosphorPersistence_ReturnsPhosphorPersistenceEffectMode()
     {
         var effect = SdlMotionEffectFactory.Create(VideoMotionEffectMode.PhosphorPersistence);
-        Assert.That(effect.EffectMode, Is.EqualTo(VideoMotionEffectMode.None));
+        Assert.That(effect.EffectMode, Is.EqualTo(VideoMotionEffectMode.PhosphorPersistence));
     }
 
     [Test]
