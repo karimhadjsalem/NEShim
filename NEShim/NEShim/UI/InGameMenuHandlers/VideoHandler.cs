@@ -15,7 +15,7 @@ internal sealed partial class InGameMenu
         public VideoHandler(InGameMenu menu) : base(menu) { }
 
         public override string Title     => Menu._localization.VideoTitle;
-        public override int    ItemCount => NEShim.Platform.PlatformDetector.IsD3D11Active ? 9 : 5;
+        public override int    ItemCount => NEShim.Platform.PlatformDetector.SupportsAdvancedVideoFeatures ? 9 : 5;
 
         public override string[] GetItems()
         {
@@ -29,7 +29,7 @@ internal sealed partial class InGameMenu
             string overscanItem = $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}";
             string fpsItem      = Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff;
 
-            if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
+            if (!NEShim.Platform.PlatformDetector.SupportsAdvancedVideoFeatures)
                 return [windowItem, filterItem, overscanItem, fpsItem, Menu._localization.Back];
 
             var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
@@ -45,7 +45,7 @@ internal sealed partial class InGameMenu
         {
             // In GDI mode Presets, Overlay, Motion Effect, and Picture are hidden;
             // remap GDI indices to the D3D11 layout (Presets is D3D11-only at index 0).
-            if (!NEShim.Platform.PlatformDetector.IsD3D11Active)
+            if (!NEShim.Platform.PlatformDetector.SupportsAdvancedVideoFeatures)
                 index = index >= 2 ? index + 4 : index + 1;
 
             switch (index)

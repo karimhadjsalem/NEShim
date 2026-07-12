@@ -11,6 +11,8 @@ internal static class RendererFactory
         IWindowHost      windowHost)
     {
         Logger.Log("[Renderer] Using SDL hardware renderer.");
-        return new SDL3HwRenderer(windowHost.SdlWindow, nesWidth, nesHeight);
+        var renderer = new SDL3HwRenderer(windowHost.SdlWindow, nesWidth, nesHeight);
+        PlatformDetector.SetSdlGpuRendererActive(renderer.IsGpuRendererActive);
+        return renderer;
     }
 }

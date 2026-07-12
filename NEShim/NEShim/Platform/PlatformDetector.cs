@@ -35,6 +35,24 @@ internal static class PlatformDetector
     internal static void SetD3D11Active(bool value) => IsD3D11Active = value;
 
     /// <summary>
+    /// True when SDL3HwRenderer initialised with SDL_CreateGPURenderer (SPIR-V shader
+    /// support) rather than falling back to the plain SDL_CreateRenderer. Set once at
+    /// startup by RendererFactory after SDL3HwRenderer is constructed.
+    /// </summary>
+    internal static bool IsSdlGpuRendererActive { get; private set; }
+
+    internal static void SetSdlGpuRendererActive(bool value) => IsSdlGpuRendererActive = value;
+
+    /// <summary>
+    /// True when the active render path supports shader-based video features (structural
+    /// filters, two-pass overlay, motion effects, picture adjust) — either D3D11 or the
+    /// SDL_GPU-backed path. Menus gate advanced video options on this rather than
+    /// <see cref="IsD3D11Active"/> directly, since SDL_GPU on Linux (and the Windows
+    /// D3D11-unavailable fallback) supports the same feature set as D3D11.
+    /// </summary>
+    internal static bool SupportsAdvancedVideoFeatures => IsD3D11Active || IsSdlGpuRendererActive;
+
+    /// <summary>
     /// Raises the Windows multimedia timer resolution to 1 ms so that Thread.Sleep and
     /// Stopwatch-based frame timing have sub-millisecond granularity. No-op on Linux/macOS
     /// where the kernel scheduler already provides sufficient resolution.

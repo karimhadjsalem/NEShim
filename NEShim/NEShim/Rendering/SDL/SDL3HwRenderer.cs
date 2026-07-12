@@ -86,6 +86,9 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public bool OwnsFrameSurface => true;
 
+    /// <summary>True when SDL_CreateGPURenderer succeeded (SPIR-V shader support available).</summary>
+    internal bool IsGpuRendererActive => _isGpuRenderer;
+
 #pragma warning disable CS0067
     public event EventHandler? DeviceLost;
 #pragma warning restore CS0067

@@ -19,6 +19,8 @@ internal static class RendererFactory
         }
 
         Logger.Log("[Renderer] D3D11 unavailable — using SDL hardware renderer.");
-        return new SDL3HwRenderer(windowHost.SdlWindow, nesWidth, nesHeight);
+        var fallback = new SDL3HwRenderer(windowHost.SdlWindow, nesWidth, nesHeight);
+        PlatformDetector.SetSdlGpuRendererActive(fallback.IsGpuRendererActive);
+        return fallback;
     }
 }
