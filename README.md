@@ -42,14 +42,14 @@ https://karimhadjsalem.github.io/NEShim/
 - **Steam overlay & input** — overlay pause, Steam Controller support via Steam Input action sets
 - **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
-- **Configurable front end** — main menu with custom background image, sidebar art, and looping MP3 music
+- **Configurable front end** — main menu with custom background image (static or animated GIF), sidebar art, and looping MP3 music
 - **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
 - **Graphics** — platform-adaptive rendering: D3D11 on Windows (with SDL_GPU/Vulkan fallback), SDL_GPU/Vulkan on Linux. D3D11 and SDL_GPU both support seven structural filters (Pixel Perfect, Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), a **Video Overlay** second-filter slot, **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets** — all independently stackable; see [Filters](#filters) below
 - **Input** — keyboard remapping and SDL3 gamepad support (XInput, DualShock, Switch Pro, Steam Deck controller) with configurable dead zone; auto-pause on controller disconnect
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck / Linux** — runs natively on Linux x64 (SDL_GPU/Vulkan path) and on Steam Deck natively or via Proton with no configuration changes required
 - **Window title** — set per-game via `config.json`; no rebuild needed
-- **Multi-game mode (DLC)** — an alternate, additive publish path: one binary hosts N games, each installed as an independent Steam DLC depot with its own ROM, config, saves, and achievements, selected at runtime via a front-end carousel. The default single-game path is unaffected — multi-game mode only activates when a `games/multigame.json` manifest is present. See the [full guide](https://karimhadjsalem.github.io/NEShim/) on the project site.
+- **Multi-game mode (DLC)** — an alternate, additive publish path: one binary hosts N games, each installed as an independent Steam DLC depot with its own ROM, config, saves, and achievements, selected at runtime via a front-end carousel with per-game box art, descriptions, and an animated slide/flip transition. The default single-game path is unaffected — multi-game mode only activates when a `games/multigame.json` manifest is present. See the [full guide](https://karimhadjsalem.github.io/NEShim/) on the project site.
 
 ---
 

@@ -64,4 +64,51 @@ internal static class SdlSurfaceLoader
         stream.CopyTo(tmp);
         return tmp.ToArray();
     }
+
+    /// <summary>
+    /// Decoded multi-frame animation (GIF/WEBP/APNG). <see cref="Frames"/> surfaces are owned
+    /// by <see cref="NativeAnimation"/> as a group — free them via <see cref="FreeAnimation"/>,
+    /// never via <c>SDL.DestroySurface</c> individually.
+    /// </summary>
+    internal readonly struct AnimationHandle
+    {
+        internal IntPtr NativeAnimation { get; init; }
+        internal IReadOnlyList<IntPtr> Frames { get; init; }
+        internal IReadOnlyList<int> DelaysMs { get; init; }
+    }
+
+    /// <summary>
+    /// Decodes an animated image (GIF/WEBP/APNG) via SDL3_image's animation loader. Returns
+    /// null when the file isn't animation-capable (e.g. a plain PNG/JPG) — <c>Image.LoadAnimation</c>
+    /// itself returns zero in that case, so no format sniffing is needed here.
+    /// </summary>
+    internal static AnimationHandle? LoadAnimationFromFile(string path)
+    {
+        try
+        {
+            IntPtr anim = Image.LoadAnimation(path);
+            if (anim == IntPtr.Zero) return null;
+
+            var native = Marshal.PtrToStructure<Image.Animation>(anim);
+            if (native.Count <= 0)
+            {
+                Image.FreeAnimation(anim);
+                return null;
+            }
+
+            var frames = new IntPtr[native.Count];
+            Marshal.Copy(native.Frames, frames, 0, native.Count);
+            var delays = new int[native.Count];
+            Marshal.Copy(native.Delays, delays, 0, native.Count);
+
+            return new AnimationHandle { NativeAnimation = anim, Frames = frames, DelaysMs = delays };
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[SdlSurfaceLoader] Failed to load animation '{path}': {ex.Message}");
+            return null;
+        }
+    }
+
+    internal static void FreeAnimation(IntPtr nativeAnimation) => Image.FreeAnimation(nativeAnimation);
 }

@@ -156,10 +156,18 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     /// <summary>Scans <c>games/</c>, filters by Steam DLC ownership, and shows the carousel.</summary>
     private void InitializeCarousel()
     {
+        // Reload the shell config every time the carousel is (re)shown — cheap and idempotent
+        // on first boot (already fresh from InitializeEmulatorMultiGame), but necessary after
+        // "Change Game" (ChangeGame -> UnloadCurrentGame nulls _config), so CarouselBackgroundPath
+        // and friends always reflect games/multigame.json rather than the just-exited game's
+        // own config.json.
+        _config = ConfigLoader.LoadFrom(MultiGameMode.ManifestPath);
+
         var games = GameScanner.Scan(MultiGameMode.GamesRoot)
                                 .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
                                 .ToList();
-        _carousel = new GameCarouselScreen(games);
+        _carousel?.Dispose();
+        _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath);
         _carousel.GameChosen += g => _marshalToMainThread(() =>
             LoadGame(GameContext.ForGame(MultiGameMode.GamesRoot, g.GameId)));
         _renderer?.MarkOverlayDirty();
@@ -174,6 +182,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private void LoadGame(GameContext game)
     {
         var achievements = LoadGameContent(game);
+        _carousel?.Dispose();
         _carousel = null;
 
         ApplyRenderingOptions();
@@ -343,6 +352,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 SkipLogo();
             }
         }
+
+        // The carousel's background can be an animated GIF, and its selection slide / flip-to-
+        // description transitions are wall-clock-driven — all three need the overlay repainted
+        // every idle tick, not just on input, or they visibly freeze between keypresses (mirrors
+        // the _logoScreen fade-animation case above).
+        if (_carousel is not null)
+            _renderer?.MarkOverlayDirty();
     }
 
     private void PreloadAssets()
@@ -883,6 +899,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
         Logger.Log("[Shutdown] Disposing resources.");
         _logoScreen?.Dispose();
+        _carousel?.Dispose();
         if (_preloadedMenuBackground != IntPtr.Zero) { SDL.DestroySurface(_preloadedMenuBackground); _preloadedMenuBackground = IntPtr.Zero; }
         _preloadedMusic?.Dispose();
         _renderer?.Dispose();

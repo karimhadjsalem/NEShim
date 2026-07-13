@@ -22,6 +22,11 @@ public sealed class AppConfig
     // Relative to exe or absolute. Leave empty to disable.
     public string MainMenuMusicPath { get; set; } = "";
 
+    // Background shown behind the multi-game carousel (games/multigame.json shell config
+    // only — ignored in a per-game config.json). Static image or animated GIF; relative to
+    // the games/ folder or absolute. Leave empty for a plain fill.
+    public string CarouselBackgroundPath { get; set; } = "";
+
     // ── Window & display ──────────────────────────────────────────────────────
 
     public string WindowTitle { get; set; } = "NEShim";
@@ -214,4 +219,13 @@ public sealed class AppConfig
     // appear on the carousel when running under a live Steam session. 0 = unfiltered — always
     // shown (used for local dev/test game folders with no real Steam entitlement).
     public uint SteamDlcAppId { get; set; } = 0;
+
+    // Box art shown for this game in the carousel filmstrip, in NES-box aspect ratio.
+    // Relative to this game's own folder or absolute. Leave empty to show a placeholder
+    // card — a missing thumbnail is not treated as a configuration error.
+    public string ThumbnailPath { get; set; } = "";
+
+    // Short blurb shown on the carousel's flip-card back face when the player presses Up
+    // on this game's tile. Leave empty to show a generic "No description available" back.
+    public string GameDescription { get; set; } = "";
 }
