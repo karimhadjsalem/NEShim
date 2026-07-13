@@ -602,16 +602,25 @@ internal sealed partial class MainMenuScreen : IDisposable
         if (Background       != IntPtr.Zero)    SDL.DestroySurface(Background);
     }
 
-    internal static string? ResolveAssetPath(string path)
+    /// <summary>
+    /// <paramref name="ctx"/> is null for single-game mode (unchanged: exe-relative, then CWD
+    /// fallback) or the active game's <see cref="GameContext"/> in multi-game mode (that
+    /// game's own folder — no CWD fallback, since that fallback only ever made sense for the
+    /// single-game legacy path).
+    /// </summary>
+    internal static string? ResolveAssetPath(string path, GameContext? ctx = null)
     {
         if (Path.IsPathRooted(path))
             return File.Exists(path) ? path : null;
 
-        string nextToExe = Path.Combine(AppContext.BaseDirectory, path);
-        if (File.Exists(nextToExe)) return nextToExe;
+        string nextToRoot = GameContext.ResolvePath(path, ctx);
+        if (File.Exists(nextToRoot)) return nextToRoot;
 
-        string inCwd = Path.GetFullPath(path);
-        if (File.Exists(inCwd)) return inCwd;
+        if (ctx is null)
+        {
+            string inCwd = Path.GetFullPath(path);
+            if (File.Exists(inCwd)) return inCwd;
+        }
 
         return null;
     }

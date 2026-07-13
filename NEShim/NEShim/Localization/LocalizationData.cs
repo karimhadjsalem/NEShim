@@ -152,6 +152,8 @@ internal sealed class LocalizationData
     public string InGameLoadTitle    { get; init; } = "LOAD GAME?";
     public string InGameReturnTitle  { get; init; } = "RETURN TO MAIN MENU?";
     public string InGameExitTitle    { get; init; } = "EXIT TO DESKTOP?";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameChangeGameTitle { get; init; } = "CHANGE GAME?";
 
     // ---- In-game menu: root items ----
     public string InGameResume        { get; init; } = "Resume";
@@ -161,6 +163,8 @@ internal sealed class LocalizationData
     public string InGameLoadGame      { get; init; } = "Load Game";
     public string InGameSettings      { get; init; } = "Settings";
     public string InGameReturnToMain  { get; init; } = "Return to Main Menu";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameChangeGame    { get; init; } = "Change Game";
     public string InGameExit          { get; init; } = "Exit";
 
     // ---- In-game menu: confirmation screens ----
@@ -168,6 +172,8 @@ internal sealed class LocalizationData
     public string InGameConfirmNoStay    { get; init; } = "No, stay in game";
     public string InGameConfirmYesReturn { get; init; } = "Yes, return to main menu";
     public string InGameConfirmYesExit   { get; init; } = "Yes, exit to desktop";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameConfirmYesChangeGame { get; init; } = "Yes, change game";
     public string InGameConfirmWarning   { get; init; } = "Unsaved progress will be lost.";
 
     // ---- In-game menu: rebind prompts ----

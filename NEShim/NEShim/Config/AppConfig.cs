@@ -203,4 +203,15 @@ public sealed class AppConfig
 
     // When true, skips the logo splash screen shown at startup.
     public bool NoLogo { get; set; } = false;
+
+    // ── Multi-game / DLC (only meaningful in a games/<gameId>/config.json — ignored,
+    //    unread, in a single-game config.json) ────────────────────────────────
+
+    // Label shown for this game on the carousel. Falls back to WindowTitle when empty.
+    public string GameDisplayTitle { get; set; } = "";
+
+    // Steam DLC App ID that must be installed (SteamApps.BIsDlcInstalled) for this game to
+    // appear on the carousel when running under a live Steam session. 0 = unfiltered — always
+    // shown (used for local dev/test game folders with no real Steam entitlement).
+    public uint SteamDlcAppId { get; set; } = 0;
 }

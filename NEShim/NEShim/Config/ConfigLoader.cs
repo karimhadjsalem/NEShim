@@ -25,23 +25,36 @@ public static class ConfigLoader
     private static string PublisherConfigPath =>
         Path.Combine(AppContext.BaseDirectory, "config.json");
 
-    private static string BuildUserConfigPath(string windowTitle) =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            windowTitle,
-            "user.json");
+    /// <summary>
+    /// Single-game scheme (ctx null, unchanged): %APPDATA%\&lt;windowTitle&gt;\user.json.
+    /// Multi-game scheme (ctx set): %APPDATA%\NEShim\Games\&lt;gameId&gt;\user.json — keyed by the
+    /// stable GameId rather than the mutable/dual-purpose WindowTitle (which is also literally
+    /// the OS window title text). The two schemes cannot collide: one is a file directly under
+    /// %APPDATA%\&lt;windowTitle&gt;\, the other is nested under %APPDATA%\NEShim\Games\.
+    /// </summary>
+    private static string BuildUserConfigPath(string windowTitle, GameContext? ctx = null) =>
+        ctx is null
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                windowTitle,
+                "user.json")
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "NEShim", "Games", ctx.GameId,
+                "user.json");
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    public static AppConfig Load()
+    public static AppConfig Load(GameContext? ctx = null)
     {
-        var config = LoadFrom(PublisherConfigPath);
-        ApplyUserConfig(config, BuildUserConfigPath(config.WindowTitle));
+        string publisherPath = ctx is null ? PublisherConfigPath : Path.Combine(ctx.RootDirectory, "config.json");
+        var config = LoadFrom(publisherPath);
+        ApplyUserConfig(config, BuildUserConfigPath(config.WindowTitle, ctx));
         return config;
     }
 
-    public static void Save(AppConfig config) =>
-        SaveUserTo(config, BuildUserConfigPath(config.WindowTitle));
+    public static void Save(AppConfig config, GameContext? ctx = null) =>
+        SaveUserTo(config, BuildUserConfigPath(config.WindowTitle, ctx));
 
     // ── Internal (integration tests) ─────────────────────────────────────────
 

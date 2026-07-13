@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NEShim.Config;
 
 namespace NEShim.Achievements;
 
@@ -40,18 +41,18 @@ internal static class AchievementConfigLoader
         DefaultIgnoreCondition      = JsonIgnoreCondition.Never,
     };
 
-    private static string ConfigPath =>
-        Path.Combine(AppContext.BaseDirectory, "achievements.json");
-
     /// <summary>
     /// Returns the achievement config for the given ROM SHA1 hash with only
     /// signature-verified definitions, or null if none is configured or no key is set.
     /// Pass <paramref name="configPublicKey"/> from <c>AppConfig.AchievementPublicKey</c>.
     /// Key precedence: <see cref="AchievementSigner.EmbeddedPublicKeyBase64"/> (binary-embedded,
     /// set at build time) → <paramref name="configPublicKey"/> (config.json) → null (disabled).
+    /// <paramref name="ctx"/> is null for single-game mode (unchanged: achievements.json next to
+    /// the exe) or the active game's <see cref="GameContext"/> in multi-game mode (that game's
+    /// own games/&lt;gameId&gt;/achievements.json).
     /// </summary>
-    internal static GameAchievementConfig? Load(string romHash, string configPublicKey) =>
-        LoadFrom(romHash, configPublicKey, ConfigPath, AchievementSigner.EmbeddedPublicKeyBase64);
+    internal static GameAchievementConfig? Load(string romHash, string configPublicKey, GameContext? ctx = null) =>
+        LoadFrom(romHash, configPublicKey, GameContext.ResolvePath("achievements.json", ctx), AchievementSigner.EmbeddedPublicKeyBase64);
 
     /// <summary>
     /// Full-parameter overload used by integration tests. Allows the file path and embedded

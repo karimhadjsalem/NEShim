@@ -21,6 +21,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 {
     // ---- Core components ----
     private AppConfig?        _config;
+    private GameContext?      _game;
     private IEmulationCore?   _host;
     private IInputReader?     _input;
     private IGamepadDevice?   _gamepadDevice;
@@ -38,6 +39,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private IntPtr _sidebarLeft;
     private IntPtr _sidebarRight;
+
+    // ---- Multi-game carousel ----
+    private GameCarouselScreen? _carousel;
 
     // ---- Logo splash screen ----
     private LogoScreen?           _logoScreen;
@@ -84,10 +88,14 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeEmulator()
     {
-        InitializeConfig();
-        var achievements = InitializeEmulatorCore();
-        InitializeSaveSystems();
-        InitializeRendering();
+        if (MultiGameMode.IsActive) InitializeEmulatorMultiGame();
+        else                        InitializeEmulatorSingleGame();
+    }
+
+    private void InitializeEmulatorSingleGame()
+    {
+        var achievements = LoadGameContent(ctx: null);
+        _frameBuffer = new FrameBuffer(); // engine-level half of the old InitializeRendering()
         InitializeInput();
         InitializeAudio();
         InitializeSteam();
@@ -96,6 +104,130 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             FinishInitialization(achievements);
         else
             ShowLogo(achievements);
+    }
+
+    private void InitializeEmulatorMultiGame()
+    {
+        // Shell settings (window mode, language, NoLogo, ...) for the pre-selection carousel
+        // period. Most AppConfig fields (RomPath, achievements, ...) are unused here and get
+        // reloaded per-game by LoadGame once a game is chosen. LoadFrom's "auto-create defaults
+        // if missing" branch is never reached since MultiGameMode.IsActive already confirmed
+        // the manifest file exists.
+        _config = ConfigLoader.LoadFrom(MultiGameMode.ManifestPath);
+        _sdlHost.SetTitle(_config.WindowTitle);
+        if (_config.EnableLogging) Logger.Enable();
+
+        _frameBuffer = new FrameBuffer();
+        InitializeInput();
+        InitializeSteam(); // must run before the carousel can query DLC ownership
+        InitializeWindowAndD3DHook(); // renderer/device created once for the process lifetime
+        if (_config.NoLogo)
+            InitializeCarousel();
+        else
+            ShowLogo(null); // reuses ShowLogo unchanged; achievements genuinely unknown yet
+    }
+
+    /// <summary>
+    /// Shared Template Method: loads one game's config, ROM, saves, and sidebar art. Used both
+    /// by the once-per-process single-game boot (<paramref name="ctx"/> null — today's
+    /// exe-relative paths, unchanged) and by every multi-game carousel selection
+    /// (<paramref name="ctx"/> set — that game's own folder). See <see cref="LoadGame"/> for the
+    /// second half (presentation) of this split.
+    /// </summary>
+    private AchievementManager? LoadGameContent(GameContext? ctx)
+    {
+        UnloadCurrentGame(); // safe no-op if nothing was loaded yet (first boot, or first carousel pick)
+        _game = ctx;
+
+        _config = ConfigLoader.Load(_game);
+        _sdlHost.SetTitle(DisplayTitle(_config));
+        if (_config.EnableLogging) Logger.Enable();
+        Logger.Log($"[Init] Config loaded — ROM: {_config.RomPath}, window: {_config.WindowTitle}, language: {_config.Language}.");
+
+        var achievements = InitializeEmulatorCore();
+        InitializeSaveSystems();
+        LoadSidebarsForCurrentGame();
+        return achievements;
+    }
+
+    private static string DisplayTitle(AppConfig config) =>
+        string.IsNullOrWhiteSpace(config.GameDisplayTitle) ? config.WindowTitle : config.GameDisplayTitle;
+
+    /// <summary>Scans <c>games/</c>, filters by Steam DLC ownership, and shows the carousel.</summary>
+    private void InitializeCarousel()
+    {
+        var games = GameScanner.Scan(MultiGameMode.GamesRoot)
+                                .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
+                                .ToList();
+        _carousel = new GameCarouselScreen(games);
+        _carousel.GameChosen += g => _marshalToMainThread(() =>
+            LoadGame(GameContext.ForGame(MultiGameMode.GamesRoot, g.GameId)));
+        _renderer?.MarkOverlayDirty();
+    }
+
+    /// <summary>
+    /// The presentation half of the game-load Template Method: re-applies render options for
+    /// the new game, restarts audio, and rebuilds the menus/emulation session on top of
+    /// <see cref="LoadGameContent"/>. Called for every carousel selection, including
+    /// re-selections after "Change Game".
+    /// </summary>
+    private void LoadGame(GameContext game)
+    {
+        var achievements = LoadGameContent(game);
+        _carousel = null;
+
+        ApplyRenderingOptions();
+        _renderer?.SetSidebars(_sidebarLeft, _sidebarRight);
+        InitializeAudio();
+
+        var localization = LoadLocalization();
+        InitializeMainMenu(localization);
+        InitializeInGameMenu(localization);
+        InitializeEmulationStartup(achievements);
+
+        _renderer?.MarkOverlayDirty();
+    }
+
+    /// <summary>
+    /// Tears down the currently loaded game (if any) so a new one can be loaded in its place.
+    /// Mirrors <see cref="Shutdown"/>'s persist-then-dispose ordering. Safe to call when nothing
+    /// is loaded yet (first boot). Called from <see cref="LoadGameContent"/> (every load path)
+    /// and again from "Change Game" for the eager-teardown case.
+    /// </summary>
+    private void UnloadCurrentGame()
+    {
+        if (_host is null) return; // nothing loaded yet
+        _emulationThread?.Stop();
+        if (_gameHasStarted) _saves?.AutoSave();
+        _saves?.Shutdown();
+        if (_config is not null)
+        {
+            if (_saves is not null) _config.ActiveSlot = _saves.ActiveSlot;
+            ConfigLoader.Save(_config, _game); // persists the OUTGOING game's final state to ITS OWN user.json
+        }
+        _mainMenuMusic?.Dispose();
+        _mainMenuScreen?.Dispose();
+        if (_sidebarLeft  != IntPtr.Zero) { SDL.DestroySurface(_sidebarLeft);  _sidebarLeft  = IntPtr.Zero; }
+        if (_sidebarRight != IntPtr.Zero) { SDL.DestroySurface(_sidebarRight); _sidebarRight = IntPtr.Zero; }
+        _audio?.Dispose();
+        _host?.Dispose();
+
+        _emulationThread = null; _saves = null; _audio = null; _mainMenuScreen = null;
+        _mainMenuMusic = null; _menu = null; _host = null; _config = null; _game = null;
+        _gameHasStarted = false;
+    }
+
+    /// <summary>
+    /// In-game "Change Game" — eagerly tears down the current game (frees ROM/save/audio state
+    /// immediately) and returns to the carousel with a fresh scan and DLC ownership re-check.
+    /// Only reachable when <see cref="MultiGameMode.IsActive"/>. Distinct from
+    /// <see cref="ReturnToMainMenu"/>, which stays within the same game.
+    /// </summary>
+    private void ChangeGame()
+    {
+        _menu?.Close();
+        UnloadCurrentGame();
+        InitializeCarousel();
     }
 
     private void InitializeWindowAndD3DHook()
@@ -127,7 +259,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                        $"falling back to PixelPerfect.");
             mode = Rendering.VideoFilterMode.PixelPerfect;
             _config.VideoFilter = mode.ToString();
-            ConfigLoader.Save(_config);
+            ConfigLoader.Save(_config, _game);
         }
 
         var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
@@ -181,7 +313,10 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     {
         _logoScreen?.Dispose();
         _logoScreen = null;
-        FinishInitialization(_pendingAchievements);
+        if (MultiGameMode.IsActive)
+            InitializeCarousel();
+        else
+            FinishInitialization(_pendingAchievements);
         _pendingAchievements = null;
     }
 
@@ -214,7 +349,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     {
         if (!string.IsNullOrWhiteSpace(_config!.MainMenuBackgroundPath))
         {
-            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuBackgroundPath);
+            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuBackgroundPath, _game);
             if (resolved != null)
             {
                 _preloadedMenuBackground = Rendering.SdlSurfaceLoader.LoadFromFile(resolved);
@@ -223,7 +358,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
         if (_config.MainMenuMusicEnabled && !string.IsNullOrWhiteSpace(_config.MainMenuMusicPath))
         {
-            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuMusicPath);
+            string? resolved = UI.MainMenuScreen.ResolveAssetPath(_config.MainMenuMusicPath, _game);
             if (resolved != null)
             {
                 try { _preloadedMusic = new MainMenuMusic(resolved, autoStart: false); }
@@ -244,22 +379,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         InitializeEmulationStartup(achievements);
     }
 
-    private void InitializeConfig()
-    {
-        _config = ConfigLoader.Load();
-        _sdlHost.SetTitle(_config.WindowTitle);
-
-        if (_config.EnableLogging)
-            Logger.Enable();
-
-        Logger.Log($"[Init] Config loaded — ROM: {_config.RomPath}, window: {_config.WindowTitle}, language: {_config.Language}.");
-    }
-
     private AchievementManager? InitializeEmulatorCore()
     {
-        string romPath = Path.IsPathRooted(_config!.RomPath)
-            ? _config.RomPath
-            : Path.Combine(AppContext.BaseDirectory, _config.RomPath);
+        string romPath = GameContext.ResolvePath(_config!.RomPath, _game);
 
         if (!File.Exists(romPath))
             throw new FileNotFoundException($"ROM not found: {romPath}");
@@ -277,7 +399,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             return null;
         }
 
-        var achConfig = AchievementConfigLoader.Load(_host.RomHash, _config.AchievementPublicKey);
+        var achConfig = AchievementConfigLoader.Load(_host.RomHash, _config.AchievementPublicKey, _game);
         if (achConfig is null)
         {
             Logger.Log("[Achievements] No valid config loaded — achievement manager not created.");
@@ -301,24 +423,18 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeSaveSystems()
     {
-        string sramPath = Path.IsPathRooted(_config!.SaveRamPath)
-            ? _config.SaveRamPath
-            : Path.Combine(AppContext.BaseDirectory, _config.SaveRamPath);
-
-        string stateDir = Path.IsPathRooted(_config.SaveStateDirectory)
-            ? _config.SaveStateDirectory
-            : Path.Combine(AppContext.BaseDirectory, _config.SaveStateDirectory);
+        string sramPath = GameContext.ResolvePath(_config!.SaveRamPath, _game);
+        string stateDir = GameContext.ResolvePath(_config.SaveStateDirectory, _game);
 
         _saves = new SaveManager(_host!, stateDir, sramPath, _config.ActiveSlot);
         _saves.Startup();
         Logger.Log($"[Init] Save state directory: {stateDir} (active slot: {_config.ActiveSlot + 1})");
     }
 
-    private void InitializeRendering()
+    private void LoadSidebarsForCurrentGame()
     {
-        _frameBuffer  = new FrameBuffer();
-        _sidebarLeft  = LoadSidebarSurface(_config!.SidebarLeftPath);
-        _sidebarRight = LoadSidebarSurface(_config.SidebarRightPath);
+        _sidebarLeft  = LoadSidebarSurface(_config!.SidebarLeftPath, _game);
+        _sidebarRight = LoadSidebarSurface(_config.SidebarRightPath, _game);
     }
 
     private void InitializeInput()
@@ -411,42 +527,42 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             {
                 _config!.VideoFilter = mode.ToString();
                 _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
                 _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoColorFilterChanged: mode =>
             {
                 _config!.VideoColorFilter = mode.ToString();
                 _renderer?.SetColorFilter(mode);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoMotionEffectChanged: mode =>
             {
                 _config!.VideoMotionEffect = mode.ToString();
                 _renderer?.SetMotionEffect(mode);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onOverscanModeChanged: overscan =>
             {
                 _config!.OverscanMode = overscan.ToString();
                 _renderer?.SetOverscanMode(overscan);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
-                ConfigLoader.Save(_config!);
+                ConfigLoader.Save(_config!, _game);
             },
             onAudioEqChanged: (bass, mid, treble) =>
             {
                 _audio?.SetEq(bass, mid, treble);
-                ConfigLoader.Save(_config!);
+                ConfigLoader.Save(_config!, _game);
             });
 
         _preloadedMenuBackground = IntPtr.Zero;
@@ -499,6 +615,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onExitToDesktop:     () => _marshalToMainThread(_sdlHost.RequestQuit),
             onResetGame:         () => _emulationThread?.ResetGame(),
             onReturnToMainMenu:  () => _marshalToMainThread(ReturnToMainMenu),
+            onChangeGame:        () => _marshalToMainThread(ChangeGame),
             onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
             onConfigSaved:       () => { },
             onVolumeChanged:     vol =>
@@ -511,42 +628,42 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             {
                 _config!.VideoFilter = mode.ToString();
                 _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
                 _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoColorFilterChanged: mode =>
             {
                 _config!.VideoColorFilter = mode.ToString();
                 _renderer?.SetColorFilter(mode);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onVideoMotionEffectChanged: mode =>
             {
                 _config!.VideoMotionEffect = mode.ToString();
                 _renderer?.SetMotionEffect(mode);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onOverscanModeChanged: overscan =>
             {
                 _config!.OverscanMode = overscan.ToString();
                 _renderer?.SetOverscanMode(overscan);
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             },
             onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
             onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
             {
                 _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
-                ConfigLoader.Save(_config!);
+                ConfigLoader.Save(_config!, _game);
             },
             onAudioEqChanged: (bass, mid, treble) =>
             {
                 _audio?.SetEq(bass, mid, treble);
-                ConfigLoader.Save(_config!);
+                ConfigLoader.Save(_config!, _game);
             });
 
         _menu.Opened += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
@@ -586,19 +703,19 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _renderer?.MarkOverlayDirty();
     }
 
-    private static IntPtr LoadSidebarSurface(string path)
+    private static IntPtr LoadSidebarSurface(string path, GameContext? ctx = null)
     {
         if (string.IsNullOrWhiteSpace(path)) return IntPtr.Zero;
-        string? resolved = UI.MainMenuScreen.ResolveAssetPath(path);
+        string? resolved = UI.MainMenuScreen.ResolveAssetPath(path, ctx);
         if (resolved == null) return IntPtr.Zero;
         return Rendering.SdlSurfaceLoader.LoadFromFile(resolved);
     }
 
-    private static MainMenuMusic? CreateMainMenuMusic(AppConfig config)
+    private MainMenuMusic? CreateMainMenuMusic(AppConfig config)
     {
         string path = config.MainMenuMusicPath;
         if (string.IsNullOrWhiteSpace(path)) return null;
-        string? resolved = MainMenuScreen.ResolveAssetPath(path);
+        string? resolved = MainMenuScreen.ResolveAssetPath(path, _game);
         if (resolved == null) return null;
         try   { return new MainMenuMusic(resolved); }
         catch { return null; }
@@ -627,7 +744,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void OnLanguageChanged(string _)
     {
-        ConfigLoader.Save(_config!);
+        ConfigLoader.Save(_config!, _game);
         var newData = LoadLocalization();
         _menu?.UpdateLocalization(newData);
         _mainMenuScreen?.UpdateLocalization(newData);
@@ -657,6 +774,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         if (_logoScreen is not null)
         {
             SkipLogo();
+            return;
+        }
+
+        if (_carousel is not null)
+        {
+            if (_carousel.HandleKey(key))
+                _renderer?.MarkOverlayDirty();
             return;
         }
 
@@ -691,6 +815,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         if (_logoScreen is not null)
             return (ctx, b) => LogoRenderer.Draw(ctx, b, _logoScreen.Image, _logoScreen.CurrentAlpha);
 
+        if (_carousel is not null)
+            return (ctx, b) => GameCarouselRenderer.Draw(ctx, b, _carousel);
+
         if (_mainMenuScreen?.IsVisible == true)
             return (ctx, b) => MainMenuRenderer.Draw(ctx, b, _mainMenuScreen);
 
@@ -707,8 +834,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     void UI.IMenuInputTarget.HandleGamepadNav(Input.MenuNavInput nav)
     {
-        if (_mainMenuScreen?.IsVisible == true) _mainMenuScreen.HandleGamepadNav(nav);
-        else if (_menu?.IsOpen == true)         _menu.HandleGamepadNav(nav);
+        if (_carousel is not null)          _carousel.HandleGamepadNav(nav);
+        else if (_mainMenuScreen?.IsVisible == true) _mainMenuScreen.HandleGamepadNav(nav);
+        else if (_menu?.IsOpen == true)              _menu.HandleGamepadNav(nav);
         _renderer?.MarkOverlayDirty();
         if (_emulationThread?.IsPaused == true)
             _renderer?.Tick(vsync: false);
@@ -716,9 +844,11 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     void UI.IMenuInputTarget.HandleGamepadButtonPress(string buttonName)
     {
-        string? toast = _mainMenuScreen?.IsVisible == true
-            ? _mainMenuScreen.HandleGamepadButtonPress(buttonName)
-            : _menu?.HandleGamepadButtonPress(buttonName);
+        // The carousel has no gamepad-rebinding prompts, so there's no toast to surface here.
+        string? toast = _carousel is not null ? null
+            : _mainMenuScreen?.IsVisible == true
+                ? _mainMenuScreen.HandleGamepadButtonPress(buttonName)
+                : _menu?.HandleGamepadButtonPress(buttonName);
         if (toast is not null) _renderer?.ShowToast(toast);
         _renderer?.MarkOverlayDirty();
         if (_emulationThread?.IsPaused == true)
@@ -746,7 +876,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             {
                 if (_saves is not null)
                     _config.ActiveSlot = _saves.ActiveSlot;
-                ConfigLoader.Save(_config);
+                ConfigLoader.Save(_config, _game);
             }
         }
         catch (Exception ex) { Logger.Log($"[Shutdown] Persist error: {ex.Message}"); }

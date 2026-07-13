@@ -6,6 +6,6 @@ internal sealed partial class InGameMenu
     {
         Root, SaveSlotSelect, Settings, KeyboardBindings, GamepadBindings,
         Video, Sound, AudioFilter, AudioEq, VideoFilter, VideoMotionEffect, VideoPicture, VideoPresets, Language,
-        ConfirmLoad, ConfirmMainMenu, ConfirmExit, ControllerDisconnected
+        ConfirmLoad, ConfirmMainMenu, ConfirmExit, ConfirmChangeGame, ControllerDisconnected
     }
 }

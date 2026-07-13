@@ -462,4 +462,73 @@ internal class ConfigLoaderTests
         Assert.That(loaded.Language, Is.EqualTo("french"));
     }
 
+    // ---- Multi-game (GameContext) isolation ----
+
+    [Test]
+    public void Load_WithGameContext_LoadsPublisherConfigFromGameRoot()
+    {
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot);
+        ConfigLoader.SaveTo(new AppConfig { RomPath = "special-game.nes", WindowTitle = "GameRootTest" },
+            Path.Combine(gameRoot, "config.json"));
+        var ctx = new GameContext(gameRoot, "game-root-test");
+        string userDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", "game-root-test");
+
+        try
+        {
+            var loaded = ConfigLoader.Load(ctx);
+            Assert.That(loaded.RomPath, Is.EqualTo("special-game.nes"));
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+            if (Directory.Exists(userDir)) Directory.Delete(userDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_WithGameContext_WritesToGamesSubfolder_NotWindowTitleFolder()
+    {
+        string gameId = $"test-{Guid.NewGuid():N}";
+        var ctx = new GameContext(Path.GetTempPath(), gameId);
+        var config = new AppConfig { WindowTitle = "TestGame", Volume = 33 };
+
+        string expectedPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", gameId, "user.json");
+        string singleGamePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), config.WindowTitle, "user.json");
+
+        try
+        {
+            ConfigLoader.Save(config, ctx);
+            Assert.That(File.Exists(expectedPath), Is.True);
+            Assert.That(File.Exists(singleGamePath), Is.False);
+        }
+        finally
+        {
+            string gameDir = Path.GetDirectoryName(expectedPath)!;
+            if (Directory.Exists(gameDir)) Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_WithNullGameContext_UsesUnchangedSingleGameScheme()
+    {
+        // ctx defaults to null — behavior must be identical to calling Save(config) with no ctx.
+        var config = new AppConfig { WindowTitle = $"SingleGameTest-{Guid.NewGuid():N}" };
+        string expectedPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), config.WindowTitle, "user.json");
+
+        try
+        {
+            ConfigLoader.Save(config, ctx: null);
+            Assert.That(File.Exists(expectedPath), Is.True);
+        }
+        finally
+        {
+            string dir = Path.GetDirectoryName(expectedPath)!;
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
 }

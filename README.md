@@ -49,6 +49,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck / Linux** — runs natively on Linux x64 (SDL_GPU/Vulkan path) and on Steam Deck natively or via Proton with no configuration changes required
 - **Window title** — set per-game via `config.json`; no rebuild needed
+- **Multi-game mode (DLC)** — an alternate, additive publish path: one binary hosts N games, each installed as an independent Steam DLC depot with its own ROM, config, saves, and achievements, selected at runtime via a front-end carousel. The default single-game path is unaffected — multi-game mode only activates when a `games/multigame.json` manifest is present. See the [full guide](https://karimhadjsalem.github.io/NEShim/) on the project site.
 
 ---
 

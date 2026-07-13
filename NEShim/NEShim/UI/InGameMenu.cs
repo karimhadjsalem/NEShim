@@ -21,6 +21,7 @@ internal sealed partial class InGameMenu
     private readonly Action           _onExitToDesktop;
     private readonly Action           _onResetGame;
     private readonly Action           _onReturnToMainMenu;
+    private readonly Action           _onChangeGame;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
@@ -110,7 +111,8 @@ internal sealed partial class InGameMenu
         Action<Rendering.OverscanMode>          onOverscanModeChanged,
         Action<string>                          onLanguageChanged,
         Action<int, int, int, int>              onPictureAdjustChanged,
-        Action<int, int, int>                   onAudioEqChanged)
+        Action<int, int, int>                   onAudioEqChanged,
+        Action?                                 onChangeGame = null)
     {
         _saveStates                 = saveStates;
         _config                     = config;
@@ -118,6 +120,7 @@ internal sealed partial class InGameMenu
         _onExitToDesktop            = onExitToDesktop;
         _onResetGame                = onResetGame;
         _onReturnToMainMenu         = onReturnToMainMenu;
+        _onChangeGame               = onChangeGame ?? (() => { });
         _onWindowModeToggle         = onWindowModeToggle;
         _onConfigSaved              = onConfigSaved;
         _onVolumeChanged            = onVolumeChanged;
@@ -162,6 +165,9 @@ internal sealed partial class InGameMenu
             [Screen.ConfirmExit]            = new ConfirmHandler(this,
                 _localization.InGameExitTitle,   _localization.InGameConfirmYesExit,
                 () => { Close(); _onExitToDesktop(); }),
+            [Screen.ConfirmChangeGame]      = new ConfirmHandler(this,
+                _localization.InGameChangeGameTitle, _localization.InGameConfirmYesChangeGame,
+                () => { Close(); _onChangeGame(); }),
             [Screen.ControllerDisconnected] = new ControllerDisconnectedHandler(this),
         };
 
@@ -455,6 +461,7 @@ internal sealed partial class InGameMenu
         Screen.ConfirmLoad      => Screen.Root,
         Screen.ConfirmMainMenu  => Screen.Root,
         Screen.ConfirmExit      => Screen.Root,
+        Screen.ConfirmChangeGame => Screen.Root,
         Screen.KeyboardBindings => Screen.Settings,
         Screen.GamepadBindings  => Screen.Settings,
         Screen.Video            => Screen.Settings,
