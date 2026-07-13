@@ -26,3 +26,11 @@ Use this path when you want to get a game out quickly and do not need a custom e
 Clone the repository, customise the project, and build your own binary.
 
 Use this path when you need a custom exe icon embedded in the file, want to rename the underlying assembly (`NEShim.dll` → `MyGame.dll`), or want the signing public key compiled into the binary rather than read from `config.json`.
+
+---
+
+## [Multi-game / DLC](multi-game)
+
+An *additional* step layered on top of either path above — not a third alternative to them. You still build/publish the engine binary via the pre-built or source path exactly as described there; multi-game mode adds a `games/multigame.json` manifest plus one independently-packaged `games/<gameId>/` content folder per game, each shipped as a separate Steam DLC depot.
+
+Use this when you're shipping a curated collection of games from one engine binary, selected at runtime via a front-end carousel, rather than one game per publish.

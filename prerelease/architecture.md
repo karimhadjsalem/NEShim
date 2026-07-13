@@ -56,15 +56,18 @@ Program.cs
        └─ SDL.Init(Video | Events | Audio | Gamepad)
        └─ SDL.CreateWindow(...)
   └─ new NEShimApp(sdlHost).Run()
-       └─ NEShimApp.InitializeEmulator()
-            1. InitializeConfig()           — ConfigLoader.Load() → AppConfig
-            2. InitializeEmulatorCore()    — BizHawkEmulationCore.LoadRom(); AchievementManager?
-            3. InitializeSaveSystems()     — SaveManager (states + SRAM)
-            4. InitializeRendering()       — FrameBuffer; load sidebar SDL_Surfaces
-            5. InitializeInput()           — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input)
-            6. InitializeAudio()           — AudioPlayer (SDL3 audio stream)
-            7. InitializeSteam()           — SteamManager.Initialize() → overlay callback wired
-            8. InitializeWindowAndD3DHook()
+       └─ NEShimApp.InitializeEmulator()      — dispatches on MultiGameMode.IsActive; this diagram
+                                                 shows the single-game path (InitializeEmulatorSingleGame);
+                                                 see Multi-Game Mode below for the alternate path
+            1. LoadGameContent(ctx: null)   — Template Method: ConfigLoader.Load() → AppConfig,
+               │                              BizHawkEmulationCore.LoadRom(), AchievementManager?,
+               │                              SaveManager (states + SRAM), sidebar SDL_Surfaces
+               └─ UnloadCurrentGame()         — called internally first; a no-op on this, the first, call
+            2. FrameBuffer allocation       — engine-level, not part of the Template Method above
+            3. InitializeInput()            — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input)
+            4. InitializeAudio()            — AudioPlayer (SDL3 audio stream)
+            5. InitializeSteam()            — SteamManager.Initialize() → overlay callback wired
+            6. InitializeWindowAndD3DHook()
                ├─ SetWindowMode()
                ├─ OverlayRendererFactory.Create()
                │    Windows: SteamOverlayRenderer (D3DOverlayHook wraps SDL HWND)
@@ -73,7 +76,7 @@ Program.cs
                     Windows: D3D11Renderer (primary) / SDL3HwRenderer (fallback via SDL_GPU)
                     Linux:   SDL3HwRenderer (SDL_GPU/Vulkan)
                     → PlatformDetector.IsD3D11Active set accordingly
-            9. ShowLogo() / FinishInitialization()
+            7. ShowLogo() / FinishInitialization()
                └─ InitializeMainMenu(), InitializeInGameMenu()
                └─ EmulationThread.Start() [starts paused at MainMenu]
                └─ AudioPlayer.Start()
@@ -181,6 +184,24 @@ Each menu uses a **per-screen handler** internally (nested private classes imple
 This means adding a new screen requires only: add an enum value, add a handler class, add one entry to `BuildHandlers()`. There are no parallel switch statements to keep in sync.
 
 Handlers are nested private classes and therefore have full access to all private fields and methods of their enclosing menu class.
+
+---
+
+## Multi-Game Mode
+
+See the [Multi-Game Mode guide](multi-game) for the player/publisher-facing overview. This section covers the internals.
+
+**Detection and dispatch:** `MultiGameMode.IsActive` (`NEShim/Config/MultiGameMode.cs`) is a `static readonly bool` — `File.Exists` against `games/multigame.json`, evaluated once. `NEShimApp.InitializeEmulator()` is a two-way dispatcher on this flag: `InitializeEmulatorSingleGame()` (today's exact sequence, see "Startup sequence" above) vs `InitializeEmulatorMultiGame()` (initialises only the engine-agnostic subsystems — Input, Steam, FrameBuffer, Window/Renderer using the shell config loaded from `games/multigame.json` — then shows the logo, then the carousel).
+
+**`GameContext`** (`NEShim/Config/GameContext.cs`) is the abstraction that keeps single-game mode provably unaffected. It's a small value object (`RootDirectory`, `GameId`) with one static method, `ResolvePath(configuredPath, ctx)`, that generalises the `Path.IsPathRooted(...) ? ... : Path.Combine(root, ...)` formula every per-game path resolution in NEShim already used: `root` is `AppContext.BaseDirectory` when `ctx` is `null`, or `ctx.RootDirectory` when set. Every method that resolves a per-game path — `ConfigLoader.Load`/`Save`, `AchievementConfigLoader.Load`, `MainMenuScreen.ResolveAssetPath` — took a **trailing optional `GameContext? ctx = null` parameter** rather than a parallel overload, so every existing single-game call site compiles and behaves identically without modification; this is a language-level guarantee (C# default parameters), not just a testing convention.
+
+**`LoadGameContent` — Template Method (GoF):** `NEShimApp.LoadGameContent(GameContext? ctx)` is the one place "load a game's config, ROM, saves, and sidebar art" is implemented — used by both the once-per-process single-game boot and every multi-game carousel selection. It calls `UnloadCurrentGame()` first (a safe no-op if nothing was loaded yet), then `ConfigLoader.Load(ctx)`, `InitializeEmulatorCore()`, `InitializeSaveSystems()`, and sidebar loading — all now `ctx`-aware internally via the instance field `_game`, which every per-game method reads directly rather than taking as a parameter (mirroring how these methods already read `_config`). `LoadGame(GameContext)` is the second half — presentation: re-applies render options, restarts audio, rebuilds the main/in-game menus, and starts the emulation session on top of `LoadGameContent`'s output.
+
+**What survives a game switch, and why:** `_input`/`_gamepadDevice`, `_frameBuffer`, `_renderer`, `_overlayRenderer` are process-lifetime singletons, never recreated. This is deliberate, not incidental — every `InputManager` method takes `AppConfig` as a *parameter* rather than storing it, so a freshly-loaded `_config` is picked up automatically on the next poll; NES output dimensions never change (BizHawk NES core only); the D3D/SDL_GPU device and swap chain are expensive to recreate and don't need to be. `EmulationThread`, by contrast, is **not** a singleton — it captures its `AppConfig` reference once, `readonly`, at construction — so `UnloadCurrentGame`/`LoadGame` always stop the old one and build a fresh one via `InitializeEmulationStartup`.
+
+**Carousel:** `GameCarouselScreen`/`GameCarouselRenderer` (`NEShim/UI/`) mirror the `LogoScreen`/`LogoRenderer` split exactly — a lightweight state object with no rendering logic, paired with a stateless renderer, wired into the same `IMenuSceneProvider.GetActiveScenePainter()` priority chain used by the logo and both menus (checked ahead of the main menu, after the logo). It deliberately does *not* use the fuller `Screen` enum + `ScreenHandler` machinery `MainMenuScreen`/`InGameMenu` use — the carousel is a single flat list with no sub-screens, so that heavier pattern would be unused abstraction. `GameScanner.Scan(gamesRoot)` (`NEShim/Config/GameScanner.cs`) enumerates `games/*/config.json` to build the list — intentionally decoupled from `MultiGameMode.IsActive`'s manifest-based detection, since `games/` can validly exist with zero populated subfolders (DLC still downloading) while multi-game mode is still active; the carousel then shows an empty-state message rather than anything falling back toward single-game behavior. `SteamDlcManager.IsOwned` (`NEShim/Steam/SteamDlcManager.cs`) filters the scanned list by `SteamApps.BIsDlcInstalled`, short-circuiting to "always shown" for `steamDlcAppId == 0` or when `SteamManager.IsAvailable` is false (local dev/test discovery).
+
+**"Change Game":** a new `RootHandler` item in `InGameMenu`, shown only when `MultiGameMode.IsActive`, routing through a new `Screen.ConfirmChangeGame` confirmation (identical `ConfirmHandler` shape to the existing "Return to Main Menu"/"Exit" confirmations). Confirming calls `NEShimApp.ChangeGame()`, which eagerly calls `UnloadCurrentGame()` then `InitializeCarousel()` — distinct from `ReturnToMainMenu()`, which never touches `_host`/`_saves`/`_config` and stays within the same game.
 
 ---
 

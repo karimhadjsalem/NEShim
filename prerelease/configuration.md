@@ -22,9 +22,11 @@ At startup, both files are merged: `config.json` is loaded first, then `user.jso
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `romPath` | string | `"game.nes"` | Path to the `.nes` ROM file. Relative paths are resolved from the executable directory. |
+| `romPath` | string | `"game.nes"` | Path to the `.nes` ROM file. Relative paths are resolved from the executable directory (or from the active game's own folder in [multi-game mode](multi-game)). |
 | `windowTitle` | string | `"NEShim"` | Title shown in the window title bar and in the Windows taskbar. |
 | `windowMode` | string | `"Fullscreen"` | `"Fullscreen"` or `"Windowed"`. Togglable at runtime via F11 or the Settings menu. |
+| `gameDisplayTitle` | string | `""` | **Multi-game mode only** — label shown for this game on the carousel; falls back to `windowTitle` when empty. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
+| `steamDlcAppId` | integer | `0` | **Multi-game mode only** — Steam DLC App ID that must be installed for this game to appear on the carousel under a live Steam session. `0` means always shown (used for local dev/test game folders). Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
 
 ---
 
