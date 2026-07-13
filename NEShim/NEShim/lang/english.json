@@ -73,6 +73,7 @@
   "mainMenuNewGame": "New Game",
   "mainMenuResumeGame": "Resume Game",
   "mainMenuSettings": "Settings",
+  "mainMenuChangeGame": "Change Game",
   "mainMenuExit": "Exit",
   "mainMenuRebindPressKey": "Press any key  •  Esc to cancel",
   "mainMenuRebindPressButton": "Press any controller button  •  Start to cancel",

@@ -141,6 +141,8 @@ internal sealed class LocalizationData
     public string MainMenuNewGame   { get; init; } = "New Game";
     public string MainMenuResumeGame { get; init; } = "Resume Game";
     public string MainMenuSettings  { get; init; } = "Settings";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string MainMenuChangeGame { get; init; } = "Change Game";
     public string MainMenuExit      { get; init; } = "Exit";
     public string MainMenuRebindPressKey    { get; init; } = "Press any key  •  Esc to cancel";
     public string MainMenuRebindPressButton { get; init; } = "Press any controller button  •  Start to cancel";

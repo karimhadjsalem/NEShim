@@ -162,6 +162,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // and friends always reflect games/multigame.json rather than the just-exited game's
         // own config.json.
         _config = ConfigLoader.LoadFrom(MultiGameMode.ManifestPath);
+        // Deliberately does NOT re-apply _config.WindowMode to the window here — window mode is
+        // a live player preference (toggled via F11/Y at any point) that should persist across
+        // carousel/game transitions, not snap back to the shell's configured default every time
+        // the carousel reappears. Sync the field the other way instead, so _config stays
+        // consistent with the window's actual current state (e.g. for the Settings screen).
+        // The shell's configured mode is only ever the STARTING point — see InitializeWindowAndD3DHook.
+        _config.WindowMode = _isFullscreen ? "Fullscreen" : "Windowed";
 
         var games = GameScanner.Scan(MultiGameMode.GamesRoot)
                                 .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
@@ -170,6 +177,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath);
         _carousel.GameChosen += g => _marshalToMainThread(() =>
             LoadGame(GameContext.ForGame(MultiGameMode.GamesRoot, g.GameId)));
+        // The carousel is the top-level screen in multi-game mode — there's no parent menu to
+        // back out to, so Escape/Back exits the app (mirrors MainMenuScreen.ExitChosen's handler).
+        _carousel.QuitRequested += () => _marshalToMainThread(_sdlHost.RequestQuit);
         _renderer?.MarkOverlayDirty();
     }
 
@@ -184,6 +194,11 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         var achievements = LoadGameContent(game);
         _carousel?.Dispose();
         _carousel = null;
+
+        // The carousel period (or the previously loaded game) may have left the window in a
+        // different mode than this game's own config.json wants — re-apply it now rather than
+        // carrying over whatever mode was last set.
+        ApplyConfiguredWindowMode();
 
         ApplyRenderingOptions();
         _renderer?.SetSidebars(_sidebarLeft, _sidebarRight);
@@ -241,7 +256,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeWindowAndD3DHook()
     {
-        SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
+        ApplyConfiguredWindowMode();
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
         _renderer.DeviceLost += OnD3DDeviceLost;
@@ -356,9 +371,22 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // The carousel's background can be an animated GIF, and its selection slide / flip-to-
         // description transitions are wall-clock-driven — all three need the overlay repainted
         // every idle tick, not just on input, or they visibly freeze between keypresses (mirrors
-        // the _logoScreen fade-animation case above).
+        // the _logoScreen fade-animation case above). No EmulationThread/InputProcessor exists
+        // yet to drive gamepad polling (that only starts once a game is chosen), so both menu nav
+        // and hotkeys (e.g. ToggleWindow) are polled directly here instead — nav dispatched
+        // through the same IMenuInputTarget.HandleGamepadNav path every other menu screen already
+        // uses; hotkeys through the same HotkeyFired delegate EmulationThread's loop uses while a
+        // game is active. The two periods never overlap (no EmulationThread while the carousel is
+        // up), so polling the same _input instance from either the UI thread here or the
+        // emulation thread there is safe — never both at once.
         if (_carousel is not null)
+        {
             _renderer?.MarkOverlayDirty();
+            var nav = _input!.PollMenuNav(_config!);
+            if (nav.Any)
+                ((UI.IMenuInputTarget)this).HandleGamepadNav(nav);
+            _input.AdvanceHotkeyState(_config!);
+        }
     }
 
     private void PreloadAssets()
@@ -467,6 +495,19 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _sdlHost.KeyDown += key => _input.OnKeyDown(key);
         _sdlHost.KeyUp   += key => _input.OnKeyUp(key);
         _sdlHost.KeyDown += OnKeyDown;
+
+        // Handled here rather than in EmulationThread.HandleHotkeyAction: that subscriber
+        // suppresses hotkeys while a menu is open or paused at the main menu, but window mode
+        // should toggle everywhere (carousel, main menu, in-game menu, gameplay) — same reasoning
+        // as every other cross-screen concern, dispatched through a delegate rather than a
+        // screen-specific key check. Always marshals: this can fire from either the emulation
+        // thread (AdvanceHotkeyState polled from EmulationThread's loop while a game is active)
+        // or the UI thread (polled from OnIdle while the carousel is up).
+        _input.HotkeyFired += action =>
+        {
+            if (action == "ToggleWindow")
+                _marshalToMainThread(() => SetWindowMode(!_isFullscreen));
+        };
     }
 
     private void InitializeAudio()
@@ -604,6 +645,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             _mainMenuMusic?.Stop();
             _sdlHost.RequestQuit();
         });
+        // Only reachable in multi-game mode; ChangeGame() already tears down the current
+        // game (including main menu music) via UnloadCurrentGame before showing the carousel.
+        _mainMenuScreen.ChangeGameChosen += () => _marshalToMainThread(ChangeGame);
 
         if (_config!.MainMenuMusicEnabled)
         {
@@ -785,6 +829,15 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
     }
 
+    /// <summary>Applies whatever WindowMode the current _config specifies. Called at true startup
+    /// (InitializeWindowAndD3DHook) and when loading a chosen game (LoadGame) — both are explicit
+    /// "this config says X" moments. Deliberately NOT called when (re-)entering the carousel:
+    /// window mode there is a live player preference (toggled via the ToggleWindow hotkey) that
+    /// should persist across carousel/game transitions, not reset to the shell's configured
+    /// default every time — see InitializeCarousel.</summary>
+    private void ApplyConfiguredWindowMode() =>
+        SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
+
     private void OnKeyDown(SDL.Keycode key)
     {
         if (_logoScreen is not null)
@@ -792,6 +845,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             SkipLogo();
             return;
         }
+
+        // F11 (ToggleWindow) is not handled here — it's a HotkeyMappings-driven action, detected
+        // by AdvanceHotkeyState's edge-triggered poll and dispatched via the HotkeyFired delegate
+        // (see InitializeInput), the same mechanism every other hotkey (save/load slots, open
+        // menu, ...) uses. That keeps every key press flowing through one of two paths: a
+        // screen's own HandleKey for screen-specific navigation, or a config-mapped hotkey
+        // delegate for cross-screen actions — never a raw keycode check in this dispatcher.
 
         if (_carousel is not null)
         {
@@ -814,14 +874,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         if (_menu.IsOpen)
         {
             if (_menu.HandleKey(key))
-            {
                 _renderer?.MarkOverlayDirty();
-                return;
-            }
         }
-
-        if (key == SDL.Keycode.F11)
-            SetWindowMode(!_isFullscreen);
     }
 
     // ---- IMenuSceneProvider --------------------------------------------------

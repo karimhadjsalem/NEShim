@@ -60,7 +60,7 @@ internal class GameScannerTests
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("not-a-game"));
-        Assert.That(result[0].ValidationError, Is.EqualTo("Missing config.json"));
+        Assert.That(result[0].ValidationError, Is.EqualTo("Configuration file is missing"));
     }
 
     [Test]
@@ -146,7 +146,7 @@ internal class GameScannerTests
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("corrupt-game"));
-        Assert.That(result[0].ValidationError, Is.EqualTo("Invalid config.json"));
+        Assert.That(result[0].ValidationError, Is.EqualTo("Configuration file is corrupted"));
     }
 
     [Test]
@@ -173,7 +173,7 @@ internal class GameScannerTests
 
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("KAAZ"));
-        Assert.That(result[0].ValidationError, Is.EqualTo("ROM file not found"));
+        Assert.That(result[0].ValidationError, Is.EqualTo("ROM file is missing"));
     }
 
     [Test]

@@ -18,12 +18,22 @@ internal static class GameCarouselRenderer
 {
     private const string FontFamily = "Segoe UI"; // matches LocalizationData's own default
 
+    // Static, always-shown regardless of selection — phrased by direction (Left/Right/Up) so it
+    // reads identically on keyboard or gamepad (both map to the same directions). Actions without
+    // a natural directional name (select, quit, fullscreen) name their actual bindings instead.
+    // Split across two lines so it doesn't overflow at typical window widths.
+    private const string ControlLegendLine1 = "Left / Right: Browse    Up: Description    Enter / A: Select";
+    private const string ControlLegendLine2 = "Esc / B: Quit    F11 / Y: Fullscreen";
+
     private const int VisibleSlotCount = 5; // center + 2 neighbors each side
     private const float BoxArtAspectRatio = 1.42f; // NES cardboard box front face (~6.5in x 4.5in)
     private const float ArtAreaFraction = 0.78f; // fraction of a slot's height given to box art; rest is the title
     private const int SlideWideSlotCount = VisibleSlotCount + 2; // 2 extra edge slots so tiles entering/exiting stay visible
 
-    // Index by rounded |offset from center|. Values beyond the array length clamp to the last entry.
+    // Anchor values at integer |offset from center| 0, 1, 2, ... — interpolated continuously
+    // via InterpolateByOffset so a tile's size/opacity change smoothly as it slides between
+    // slots, rather than snapping at each offset boundary. Values beyond the array clamp to
+    // the last entry.
     private static readonly float[] SlotScaleByOffset = { 1f, 0.75f, 0.55f };
     private static readonly float[] SlotAlphaByOffset  = { 1f, 0.75f, 0.5f };
 
@@ -31,6 +41,7 @@ internal static class GameCarouselRenderer
     private const float PlaceholderGlyphPtSize = 28f;
     private const float InvalidPtSize          = 10f;
     private const float InvalidSubPtSize       = 8f;
+    private const float InvalidLineHeight      = 11f;
     private const float DescriptionPtSize      = 10f;
     private const float DescriptionLineHeight  = 14f;
 
@@ -66,11 +77,14 @@ internal static class GameCarouselRenderer
         else
             DrawStatic(ctx, band, carousel);
 
-        var selected = carousel.Games[carousel.SelectedIndex];
         ctx.DrawText($"{carousel.SelectedIndex + 1} / {carousel.Games.Count}",
-            CenterRect(bounds, 0.87f), CounterColor, FontFamily, 11f, bold: false);
-        string hint = selected.IsValid ? "Enter: play    Up: description" : "Up: description";
-        ctx.DrawText(hint, CenterRect(bounds, 0.94f), HintColor, FontFamily, 11f, bold: false);
+            CenterRect(bounds, 0.84f), CounterColor, FontFamily, 11f, bold: false);
+        // Static control legend — always the same regardless of selection, phrased by direction
+        // (Left/Right/Up) rather than a specific key or button so it reads the same whether the
+        // player is on keyboard or gamepad. Actions without a natural directional name (select,
+        // quit, fullscreen) name their actual bindings instead.
+        ctx.DrawText(ControlLegendLine1, CenterRect(bounds, 0.90f), HintColor, FontFamily, 11f, bold: false);
+        ctx.DrawText(ControlLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f, bold: false);
 
         if (carousel.Games.Count > 1)
         {
@@ -160,25 +174,44 @@ internal static class GameCarouselRenderer
     {
         int wideHalf = SlideWideSlotCount / 2;
         var indices = ComputeSlotGameIndices(carousel.PreviousSelectedIndex, carousel.Games.Count, SlideWideSlotCount);
-        float progress = carousel.SlideProgress;
+        float eased = EaseInOut(carousel.SlideProgress);
         int direction = carousel.SlideDirection;
 
         for (int i = 0; i < SlideWideSlotCount; i++)
         {
             float oldOffset = i - wideHalf;
             float newOffset = oldOffset - direction; // each old slot slides toward the slot one position closer to the new selection
-            float offset = oldOffset + (newOffset - oldOffset) * progress;
+            float offset = oldOffset + (newOffset - oldOffset) * eased;
             var game = carousel.Games[indices[i]];
             DrawSlotAt(ctx, band, offset, game, carousel, allowFlip: false);
         }
     }
 
+    /// <summary>Cosine ease-in-out — zero velocity at both endpoints, matching the flip's cosine feel.</summary>
+    internal static float EaseInOut(float t) => (1f - MathF.Cos(Math.Clamp(t, 0f, 1f) * MathF.PI)) / 2f;
+
+    /// <summary>
+    /// Linearly interpolates between the anchor values at integer |offset| = 0, 1, 2, ... so a
+    /// tile's scale/alpha changes continuously as it slides, instead of snapping at each
+    /// boundary. Offsets beyond the last anchor clamp to that anchor's value.
+    /// </summary>
+    internal static float InterpolateByOffset(float[] anchors, float absOffset)
+    {
+        if (absOffset <= 0f) return anchors[0];
+        int lower = (int)MathF.Floor(absOffset);
+        int upper = lower + 1;
+        float t = absOffset - lower;
+        float lowerVal = anchors[Math.Min(lower, anchors.Length - 1)];
+        float upperVal = anchors[Math.Min(upper, anchors.Length - 1)];
+        return lowerVal + (upperVal - lowerVal) * t;
+    }
+
     private static void DrawSlotAt(SDL3PaintContext ctx, SDL.Rect band, float offsetFromCenter,
         GameManifest game, GameCarouselScreen carousel, bool allowFlip)
     {
-        int tier = Math.Min((int)MathF.Round(MathF.Abs(offsetFromCenter)), SlotScaleByOffset.Length - 1);
-        float scale = SlotScaleByOffset[tier];
-        float alpha = SlotAlphaByOffset[tier];
+        float absOffset = MathF.Abs(offsetFromCenter);
+        float scale = InterpolateByOffset(SlotScaleByOffset, absOffset);
+        float alpha = InterpolateByOffset(SlotAlphaByOffset, absOffset);
 
         float cellW = band.W / (float)VisibleSlotCount;
         float centerX = band.X + band.W / 2f + offsetFromCenter * cellW;
@@ -254,10 +287,16 @@ internal static class GameCarouselRenderer
     {
         var f = ToFRect(artRect);
         ctx.FillRect(f, InvalidOverlayFill);
-        var textRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.35f, W = f.W - 8, H = f.H * 0.3f };
-        ctx.DrawText("Invalid game configuration", textRect, InvalidTextColor, FontFamily, InvalidPtSize, bold: true);
-        var subRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.65f, W = f.W - 8, H = f.H * 0.2f };
-        ctx.DrawText(game.ValidationError ?? "", subRect, InvalidSubTextColor, FontFamily, InvalidSubPtSize, bold: false);
+
+        var headlineRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.08f, W = f.W - 8, H = f.H * 0.24f };
+        ctx.DrawText("Unavailable", headlineRect, InvalidTextColor, FontFamily, InvalidPtSize, bold: true);
+
+        // Wrapped (never overflows the tile, regardless of message length or tile size) and
+        // centered — reason plus a short call to action, as one flowing block rather than two
+        // fixed single-line bands that could overlap or spill past the tile edge.
+        string message = $"{game.ValidationError}. Contact the publisher for support.";
+        var bodyRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.34f, W = f.W - 8, H = f.H * 0.62f };
+        DrawWrappedText(ctx, message, bodyRect, InvalidSubTextColor, InvalidSubPtSize, InvalidLineHeight);
     }
 
     private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha)
@@ -283,23 +322,45 @@ internal static class GameCarouselRenderer
         {
             X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - titleRect.H - 16,
         };
-        DrawWrappedText(ctx, description, bodyRect, WithAlpha(HintColor, alpha));
+        DrawWrappedText(ctx, description, bodyRect, WithAlpha(HintColor, alpha), DescriptionPtSize, DescriptionLineHeight);
     }
 
-    private static void DrawWrappedText(SDL3PaintContext ctx, string text, SDL.FRect rect, SDL.Color color)
+    /// <summary>
+    /// Word-wraps <paramref name="text"/> to fit <paramref name="rect"/>'s width, then draws it
+    /// as a block centered both horizontally (each line) and vertically (the whole block within
+    /// the rect) — never overflows the rect; lines beyond what fits are dropped rather than
+    /// spilling past the edge.
+    /// </summary>
+    private static void DrawWrappedText(SDL3PaintContext ctx, string text, SDL.FRect rect, SDL.Color color,
+        float ptSize, float lineHeight)
+    {
+        var lines = WrapLines(ctx, text, ptSize, rect.W);
+        int maxLines = Math.Max(1, (int)(rect.H / lineHeight));
+        if (lines.Count > maxLines) lines.RemoveRange(maxLines, lines.Count - maxLines);
+
+        float blockHeight = lines.Count * lineHeight;
+        float startY = rect.Y + Math.Max(0f, (rect.H - blockHeight) / 2f);
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var lineRect = new SDL.FRect { X = rect.X, Y = startY + i * lineHeight, W = rect.W, H = lineHeight };
+            ctx.DrawText(lines[i], lineRect, color, FontFamily, ptSize, bold: false,
+                halign: TextHAlign.Center, valign: TextVAlign.Center);
+        }
+    }
+
+    private static List<string> WrapLines(SDL3PaintContext ctx, string text, float ptSize, float maxWidth)
     {
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var lines = new List<string>();
         var line = new System.Text.StringBuilder();
-        float y = rect.Y;
         foreach (var word in words)
         {
             string candidate = line.Length == 0 ? word : $"{line} {word}";
-            var (w, _) = ctx.MeasureText(candidate, FontFamily, DescriptionPtSize, bold: false);
-            if (w > rect.W && line.Length > 0)
+            var (w, _) = ctx.MeasureText(candidate, FontFamily, ptSize, bold: false);
+            if (w > maxWidth && line.Length > 0)
             {
-                DrawWrappedLine(ctx, line.ToString(), rect, y, color);
-                y += DescriptionLineHeight;
-                if (y + DescriptionLineHeight > rect.Y + rect.H) return;
+                lines.Add(line.ToString());
                 line.Clear();
                 line.Append(word);
             }
@@ -309,15 +370,8 @@ internal static class GameCarouselRenderer
                 line.Append(candidate);
             }
         }
-        if (line.Length > 0 && y + DescriptionLineHeight <= rect.Y + rect.H)
-            DrawWrappedLine(ctx, line.ToString(), rect, y, color);
-    }
-
-    private static void DrawWrappedLine(SDL3PaintContext ctx, string text, SDL.FRect rect, float y, SDL.Color color)
-    {
-        var lineRect = new SDL.FRect { X = rect.X, Y = y, W = rect.W, H = DescriptionLineHeight };
-        ctx.DrawText(text, lineRect, color, FontFamily, DescriptionPtSize, bold: false,
-            halign: TextHAlign.Near, valign: TextVAlign.Top);
+        if (line.Length > 0) lines.Add(line.ToString());
+        return lines;
     }
 
     private static SDL.Color WithAlpha(SDL.Color c, float alphaMultiplier) =>

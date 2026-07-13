@@ -108,4 +108,62 @@ internal class GameCarouselRendererTests
         Assert.That(atStart.showFront, Is.False);
         Assert.That(atEnd.showFront, Is.True);
     }
+
+    // ---- EaseInOut ----
+
+    [Test]
+    public void EaseInOut_Zero_ReturnsZero()
+    {
+        Assert.That(GameCarouselRenderer.EaseInOut(0f), Is.EqualTo(0f).Within(0.001f));
+    }
+
+    [Test]
+    public void EaseInOut_One_ReturnsOne()
+    {
+        Assert.That(GameCarouselRenderer.EaseInOut(1f), Is.EqualTo(1f).Within(0.001f));
+    }
+
+    [Test]
+    public void EaseInOut_Midpoint_ReturnsHalf()
+    {
+        Assert.That(GameCarouselRenderer.EaseInOut(0.5f), Is.EqualTo(0.5f).Within(0.001f));
+    }
+
+    [Test]
+    public void EaseInOut_EarlyProgress_LagsBehindLinear()
+    {
+        // Ease-in-out starts slower than linear — the defining property that makes it feel smooth.
+        Assert.That(GameCarouselRenderer.EaseInOut(0.25f), Is.LessThan(0.25f));
+    }
+
+    // ---- InterpolateByOffset ----
+
+    [Test]
+    public void InterpolateByOffset_OffsetZero_ReturnsFirstAnchor()
+    {
+        var anchors = new[] { 1f, 0.75f, 0.55f };
+        Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 0f), Is.EqualTo(1f));
+    }
+
+    [Test]
+    public void InterpolateByOffset_IntegerOffset_ReturnsExactAnchor()
+    {
+        var anchors = new[] { 1f, 0.75f, 0.55f };
+        Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 1f), Is.EqualTo(0.75f).Within(0.001f));
+        Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 2f), Is.EqualTo(0.55f).Within(0.001f));
+    }
+
+    [Test]
+    public void InterpolateByOffset_FractionalOffset_InterpolatesBetweenAnchors()
+    {
+        var anchors = new[] { 1f, 0.75f, 0.55f };
+        Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 0.5f), Is.EqualTo(0.875f).Within(0.001f));
+    }
+
+    [Test]
+    public void InterpolateByOffset_BeyondLastAnchor_ClampsToLastValue()
+    {
+        var anchors = new[] { 1f, 0.75f, 0.55f };
+        Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 5f), Is.EqualTo(0.55f).Within(0.001f));
+    }
 }

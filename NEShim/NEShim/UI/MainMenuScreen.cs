@@ -99,6 +99,8 @@ internal sealed partial class MainMenuScreen : IDisposable
     /// <summary>Fires after the chosen save state has already been loaded.</summary>
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
+    /// <summary>Only reachable in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public event Action? ChangeGameChosen;
 
     // ---- Constructor ----
 

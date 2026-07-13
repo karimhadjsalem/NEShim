@@ -29,7 +29,7 @@ internal static class GameScanner
             {
                 Logger.Log($"[GameScanner] '{dir}' has no config.json — listing as invalid.");
                 results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "",
-                    IsValid: false, ValidationError: "Missing config.json"));
+                    IsValid: false, ValidationError: "Configuration file is missing"));
                 continue;
             }
 
@@ -37,7 +37,7 @@ internal static class GameScanner
             {
                 Logger.Log($"[GameScanner] '{dir}' config.json failed to parse — listing as invalid.");
                 results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "",
-                    IsValid: false, ValidationError: "Invalid config.json"));
+                    IsValid: false, ValidationError: "Configuration file is corrupted"));
                 continue;
             }
 
@@ -51,7 +51,7 @@ internal static class GameScanner
             results.Add(new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
                 Description: cfg.GameDescription,
                 IsValid: romExists,
-                ValidationError: romExists ? null : "ROM file not found"));
+                ValidationError: romExists ? null : "ROM file is missing"));
         }
 
         return results.OrderBy(g => g.DisplayTitle, StringComparer.OrdinalIgnoreCase).ToList();

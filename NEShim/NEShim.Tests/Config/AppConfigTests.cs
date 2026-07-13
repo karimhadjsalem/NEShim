@@ -74,6 +74,20 @@ internal class AppConfigTests
     }
 
     [Test]
+    public void DefaultHotkeyMappings_ToggleWindow_MapsToF11()
+    {
+        var config = new AppConfig();
+        Assert.That(config.HotkeyMappings["ToggleWindow"], Is.EqualTo("F11"));
+    }
+
+    [Test]
+    public void DefaultGamepadHotkeyMappings_ToggleWindow_MapsToY()
+    {
+        var config = new AppConfig();
+        Assert.That(config.GamepadHotkeyMappings["ToggleWindow"], Is.EqualTo("Y"));
+    }
+
+    [Test]
     public void ShowFps_DefaultIsFalse()
     {
         var config = new AppConfig();

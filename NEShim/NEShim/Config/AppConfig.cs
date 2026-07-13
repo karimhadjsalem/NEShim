@@ -148,7 +148,8 @@ public sealed class AppConfig
     /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>
     public Dictionary<string, string> GamepadHotkeyMappings { get; set; } = new()
     {
-        ["OpenMenu"] = "LeftShoulder",   // Left bumper opens/closes the in-game menu
+        ["OpenMenu"]     = "LeftShoulder", // Left bumper opens/closes the in-game menu
+        ["ToggleWindow"] = "Y",            // Y button toggles fullscreen/windowed, mirroring the F11 keyboard hotkey
     };
 
     public Dictionary<string, string> HotkeyMappings { get; set; } = new()

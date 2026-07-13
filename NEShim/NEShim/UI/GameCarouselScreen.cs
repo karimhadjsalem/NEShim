@@ -29,6 +29,13 @@ internal sealed class GameCarouselScreen : IDisposable
     /// <summary>Raised when the player confirms a selection. Never raised for an invalid entry or when Games is empty.</summary>
     public event Action<GameManifest>? GameChosen;
 
+    /// <summary>
+    /// Raised on Escape/Back. The carousel is the top-level screen in multi-game mode — there is
+    /// no parent screen to return to (unlike MainMenuScreen, which only navigates Escape to a
+    /// parent sub-screen and does nothing at its own top level) — so this exits the app.
+    /// </summary>
+    public event Action? QuitRequested;
+
     private readonly Dictionary<string, IntPtr> _thumbnails = new();
     private readonly AnimatedImagePlayer? _background;
 
@@ -134,6 +141,10 @@ internal sealed class GameCarouselScreen : IDisposable
             case SDL.Keycode.Space:
                 Confirm();
                 return true;
+
+            case SDL.Keycode.Escape:
+                QuitRequested?.Invoke();
+                return true;
         }
         return false;
     }
@@ -145,6 +156,7 @@ internal sealed class GameCarouselScreen : IDisposable
         if (nav.Right)   MoveNext();
         if (nav.Up)      ToggleDescription();
         if (nav.Confirm) Confirm();
+        if (nav.Back)    QuitRequested?.Invoke();
     }
 
     // If the description card is open when the player moves to a different tile, snap it

@@ -199,6 +199,31 @@ internal class GameCarouselScreenTests
         Assert.That(handled, Is.False);
     }
 
+    [Test]
+    public void HandleKey_Escape_RaisesQuitRequested()
+    {
+        var screen = NewScreen(Game("a"));
+        bool quit = false;
+        screen.QuitRequested += () => quit = true;
+
+        bool handled = screen.HandleKey(SDL.Keycode.Escape);
+
+        Assert.That(handled, Is.True);
+        Assert.That(quit, Is.True);
+    }
+
+    [Test]
+    public void HandleKey_Escape_EmptyList_StillRaisesQuitRequested()
+    {
+        var screen = NewScreen();
+        bool quit = false;
+        screen.QuitRequested += () => quit = true;
+
+        screen.HandleKey(SDL.Keycode.Escape);
+
+        Assert.That(quit, Is.True);
+    }
+
     // ---- HandleGamepadNav ----
 
     [Test]
@@ -235,6 +260,18 @@ internal class GameCarouselScreenTests
         screen.HandleGamepadNav(new MenuNavInput { Confirm = true });
 
         Assert.That(chosen?.GameId, Is.EqualTo("a"));
+    }
+
+    [Test]
+    public void HandleGamepadNav_Back_RaisesQuitRequested()
+    {
+        var screen = NewScreen(Game("a"));
+        bool quit = false;
+        screen.QuitRequested += () => quit = true;
+
+        screen.HandleGamepadNav(new MenuNavInput { Back = true });
+
+        Assert.That(quit, Is.True);
     }
 
     [Test]
