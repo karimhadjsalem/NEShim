@@ -361,4 +361,77 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.AudioFilterDmcStabilizer, Is.EqualTo("Pop Filter"));
     }
+
+    // ---- Carousel (multi-game mode only) ----
+
+    [Test]
+    public void DefaultInstance_CarouselSelectGame_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselSelectGame, Is.EqualTo("Select a Game"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselNoGamesAvailable_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselNoGamesAvailable, Is.EqualTo("No games available"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselLegendLine1_MentionsBrowseAndSelect()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselLegendLine1, Does.Contain("Browse"));
+        Assert.That(data.CarouselLegendLine1, Does.Contain("Select"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselLegendLine2_MentionsFullscreen()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselLegendLine2, Does.Contain("Fullscreen"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselUnavailable_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselUnavailable, Is.EqualTo("Unavailable"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselContactPublisher_MentionsPublisher()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselContactPublisher, Does.Contain("publisher"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselNoDescription_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselNoDescription, Is.EqualTo("No description available."));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselMissingConfig_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselMissingConfig, Is.EqualTo("Configuration file is missing"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselCorruptConfig_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselCorruptConfig, Is.EqualTo("Configuration file is corrupted"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselMissingRom_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselMissingRom, Is.EqualTo("ROM file is missing"));
+    }
 }

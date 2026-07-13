@@ -1,4 +1,5 @@
 using NEShim.Config;
+using NEShim.Localization;
 using NEShim.Rendering;
 using SDL3;
 
@@ -25,6 +26,7 @@ internal sealed class GameCarouselScreen : IDisposable
 
     public IReadOnlyList<GameManifest> Games { get; }
     public int SelectedIndex { get; private set; }
+    public LocalizationData Localization { get; }
 
     /// <summary>Raised when the player confirms a selection. Never raised for an invalid entry or when Games is empty.</summary>
     public event Action<GameManifest>? GameChosen;
@@ -46,9 +48,11 @@ internal sealed class GameCarouselScreen : IDisposable
     private bool _descriptionShown;
     private long _flipStartTicks = Environment.TickCount64 - FlipDurationMs; // settled at construction time
 
-    public GameCarouselScreen(IReadOnlyList<GameManifest> games, string gamesRoot, string carouselBackgroundPath)
+    public GameCarouselScreen(IReadOnlyList<GameManifest> games, string gamesRoot, string carouselBackgroundPath,
+        LocalizationData localization)
     {
         Games = games;
+        Localization = localization;
 
         if (!string.IsNullOrWhiteSpace(carouselBackgroundPath))
         {

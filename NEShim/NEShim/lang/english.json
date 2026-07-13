@@ -130,5 +130,15 @@
   "videoPresetLivingRoom": "Living Room",
   "videoPresetArcade": "Arcade Monitor",
   "videoPresetSharp": "Sharp",
-  "videoPresetPhosphor": "Phosphor"
+  "videoPresetPhosphor": "Phosphor",
+  "carouselSelectGame": "Select a Game",
+  "carouselNoGamesAvailable": "No games available",
+  "carouselLegendLine1": "Left / Right: Browse    Up: Description    Enter / A: Select",
+  "carouselLegendLine2": "Esc / B: Quit    F11 / Y: Fullscreen",
+  "carouselUnavailable": "Unavailable",
+  "carouselContactPublisher": "Contact the publisher for support.",
+  "carouselNoDescription": "No description available.",
+  "carouselMissingConfig": "Configuration file is missing",
+  "carouselCorruptConfig": "Configuration file is corrupted",
+  "carouselMissingRom": "ROM file is missing"
 }

@@ -199,4 +199,21 @@ internal sealed class LocalizationData
     public string VideoPresetArcade       { get; init; } = "Arcade Monitor";
     public string VideoPresetSharp        { get; init; } = "Sharp";
     public string VideoPresetPhosphor     { get; init; } = "Phosphor";
+
+    // ---- Multi-game carousel (only shown in multi-game mode — see MultiGameMode.IsActive) ----
+    public string CarouselSelectGame       { get; init; } = "Select a Game";
+    public string CarouselNoGamesAvailable { get; init; } = "No games available";
+    /// <summary>Phrased by direction (Left/Right/Up) so it reads the same on keyboard or gamepad.</summary>
+    public string CarouselLegendLine1      { get; init; } = "Left / Right: Browse    Up: Description    Enter / A: Select";
+    public string CarouselLegendLine2      { get; init; } = "Esc / B: Quit    F11 / Y: Fullscreen";
+    /// <summary>Headline shown over a structurally invalid game's box art — see GameManifest.IsValid.</summary>
+    public string CarouselUnavailable      { get; init; } = "Unavailable";
+    public string CarouselContactPublisher { get; init; } = "Contact the publisher for support.";
+    public string CarouselNoDescription    { get; init; } = "No description available.";
+    /// <summary>GameManifest.ValidationError text — folder has no config.json.</summary>
+    public string CarouselMissingConfig    { get; init; } = "Configuration file is missing";
+    /// <summary>GameManifest.ValidationError text — config.json failed to parse.</summary>
+    public string CarouselCorruptConfig    { get; init; } = "Configuration file is corrupted";
+    /// <summary>GameManifest.ValidationError text — configured romPath does not resolve to a file.</summary>
+    public string CarouselMissingRom       { get; init; } = "ROM file is missing";
 }

@@ -166,4 +166,37 @@ internal class GameCarouselRendererTests
         var anchors = new[] { 1f, 0.75f, 0.55f };
         Assert.That(GameCarouselRenderer.InterpolateByOffset(anchors, 5f), Is.EqualTo(0.55f).Within(0.001f));
     }
+
+    // ---- ScaledTitlePtSize ----
+
+    [Test]
+    public void ScaledTitlePtSize_FullScale_ReturnsBaseSize()
+    {
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(1f), Is.EqualTo(13f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledTitlePtSize_AboveFloor_ScalesProportionally()
+    {
+        // 13 * 0.8 = 10.4, comfortably above the 7pt floor, so this exercises the proportional
+        // path rather than the floor clamp (see ScaledTitlePtSize_NearZeroScale_FlooredToMinimum).
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.8f), Is.EqualTo(10.4f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledTitlePtSize_NearZeroScale_FlooredToMinimum()
+    {
+        // Without a floor, a far-offset tile's title would shrink to unreadable/zero size.
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.01f), Is.EqualTo(7f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledTitlePtSize_SmallerScale_ReturnsSmallerSize()
+    {
+        float far = GameCarouselRenderer.ScaledTitlePtSize(0.55f);
+        float near = GameCarouselRenderer.ScaledTitlePtSize(0.75f);
+        float center = GameCarouselRenderer.ScaledTitlePtSize(1f);
+        Assert.That(far, Is.LessThan(near));
+        Assert.That(near, Is.LessThan(center));
+    }
 }

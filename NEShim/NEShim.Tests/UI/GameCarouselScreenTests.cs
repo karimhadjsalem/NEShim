@@ -1,5 +1,6 @@
 using NEShim.Config;
 using NEShim.Input;
+using NEShim.Localization;
 using NEShim.UI;
 using SDL3;
 
@@ -8,12 +9,14 @@ namespace NEShim.Tests.UI;
 [TestFixture]
 internal class GameCarouselScreenTests
 {
+    private static readonly LocalizationData Localization = new();
+
     private static GameManifest Game(string id, bool isValid = true) =>
         new(id, id.ToUpperInvariant(), SteamDlcAppId: 0, ThumbnailPath: "", IsValid: isValid);
 
     // Empty gamesRoot/backgroundPath keeps construction filesystem/SDL-free for pure unit tests.
     private static GameCarouselScreen NewScreen(params GameManifest[] games) =>
-        new(games, gamesRoot: "", carouselBackgroundPath: "");
+        new(games, gamesRoot: "", carouselBackgroundPath: "", Localization);
 
     // ---- Construction ----
 
@@ -28,8 +31,16 @@ internal class GameCarouselScreenTests
     public void Games_ExposesConstructorList()
     {
         var games = new[] { Game("a"), Game("b") };
-        var screen = new GameCarouselScreen(games, gamesRoot: "", carouselBackgroundPath: "");
+        var screen = new GameCarouselScreen(games, gamesRoot: "", carouselBackgroundPath: "", Localization);
         Assert.That(screen.Games, Is.EqualTo(games));
+    }
+
+    [Test]
+    public void Localization_ExposesConstructorValue()
+    {
+        var custom = new LocalizationData { CarouselSelectGame = "Choisir un jeu" };
+        var screen = new GameCarouselScreen([Game("a")], gamesRoot: "", carouselBackgroundPath: "", custom);
+        Assert.That(screen.Localization.CarouselSelectGame, Is.EqualTo("Choisir un jeu"));
     }
 
     // ---- MoveNext / MovePrevious ----

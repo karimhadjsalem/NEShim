@@ -170,11 +170,15 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // The shell's configured mode is only ever the STARTING point — see InitializeWindowAndD3DHook.
         _config.WindowMode = _isFullscreen ? "Fullscreen" : "Windowed";
 
-        var games = GameScanner.Scan(MultiGameMode.GamesRoot)
+        // ResolveLanguage() only needs _config.Language, already populated from the shell
+        // manifest above — safe to resolve here, before any game is chosen, exactly like
+        // LoadGame() resolves it per-game later.
+        var localization = LoadLocalization();
+        var games = GameScanner.Scan(MultiGameMode.GamesRoot, localization)
                                 .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
                                 .ToList();
         _carousel?.Dispose();
-        _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath);
+        _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath, localization);
         _carousel.GameChosen += g => _marshalToMainThread(() =>
             LoadGame(GameContext.ForGame(MultiGameMode.GamesRoot, g.GameId)));
         // The carousel is the top-level screen in multi-game mode — there's no parent menu to

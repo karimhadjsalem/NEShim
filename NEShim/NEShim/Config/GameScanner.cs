@@ -1,3 +1,5 @@
+using NEShim.Localization;
+
 namespace NEShim.Config;
 
 /// <summary>
@@ -7,15 +9,15 @@ namespace NEShim.Config;
 /// downloading); <see cref="Scan"/> simply returns an empty list in that case.
 ///
 /// Every subfolder produces a <see cref="GameManifest"/> — none are ever skipped. A folder is
-/// classified invalid (<see cref="GameManifest.IsValid"/> false, with a human-readable
-/// <see cref="GameManifest.ValidationError"/>) when its <c>config.json</c> is missing or fails
-/// to parse, or when it parses but its configured <c>RomPath</c> does not resolve to a file
-/// that exists on disk. A missing thumbnail image is deliberately NOT a validation failure —
-/// that's an art-asset gap, not a structural configuration problem.
+/// classified invalid (<see cref="GameManifest.IsValid"/> false, with a human-readable,
+/// localized <see cref="GameManifest.ValidationError"/>) when its <c>config.json</c> is missing
+/// or fails to parse, or when it parses but its configured <c>RomPath</c> does not resolve to a
+/// file that exists on disk. A missing thumbnail image is deliberately NOT a validation failure
+/// — that's an art-asset gap, not a structural configuration problem.
 /// </summary>
 internal static class GameScanner
 {
-    internal static IReadOnlyList<GameManifest> Scan(string gamesRoot)
+    internal static IReadOnlyList<GameManifest> Scan(string gamesRoot, LocalizationData localization)
     {
         if (!Directory.Exists(gamesRoot)) return Array.Empty<GameManifest>();
 
@@ -29,7 +31,7 @@ internal static class GameScanner
             {
                 Logger.Log($"[GameScanner] '{dir}' has no config.json — listing as invalid.");
                 results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "",
-                    IsValid: false, ValidationError: "Configuration file is missing"));
+                    IsValid: false, ValidationError: localization.CarouselMissingConfig));
                 continue;
             }
 
@@ -37,7 +39,7 @@ internal static class GameScanner
             {
                 Logger.Log($"[GameScanner] '{dir}' config.json failed to parse — listing as invalid.");
                 results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "",
-                    IsValid: false, ValidationError: "Configuration file is corrupted"));
+                    IsValid: false, ValidationError: localization.CarouselCorruptConfig));
                 continue;
             }
 
@@ -51,7 +53,7 @@ internal static class GameScanner
             results.Add(new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
                 Description: cfg.GameDescription,
                 IsValid: romExists,
-                ValidationError: romExists ? null : "ROM file is missing"));
+                ValidationError: romExists ? null : localization.CarouselMissingRom));
         }
 
         return results.OrderBy(g => g.DisplayTitle, StringComparer.OrdinalIgnoreCase).ToList();

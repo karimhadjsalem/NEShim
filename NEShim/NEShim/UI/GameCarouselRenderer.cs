@@ -1,4 +1,5 @@
 using NEShim.Config;
+using NEShim.Localization;
 using NEShim.Rendering;
 using SDL3;
 
@@ -9,21 +10,14 @@ namespace NEShim.UI;
 /// (<see cref="ComputeSlotGameIndices"/> maps carousel state to which game occupies each
 /// visible slot, wrapping/duplicating games when the library is smaller than the visible
 /// slot count), an animated slide when the selection changes, and a card-flip on the
-/// selected tile revealing a description (<see cref="ComputeFlipVisual"/>). Runs before any
-/// game's config is loaded, so — unlike every other menu renderer in this codebase — it has
-/// no <c>LocalizationData</c> available; its handful of UI strings are English-only constants
-/// (a deliberate v1 simplification, not an oversight).
+/// selected tile revealing a description (<see cref="ComputeFlipVisual"/>). All player-facing
+/// strings come from <see cref="GameCarouselScreen.Localization"/> (resolved from the shell
+/// config's <c>language</c> field before the carousel is ever shown — see
+/// <c>NEShimApp.InitializeCarousel</c>), same as every other menu renderer in this codebase.
 /// </summary>
 internal static class GameCarouselRenderer
 {
     private const string FontFamily = "Segoe UI"; // matches LocalizationData's own default
-
-    // Static, always-shown regardless of selection — phrased by direction (Left/Right/Up) so it
-    // reads identically on keyboard or gamepad (both map to the same directions). Actions without
-    // a natural directional name (select, quit, fullscreen) name their actual bindings instead.
-    // Split across two lines so it doesn't overflow at typical window widths.
-    private const string ControlLegendLine1 = "Left / Right: Browse    Up: Description    Enter / A: Select";
-    private const string ControlLegendLine2 = "Esc / B: Quit    F11 / Y: Fullscreen";
 
     private const int VisibleSlotCount = 5; // center + 2 neighbors each side
     private const float BoxArtAspectRatio = 1.42f; // NES cardboard box front face (~6.5in x 4.5in)
@@ -33,11 +27,13 @@ internal static class GameCarouselRenderer
     // Anchor values at integer |offset from center| 0, 1, 2, ... — interpolated continuously
     // via InterpolateByOffset so a tile's size/opacity change smoothly as it slides between
     // slots, rather than snapping at each offset boundary. Values beyond the array clamp to
-    // the last entry.
+    // the last entry. The same per-slot scale also drives title/placeholder-glyph font size
+    // (via *PtSize helpers below) so non-focused tiles' text shrinks with the tile itself.
     private static readonly float[] SlotScaleByOffset = { 1f, 0.75f, 0.55f };
     private static readonly float[] SlotAlphaByOffset  = { 1f, 0.75f, 0.5f };
 
     private const float TitlePtSize            = 13f;
+    private const float MinTitlePtSize         = 7f; // floor so far-offset tiles' titles stay legible rather than vanishing
     private const float PlaceholderGlyphPtSize = 28f;
     private const float InvalidPtSize          = 10f;
     private const float InvalidSubPtSize       = 8f;
@@ -48,9 +44,7 @@ internal static class GameCarouselRenderer
     private static readonly SDL.Color BgColor              = new() { R = 10,  G = 10,  B = 20,  A = 255 };
     private static readonly SDL.Color TitleColor           = new() { R = 195, G = 225, B = 255, A = 255 };
     private static readonly SDL.Color HintColor             = new() { R = 160, G = 160, B = 160, A = 200 };
-    private static readonly SDL.Color CounterColor          = new() { R = 130, G = 130, B = 130, A = 180 };
     private static readonly SDL.Color EmptyColor            = new() { R = 200, G = 200, B = 200, A = 220 };
-    private static readonly SDL.Color ArrowColor            = new() { R = 110, G = 150, B = 210, A = 220 };
     private static readonly SDL.Color PlaceholderFill       = new() { R = 60,  G = 60,  B = 60,  A = 255 };
     private static readonly SDL.Color PlaceholderBorder     = new() { R = 120, G = 120, B = 120, A = 255 };
     private static readonly SDL.Color PlaceholderGlyphColor = new() { R = 180, G = 180, B = 180, A = 255 };
@@ -61,15 +55,16 @@ internal static class GameCarouselRenderer
 
     internal static void Draw(SDL3PaintContext ctx, SDL.Rect bounds, GameCarouselScreen carousel)
     {
+        var loc = carousel.Localization;
         DrawBackground(ctx, bounds, carousel);
 
         if (carousel.Games.Count == 0)
         {
-            ctx.DrawText("No games available", CenterRect(bounds, 0.5f), EmptyColor, FontFamily, 16f, bold: true);
+            ctx.DrawText(loc.CarouselNoGamesAvailable, CenterRect(bounds, 0.5f), EmptyColor, FontFamily, 16f, bold: true);
             return;
         }
 
-        ctx.DrawText("Select a Game", CenterRect(bounds, 0.10f), HintColor, FontFamily, 12f, bold: false);
+        ctx.DrawText(loc.CarouselSelectGame, CenterRect(bounds, 0.10f), HintColor, FontFamily, 12f, bold: false);
 
         var band = FilmstripBand(bounds);
         if (carousel.SlideDirection != 0 && carousel.SlideProgress < 1f)
@@ -77,20 +72,14 @@ internal static class GameCarouselRenderer
         else
             DrawStatic(ctx, band, carousel);
 
-        ctx.DrawText($"{carousel.SelectedIndex + 1} / {carousel.Games.Count}",
-            CenterRect(bounds, 0.84f), CounterColor, FontFamily, 11f, bold: false);
         // Static control legend — always the same regardless of selection, phrased by direction
         // (Left/Right/Up) rather than a specific key or button so it reads the same whether the
         // player is on keyboard or gamepad. Actions without a natural directional name (select,
-        // quit, fullscreen) name their actual bindings instead.
-        ctx.DrawText(ControlLegendLine1, CenterRect(bounds, 0.90f), HintColor, FontFamily, 11f, bold: false);
-        ctx.DrawText(ControlLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f, bold: false);
-
-        if (carousel.Games.Count > 1)
-        {
-            ctx.DrawText("<", ArrowRect(bounds, near: true), ArrowColor, FontFamily, 24f, bold: true);
-            ctx.DrawText(">", ArrowRect(bounds, near: false), ArrowColor, FontFamily, 24f, bold: true);
-        }
+        // quit, fullscreen) name their actual bindings instead. No game counter or arrow glyphs —
+        // the centered, highlighted tile already shows the selection; a numeric count and "<"/">"
+        // hints added nothing the filmstrip itself doesn't already convey.
+        ctx.DrawText(loc.CarouselLegendLine1, CenterRect(bounds, 0.89f), HintColor, FontFamily, 11f, bold: false);
+        ctx.DrawText(loc.CarouselLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f, bold: false);
     }
 
     // ---- Pure layout/geometry helpers (unit tested; no SDL rendering side effects) ----
@@ -139,6 +128,9 @@ internal static class GameCarouselRenderer
         bool showFront = startWithFront ? p < 0.5f : p >= 0.5f;
         return (scale, showFront);
     }
+
+    /// <summary>Scales a base font size by a tile's slot scale, floored so far-offset tiles stay legible.</summary>
+    internal static float ScaledTitlePtSize(float slotScale) => Math.Max(MinTitlePtSize, TitlePtSize * slotScale);
 
     // ---- Draw composition ----
 
@@ -228,15 +220,15 @@ internal static class GameCarouselRenderer
         bool isCenter = MathF.Abs(offsetFromCenter) < 0.01f;
         if (allowFlip && isCenter && (carousel.DescriptionShown || carousel.FlipProgress < 1f))
         {
-            DrawFlippingTile(ctx, slotRect, game, carousel, alpha);
+            DrawFlippingTile(ctx, slotRect, game, carousel, alpha, scale);
             return;
         }
 
-        DrawTile(ctx, slotRect, game, carousel, alpha);
+        DrawTile(ctx, slotRect, game, carousel, alpha, scale);
     }
 
     private static void DrawTile(SDL3PaintContext ctx, SDL.Rect slotRect, GameManifest game,
-        GameCarouselScreen carousel, float alpha)
+        GameCarouselScreen carousel, float alpha, float scale)
     {
         var artArea = new SDL.Rect
         {
@@ -247,28 +239,28 @@ internal static class GameCarouselRenderer
         if (carousel.TryGetThumbnail(game.GameId, out var surface))
             ctx.BlitSurfaceAlpha(surface, artRect, alpha);
         else
-            DrawPlaceholder(ctx, artRect, game, alpha);
+            DrawPlaceholder(ctx, artRect, game, alpha, scale);
 
         if (!game.IsValid)
-            DrawInvalidOverlay(ctx, artRect, game);
+            DrawInvalidOverlay(ctx, artRect, game, carousel.Localization);
 
         var titleRect = new SDL.FRect
         {
             X = slotRect.X, Y = artArea.Y + artArea.H, W = slotRect.W, H = slotRect.H - artArea.H,
         };
-        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, TitlePtSize, bold: true);
+        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(scale), bold: true);
     }
 
     private static void DrawFlippingTile(SDL3PaintContext ctx, SDL.Rect slotRect, GameManifest game,
-        GameCarouselScreen carousel, float alpha)
+        GameCarouselScreen carousel, float alpha, float scale)
     {
         // The face shown at the START of the transition is 'front' exactly when the toggle that
         // just fired turned the description ON (DescriptionShown already reflects the new target
         // state — see GameCarouselScreen.ToggleDescription).
         bool startWithFront = carousel.DescriptionShown;
-        var (scale, showFront) = ComputeFlipVisual(carousel.FlipProgress, startWithFront);
+        var (flipScale, showFront) = ComputeFlipVisual(carousel.FlipProgress, startWithFront);
 
-        int squashedW = Math.Max((int)(slotRect.W * scale), 1);
+        int squashedW = Math.Max((int)(slotRect.W * flipScale), 1);
         var squashed = new SDL.Rect
         {
             X = slotRect.X + (slotRect.W - squashedW) / 2,
@@ -278,46 +270,49 @@ internal static class GameCarouselRenderer
         };
 
         if (showFront)
-            DrawTile(ctx, squashed, game, carousel, alpha);
+            DrawTile(ctx, squashed, game, carousel, alpha, scale);
         else
-            DrawDescriptionBack(ctx, squashed, game, alpha);
+            DrawDescriptionBack(ctx, squashed, game, alpha, scale, carousel.Localization);
     }
 
-    private static void DrawInvalidOverlay(SDL3PaintContext ctx, SDL.Rect artRect, GameManifest game)
+    private static void DrawInvalidOverlay(SDL3PaintContext ctx, SDL.Rect artRect, GameManifest game,
+        LocalizationData loc)
     {
         var f = ToFRect(artRect);
         ctx.FillRect(f, InvalidOverlayFill);
 
         var headlineRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.08f, W = f.W - 8, H = f.H * 0.24f };
-        ctx.DrawText("Unavailable", headlineRect, InvalidTextColor, FontFamily, InvalidPtSize, bold: true);
+        ctx.DrawText(loc.CarouselUnavailable, headlineRect, InvalidTextColor, FontFamily, InvalidPtSize, bold: true);
 
         // Wrapped (never overflows the tile, regardless of message length or tile size) and
         // centered — reason plus a short call to action, as one flowing block rather than two
         // fixed single-line bands that could overlap or spill past the tile edge.
-        string message = $"{game.ValidationError}. Contact the publisher for support.";
+        string message = $"{game.ValidationError}. {loc.CarouselContactPublisher}";
         var bodyRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.34f, W = f.W - 8, H = f.H * 0.62f };
         DrawWrappedText(ctx, message, bodyRect, InvalidSubTextColor, InvalidSubPtSize, InvalidLineHeight);
     }
 
-    private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha)
+    private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha, float scale)
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(PlaceholderFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
         string glyph = string.IsNullOrEmpty(game.DisplayTitle) ? "?" : game.DisplayTitle[0].ToString().ToUpperInvariant();
-        ctx.DrawText(glyph, f, WithAlpha(PlaceholderGlyphColor, alpha), FontFamily, PlaceholderGlyphPtSize, bold: true);
+        float glyphPtSize = Math.Max(MinTitlePtSize, PlaceholderGlyphPtSize * scale);
+        ctx.DrawText(glyph, f, WithAlpha(PlaceholderGlyphColor, alpha), FontFamily, glyphPtSize, bold: true);
     }
 
-    private static void DrawDescriptionBack(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha)
+    private static void DrawDescriptionBack(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha,
+        float scale, LocalizationData loc)
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(DescriptionBackFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
 
         var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + 6, W = f.W - 16, H = 24f };
-        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, TitlePtSize, bold: true);
+        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(scale), bold: true);
 
-        string description = string.IsNullOrWhiteSpace(game.Description) ? "No description available." : game.Description;
+        string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
         var bodyRect = new SDL.FRect
         {
             X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - titleRect.H - 16,
@@ -390,13 +385,5 @@ internal static class GameCarouselRenderer
             W = bounds.W,
             H = BandH,
         };
-    }
-
-    private static SDL.FRect ArrowRect(SDL.Rect bounds, bool near)
-    {
-        const float ArrowW = 60f;
-        const float ArrowH = 50f;
-        float x = near ? bounds.X + bounds.W * 0.04f : bounds.X + bounds.W * 0.96f - ArrowW;
-        return new SDL.FRect { X = x, Y = bounds.Y + bounds.H * 0.47f - ArrowH / 2f, W = ArrowW, H = ArrowH };
     }
 }
