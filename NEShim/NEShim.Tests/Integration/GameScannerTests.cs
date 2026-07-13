@@ -120,4 +120,30 @@ internal class GameScannerTests
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result[0].GameId, Is.EqualTo("valid-game"));
     }
+
+    [Test]
+    public void Scan_MalformedConfigJson_IsSkipped()
+    {
+        string dir = Path.Combine(_gamesRoot, "corrupt-game");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "config.json"), "this is not json {{{{");
+
+        var result = GameScanner.Scan(_gamesRoot);
+
+        Assert.That(result, Is.Empty);
+    }
+
+    [Test]
+    public void Scan_MixOfValidAndMalformedFolders_OnlyReturnsValid()
+    {
+        WriteGame("valid-game", new AppConfig { WindowTitle = "Valid" });
+        string corruptDir = Path.Combine(_gamesRoot, "corrupt-game");
+        Directory.CreateDirectory(corruptDir);
+        File.WriteAllText(Path.Combine(corruptDir, "config.json"), "this is not json {{{{");
+
+        var result = GameScanner.Scan(_gamesRoot);
+
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result[0].GameId, Is.EqualTo("valid-game"));
+    }
 }

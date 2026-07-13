@@ -149,6 +149,14 @@ internal class GameCarouselScreenTests
     }
 
     [Test]
+    public void HandleGamepadNav_Left_MovesPrevious()
+    {
+        var screen = new GameCarouselScreen([Game("a"), Game("b")]);
+        screen.HandleGamepadNav(new MenuNavInput { Left = true });
+        Assert.That(screen.SelectedIndex, Is.EqualTo(1));
+    }
+
+    [Test]
     public void HandleGamepadNav_Confirm_RaisesGameChosen()
     {
         var screen = new GameCarouselScreen([Game("a")]);

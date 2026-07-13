@@ -462,6 +462,30 @@ internal class ConfigLoaderTests
         Assert.That(loaded.Language, Is.EqualTo("french"));
     }
 
+    // ---- TryParseFrom ----
+
+    [Test]
+    public void TryParseFrom_ValidJson_ReturnsTrue()
+    {
+        ConfigLoader.SaveTo(new AppConfig { WindowTitle = "TestGame" }, _configPath);
+
+        bool success = ConfigLoader.TryParseFrom(_configPath, out var config);
+
+        Assert.That(success, Is.True);
+        Assert.That(config.WindowTitle, Is.EqualTo("TestGame"));
+    }
+
+    [Test]
+    public void TryParseFrom_MalformedJson_ReturnsFalse()
+    {
+        File.WriteAllText(_configPath, "this is not json {{{{");
+
+        bool success = ConfigLoader.TryParseFrom(_configPath, out var config);
+
+        Assert.That(success, Is.False);
+        Assert.That(config, Is.Not.Null);
+    }
+
     // ---- Multi-game (GameContext) isolation ----
 
     [Test]
@@ -529,6 +553,33 @@ internal class ConfigLoaderTests
         {
             string dir = Path.GetDirectoryName(expectedPath)!;
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_ThenLoad_WithGameContext_RoundTripsUserOverlay()
+    {
+        string gameId = $"roundtrip-{Guid.NewGuid():N}";
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot);
+        ConfigLoader.SaveTo(new AppConfig { WindowTitle = "RoundTripGame" }, Path.Combine(gameRoot, "config.json"));
+        var ctx = new GameContext(gameRoot, gameId);
+
+        try
+        {
+            var toSave = new AppConfig { WindowTitle = "RoundTripGame", Volume = 42 };
+            ConfigLoader.Save(toSave, ctx);
+
+            var loaded = ConfigLoader.Load(ctx);
+
+            Assert.That(loaded.Volume, Is.EqualTo(42));
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+            string userDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", gameId);
+            if (Directory.Exists(userDir)) Directory.Delete(userDir, recursive: true);
         }
     }
 }

@@ -22,9 +22,11 @@ internal static class GameScanner
                 continue;
             }
 
-            // File.Exists was already checked above, so LoadFrom's "auto-create defaults if
-            // missing" branch is never reached here.
-            var cfg = ConfigLoader.LoadFrom(configPath);
+            if (!ConfigLoader.TryParseFrom(configPath, out var cfg))
+            {
+                Logger.Log($"[GameScanner] Skipping '{dir}' — config.json failed to parse.");
+                continue;
+            }
 
             string gameId = Path.GetFileName(dir);
             string title  = string.IsNullOrWhiteSpace(cfg.GameDisplayTitle) ? cfg.WindowTitle : cfg.GameDisplayTitle;

@@ -71,18 +71,32 @@ public static class ConfigLoader
             return defaults;
         }
 
+        TryParseFrom(publisherConfigPath, out var config);
+        return config;
+    }
+
+    /// <summary>
+    /// Parses an existing config.json, without the missing-file bootstrap branch <see
+    /// cref="LoadFrom"/> has. Returns false (with <paramref name="config"/> set to defaults)
+    /// when the file exists but fails to parse, so callers like <see cref="GameScanner"/> can
+    /// distinguish "malformed" from "successfully loaded" rather than silently treating a
+    /// corrupt file as a validly-configured game.
+    /// </summary>
+    internal static bool TryParseFrom(string publisherConfigPath, out AppConfig config)
+    {
         try
         {
             string json = File.ReadAllText(publisherConfigPath);
-            var config  = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
+            config = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? new AppConfig();
             MigrateDeprecatedFields(config);
             Logger.Log($"[Config] Loaded from {publisherConfigPath}");
-            return config;
+            return true;
         }
         catch (Exception ex)
         {
             Logger.Log($"[Config] Parse error — using defaults: {ex.Message}");
-            return new AppConfig();
+            config = new AppConfig();
+            return false;
         }
     }
 
