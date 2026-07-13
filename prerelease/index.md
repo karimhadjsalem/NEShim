@@ -21,7 +21,7 @@ NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, w
 | [Filters](filters.md) | Audio filters (7 processors), video filters (structural, overlay, color effects, motion effects), availability by renderer, combining examples, and shader architecture |
 | [Achievement system](achievements.md) | How to define memory-watch triggers, encode them, and seal the config |
 | [Publishing guide](publishing.md) | Step-by-step checklist for packaging a game for Steam release |
-| [Multi-Game Mode](multi-game.md) | An alternate, additive publish path: one binary hosting N games via Steam DLC, selected through a front-end carousel |
+| [Multi-Game Mode](multi-game.md) | An alternate, additive publish path: one binary hosting N games via Steam DLC, selected through a front-end filmstrip carousel with per-game box art and descriptions |
 | [Architecture](architecture.md) | Internals: thread model, subsystem design, patterns, how to extend |
 | [Input system](input.md) | Keyboard remapping, XInput, Steam Input, hotkeys, and the VDF file |
 | [Localization](localization.md) | Language files, Steam language detection, CJK font fallback |

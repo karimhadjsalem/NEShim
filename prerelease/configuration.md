@@ -27,6 +27,8 @@ At startup, both files are merged: `config.json` is loaded first, then `user.jso
 | `windowMode` | string | `"Fullscreen"` | `"Fullscreen"` or `"Windowed"`. Togglable at runtime via F11 or the Settings menu. |
 | `gameDisplayTitle` | string | `""` | **Multi-game mode only** — label shown for this game on the carousel; falls back to `windowTitle` when empty. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
 | `steamDlcAppId` | integer | `0` | **Multi-game mode only** — Steam DLC App ID that must be installed for this game to appear on the carousel under a live Steam session. `0` means always shown (used for local dev/test game folders). Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
+| `thumbnailPath` | string | `""` | **Multi-game mode only** — box art shown for this game in the carousel filmstrip, in NES-box aspect ratio. Relative to this game's own folder or absolute. A missing thumbnail shows a placeholder card, not an error. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
+| `gameDescription` | string | `""` | **Multi-game mode only** — blurb shown on the carousel's flip-card back when the player presses Up on this game's tile. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
 
 ---
 
@@ -90,6 +92,7 @@ There are no config fields to enable, disable, or rename the auto-save file. The
 | `videoPreset` | string | `"None"` | Name of the last-applied video preset. `"None"` — no preset active. `"LivingRoom"`, `"Arcade"`, `"Sharp"`, `"Phosphor"` — built-in presets. Written by the Presets sub-menu (hidden from the in-game menu when D3D11 is not active); cleared to `"None"` automatically whenever any individual video setting is changed manually. On SDL_GPU/Vulkan, the Video Overlay and Screen Glow components of a preset are not applied (see [Filters — Video Presets](filters.md#video-presets)); all other preset fields take effect. |
 | ~~`graphicsSmoothingEnabled`~~ | boolean | `false` | **Deprecated.** Use `videoFilter: "Bilinear"` instead. If `true` and `videoFilter` is still `"NearestNeighbour"`, the config loader promotes it to `"Bilinear"` automatically. |
 | `mainMenuBackgroundPath` | string | `""` | Path to an image file shown as the background on the pre-game main menu. Relative to exe or absolute. The image is stretched to fill the entire window — design at your target resolution to avoid aspect-ratio distortion. **1920×1080** for 16:9 fullscreen; **1280×800** for Steam Deck fullscreen. See [Main menu background sizing](#main-menu-background-sizing) below. |
+| `carouselBackgroundPath` | string | `""` | **Multi-game mode only, set in `games/multigame.json`** — background shown behind the game-selection carousel. Accepts a static image or an animated GIF (played back using its embedded per-frame delays). Relative to the `games/` folder or absolute; empty shows a plain fill. See [Carousel background sizing](#carousel-background-sizing) below and [Multi-Game Mode](multi-game). |
 | `sidebarLeftPath` | string | `""` | Path to an image drawn in the left letterbox bar during gameplay. Scaled to fill the full bar area (cover, maintaining aspect ratio), centered, with any overflow cropped. Leave empty for black bars. See [Sidebar image sizing](#sidebar-image-sizing) below. |
 | `sidebarRightPath` | string | `""` | Path to an image drawn in the right letterbox bar during gameplay. Same scaling rules as the left bar. See [Sidebar image sizing](#sidebar-image-sizing) below. |
 | `mainMenuPosition` | string | `"BottomCenter"` | Position of the menu panel on the main menu screen. Accepted values: `"BottomCenter"`, `"Center"`, `"BottomLeft"`, `"BottomRight"`, `"TopLeft"`, `"TopCenter"`, `"TopRight"`. |
@@ -105,6 +108,12 @@ The background image is stretched to fill the entire window with no cropping. If
 | 16:9 fullscreen (most PC monitors) | **1920×1080 px** |
 | 16:10 fullscreen (Steam Deck) | **1280×800 px** |
 | Both | Provide a 1920×1080 image — the minor vertical compression on Steam Deck (~11%) is usually imperceptible for background art |
+
+### Carousel background sizing
+
+Like the main menu background, `carouselBackgroundPath` is stretched to fill the window — design at your target resolution (see the table above) to avoid distortion. Unlike the main menu background, it can be an **animated GIF**: each frame is decoded once at carousel startup and played back using the GIF's own per-frame delay timing, looping continuously for as long as the carousel is shown. There's no frame-count or resolution limit enforced, but keep animated backgrounds modest in size — every carousel frame re-uploads the current GIF frame to the GPU, so a very large or very long animation is unnecessary overhead for a screen players pass through quickly.
+
+Per-game `thumbnailPath` box art is drawn in the NES cardboard box's front-face aspect ratio (~1.42:1, landscape — roughly matching a 6.5in × 4.5in box). Art is contain-fit into its filmstrip tile (never cropped), so any source aspect ratio works, but designing close to 1.42:1 avoids visible letterboxing/pillarboxing within the tile. A missing `thumbnailPath` is not an error — the carousel shows a grey placeholder card with the game's initial letter instead.
 
 ### Sidebar image sizing
 
