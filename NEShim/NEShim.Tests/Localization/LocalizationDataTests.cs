@@ -390,7 +390,7 @@ internal class LocalizationDataTests
     public void DefaultInstance_CarouselUnavailable_IsEnglish()
     {
         var data = new LocalizationData();
-        Assert.That(data.CarouselUnavailable, Is.EqualTo("Unavailable"));
+        Assert.That(data.CarouselUnavailable, Is.EqualTo("Game Error"));
     }
 
     [Test]
@@ -405,26 +405,5 @@ internal class LocalizationDataTests
     {
         var data = new LocalizationData();
         Assert.That(data.CarouselNoDescription, Is.EqualTo("No description available."));
-    }
-
-    [Test]
-    public void DefaultInstance_CarouselMissingConfig_IsEnglish()
-    {
-        var data = new LocalizationData();
-        Assert.That(data.CarouselMissingConfig, Is.EqualTo("Configuration file is missing"));
-    }
-
-    [Test]
-    public void DefaultInstance_CarouselCorruptConfig_IsEnglish()
-    {
-        var data = new LocalizationData();
-        Assert.That(data.CarouselCorruptConfig, Is.EqualTo("Configuration file is corrupted"));
-    }
-
-    [Test]
-    public void DefaultInstance_CarouselMissingRom_IsEnglish()
-    {
-        var data = new LocalizationData();
-        Assert.That(data.CarouselMissingRom, Is.EqualTo("ROM file is missing"));
     }
 }

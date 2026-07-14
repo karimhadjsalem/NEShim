@@ -166,6 +166,57 @@ internal class LoggerTests
         Assert.That(count, Is.EqualTo(2));
     }
 
+    // ---- LogAlways behaviour (writes regardless of Enable) ----
+
+    [Test]
+    public void LogAlways_BeforeEnable_CreatesLogFile()
+    {
+        Logger.LogAlways("should still be written");
+
+        Assert.That(File.Exists(_logFile), Is.True);
+    }
+
+    [Test]
+    public void LogAlways_BeforeEnable_WritesMessageVerbatim()
+    {
+        const string message = "unconditional diagnostic 123";
+        Logger.LogAlways(message);
+
+        Assert.That(File.ReadAllText(_logFile), Does.Contain(message));
+    }
+
+    [Test]
+    public void LogAlways_BeforeEnable_PrefixesLineWithTimestamp()
+    {
+        Logger.LogAlways("timestamped always");
+
+        string content = File.ReadAllText(_logFile);
+        Assert.That(content, Does.Match(@"^\d{2}:\d{2}:\d{2}\.\d{3} "));
+    }
+
+    [Test]
+    public void LogAlways_AfterEnable_StillWritesMessage()
+    {
+        const string message = "always after enable";
+        Logger.Enable();
+        Logger.LogAlways(message);
+        Logger.Instance.Dispose();
+
+        Assert.That(File.ReadAllText(_logFile), Does.Contain(message));
+    }
+
+    [Test]
+    public void LogAlways_DoesNotEnableSubsequentLog()
+    {
+        // LogAlways is a synchronous, one-off write — it must not flip the Logger into the
+        // enabled state, or every gated Log() call after it would start silently writing too.
+        Logger.LogAlways("one-off");
+        Logger.Log("should still be suppressed");
+
+        string content = File.ReadAllText(_logFile);
+        Assert.That(content, Does.Not.Contain("should still be suppressed"));
+    }
+
     // ---- Reset behaviour ----
 
     [Test]

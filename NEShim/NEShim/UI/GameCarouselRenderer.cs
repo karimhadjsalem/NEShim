@@ -259,7 +259,7 @@ internal static class GameCarouselRenderer
             DrawPlaceholder(ctx, artRect, game, alpha, textScale);
 
         if (!game.IsValid)
-            DrawInvalidOverlay(ctx, artRect, game, carousel.Localization, textScale);
+            DrawInvalidOverlay(ctx, artRect, carousel.Localization, textScale);
 
         var titleRect = new SDL.FRect
         {
@@ -315,14 +315,14 @@ internal static class GameCarouselRenderer
             DrawDescriptionBack(ctx, squashed, game, alpha, textScale, carousel.Localization);
     }
 
-    private static void DrawInvalidOverlay(SDL3PaintContext ctx, SDL.Rect artRect, GameManifest game,
+    private static void DrawInvalidOverlay(SDL3PaintContext ctx, SDL.Rect artRect,
         LocalizationData loc, float textScale)
     {
         var f = ToFRect(artRect);
         ctx.FillRect(f, InvalidOverlayFill);
 
         // Scaled by the same textScale as the title/placeholder glyph — previously fixed-size
-        // regardless of tile scale, which made a small, far, INVALID tile's "Unavailable" label
+        // regardless of tile scale, which made a small, far, INVALID tile's headline label
         // stand out larger than a nearby valid tile's correctly-shrunk title.
         float headlinePt = ScaledPtSize(InvalidPtSize, textScale);
         float subPt      = ScaledPtSize(InvalidSubPtSize, textScale);
@@ -331,12 +331,11 @@ internal static class GameCarouselRenderer
         var headlineRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.08f, W = f.W - 8, H = f.H * 0.24f };
         ctx.DrawText(loc.CarouselUnavailable, headlineRect, InvalidTextColor, FontFamily, headlinePt, bold: true);
 
-        // Wrapped (never overflows the tile, regardless of message length or tile size) and
-        // centered — reason plus a short call to action, as one flowing block rather than two
-        // fixed single-line bands that could overlap or spill past the tile edge.
-        string message = $"{game.ValidationError}. {loc.CarouselContactPublisher}";
+        // The specific reason (missing/corrupt config, missing ROM) is deliberately not shown
+        // here — it isn't even carried on GameManifest; it's always written to neshim.log
+        // instead (GameScanner, Logger.LogAlways) — see LocalizationData.CarouselUnavailable.
         var bodyRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.34f, W = f.W - 8, H = f.H * 0.62f };
-        DrawWrappedText(ctx, message, bodyRect, InvalidSubTextColor, subPt, lineHeight);
+        DrawWrappedText(ctx, loc.CarouselContactPublisher, bodyRect, InvalidSubTextColor, subPt, lineHeight);
     }
 
     private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha, float textScale)

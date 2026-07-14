@@ -134,10 +134,7 @@
   "carouselNoGamesAvailable": "사용 가능한 게임이 없습니다",
   "carouselLegendLine1": "왼쪽 / 오른쪽: 탐색    위: 설명    Enter / A: 선택",
   "carouselLegendLine2": "Esc / B: 종료    F11 / Y: 전체 화면",
-  "carouselUnavailable": "사용할 수 없음",
+  "carouselUnavailable": "게임 오류",
   "carouselContactPublisher": "지원이 필요하면 게시자에게 문의하세요.",
-  "carouselNoDescription": "설명이 없습니다.",
-  "carouselMissingConfig": "구성 파일이 없습니다",
-  "carouselCorruptConfig": "구성 파일이 손상되었습니다",
-  "carouselMissingRom": "ROM 파일이 없습니다"
+  "carouselNoDescription": "설명이 없습니다."
 }

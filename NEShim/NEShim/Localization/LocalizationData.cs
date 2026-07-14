@@ -205,14 +205,11 @@ internal sealed class LocalizationData
     /// <summary>Phrased by direction (Left/Right/Up) so it reads the same on keyboard or gamepad.</summary>
     public string CarouselLegendLine1      { get; init; } = "Left / Right: Browse    Up: Description    Enter / A: Select";
     public string CarouselLegendLine2      { get; init; } = "Esc / B: Quit    F11 / Y: Fullscreen";
-    /// <summary>Headline shown over a structurally invalid game's box art — see GameManifest.IsValid.</summary>
-    public string CarouselUnavailable      { get; init; } = "Unavailable";
+    /// <summary>Headline shown over a structurally invalid game's box art — see GameManifest.IsValid.
+    /// Deliberately generic: the specific reason is written to neshim.log (GameScanner,
+    /// Logger.LogAlways) rather than shown to players — almost always either a Steam download
+    /// problem Steam itself flags, or a publisher packaging mistake caught in testing.</summary>
+    public string CarouselUnavailable      { get; init; } = "Game Error";
     public string CarouselContactPublisher { get; init; } = "Contact the publisher for support.";
     public string CarouselNoDescription    { get; init; } = "No description available.";
-    /// <summary>GameManifest.ValidationError text — folder has no config.json.</summary>
-    public string CarouselMissingConfig    { get; init; } = "Configuration file is missing";
-    /// <summary>GameManifest.ValidationError text — config.json failed to parse.</summary>
-    public string CarouselCorruptConfig    { get; init; } = "Configuration file is corrupted";
-    /// <summary>GameManifest.ValidationError text — configured romPath does not resolve to a file.</summary>
-    public string CarouselMissingRom       { get; init; } = "ROM file is missing";
 }

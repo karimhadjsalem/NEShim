@@ -134,10 +134,7 @@
   "carouselNoGamesAvailable": "Keine Spiele verfügbar",
   "carouselLegendLine1": "Links / Rechts: Durchsuchen    Oben: Beschreibung    Enter / A: Auswählen",
   "carouselLegendLine2": "Esc / B: Beenden    F11 / Y: Vollbild",
-  "carouselUnavailable": "Nicht verfügbar",
+  "carouselUnavailable": "Spielfehler",
   "carouselContactPublisher": "Wenden Sie sich für Unterstützung an den Publisher.",
-  "carouselNoDescription": "Keine Beschreibung verfügbar.",
-  "carouselMissingConfig": "Konfigurationsdatei fehlt",
-  "carouselCorruptConfig": "Konfigurationsdatei ist beschädigt",
-  "carouselMissingRom": "ROM-Datei fehlt"
+  "carouselNoDescription": "Keine Beschreibung verfügbar."
 }

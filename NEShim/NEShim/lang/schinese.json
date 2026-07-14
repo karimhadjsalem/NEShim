@@ -134,10 +134,7 @@
   "carouselNoGamesAvailable": "没有可用的游戏",
   "carouselLegendLine1": "左 / 右：浏览    上：简介    回车 / A：选择",
   "carouselLegendLine2": "Esc / B：退出    F11 / Y：全屏",
-  "carouselUnavailable": "不可用",
+  "carouselUnavailable": "游戏错误",
   "carouselContactPublisher": "如需支持，请联系发行商。",
-  "carouselNoDescription": "暂无简介。",
-  "carouselMissingConfig": "配置文件缺失",
-  "carouselCorruptConfig": "配置文件已损坏",
-  "carouselMissingRom": "ROM 文件缺失"
+  "carouselNoDescription": "暂无简介。"
 }

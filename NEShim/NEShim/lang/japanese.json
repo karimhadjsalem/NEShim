@@ -134,10 +134,7 @@
   "carouselNoGamesAvailable": "利用可能なゲームがありません",
   "carouselLegendLine1": "左右：参照    上：説明    Enter / A：選択",
   "carouselLegendLine2": "Esc / B：終了    F11 / Y：全画面表示",
-  "carouselUnavailable": "利用できません",
+  "carouselUnavailable": "ゲームエラー",
   "carouselContactPublisher": "サポートについては発行元にお問い合わせください。",
-  "carouselNoDescription": "説明はありません。",
-  "carouselMissingConfig": "設定ファイルが見つかりません",
-  "carouselCorruptConfig": "設定ファイルが破損しています",
-  "carouselMissingRom": "ROMファイルが見つかりません"
+  "carouselNoDescription": "説明はありません。"
 }

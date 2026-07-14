@@ -173,7 +173,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // manifest above — safe to resolve here, before any game is chosen, exactly like
         // LoadGame() resolves it per-game later.
         var localization = LoadLocalization();
-        var games = GameScanner.Scan(MultiGameMode.GamesRoot, localization)
+        var games = GameScanner.Scan(MultiGameMode.GamesRoot)
                                 .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
                                 .ToList();
         _carousel?.Dispose();

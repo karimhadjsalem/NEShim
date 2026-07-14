@@ -1,5 +1,4 @@
 using NEShim.Config;
-using NEShim.Localization;
 
 namespace NEShim.Tests.Integration;
 
@@ -11,7 +10,6 @@ namespace NEShim.Tests.Integration;
 internal class GameScannerTests
 {
     private string _gamesRoot = null!;
-    private readonly LocalizationData _localization = new(); // English defaults — matches ValidationError assertions below
 
     [SetUp]
     public void SetUp()
@@ -43,14 +41,14 @@ internal class GameScannerTests
     [Test]
     public void Scan_WhenGamesRootDoesNotExist_ReturnsEmpty()
     {
-        var result = GameScanner.Scan(Path.Combine(_gamesRoot, "does-not-exist"), _localization);
+        var result = GameScanner.Scan(Path.Combine(_gamesRoot, "does-not-exist"));
         Assert.That(result, Is.Empty);
     }
 
     [Test]
     public void Scan_EmptyGamesRoot_ReturnsEmpty()
     {
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result, Is.Empty);
     }
 
@@ -58,18 +56,17 @@ internal class GameScannerTests
     public void Scan_FolderWithoutConfigJson_IncludedAsInvalidWithFolderNameTitle()
     {
         Directory.CreateDirectory(Path.Combine(_gamesRoot, "not-a-game"));
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("not-a-game"));
-        Assert.That(result[0].ValidationError, Is.EqualTo(_localization.CarouselMissingConfig));
     }
 
     [Test]
     public void Scan_ValidGameFolder_ReturnsOneEntry()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result.Count, Is.EqualTo(1));
     }
 
@@ -77,7 +74,7 @@ internal class GameScannerTests
     public void Scan_ValidGameFolder_GameIdMatchesFolderName()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result[0].GameId, Is.EqualTo("kaaz"));
     }
 
@@ -85,7 +82,7 @@ internal class GameScannerTests
     public void Scan_GameDisplayTitleSet_UsesGameDisplayTitleOverWindowTitle()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ", GameDisplayTitle = "Kaaz Deluxe" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("Kaaz Deluxe"));
     }
 
@@ -93,7 +90,7 @@ internal class GameScannerTests
     public void Scan_GameDisplayTitleEmpty_FallsBackToWindowTitle()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("KAAZ"));
     }
 
@@ -101,7 +98,7 @@ internal class GameScannerTests
     public void Scan_CapturesSteamDlcAppId()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ", SteamDlcAppId = 123456 });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result[0].SteamDlcAppId, Is.EqualTo(123456u));
     }
 
@@ -110,7 +107,7 @@ internal class GameScannerTests
     {
         WriteGame("game-a", new AppConfig { WindowTitle = "Alpha" });
         WriteGame("game-b", new AppConfig { WindowTitle = "Beta" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result.Count, Is.EqualTo(2));
     }
 
@@ -119,7 +116,7 @@ internal class GameScannerTests
     {
         WriteGame("game-b", new AppConfig { WindowTitle = "beta" });
         WriteGame("game-a", new AppConfig { WindowTitle = "Alpha" });
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
         Assert.That(result.Select(g => g.DisplayTitle), Is.EqualTo(new[] { "Alpha", "beta" }));
     }
 
@@ -129,7 +126,7 @@ internal class GameScannerTests
         WriteGame("valid-game", new AppConfig { WindowTitle = "Valid" }, createRom: true);
         Directory.CreateDirectory(Path.Combine(_gamesRoot, "invalid-empty"));
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result.Count, Is.EqualTo(2));
         Assert.That(result.Single(g => g.GameId == "valid-game").IsValid, Is.True);
@@ -143,12 +140,11 @@ internal class GameScannerTests
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "config.json"), "this is not json {{{{");
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("corrupt-game"));
-        Assert.That(result[0].ValidationError, Is.EqualTo(_localization.CarouselCorruptConfig));
     }
 
     [Test]
@@ -159,7 +155,7 @@ internal class GameScannerTests
         Directory.CreateDirectory(corruptDir);
         File.WriteAllText(Path.Combine(corruptDir, "config.json"), "this is not json {{{{");
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result.Count, Is.EqualTo(2));
         Assert.That(result.Single(g => g.GameId == "valid-game").IsValid, Is.True);
@@ -171,22 +167,20 @@ internal class GameScannerTests
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ", RomPath = "missing.nes" }, createRom: false);
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result[0].IsValid, Is.False);
         Assert.That(result[0].DisplayTitle, Is.EqualTo("KAAZ"));
-        Assert.That(result[0].ValidationError, Is.EqualTo(_localization.CarouselMissingRom));
     }
 
     [Test]
-    public void Scan_FullyValidConfig_IsValidTrue_NoValidationError()
+    public void Scan_FullyValidConfig_IsValidTrue()
     {
         WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ", RomPath = "game.nes" }, createRom: true);
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result[0].IsValid, Is.True);
-        Assert.That(result[0].ValidationError, Is.Null);
     }
 
     [Test]
@@ -199,23 +193,73 @@ internal class GameScannerTests
             GameDescription = "A great game.",
         }, createRom: true);
 
-        var result = GameScanner.Scan(_gamesRoot, _localization);
+        var result = GameScanner.Scan(_gamesRoot);
 
         Assert.That(result[0].ThumbnailPath, Is.EqualTo("art/box.png"));
         Assert.That(result[0].Description, Is.EqualTo("A great game."));
     }
 
+    // ---- Invalid-entry diagnostics always reach the log, even with EnableLogging off ----
+    // The carousel only ever shows a generic "Game Error" note to players (see
+    // LocalizationData.CarouselUnavailable) — the specific reason must still be recoverable from
+    // neshim.log, so GameScanner uses Logger.LogAlways rather than the EnableLogging-gated Log.
+
     [Test]
-    public void Scan_UsesProvidedLocalization_NotJustEnglishDefault()
+    public void Scan_MissingConfigJson_WritesReasonToLog_WithoutLoggerEnabled()
     {
-        var french = new LocalizationData
+        string logPath = Path.Combine(Path.GetTempPath(), $"neshim_test_{Guid.NewGuid()}.log");
+        Logger.Reset(logPath);
+        try
         {
-            CarouselMissingConfig = "Fichier de configuration manquant",
-        };
-        Directory.CreateDirectory(Path.Combine(_gamesRoot, "not-a-game"));
+            Directory.CreateDirectory(Path.Combine(_gamesRoot, "not-a-game"));
 
-        var result = GameScanner.Scan(_gamesRoot, french);
+            GameScanner.Scan(_gamesRoot);
 
-        Assert.That(result[0].ValidationError, Is.EqualTo("Fichier de configuration manquant"));
+            Assert.That(File.ReadAllText(logPath), Does.Contain("no config.json"));
+        }
+        finally
+        {
+            if (File.Exists(logPath)) File.Delete(logPath);
+        }
+    }
+
+    [Test]
+    public void Scan_CorruptConfigJson_WritesReasonToLog_WithoutLoggerEnabled()
+    {
+        string logPath = Path.Combine(Path.GetTempPath(), $"neshim_test_{Guid.NewGuid()}.log");
+        Logger.Reset(logPath);
+        try
+        {
+            string dir = Path.Combine(_gamesRoot, "corrupt-game");
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "config.json"), "this is not json {{{{");
+
+            GameScanner.Scan(_gamesRoot);
+
+            Assert.That(File.ReadAllText(logPath), Does.Contain("failed to parse"));
+        }
+        finally
+        {
+            if (File.Exists(logPath)) File.Delete(logPath);
+        }
+    }
+
+    [Test]
+    public void Scan_MissingRomFile_WritesReasonToLog_WithoutLoggerEnabled()
+    {
+        string logPath = Path.Combine(Path.GetTempPath(), $"neshim_test_{Guid.NewGuid()}.log");
+        Logger.Reset(logPath);
+        try
+        {
+            WriteGame("kaaz", new AppConfig { WindowTitle = "KAAZ", RomPath = "missing.nes" }, createRom: false);
+
+            GameScanner.Scan(_gamesRoot);
+
+            Assert.That(File.ReadAllText(logPath), Does.Contain("ROM file not found"));
+        }
+        finally
+        {
+            if (File.Exists(logPath)) File.Delete(logPath);
+        }
     }
 }

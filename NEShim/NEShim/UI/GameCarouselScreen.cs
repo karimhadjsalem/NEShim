@@ -118,7 +118,7 @@ internal sealed class GameCarouselScreen : IDisposable
         var game = Games[SelectedIndex];
         if (!game.IsValid)
         {
-            Logger.Log($"[GameCarouselScreen] Ignoring Confirm on invalid entry '{game.GameId}': {game.ValidationError}");
+            Logger.Log($"[GameCarouselScreen] Ignoring Confirm on invalid entry '{game.GameId}' — see neshim.log for the reason (GameScanner).");
             return;
         }
         GameChosen?.Invoke(game);
