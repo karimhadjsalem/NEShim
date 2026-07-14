@@ -27,7 +27,7 @@ At startup, both files are merged: `config.json` is loaded first, then `user.jso
 | `windowMode` | string | `"Fullscreen"` | `"Fullscreen"` or `"Windowed"`. Togglable at runtime via F11 or the Settings menu. |
 | `gameDisplayTitle` | string | `""` | **Multi-game mode only** — label shown for this game on the carousel; falls back to `windowTitle` when empty. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
 | `steamDlcAppId` | integer | `0` | **Multi-game mode only** — Steam DLC App ID that must be installed for this game to appear on the carousel under a live Steam session. `0` means always shown (used for local dev/test game folders). Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
-| `thumbnailPath` | string | `""` | **Multi-game mode only** — box art shown for this game in the carousel filmstrip, in NES-box aspect ratio. Relative to this game's own folder or absolute. A missing thumbnail shows a placeholder card, not an error. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
+| `thumbnailPath` | string | `""` | **Multi-game mode only** — box art shown for this game in the carousel filmstrip, in the real NES box's portrait aspect ratio (~1.42:1 Height:Width). Relative to this game's own folder or absolute. A missing thumbnail shows a placeholder card, not an error. See [Box art sizing](#box-art-sizing) below and [Multi-Game Mode](multi-game). |
 | `gameDescription` | string | `""` | **Multi-game mode only** — blurb shown on the carousel's flip-card back when the player presses Up on this game's tile. Ignored in a single-game `config.json`. See [Multi-Game Mode](multi-game). |
 
 ---
@@ -113,7 +113,16 @@ The background image is stretched to fill the entire window with no cropping. If
 
 Like the main menu background, `carouselBackgroundPath` is stretched to fill the window — design at your target resolution (see the table above) to avoid distortion. Unlike the main menu background, it can be an **animated GIF**: each frame is decoded once at carousel startup and played back using the GIF's own per-frame delay timing, looping continuously for as long as the carousel is shown. There's no frame-count or resolution limit enforced, but keep animated backgrounds modest in size — every carousel frame re-uploads the current GIF frame to the GPU, so a very large or very long animation is unnecessary overhead for a screen players pass through quickly.
 
-Per-game `thumbnailPath` box art is drawn in the NES cardboard box's front-face aspect ratio (~1.42:1, landscape — roughly matching a 6.5in × 4.5in box). Art is contain-fit into its filmstrip tile (never cropped), so any source aspect ratio works, but designing close to 1.42:1 avoids visible letterboxing/pillarboxing within the tile. A missing `thumbnailPath` is not an error — the carousel shows a grey placeholder card with the game's initial letter instead.
+### Box art sizing
+
+Per-game `thumbnailPath` box art is drawn in the NES cardboard box's front-face aspect ratio — **~1.42:1, portrait** (Height:Width), matching a real NES box (roughly 6.5in tall × 4.5in wide) — taller than it is wide, like a book standing on a shelf, not a landscape/widescreen image. Art is contain-fit into its filmstrip tile (never cropped), so any source aspect ratio works, but designing close to 1.42:1 avoids visible letterboxing/pillarboxing within the tile.
+
+| Target | Recommended canvas |
+|---|---|
+| Standard | **500×710 px** |
+| High-resolution / 4K carousels | **700×994 px** |
+
+A missing `thumbnailPath` is not an error — the carousel shows a grey placeholder card with the game's initial letter instead.
 
 ### Sidebar image sizing
 
