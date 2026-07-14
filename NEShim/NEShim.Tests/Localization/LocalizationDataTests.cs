@@ -365,13 +365,6 @@ internal class LocalizationDataTests
     // ---- Carousel (multi-game mode only) ----
 
     [Test]
-    public void DefaultInstance_CarouselSelectGame_IsEnglish()
-    {
-        var data = new LocalizationData();
-        Assert.That(data.CarouselSelectGame, Is.EqualTo("Select a Game"));
-    }
-
-    [Test]
     public void DefaultInstance_CarouselNoGamesAvailable_IsEnglish()
     {
         var data = new LocalizationData();

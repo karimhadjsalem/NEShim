@@ -69,8 +69,6 @@ internal static class GameCarouselRenderer
             return;
         }
 
-        ctx.DrawText(loc.CarouselSelectGame, CenterRect(bounds, 0.10f), HintColor, FontFamily, 12f, bold: false);
-
         var band = FilmstripBand(bounds);
         if (carousel.SlideDirection != 0 && carousel.SlideProgress < 1f)
             DrawSliding(ctx, band, carousel);

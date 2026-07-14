@@ -38,9 +38,9 @@ internal class GameCarouselScreenTests
     [Test]
     public void Localization_ExposesConstructorValue()
     {
-        var custom = new LocalizationData { CarouselSelectGame = "Choisir un jeu" };
+        var custom = new LocalizationData { CarouselNoGamesAvailable = "Aucun jeu disponible" };
         var screen = new GameCarouselScreen([Game("a")], gamesRoot: "", carouselBackgroundPath: "", custom);
-        Assert.That(screen.Localization.CarouselSelectGame, Is.EqualTo("Choisir un jeu"));
+        Assert.That(screen.Localization.CarouselNoGamesAvailable, Is.EqualTo("Aucun jeu disponible"));
     }
 
     // ---- MoveNext / MovePrevious ----

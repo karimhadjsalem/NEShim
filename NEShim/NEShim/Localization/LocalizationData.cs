@@ -201,7 +201,6 @@ internal sealed class LocalizationData
     public string VideoPresetPhosphor     { get; init; } = "Phosphor";
 
     // ---- Multi-game carousel (only shown in multi-game mode — see MultiGameMode.IsActive) ----
-    public string CarouselSelectGame       { get; init; } = "Select a Game";
     public string CarouselNoGamesAvailable { get; init; } = "No games available";
     /// <summary>Phrased by direction (Left/Right/Up) so it reads the same on keyboard or gamepad.</summary>
     public string CarouselLegendLine1      { get; init; } = "Left / Right: Browse    Up: Description    Enter / A: Select";
