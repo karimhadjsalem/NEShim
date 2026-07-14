@@ -80,6 +80,7 @@ Every game's data is fully separate — nothing bleeds between games in a multi-
 - **`config.json` / `achievements.json` / ROM** — each lives inside that game's own `games/<gameId>/` folder, never shared.
 - **Save states and battery RAM** — `saveStateDirectory`/`saveRamPath` resolve relative to the game's own folder, exactly the same relative-path resolution single-game mode has always used, just rooted differently.
 - **`user.json` (player preferences)** — single-game mode's scheme (`%APPDATA%\<windowTitle>\user.json`) is untouched. Multi-game mode uses a separate, non-colliding scheme keyed by the stable game ID: `%APPDATA%\NEShim\Games\<gameId>\user.json`. This is deliberate — `windowTitle` is a display string a publisher could change or duplicate across games; the folder name is stable.
+- **`shell-user.json` (carousel-only preferences)** — a third, separate scheme at `%APPDATA%\NEShim\shell-user.json`, distinct from both schemes above. Today it holds only the carousel's own fullscreen/windowed preference (see F11/Y below) — a discrete setting independent of any individual game's `windowMode`, so it isn't confused with, or overwritten by, either single-game or per-game player preferences.
 - **Achievement signing key** — each game's own `achievementPublicKey` in its `config.json` is what verifies its `achievements.json` (see [Publishing](publishing) for the compile-time-key caveat below).
 
 ---
