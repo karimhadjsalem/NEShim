@@ -171,6 +171,8 @@ There is no default key — achievements will not fire until a key is configured
 
 The binary-embedded key takes precedence over the config key when both are present.
 
+> `seal-achievements` also has a `--seal-dlc-map` mode, used only in multi-game mode to sign the DLC-ownership anti-tamper map (`games/multigame.json`'s `gameDlcAppIds`) — a separate payload from achievements, with its own dedicated keypair (`DlcMapSigner`) and **no config-file key option at all** (unlike achievements above, that key must be compiled in). **Use a keypair generated separately from your achievement-signing keypair — never reuse the same one for both.** See [Multi-Game Mode — DLC ownership anti-tamper](multi-game#dlc-ownership-anti-tamper).
+
 ### Running the sealer
 
 Sealing requires the private half of your signing keypair:
