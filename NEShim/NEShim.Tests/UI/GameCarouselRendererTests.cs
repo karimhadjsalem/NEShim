@@ -48,8 +48,11 @@ internal class GameCarouselRendererTests
     // ---- ComputeBoxArtRect ----
 
     [Test]
-    public void ComputeBoxArtRect_WideSlot_LetterboxesToAspectRatio()
+    public void ComputeBoxArtRect_WideShortSlot_PillarboxesToAspectRatio()
     {
+        // A wide/short slot can't fit a full-height portrait box art without overflowing its
+        // width, so height is the binding constraint — width shrinks, leaving empty space on
+        // the sides (pillarboxing).
         var slot = new SDL.Rect { X = 0, Y = 0, W = 400, H = 100 };
         var art = GameCarouselRenderer.ComputeBoxArtRect(slot);
         Assert.That(art.H, Is.EqualTo(100));
@@ -57,12 +60,26 @@ internal class GameCarouselRendererTests
     }
 
     [Test]
-    public void ComputeBoxArtRect_TallSlot_PillarboxesToAspectRatio()
+    public void ComputeBoxArtRect_NarrowTallSlot_LetterboxesToAspectRatio()
     {
+        // A narrow/tall slot has more height available than a portrait box art needs at full
+        // width, so width is the binding constraint — height shrinks, leaving empty space above
+        // and below (letterboxing).
         var slot = new SDL.Rect { X = 0, Y = 0, W = 100, H = 400 };
         var art = GameCarouselRenderer.ComputeBoxArtRect(slot);
         Assert.That(art.W, Is.EqualTo(100));
         Assert.That(art.H, Is.LessThanOrEqualTo(slot.H));
+    }
+
+    [Test]
+    public void ComputeBoxArtRect_SquareSlot_ResultIsPortrait()
+    {
+        // Regression guard: a real NES box is taller than it is wide (like a book on a shelf) —
+        // BoxArtAspectRatio must be applied as Height:Width, not Width:Height, or box art
+        // renders sideways/landscape instead of matching the real box's proportions.
+        var slot = new SDL.Rect { X = 0, Y = 0, W = 200, H = 200 };
+        var art = GameCarouselRenderer.ComputeBoxArtRect(slot);
+        Assert.That(art.H, Is.GreaterThan(art.W));
     }
 
     [Test]

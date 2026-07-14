@@ -21,7 +21,7 @@ internal static class GameCarouselRenderer
     private const string FontFamily = "Segoe UI"; // matches LocalizationData's own default
 
     private const int VisibleSlotCount = 5; // center + 2 neighbors each side
-    private const float BoxArtAspectRatio = 1.42f; // NES cardboard box front face (~6.5in x 4.5in)
+    private const float BoxArtAspectRatio = 1.42f; // NES cardboard box front face, Height:Width (~6.5in H x 4.5in W) — taller than wide, like a book on a shelf
     private const float ArtAreaFraction = 0.78f; // fraction of a slot's height given to box art; rest is the title
     private const int SlideWideSlotCount = VisibleSlotCount + 2; // 2 extra edge slots so tiles entering/exiting stay visible
 
@@ -109,13 +109,16 @@ internal static class GameCarouselRenderer
         return result;
     }
 
-    /// <summary>Contain-fits (never crops) <see cref="BoxArtAspectRatio"/> inside <paramref name="slotBounds"/>, centered.</summary>
+    /// <summary>
+    /// Contain-fits (never crops) <see cref="BoxArtAspectRatio"/> — a Height:Width ratio, since a
+    /// real NES box is taller than it is wide — inside <paramref name="slotBounds"/>, centered.
+    /// </summary>
     internal static SDL.Rect ComputeBoxArtRect(SDL.Rect slotBounds)
     {
-        float candidateW = slotBounds.H * BoxArtAspectRatio;
+        float candidateH = slotBounds.W * BoxArtAspectRatio;
         int w, h;
-        if (candidateW <= slotBounds.W) { h = slotBounds.H; w = (int)candidateW; }
-        else { w = slotBounds.W; h = (int)(slotBounds.W / BoxArtAspectRatio); }
+        if (candidateH <= slotBounds.H) { w = slotBounds.W; h = (int)candidateH; }
+        else { h = slotBounds.H; w = (int)(slotBounds.H / BoxArtAspectRatio); }
         int x = slotBounds.X + (slotBounds.W - w) / 2;
         int y = slotBounds.Y + (slotBounds.H - h) / 2;
         return new SDL.Rect { X = x, Y = y, W = w, H = h };
