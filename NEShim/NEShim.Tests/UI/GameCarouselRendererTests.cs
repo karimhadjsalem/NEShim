@@ -172,22 +172,26 @@ internal class GameCarouselRendererTests
     [Test]
     public void ScaledTitlePtSize_FullScale_ReturnsBaseSize()
     {
-        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(1f), Is.EqualTo(13f).Within(0.01f));
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(1f), Is.EqualTo(15f).Within(0.01f));
     }
 
     [Test]
     public void ScaledTitlePtSize_AboveFloor_ScalesProportionally()
     {
-        // 13 * 0.8 = 10.4, comfortably above the 7pt floor, so this exercises the proportional
-        // path rather than the floor clamp (see ScaledTitlePtSize_NearZeroScale_FlooredToMinimum).
-        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.8f), Is.EqualTo(10.4f).Within(0.01f));
+        // 15 * 0.8 = 12, comfortably above the 4pt crash-guard floor, so this exercises the
+        // proportional path rather than the floor clamp (see
+        // ScaledTitlePtSize_NearZeroScale_FlooredToMinimum). Non-center tiles are deliberately
+        // allowed to shrink to illegible — only the centered tile is guaranteed a fixed,
+        // full-size textScale (see GameCarouselRenderer.DrawSlotAt), so this floor exists purely
+        // to avoid a zero/negative point size, not to preserve readability.
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.8f), Is.EqualTo(12f).Within(0.01f));
     }
 
     [Test]
     public void ScaledTitlePtSize_NearZeroScale_FlooredToMinimum()
     {
-        // Without a floor, a far-offset tile's title would shrink to unreadable/zero size.
-        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.01f), Is.EqualTo(7f).Within(0.01f));
+        // Without a floor, a far-offset tile's title would shrink to a zero/negative point size.
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.01f), Is.EqualTo(4f).Within(0.01f));
     }
 
     [Test]
@@ -199,4 +203,38 @@ internal class GameCarouselRendererTests
         Assert.That(far, Is.LessThan(near));
         Assert.That(near, Is.LessThan(center));
     }
+
+    // ---- ScaledPtSize (shared by title, placeholder glyph, and invalid-overlay text) ----
+
+    [Test]
+    public void ScaledPtSize_FullScale_ReturnsBaseSize()
+    {
+        Assert.That(GameCarouselRenderer.ScaledPtSize(10f, 1f), Is.EqualTo(10f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledPtSize_HalfScale_ScalesProportionally()
+    {
+        Assert.That(GameCarouselRenderer.ScaledPtSize(10f, 0.5f), Is.EqualTo(5f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledPtSize_NearZeroScale_FlooredToMinimum()
+    {
+        Assert.That(GameCarouselRenderer.ScaledPtSize(10f, 0.01f), Is.EqualTo(4f).Within(0.01f));
+    }
+
+    [Test]
+    public void ScaledTitlePtSize_DelegatesToScaledPtSize_WithTitleBaseSize()
+    {
+        // ScaledTitlePtSize is a thin wrapper — this pins that relationship so the two can't
+        // silently drift apart (e.g. one gets the floor tweaked and the other doesn't).
+        Assert.That(GameCarouselRenderer.ScaledTitlePtSize(0.7f),
+            Is.EqualTo(GameCarouselRenderer.ScaledPtSize(15f, 0.7f)).Within(0.001f));
+    }
+
+    // ---- DrawTitle wrap decision (indirectly, via the underlying width comparison) ----
+    // DrawTitle itself does SDL text measurement and drawing, so it isn't unit-testable in
+    // isolation without an SDL context — see the "no Draw() tests" convention for this file.
+    // The wrap threshold constant is exercised functionally via manual/smoke testing.
 }

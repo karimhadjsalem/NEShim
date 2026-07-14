@@ -27,13 +27,18 @@ internal static class GameCarouselRenderer
     // Anchor values at integer |offset from center| 0, 1, 2, ... — interpolated continuously
     // via InterpolateByOffset so a tile's size/opacity change smoothly as it slides between
     // slots, rather than snapping at each offset boundary. Values beyond the array clamp to
-    // the last entry. The same per-slot scale also drives title/placeholder-glyph font size
-    // (via *PtSize helpers below) so non-focused tiles' text shrinks with the tile itself.
+    // the last entry. Non-center tiles' title/placeholder-glyph font size also shrinks with
+    // this same scale (via *PtSize helpers below) — but the centered tile's text always uses a
+    // fixed textScale of 1, decoupled from this array entirely, so it stays full-size and
+    // legible even for the "about-to-become-center" tile mid-slide, which would otherwise still
+    // be short of scale 1 at that instant (see DrawSlotAt).
     private static readonly float[] SlotScaleByOffset = { 1f, 0.75f, 0.55f };
     private static readonly float[] SlotAlphaByOffset  = { 1f, 0.75f, 0.5f };
 
-    private const float TitlePtSize            = 13f;
-    private const float MinTitlePtSize         = 7f; // floor so far-offset tiles' titles stay legible rather than vanishing
+    private const float TitlePtSize            = 15f; // the centered tile's title — the single most prominent text on the carousel
+    private const float MinTitlePtSize         = 4f; // crash-guard only — non-center tiles are allowed to shrink to illegible; only the centered tile is guaranteed legible (see DrawSlotAt's textScale)
+    private const float TitleWrapThreshold     = 1.15f; // a title only wraps once its single-line width exceeds the box art's width by more than this — minor overflow is left alone
+    private const float TitleLineSpacing       = 1.15f; // extra breathing room between wrapped title lines, applied on top of the font's own measured line height
     private const float PlaceholderGlyphPtSize = 28f;
     private const float InvalidPtSize          = 10f;
     private const float InvalidSubPtSize       = 8f;
@@ -129,8 +134,16 @@ internal static class GameCarouselRenderer
         return (scale, showFront);
     }
 
-    /// <summary>Scales a base font size by a tile's slot scale, floored so far-offset tiles stay legible.</summary>
-    internal static float ScaledTitlePtSize(float slotScale) => Math.Max(MinTitlePtSize, TitlePtSize * slotScale);
+    /// <summary>
+    /// Scales any base font size by textScale, floored at MinTitlePtSize purely to avoid a
+    /// zero/negative point size — not to preserve legibility (see DrawSlotAt's textScale: only
+    /// the centered tile is guaranteed a full-size textScale of 1; every other per-tile text
+    /// element uses this same helper so none of them are left unscaled by accident).
+    /// </summary>
+    internal static float ScaledPtSize(float basePtSize, float textScale) => Math.Max(MinTitlePtSize, basePtSize * textScale);
+
+    /// <summary>Convenience wrapper over <see cref="ScaledPtSize"/> for the title font specifically.</summary>
+    internal static float ScaledTitlePtSize(float slotScale) => ScaledPtSize(TitlePtSize, slotScale);
 
     // ---- Draw composition ----
 
@@ -217,18 +230,24 @@ internal static class GameCarouselRenderer
             H = (int)slotH,
         };
 
+        // Text size is guaranteed full-size exactly when this slot IS the settled center
+        // (offset 0), regardless of the tile's own geometry scale — the only entry that needs
+        // to stay legible is the highlighted one; every other slot's text scales down with its
+        // tile and is allowed to shrink to illegible at the far edges (see MinTitlePtSize).
         bool isCenter = MathF.Abs(offsetFromCenter) < 0.01f;
+        float textScale = isCenter ? 1f : scale;
+
         if (allowFlip && isCenter && (carousel.DescriptionShown || carousel.FlipProgress < 1f))
         {
-            DrawFlippingTile(ctx, slotRect, game, carousel, alpha, scale);
+            DrawFlippingTile(ctx, slotRect, game, carousel, alpha, textScale);
             return;
         }
 
-        DrawTile(ctx, slotRect, game, carousel, alpha, scale);
+        DrawTile(ctx, slotRect, game, carousel, alpha, textScale);
     }
 
     private static void DrawTile(SDL3PaintContext ctx, SDL.Rect slotRect, GameManifest game,
-        GameCarouselScreen carousel, float alpha, float scale)
+        GameCarouselScreen carousel, float alpha, float textScale)
     {
         var artArea = new SDL.Rect
         {
@@ -239,20 +258,43 @@ internal static class GameCarouselRenderer
         if (carousel.TryGetThumbnail(game.GameId, out var surface))
             ctx.BlitSurfaceAlpha(surface, artRect, alpha);
         else
-            DrawPlaceholder(ctx, artRect, game, alpha, scale);
+            DrawPlaceholder(ctx, artRect, game, alpha, textScale);
 
         if (!game.IsValid)
-            DrawInvalidOverlay(ctx, artRect, game, carousel.Localization);
+            DrawInvalidOverlay(ctx, artRect, game, carousel.Localization, textScale);
 
         var titleRect = new SDL.FRect
         {
             X = slotRect.X, Y = artArea.Y + artArea.H, W = slotRect.W, H = slotRect.H - artArea.H,
         };
-        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(scale), bold: true);
+        DrawTitle(ctx, game.DisplayTitle, titleRect, artRect.W, WithAlpha(TitleColor, alpha), textScale);
+    }
+
+    /// <summary>
+    /// Draws a tile's title as a single centered line, unless it extends significantly beyond
+    /// the box art's width (<see cref="TitleWrapThreshold"/>), in which case it wraps — reusing
+    /// the same word-wrap/centering logic as the description and invalid-overlay text.
+    /// </summary>
+    private static void DrawTitle(SDL3PaintContext ctx, string title, SDL.FRect titleRect, int artWidth,
+        SDL.Color color, float textScale)
+    {
+        float ptSize = ScaledTitlePtSize(textScale);
+        var (measuredWidth, measuredHeight) = ctx.MeasureText(title, FontFamily, ptSize, bold: true);
+
+        if (measuredWidth <= artWidth * TitleWrapThreshold)
+        {
+            ctx.DrawText(title, titleRect, color, FontFamily, ptSize, bold: true);
+            return;
+        }
+
+        // measuredHeight is the font's own line height at this ptSize (ascent+descent), not just
+        // the glyph height — a fixed ptSize-based ratio undershot it for bold text and caused
+        // wrapped lines to overlap. TitleLineSpacing adds a little breathing room on top of that.
+        DrawWrappedText(ctx, title, titleRect, color, ptSize, measuredHeight * TitleLineSpacing, bold: true);
     }
 
     private static void DrawFlippingTile(SDL3PaintContext ctx, SDL.Rect slotRect, GameManifest game,
-        GameCarouselScreen carousel, float alpha, float scale)
+        GameCarouselScreen carousel, float alpha, float textScale)
     {
         // The face shown at the START of the transition is 'front' exactly when the toggle that
         // just fired turned the description ON (DescriptionShown already reflects the new target
@@ -270,47 +312,54 @@ internal static class GameCarouselRenderer
         };
 
         if (showFront)
-            DrawTile(ctx, squashed, game, carousel, alpha, scale);
+            DrawTile(ctx, squashed, game, carousel, alpha, textScale);
         else
-            DrawDescriptionBack(ctx, squashed, game, alpha, scale, carousel.Localization);
+            DrawDescriptionBack(ctx, squashed, game, alpha, textScale, carousel.Localization);
     }
 
     private static void DrawInvalidOverlay(SDL3PaintContext ctx, SDL.Rect artRect, GameManifest game,
-        LocalizationData loc)
+        LocalizationData loc, float textScale)
     {
         var f = ToFRect(artRect);
         ctx.FillRect(f, InvalidOverlayFill);
 
+        // Scaled by the same textScale as the title/placeholder glyph — previously fixed-size
+        // regardless of tile scale, which made a small, far, INVALID tile's "Unavailable" label
+        // stand out larger than a nearby valid tile's correctly-shrunk title.
+        float headlinePt = ScaledPtSize(InvalidPtSize, textScale);
+        float subPt      = ScaledPtSize(InvalidSubPtSize, textScale);
+        float lineHeight = ScaledPtSize(InvalidLineHeight, textScale);
+
         var headlineRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.08f, W = f.W - 8, H = f.H * 0.24f };
-        ctx.DrawText(loc.CarouselUnavailable, headlineRect, InvalidTextColor, FontFamily, InvalidPtSize, bold: true);
+        ctx.DrawText(loc.CarouselUnavailable, headlineRect, InvalidTextColor, FontFamily, headlinePt, bold: true);
 
         // Wrapped (never overflows the tile, regardless of message length or tile size) and
         // centered — reason plus a short call to action, as one flowing block rather than two
         // fixed single-line bands that could overlap or spill past the tile edge.
         string message = $"{game.ValidationError}. {loc.CarouselContactPublisher}";
         var bodyRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.34f, W = f.W - 8, H = f.H * 0.62f };
-        DrawWrappedText(ctx, message, bodyRect, InvalidSubTextColor, InvalidSubPtSize, InvalidLineHeight);
+        DrawWrappedText(ctx, message, bodyRect, InvalidSubTextColor, subPt, lineHeight);
     }
 
-    private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha, float scale)
+    private static void DrawPlaceholder(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha, float textScale)
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(PlaceholderFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
         string glyph = string.IsNullOrEmpty(game.DisplayTitle) ? "?" : game.DisplayTitle[0].ToString().ToUpperInvariant();
-        float glyphPtSize = Math.Max(MinTitlePtSize, PlaceholderGlyphPtSize * scale);
+        float glyphPtSize = ScaledPtSize(PlaceholderGlyphPtSize, textScale);
         ctx.DrawText(glyph, f, WithAlpha(PlaceholderGlyphColor, alpha), FontFamily, glyphPtSize, bold: true);
     }
 
     private static void DrawDescriptionBack(SDL3PaintContext ctx, SDL.Rect rect, GameManifest game, float alpha,
-        float scale, LocalizationData loc)
+        float textScale, LocalizationData loc)
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(DescriptionBackFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
 
         var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + 6, W = f.W - 16, H = 24f };
-        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(scale), bold: true);
+        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(textScale), bold: true);
 
         string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
         var bodyRect = new SDL.FRect
@@ -327,9 +376,9 @@ internal static class GameCarouselRenderer
     /// spilling past the edge.
     /// </summary>
     private static void DrawWrappedText(SDL3PaintContext ctx, string text, SDL.FRect rect, SDL.Color color,
-        float ptSize, float lineHeight)
+        float ptSize, float lineHeight, bool bold = false)
     {
-        var lines = WrapLines(ctx, text, ptSize, rect.W);
+        var lines = WrapLines(ctx, text, ptSize, rect.W, bold);
         int maxLines = Math.Max(1, (int)(rect.H / lineHeight));
         if (lines.Count > maxLines) lines.RemoveRange(maxLines, lines.Count - maxLines);
 
@@ -339,12 +388,12 @@ internal static class GameCarouselRenderer
         for (int i = 0; i < lines.Count; i++)
         {
             var lineRect = new SDL.FRect { X = rect.X, Y = startY + i * lineHeight, W = rect.W, H = lineHeight };
-            ctx.DrawText(lines[i], lineRect, color, FontFamily, ptSize, bold: false,
+            ctx.DrawText(lines[i], lineRect, color, FontFamily, ptSize, bold,
                 halign: TextHAlign.Center, valign: TextVAlign.Center);
         }
     }
 
-    private static List<string> WrapLines(SDL3PaintContext ctx, string text, float ptSize, float maxWidth)
+    private static List<string> WrapLines(SDL3PaintContext ctx, string text, float ptSize, float maxWidth, bool bold = false)
     {
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var lines = new List<string>();
@@ -352,7 +401,7 @@ internal static class GameCarouselRenderer
         foreach (var word in words)
         {
             string candidate = line.Length == 0 ? word : $"{line} {word}";
-            var (w, _) = ctx.MeasureText(candidate, FontFamily, ptSize, bold: false);
+            var (w, _) = ctx.MeasureText(candidate, FontFamily, ptSize, bold);
             if (w > maxWidth && line.Length > 0)
             {
                 lines.Add(line.ToString());
