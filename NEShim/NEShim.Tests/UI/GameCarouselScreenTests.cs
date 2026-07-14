@@ -112,6 +112,21 @@ internal class GameCarouselScreenTests
         Assert.That(screen.SlideProgress, Is.LessThan(1f));
     }
 
+    [Test]
+    public void MoveNext_WhileDescriptionShown_ClosesDescriptionImmediately()
+    {
+        // If the description card is open when the player moves to a different tile, it snaps
+        // closed instantly instead of animating a flip on a tile that's simultaneously sliding.
+        var screen = NewScreen(Game("a"), Game("b"));
+        screen.ToggleDescription();
+        Assert.That(screen.DescriptionShown, Is.True);
+
+        screen.MoveNext();
+
+        Assert.That(screen.DescriptionShown, Is.False);
+        Assert.That(screen.FlipProgress, Is.EqualTo(1f)); // settled, not mid-flip
+    }
+
     // ---- Confirm / GameChosen ----
 
     [Test]
@@ -384,5 +399,37 @@ internal class GameCarouselScreenTests
         float sourceRatio = 3000f / 4000f;
         float resultRatio = (float)w / h;
         Assert.That(resultRatio, Is.EqualTo(sourceRatio).Within(0.01f));
+    }
+
+    // ---- TryGetThumbnail / BackgroundFrame ----
+    // NewScreen's empty gamesRoot/carouselBackgroundPath means no thumbnail or background
+    // surface is ever loaded (no SDL/file I/O — see NewScreen's comment), so these only
+    // exercise the "nothing loaded" paths — the SDL-loading paths themselves are outside the
+    // unit-test boundary (crosses the file system/SDL, same reason GameCarouselRenderer is
+    // excluded from coverage — see coverage.runsettings).
+
+    [Test]
+    public void TryGetThumbnail_NoThumbnailsLoaded_ReturnsFalse()
+    {
+        var screen = NewScreen(Game("a"));
+        bool found = screen.TryGetThumbnail("a", out var surface);
+        Assert.That(found, Is.False);
+        Assert.That(surface, Is.EqualTo(IntPtr.Zero));
+    }
+
+    [Test]
+    public void BackgroundFrame_NoBackgroundConfigured_ReturnsNull()
+    {
+        var screen = NewScreen(Game("a"));
+        Assert.That(screen.BackgroundFrame, Is.Null);
+    }
+
+    // ---- Dispose ----
+
+    [Test]
+    public void Dispose_NoThumbnailsOrBackground_DoesNotThrow()
+    {
+        var screen = NewScreen(Game("a"), Game("b"));
+        Assert.That(screen.Dispose, Throws.Nothing);
     }
 }

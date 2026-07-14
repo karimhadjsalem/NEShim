@@ -56,4 +56,19 @@ internal class MenuScaleTests
     {
         Assert.That(MenuScale.ComputeScale(800, 600), Is.LessThan(1f));
     }
+
+    // ---- UpdateViewport ----
+    // MenuScale.Scale is a static, process-global mutable field with no reset hook, and every
+    // other test file in the suite (e.g. GameCarouselRendererTests' ScaledPtSize assertions)
+    // implicitly relies on it defaulting to 1.0. Calling UpdateViewport with the reference
+    // resolution itself exercises the assignment without ever leaving Scale in a polluted,
+    // non-1.0 state for tests that run afterward — see MenuScale's own doc comment.
+
+    [Test]
+    public void UpdateViewport_AtReferenceResolution_SetsScaleToOne()
+    {
+        MenuScale.UpdateViewport(1024, 672);
+
+        Assert.That(MenuScale.Scale, Is.EqualTo(1f).Within(0.001f));
+    }
 }

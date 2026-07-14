@@ -10,13 +10,21 @@
     have no unit-testable surface. Every method either opens a native SDL renderer,
     calls into a D3D11 device, or wraps an audio output device. Integration tests that
     exercise these classes require real hardware and live outside the unit-test suite.
+
+    NEShim.UI.GameCarouselRenderer joins its siblings MenuRenderer/MainMenuRenderer here:
+    same stateless-renderer shape (CLAUDE.md's "Stateless renderer" pattern) — the pure
+    geometry/scaling helpers (ComputeSlotGameIndices, ComputeBoxArtRect, ComputeFlipVisual,
+    EaseInOut, InterpolateByOffset, ScaledPtSize, ScaledTitlePtSize) are still fully unit
+    tested in GameCarouselRendererTests.cs; everything past that point is SDL text
+    measurement/drawing (ctx.MeasureText/DrawText), which needs a live SDL_ttf font context
+    to exercise meaningfully, same boundary as MenuRenderer/MainMenuRenderer below.
   -->
   <DataCollectionRunSettings>
     <DataCollectors>
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
           <Include>[NEShim]*</Include>
-          <Exclude>[NEShim]NEShim.Rendering.SDL3PaintContext,[NEShim]NEShim.Rendering.ControllerSprites,[NEShim]NEShim.UI.MenuRenderer,[NEShim]NEShim.UI.MainMenuRenderer,[NEShim]NEShim.Rendering.OverlayRenderer,[NEShim]NEShim.Rendering.SdlSurfaceLoader,[NEShim]NEShim.Localization.FlagImageLoader,[NEShim]NEShim.Audio.AudioFileReaderSource</Exclude>
+          <Exclude>[NEShim]NEShim.Rendering.SDL3PaintContext,[NEShim]NEShim.Rendering.ControllerSprites,[NEShim]NEShim.UI.MenuRenderer,[NEShim]NEShim.UI.MainMenuRenderer,[NEShim]NEShim.UI.GameCarouselRenderer,[NEShim]NEShim.Rendering.OverlayRenderer,[NEShim]NEShim.Rendering.SdlSurfaceLoader,[NEShim]NEShim.Localization.FlagImageLoader,[NEShim]NEShim.Audio.AudioFileReaderSource</Exclude>
         </Configuration>
       </DataCollector>
     </DataCollectors>
