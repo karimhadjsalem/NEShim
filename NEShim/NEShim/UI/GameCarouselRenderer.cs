@@ -47,6 +47,7 @@ internal static class GameCarouselRenderer
     private const float DescriptionPtSize        = 10f;
     private const float DescriptionLineSpacing   = 1.15f; // extra breathing room between description lines, applied on top of the font's own measured line height — a fixed guessed pt-based height previously undershot the real glyph height and caused lines to nearly overlap (same root cause as TitleLineSpacing above)
     private const float DescriptionTitleTopPad   = 12f; // top inset for the description card's title, away from the card border
+    private const float DescriptionBodyHorizontalPad = 24f; // left/right inset for the description body text — the shared 8px tile padding reads as negligible now that the card is DescriptionWidthMultiplier times wider
     private const int   DescriptionTitleMaxLines = 2; // budgeted title height — generous enough for a wrapped 2-line title without needing dynamic downstream layout
     private const float DescriptionWidthMultiplier = 2.2f; // the description card is drawn last (see DrawStatic) so it can overlay its neighbors — significantly wider than a single tile
 
@@ -392,7 +393,10 @@ internal static class GameCarouselRenderer
         string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
         var bodyRect = new SDL.FRect
         {
-            X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - DescriptionTitleTopPad - titleRect.H - 20,
+            X = f.X + DescriptionBodyHorizontalPad,
+            Y = titleRect.Y + titleRect.H + 4,
+            W = f.W - DescriptionBodyHorizontalPad * 2,
+            H = f.H - DescriptionTitleTopPad - titleRect.H - 20,
         };
 
         // measuredHeight is the font's own line height at this ptSize (ascent+descent), not just
