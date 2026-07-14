@@ -89,4 +89,33 @@ internal class GameContextTests
         // regression guardrail: IsActive must be false in every normal test run.
         Assert.That(MultiGameMode.IsActive, Is.EqualTo(File.Exists(MultiGameMode.ManifestPath)));
     }
+
+    [Test]
+    public void MultiGameMode_ShellUserConfigPath_IsShellUserJsonUnderNEShimAppDataFolder()
+    {
+        string expected = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "shell-user.json");
+        Assert.That(MultiGameMode.ShellUserConfigPath, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void MultiGameMode_ShellUserConfigPath_DoesNotCollideWithPerGameUserConfigScheme()
+    {
+        // The per-game scheme nests under %APPDATA%\NEShim\Games\<gameId>\user.json — the shell
+        // path must not fall under that "Games" subfolder, or a game literally named "shell-user"
+        // could collide with the carousel's own preference file.
+        string perGameRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games");
+        Assert.That(MultiGameMode.ShellUserConfigPath, Does.Not.StartWith(perGameRoot));
+    }
+
+    [Test]
+    public void MultiGameMode_ShellUserConfigPath_DoesNotCollideWithSingleGameUserConfigScheme()
+    {
+        // The single-game scheme is %APPDATA%\<windowTitle>\user.json — verify the shell path
+        // isn't accidentally that same shape for a plausible windowTitle of "NEShim".
+        string singleGameScheme = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "user.json");
+        Assert.That(MultiGameMode.ShellUserConfigPath, Is.Not.EqualTo(singleGameScheme));
+    }
 }

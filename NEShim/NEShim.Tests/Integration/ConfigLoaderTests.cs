@@ -449,6 +449,30 @@ internal class ConfigLoaderTests
     }
 
     [Test]
+    public void SaveUserTo_ThenLoad_RoundTripsWindowMode()
+    {
+        // Exercises the exact mechanism NEShimApp uses to give the multi-game carousel its own
+        // discrete, persisted window-mode preference (MultiGameMode.ShellUserConfigPath):
+        // SaveUserTo on toggle, Load(publisherPath, userPath) on carousel (re-)entry.
+        var publisher = new AppConfig { WindowTitle = "Shell", WindowMode = "Windowed" };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        try
+        {
+            ConfigLoader.SaveUserTo(new AppConfig { WindowMode = "Fullscreen" }, userPath);
+
+            var loaded = ConfigLoader.Load(_configPath, userPath);
+
+            Assert.That(loaded.WindowMode, Is.EqualTo("Fullscreen"));
+        }
+        finally
+        {
+            if (File.Exists(userPath)) File.Delete(userPath);
+        }
+    }
+
+    [Test]
     public void Load_UserLanguage_OverridesPublisherLanguage()
     {
         var publisher = new AppConfig { WindowTitle = "TestGame", Language = "Auto" };

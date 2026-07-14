@@ -161,14 +161,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // "Change Game" (ChangeGame -> UnloadCurrentGame nulls _config), so CarouselBackgroundPath
         // and friends always reflect games/multigame.json rather than the just-exited game's
         // own config.json.
-        _config = ConfigLoader.LoadFrom(MultiGameMode.ManifestPath);
-        // Deliberately does NOT re-apply _config.WindowMode to the window here — window mode is
-        // a live player preference (toggled via F11/Y at any point) that should persist across
-        // carousel/game transitions, not snap back to the shell's configured default every time
-        // the carousel reappears. Sync the field the other way instead, so _config stays
-        // consistent with the window's actual current state (e.g. for the Settings screen).
-        // The shell's configured mode is only ever the STARTING point — see InitializeWindowAndD3DHook.
-        _config.WindowMode = _isFullscreen ? "Fullscreen" : "Windowed";
+        // Overlays the carousel's own persisted window-mode preference (ShellUserConfigPath) on
+        // top of the publisher shell manifest. This is a discrete, carousel-only setting,
+        // independent of any individual game's own WindowMode — applying it here (rather than
+        // leaving whatever mode the just-exited game left the window in) is what makes the
+        // carousel's window mode stick across game transitions and process relaunches.
+        _config = ConfigLoader.Load(MultiGameMode.ManifestPath, MultiGameMode.ShellUserConfigPath);
+        ApplyConfiguredWindowMode();
 
         // ResolveLanguage() only needs _config.Language, already populated from the shell
         // manifest above — safe to resolve here, before any game is chosen, exactly like
@@ -831,14 +830,22 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _sdlHost.SetFullscreen(fullscreen);
         _config!.WindowMode = fullscreen ? "Fullscreen" : "Windowed";
         Logger.Log($"[Window] Mode set to {_config.WindowMode}.");
+
+        // The carousel has its own discrete, persisted window-mode preference (see
+        // MultiGameMode.ShellUserConfigPath), independent of any game's own WindowMode. Save it
+        // immediately — unlike per-game config, which defers persistence to UnloadCurrentGame /
+        // Shutdown — so a toggle made on the carousel survives both a later game selection and a
+        // full process relaunch. _carousel is only non-null while the carousel is the active
+        // screen, so this is a no-op during gameplay or the initial startup apply.
+        if (MultiGameMode.IsActive && _carousel is not null)
+            ConfigLoader.SaveUserTo(_config, MultiGameMode.ShellUserConfigPath);
     }
 
     /// <summary>Applies whatever WindowMode the current _config specifies. Called at true startup
-    /// (InitializeWindowAndD3DHook) and when loading a chosen game (LoadGame) — both are explicit
-    /// "this config says X" moments. Deliberately NOT called when (re-)entering the carousel:
-    /// window mode there is a live player preference (toggled via the ToggleWindow hotkey) that
-    /// should persist across carousel/game transitions, not reset to the shell's configured
-    /// default every time — see InitializeCarousel.</summary>
+    /// (InitializeWindowAndD3DHook), when loading a chosen game (LoadGame), and when
+    /// (re-)entering the carousel (InitializeCarousel) — each is an explicit "this config says X"
+    /// moment, where _config has already been loaded with the appropriate source's own persisted
+    /// preference (the game's user.json, or ShellUserConfigPath for the carousel).</summary>
     private void ApplyConfiguredWindowMode() =>
         SetWindowMode(_config!.WindowMode.Equals("Fullscreen", StringComparison.OrdinalIgnoreCase));
 

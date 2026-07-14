@@ -20,4 +20,15 @@ internal static class MultiGameMode
     internal static string ManifestPath => Path.Combine(GamesRoot, ManifestFileName);
 
     internal static readonly bool IsActive = File.Exists(ManifestPath);
+
+    /// <summary>
+    /// Discrete, carousel-only user preference store — separate from both the single-game
+    /// scheme (%APPDATA%\&lt;windowTitle&gt;\user.json) and the per-game scheme
+    /// (%APPDATA%\NEShim\Games\&lt;gameId&gt;\user.json), so the carousel's own window-mode
+    /// preference (see NEShimApp.InitializeCarousel/SetWindowMode) survives both game
+    /// transitions and a full process relaunch without being confused with any individual
+    /// game's own WindowMode.
+    /// </summary>
+    internal static string ShellUserConfigPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "shell-user.json");
 }
