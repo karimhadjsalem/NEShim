@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using SDL3;
+using NEShim.Platform;
 using NEShim.Rendering.Filters;
 using NEShim.Rendering.MotionEffects;
 
@@ -532,6 +533,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     private void RenderOverlayBitmap()
     {
+        MenuScale.UpdateViewport(_viewportWidth, _viewportHeight);
         var clientRect = new SDL.Rect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         _paintContext!.Clear(new SDL.Color { R = 0, G = 0, B = 0, A = 0 });
         _menuSceneProvider?.GetActiveScenePainter()?.Invoke(_paintContext, clientRect);

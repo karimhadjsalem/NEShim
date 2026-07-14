@@ -1,5 +1,6 @@
 using NEShim.Config;
 using NEShim.Localization;
+using NEShim.Platform;
 using NEShim.Rendering;
 using SDL3;
 
@@ -43,8 +44,9 @@ internal static class GameCarouselRenderer
     private const float InvalidPtSize          = 10f;
     private const float InvalidSubPtSize       = 8f;
     private const float InvalidLineHeight      = 11f;
-    private const float DescriptionPtSize      = 10f;
-    private const float DescriptionLineHeight  = 14f;
+    private const float DescriptionPtSize        = 10f;
+    private const float DescriptionLineSpacing   = 1.15f; // extra breathing room between description lines, applied on top of the font's own measured line height — a fixed guessed pt-based height previously undershot the real glyph height and caused lines to nearly overlap (same root cause as TitleLineSpacing above)
+    private const float DescriptionTitleTopPad   = 12f; // top inset for the description card's title, away from the card border
 
     private static readonly SDL.Color BgColor              = new() { R = 10,  G = 10,  B = 20,  A = 255 };
     private static readonly SDL.Color TitleColor           = new() { R = 195, G = 225, B = 255, A = 255 };
@@ -65,7 +67,7 @@ internal static class GameCarouselRenderer
 
         if (carousel.Games.Count == 0)
         {
-            ctx.DrawText(loc.CarouselNoGamesAvailable, CenterRect(bounds, 0.5f), EmptyColor, FontFamily, 16f, bold: true);
+            ctx.DrawText(loc.CarouselNoGamesAvailable, CenterRect(bounds, 0.5f), EmptyColor, FontFamily, 16f * MenuScale.Scale, bold: true);
             return;
         }
 
@@ -81,8 +83,8 @@ internal static class GameCarouselRenderer
         // quit, fullscreen) name their actual bindings instead. No game counter or arrow glyphs —
         // the centered, highlighted tile already shows the selection; a numeric count and "<"/">"
         // hints added nothing the filmstrip itself doesn't already convey.
-        ctx.DrawText(loc.CarouselLegendLine1, CenterRect(bounds, 0.89f), HintColor, FontFamily, 11f, bold: false);
-        ctx.DrawText(loc.CarouselLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f, bold: false);
+        ctx.DrawText(loc.CarouselLegendLine1, CenterRect(bounds, 0.89f), HintColor, FontFamily, 11f * MenuScale.Scale, bold: false);
+        ctx.DrawText(loc.CarouselLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f * MenuScale.Scale, bold: false);
     }
 
     // ---- Pure layout/geometry helpers (unit tested; no SDL rendering side effects) ----
@@ -133,12 +135,16 @@ internal static class GameCarouselRenderer
     }
 
     /// <summary>
-    /// Scales any base font size by textScale, floored at MinTitlePtSize purely to avoid a
-    /// zero/negative point size — not to preserve legibility (see DrawSlotAt's textScale: only
-    /// the centered tile is guaranteed a full-size textScale of 1; every other per-tile text
-    /// element uses this same helper so none of them are left unscaled by accident).
+    /// Scales any base font size by textScale and the window-resolution-relative
+    /// <see cref="MenuScale.Scale"/> (so text stays visually consistent between windowed and
+    /// fullscreen, or any manual resize — see MenuScale's own doc comment), floored at
+    /// MinTitlePtSize purely to avoid a zero/negative point size — not to preserve legibility
+    /// (see DrawSlotAt's textScale: only the centered tile is guaranteed a full-size textScale
+    /// of 1; every other per-tile text element uses this same helper so none of them are left
+    /// unscaled by accident).
     /// </summary>
-    internal static float ScaledPtSize(float basePtSize, float textScale) => Math.Max(MinTitlePtSize, basePtSize * textScale);
+    internal static float ScaledPtSize(float basePtSize, float textScale) =>
+        Math.Max(MinTitlePtSize, basePtSize * textScale * MenuScale.Scale);
 
     /// <summary>Convenience wrapper over <see cref="ScaledPtSize"/> for the title font specifically.</summary>
     internal static float ScaledTitlePtSize(float slotScale) => ScaledPtSize(TitlePtSize, slotScale);
@@ -355,7 +361,7 @@ internal static class GameCarouselRenderer
         ctx.FillRect(f, WithAlpha(DescriptionBackFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
 
-        var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + 6, W = f.W - 16, H = 24f };
+        var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + DescriptionTitleTopPad, W = f.W - 16, H = 24f };
         ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(textScale), bold: true);
 
         string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
@@ -363,7 +369,14 @@ internal static class GameCarouselRenderer
         {
             X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - titleRect.H - 16,
         };
-        DrawWrappedText(ctx, description, bodyRect, WithAlpha(HintColor, alpha), DescriptionPtSize, DescriptionLineHeight);
+
+        // measuredHeight is the font's own line height at this ptSize (ascent+descent), not just
+        // the glyph height — a fixed pt-based guess undershot it and caused lines to nearly
+        // overlap (same fix as DrawTitle's TitleLineSpacing above).
+        float descriptionPtSize = DescriptionPtSize * MenuScale.Scale;
+        var (_, measuredHeight) = ctx.MeasureText(description, FontFamily, descriptionPtSize, bold: false);
+        DrawWrappedText(ctx, description, bodyRect, WithAlpha(HintColor, alpha),
+            descriptionPtSize, measuredHeight * DescriptionLineSpacing);
     }
 
     /// <summary>

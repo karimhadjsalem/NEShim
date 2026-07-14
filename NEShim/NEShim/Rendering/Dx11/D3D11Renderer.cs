@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using NEShim.Platform;
 using SDL3;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
@@ -844,6 +845,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private void RenderOverlayBitmap()
     {
+        MenuScale.UpdateViewport(_viewportWidth, _viewportHeight);
         var clientRect = new SDL.Rect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         _paintContext!.Clear(new SDL.Color { R = 0, G = 0, B = 0, A = 0 });
 
