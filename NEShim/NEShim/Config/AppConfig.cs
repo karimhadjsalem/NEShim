@@ -27,6 +27,33 @@ public sealed class AppConfig
     // the games/ folder or absolute. Leave empty for a plain fill.
     public string CarouselBackgroundPath { get; set; } = "";
 
+    // games/multigame.json shell config only — ignored in a per-game config.json. Trusted
+    // gameId -> expected SteamDlcAppId mapping for games that must be sold as separate DLC.
+    // Each game's own config.json (which lives in that game's own DLC depot/folder) is
+    // trivially player-editable at any time — Steam's file-integrity verification is a manual,
+    // player-triggered check, not a continuous runtime guarantee, so games/multigame.json is
+    // realistically just as locally-editable. Without a compiled-in verifying key (see
+    // DlcMapSigner.EmbeddedPublicKeyBase64 — deliberately NOT a config field; a config-driven
+    // key could just be swapped out alongside a forged map, defeating the whole point) and
+    // GameDlcAppIdsSignature below, this map is only a soft cross-check: GameScanner rejects a
+    // game whose own claimed SteamDlcAppId mismatches an entry present here, but a gameId
+    // absent from the map is trusted as declared by its own config.json — closing the "edit one
+    // field" bypass but not one that also edits/removes the corresponding map entry. Sign the
+    // map (see below) for a real, tamper-proof guarantee instead.
+    public Dictionary<string, uint> GameDlcAppIds { get; set; } = new();
+
+    // games/multigame.json shell config only. ECDSA-P256 signature (base64) over GameDlcAppIds
+    // — see NEShim.AchievementSigning.DlcMapSigner, sealed with the same seal-achievements tool
+    // (--seal-dlc-map). Verified against DlcMapSigner.EmbeddedPublicKeyBase64, a compile-time
+    // constant — NOT read from config, so a copied/tampered install can't just supply its own
+    // matching keypair. Setting this signature without also compiling in the matching public
+    // key has no effect (signing is opted into by the presence of the EMBEDDED key, not this
+    // field). GameScanner fails CLOSED (every game rejected, not silently trusted) if the
+    // embedded key is set but this signature is missing or doesn't verify — a corrupted/missing
+    // signature must never fall back to the weaker unsigned behavior; that would make enabling
+    // this feature at all a net loss the moment the signature gets mishandled.
+    public string GameDlcAppIdsSignature { get; set; } = "";
+
     // ── Window & display ──────────────────────────────────────────────────────
 
     public string WindowTitle { get; set; } = "NEShim";

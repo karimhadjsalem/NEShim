@@ -49,7 +49,7 @@ https://karimhadjsalem.github.io/NEShim/
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck / Linux** — runs natively on Linux x64 (SDL_GPU/Vulkan path) and on Steam Deck natively or via Proton with no configuration changes required
 - **Window title** — set per-game via `config.json`; no rebuild needed
-- **Multi-game mode (DLC)** — an alternate, additive publish path: one binary hosts N games, each installed as an independent Steam DLC depot with its own ROM, config, saves, and achievements, selected at runtime via a fully localized front-end carousel with per-game box art, descriptions, and an animated slide/flip transition. The default single-game path is unaffected — multi-game mode only activates when a `games/multigame.json` manifest is present. See the [full guide](https://karimhadjsalem.github.io/NEShim/) on the project site.
+- **Multi-game mode** — an alternate, additive publish path: one binary hosts N games, each with its own ROM, config, saves, and achievements, selected at runtime via a fully localized front-end carousel with per-game box art, descriptions, and an animated slide/flip transition. Steam DLC is entirely optional per game — a game can bundle directly in a single deploy (no DLC depot at all) or sell separately as its own Steam DLC depot, freely mixed within one build. Optional ECDSA-signed anti-tamper protection for DLC-gated games (`seal-achievements --seal-dlc-map`) closes the "edit a copied DLC folder's config" bypass. The default single-game path is unaffected — multi-game mode only activates when a `games/multigame.json` manifest is present. See the [full guide](https://karimhadjsalem.github.io/NEShim/) on the project site.
 
 ---
 
@@ -202,7 +202,7 @@ Achievements are defined in `achievements.json`, keyed by the SHA1 hash of the R
 
 Each definition must be signed with `seal-achievements` before shipping. A private key is required to sign; the matching public key is embedded in the binary or set in `config.json`. Unsigned or tampered entries are silently ignored at runtime.
 
-`seal-achievements` is published alongside each release as standalone binaries for Windows and Linux.
+`seal-achievements` is published alongside each release as standalone binaries for Windows and Linux. In multi-game mode it also signs the optional DLC-ownership anti-tamper map (`--seal-dlc-map`, see above) — **use a separate keypair for this than for achievements; never reuse the same one for both.**
 
 ---
 
@@ -235,8 +235,8 @@ Releases are built and published automatically on version tags (`v*.*.*`) via Gi
 | Project | Purpose |
 |---|---|
 | `NEShim` | Main application — SDL3 windowing + rendering, Steam wiring, game loop (Windows x64 + Linux x64) |
-| `NEShim.AchievementSigning` | Shared library — achievement types and ECDSA-P256 signing logic |
-| `NEShim.SealAchievements` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` (Windows + Linux) |
+| `NEShim.AchievementSigning` | Shared library — achievement types and ECDSA-P256 signing logic, plus `DlcMapSigner` for multi-game DLC-ownership anti-tamper (a separate keypair from achievement signing) |
+| `NEShim.SealAchievements` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json`, and (`--seal-dlc-map`) onto a multi-game DLC-ownership map (Windows + Linux) |
 | `NEShim.SealAchievementsUI` | Developer GUI tool — Windows Forms UI for the sealer (Windows only) |
 | `NEShim.Tests` | NUnit test suite |
 | `BizHawk` | NES emulation core, adapted from the BizHawk multi-system emulator |

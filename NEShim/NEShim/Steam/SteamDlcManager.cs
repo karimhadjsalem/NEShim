@@ -1,3 +1,4 @@
+using NEShim.Config;
 using Steamworks;
 
 namespace NEShim.Steam;
@@ -6,7 +7,11 @@ namespace NEShim.Steam;
 /// Checks whether a game's Steam DLC is owned/installed, for gating the multi-game carousel.
 /// A DLC App ID of 0 (no real Steamworks entitlement configured) and the absence of a live
 /// Steam session both mean "show unconditionally" — local dev/test game folders work without
-/// configuring real Steamworks DLC entitlements first.
+/// configuring real Steamworks DLC entitlements first, and DLC gating itself is entirely
+/// optional per game: a multi-game deploy can bundle every game directly in the base install
+/// (no DLC depots at all) simply by leaving SteamDlcAppId at its default 0 for every game — this
+/// is a first-class supported deployment shape, not just an incidental side effect of the
+/// dev/test fallback. See <see cref="FilterOwned"/> and CLAUDE.md's Multi-Game Mode section.
 /// </summary>
 internal static class SteamDlcManager
 {
@@ -26,4 +31,15 @@ internal static class SteamDlcManager
 
         return SteamApps.BIsDlcInstalled(new AppId_t(appId));
     }
+
+    /// <summary>
+    /// Filters a scanned game list down to entries the player owns/has installed (see
+    /// <see cref="IsOwned"/>). Extracted from NEShimApp.InitializeCarousel's call site so that
+    /// "a multi-game deploy where every game is bundled (SteamDlcAppId 0) shows the entire
+    /// library, unfiltered" is independently testable with multiple games and mixed appIds,
+    /// without a live Steam session or NEShimApp's own SDL/renderer dependencies.
+    /// </summary>
+    internal static IReadOnlyList<GameManifest> FilterOwned(
+        IEnumerable<GameManifest> games, Func<uint, bool>? dlcInstalledCheck = null) =>
+        games.Where(g => IsOwned(g.SteamDlcAppId, dlcInstalledCheck)).ToList();
 }

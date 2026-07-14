@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using NEShim.Achievements;
 
@@ -9,11 +10,20 @@ using NEShim.Achievements;
 //   seal-achievements --key <base64_private_key>    [path/to/achievements.json]
 //   seal-achievements --key-env <ENV_VAR>           [path/to/achievements.json]
 //   seal-achievements --validate [--pub-key <base64>] [path/to/package/dir]
+//   seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]
+//   seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]
+//   seal-achievements --seal-dlc-map --key <base64_private_key>    [games/multigame.json]
 //
-// --gen-keypair  generates a new ECDSA-P256 keypair and exits.
-//                Embed the public key in AchievementSigner.EmbeddedPublicKeyBase64 (source build)
-//                or set achievementPublicKey in config.json (pre-built release).
-//                Store the private key outside source control.
+// --gen-keypair  generates a new ECDSA-P256 keypair and exits. Run this TWICE if you use both
+//                achievement signing and DLC-map signing (--seal-dlc-map) — they MUST use two
+//                separate, independent keypairs. Never reuse one keypair for both: they protect
+//                different things, and a leaked/rotated key for one must not force touching the
+//                other. Generating a second keypair costs nothing.
+//                Achievements: embed the public key in AchievementSigner.EmbeddedPublicKeyBase64
+//                (source build) or set achievementPublicKey in config.json (pre-built release).
+//                DLC map: embed the public key in DlcMapSigner.EmbeddedPublicKeyBase64 — this
+//                one has NO config.json equivalent, by design (see --seal-dlc-map below).
+//                Store each private key outside source control either way.
 //
 // --key-file     path to a file containing the base64-encoded private key.
 // --key-env      name of an environment variable holding the base64-encoded private key.
@@ -23,6 +33,17 @@ using NEShim.Achievements;
 //                  1. --pub-key <base64>  explicit override
 //                  2. AchievementSigner.EmbeddedPublicKeyBase64  baked into the compiled tool
 //                  3. achievementPublicKey in config.json in the package directory
+//
+// --seal-dlc-map signs the gameDlcAppIds map in a multi-game shell manifest (games/multigame.json)
+//                and writes the result to gameDlcAppIdsSignature in the same file, in place.
+//                Re-run any time gameDlcAppIds changes. This signature has NO effect until the
+//                matching public key is compiled into DlcMapSigner.EmbeddedPublicKeyBase64 and
+//                the game is rebuilt from source — unlike achievements, there is deliberately no
+//                config.json-driven public key for this: a tampered install could otherwise just
+//                supply its own matching keypair alongside a forged map.
+//                IMPORTANT: use a keypair generated separately from your achievement-signing
+//                keypair (--gen-keypair) — never the same one for both. See CLAUDE.md
+//                ("DLC ownership anti-tamper") or the docs site's multi-game guide.
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -155,8 +176,124 @@ if (args.Length == 1 && args[0] == "--gen-keypair")
     Console.WriteLine("Private key (keep secret — never commit; store in 1Password, a local file, or a CI secret):");
     Console.WriteLine(privateKey);
     Console.WriteLine();
-    Console.WriteLine("Public key (embed in AchievementSigner.EmbeddedPublicKeyBase64 OR set as achievementPublicKey in config.json):");
+    Console.WriteLine("Public key (embed in AchievementSigner.EmbeddedPublicKeyBase64 OR set as achievementPublicKey in config.json,");
+    Console.WriteLine("or embed in DlcMapSigner.EmbeddedPublicKeyBase64 for DLC-map signing — see --seal-dlc-map):");
     Console.WriteLine(publicKey);
+    Console.WriteLine();
+    Console.WriteLine("IMPORTANT: if you use BOTH achievement signing and DLC-map signing, these must be TWO");
+    Console.WriteLine("SEPARATE keypairs. Do not reuse this one for both purposes — run --gen-keypair again");
+    Console.WriteLine("for the second one.");
+    return 0;
+}
+
+if (args.Length >= 1 && args[0] == "--seal-dlc-map")
+{
+    string? dlcPrivateKeyBase64 = null;
+    int dlcFileArgOffset = 1;
+
+    if (args.Length >= 3 && args[1] == "--key-file")
+    {
+        string keyFile = args[2];
+        if (!File.Exists(keyFile))
+        {
+            Console.Error.WriteLine($"Key file not found: {keyFile}");
+            return 1;
+        }
+        dlcPrivateKeyBase64 = File.ReadAllText(keyFile).Trim();
+        dlcFileArgOffset = 3;
+    }
+    else if (args.Length >= 3 && args[1] == "--key-env")
+    {
+        string envVar = args[2];
+        dlcPrivateKeyBase64 = Environment.GetEnvironmentVariable(envVar);
+        if (string.IsNullOrEmpty(dlcPrivateKeyBase64))
+        {
+            Console.Error.WriteLine($"Environment variable '{envVar}' is not set or empty.");
+            return 1;
+        }
+        dlcFileArgOffset = 3;
+    }
+    else if (args.Length >= 3 && args[1] == "--key")
+    {
+        dlcPrivateKeyBase64 = args[2];
+        dlcFileArgOffset = 3;
+    }
+    else
+    {
+        Console.Error.WriteLine("Usage:");
+        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]");
+        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]");
+        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key <private_key>            [games/multigame.json]");
+        return 1;
+    }
+
+    try { Convert.FromBase64String(dlcPrivateKeyBase64!); }
+    catch
+    {
+        Console.Error.WriteLine("Private key is not valid base64.");
+        return 1;
+    }
+
+    string manifestPath = args.Length > dlcFileArgOffset
+        ? args[dlcFileArgOffset]
+        : Path.Combine(Directory.GetCurrentDirectory(), "games", "multigame.json");
+
+    if (!File.Exists(manifestPath))
+    {
+        Console.Error.WriteLine($"File not found: {manifestPath}");
+        Console.Error.WriteLine("Usage: seal-achievements --seal-dlc-map --key-file <file> [path/to/multigame.json]");
+        return 1;
+    }
+
+    JsonObject manifestRoot;
+    try
+    {
+        manifestRoot = JsonNode.Parse(File.ReadAllText(manifestPath))?.AsObject()
+            ?? throw new InvalidOperationException("document is empty or not a JSON object");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to parse {manifestPath}: {ex.Message}");
+        return 1;
+    }
+
+    // gameDlcAppIds is read with an exact camelCase key match (unlike the full AppConfig-based
+    // runtime load path, which is case-insensitive) — matches this tool's existing --validate
+    // lookup of achievementPublicKey. Author games/multigame.json with camelCase keys.
+    var gameDlcAppIds = new Dictionary<string, uint>();
+    if (manifestRoot.TryGetPropertyValue("gameDlcAppIds", out var mapNode) && mapNode is JsonObject mapObject)
+    {
+        foreach (var (gameId, valueNode) in mapObject)
+        {
+            if (valueNode is null) continue;
+            gameDlcAppIds[gameId] = valueNode.GetValue<uint>();
+        }
+    }
+
+    if (gameDlcAppIds.Count == 0)
+    {
+        Console.Error.WriteLine($"No gameDlcAppIds entries found in {manifestPath} — nothing to sign.");
+        Console.Error.WriteLine("Add an entry for every game once signing is opted into, including bundled");
+        Console.Error.WriteLine("games (list them with value 0) — a signed map must be complete.");
+        return 1;
+    }
+
+    Console.WriteLine($"Signing {gameDlcAppIds.Count} gameDlcAppIds entr{(gameDlcAppIds.Count == 1 ? "y" : "ies")}:");
+    foreach (var (gameId, appId) in gameDlcAppIds.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        Console.WriteLine($"  {gameId} = {appId}");
+
+    string dlcSignature = DlcMapSigner.ComputeSig(gameDlcAppIds, dlcPrivateKeyBase64!);
+    manifestRoot["gameDlcAppIdsSignature"] = dlcSignature;
+
+    File.WriteAllText(manifestPath, manifestRoot.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+    Console.WriteLine();
+    Console.WriteLine($"Done. gameDlcAppIdsSignature written to {manifestPath}.");
+    Console.WriteLine();
+    Console.WriteLine("IMPORTANT: this signature has no effect until the matching public key is compiled");
+    Console.WriteLine("into DlcMapSigner.EmbeddedPublicKeyBase64 (NEShim.AchievementSigning/DlcMapSigner.cs)");
+    Console.WriteLine("and the game is rebuilt from source — there is no config.json equivalent, by design.");
+    Console.WriteLine("Re-run this command any time gameDlcAppIds changes.");
     return 0;
 }
 

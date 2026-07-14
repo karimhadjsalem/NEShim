@@ -180,9 +180,12 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // manifest above — safe to resolve here, before any game is chosen, exactly like
         // LoadGame() resolves it per-game later.
         var localization = LoadLocalization();
-        var games = GameScanner.Scan(MultiGameMode.GamesRoot)
-                                .Where(g => SteamDlcManager.IsOwned(g.SteamDlcAppId))
-                                .ToList();
+        // dlcAppIdsPublicKey omitted — always resolves to DlcMapSigner.EmbeddedPublicKeyBase64,
+        // the compile-time constant. There is no config.json equivalent by design (see
+        // GameScanner's class doc comment): a config-driven key would let a tampered install
+        // just supply its own matching keypair alongside a forged gameDlcAppIds map.
+        var games = SteamDlcManager.FilterOwned(GameScanner.Scan(
+            MultiGameMode.GamesRoot, _config.GameDlcAppIds, _config.GameDlcAppIdsSignature));
         _carousel?.Dispose();
         _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath, localization,
             onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
