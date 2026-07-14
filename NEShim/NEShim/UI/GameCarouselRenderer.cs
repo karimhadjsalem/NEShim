@@ -47,6 +47,8 @@ internal static class GameCarouselRenderer
     private const float DescriptionPtSize        = 10f;
     private const float DescriptionLineSpacing   = 1.15f; // extra breathing room between description lines, applied on top of the font's own measured line height — a fixed guessed pt-based height previously undershot the real glyph height and caused lines to nearly overlap (same root cause as TitleLineSpacing above)
     private const float DescriptionTitleTopPad   = 12f; // top inset for the description card's title, away from the card border
+    private const int   DescriptionTitleMaxLines = 2; // budgeted title height — generous enough for a wrapped 2-line title without needing dynamic downstream layout
+    private const float DescriptionWidthMultiplier = 2.2f; // the description card is drawn last (see DrawStatic) so it can overlay its neighbors — significantly wider than a single tile
 
     private static readonly SDL.Color BgColor              = new() { R = 10,  G = 10,  B = 20,  A = 255 };
     private static readonly SDL.Color TitleColor           = new() { R = 195, G = 225, B = 255, A = 255 };
@@ -175,11 +177,17 @@ internal static class GameCarouselRenderer
     {
         int half = VisibleSlotCount / 2;
         var indices = ComputeSlotGameIndices(carousel.SelectedIndex, carousel.Games.Count, VisibleSlotCount);
+
+        // Center drawn last so its flipped description card — significantly wider than its own
+        // slot (see DescriptionWidthMultiplier) — paints over its neighbors instead of being
+        // covered by them. Non-center slots never overlap each other, so their relative order
+        // doesn't matter.
         for (int i = 0; i < VisibleSlotCount; i++)
         {
-            var game = carousel.Games[indices[i]];
-            DrawSlotAt(ctx, band, offsetFromCenter: i - half, game, carousel, allowFlip: true);
+            if (i == half) continue;
+            DrawSlotAt(ctx, band, offsetFromCenter: i - half, carousel.Games[indices[i]], carousel, allowFlip: true);
         }
+        DrawSlotAt(ctx, band, offsetFromCenter: 0, carousel.Games[indices[half]], carousel, allowFlip: true);
     }
 
     private static void DrawSliding(SDL3PaintContext ctx, SDL.Rect band, GameCarouselScreen carousel)
@@ -278,17 +286,19 @@ internal static class GameCarouselRenderer
     }
 
     /// <summary>
-    /// Draws a tile's title as a single centered line, unless it extends significantly beyond
-    /// the box art's width (<see cref="TitleWrapThreshold"/>), in which case it wraps — reusing
-    /// the same word-wrap/centering logic as the description and invalid-overlay text.
+    /// Draws a title as a single centered line, unless it extends significantly beyond
+    /// <paramref name="wrapWidth"/> (<see cref="TitleWrapThreshold"/>), in which case it wraps —
+    /// reusing the same word-wrap/centering logic as the description and invalid-overlay text.
+    /// Used for both the front tile's title (wrap width = its box art's width) and the
+    /// description card's title (wrap width = the card's own width).
     /// </summary>
-    private static void DrawTitle(SDL3PaintContext ctx, string title, SDL.FRect titleRect, int artWidth,
+    private static void DrawTitle(SDL3PaintContext ctx, string title, SDL.FRect titleRect, float wrapWidth,
         SDL.Color color, float textScale)
     {
         float ptSize = ScaledTitlePtSize(textScale);
         var (measuredWidth, measuredHeight) = ctx.MeasureText(title, FontFamily, ptSize, bold: true);
 
-        if (measuredWidth <= artWidth * TitleWrapThreshold)
+        if (measuredWidth <= wrapWidth * TitleWrapThreshold)
         {
             ctx.DrawText(title, titleRect, color, FontFamily, ptSize, bold: true);
             return;
@@ -309,7 +319,11 @@ internal static class GameCarouselRenderer
         bool startWithFront = carousel.DescriptionShown;
         var (flipScale, showFront) = ComputeFlipVisual(carousel.FlipProgress, startWithFront);
 
-        int squashedW = Math.Max((int)(slotRect.W * flipScale), 1);
+        // The back face's target width is significantly wider than the front tile's — at the
+        // exact flip midpoint the squash collapses to ~0px regardless of which target is used,
+        // so the width change is invisible; the card then grows back out wider than before.
+        float targetWidth = showFront ? slotRect.W : slotRect.W * DescriptionWidthMultiplier;
+        int squashedW = Math.Max((int)(targetWidth * flipScale), 1);
         var squashed = new SDL.Rect
         {
             X = slotRect.X + (slotRect.W - squashedW) / 2,
@@ -364,13 +378,21 @@ internal static class GameCarouselRenderer
         ctx.FillRect(f, WithAlpha(DescriptionBackFill, alpha));
         ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
 
-        var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + DescriptionTitleTopPad, W = f.W - 16, H = 24f };
-        ctx.DrawText(game.DisplayTitle, titleRect, WithAlpha(TitleColor, alpha), FontFamily, ScaledTitlePtSize(textScale), bold: true);
+        // Budgeted for up to DescriptionTitleMaxLines lines so a long title (common now that the
+        // card is much wider than a single tile, but still possible) wraps instead of being
+        // silently clipped to one line — DrawTitle centers within whatever height it's given, so
+        // a short, unwrapped title just sits centered in the same budgeted space.
+        float titlePtSize = ScaledTitlePtSize(textScale);
+        var (_, titleLineHeight) = ctx.MeasureText(game.DisplayTitle, FontFamily, titlePtSize, bold: true);
+        float titleBlockHeight = titleLineHeight * TitleLineSpacing * DescriptionTitleMaxLines;
+
+        var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + DescriptionTitleTopPad, W = f.W - 16, H = titleBlockHeight };
+        DrawTitle(ctx, game.DisplayTitle, titleRect, titleRect.W, WithAlpha(TitleColor, alpha), textScale);
 
         string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
         var bodyRect = new SDL.FRect
         {
-            X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - titleRect.H - 16,
+            X = f.X + 8, Y = titleRect.Y + titleRect.H + 4, W = f.W - 16, H = f.H - DescriptionTitleTopPad - titleRect.H - 20,
         };
 
         // measuredHeight is the font's own line height at this ptSize (ascent+descent), not just
