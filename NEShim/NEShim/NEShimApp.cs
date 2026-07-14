@@ -113,7 +113,14 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // reloaded per-game by LoadGame once a game is chosen. LoadFrom's "auto-create defaults
         // if missing" branch is never reached since MultiGameMode.IsActive already confirmed
         // the manifest file exists.
-        _config = ConfigLoader.LoadFrom(MultiGameMode.ManifestPath);
+        //
+        // Overlaid with ShellUserConfigPath (not the raw LoadFrom-only manifest) so the window
+        // mode InitializeWindowAndD3DHook applies below is already the player's persisted
+        // carousel preference — mirrors InitializeEmulatorSingleGame, whose LoadGameContent
+        // already resolves the user.json overlay before the same call. Without this, the logo
+        // screen would briefly show in the shell manifest's publisher-configured mode and then
+        // visibly snap to the player's actual preference the instant InitializeCarousel runs.
+        _config = ConfigLoader.Load(MultiGameMode.ManifestPath, MultiGameMode.ShellUserConfigPath);
         _sdlHost.SetTitle(_config.WindowTitle);
         if (_config.EnableLogging) Logger.Enable();
 
