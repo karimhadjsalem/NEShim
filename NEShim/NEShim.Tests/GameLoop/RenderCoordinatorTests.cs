@@ -27,6 +27,7 @@ internal class RenderCoordinatorTests
         public void ShowAchievementNotification(string name)                { }
         public void SetMenuSceneProvider(IMenuSceneProvider? provider)      { }
         public void MarkOverlayDirty()                                      { }
+        public void InvalidateSurfaceTexture(IntPtr surface)                { }
         public void SetPictureAdjust(int b, int c, int s, int h)           { }
         public void SetOverscanMode(OverscanMode overscan)                  { }
         public event EventHandler? DeviceLost                               { add { } remove { } }

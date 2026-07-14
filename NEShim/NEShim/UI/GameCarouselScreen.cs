@@ -24,6 +24,16 @@ internal sealed class GameCarouselScreen : IDisposable
     private const int SlideDurationMs = 220;
     private const int FlipDurationMs  = 260;
 
+    // Every valid game's thumbnail is loaded up front (not just the currently visible ones),
+    // and each is re-blitted every frame while its tile is on screen — capping the loaded
+    // resolution keeps both the one-time GPU upload cost and steady-state texture memory bounded
+    // regardless of how large a publisher's source art actually is, since the filmstrip never
+    // displays a tile larger than a few hundred pixels wide anyway. Matches the "high-resolution
+    // / 4K carousels" recommended canvas in the publishing docs (700x994 — exactly the NES box's
+    // 1.42:1 aspect ratio); never upscales art that's already smaller than this.
+    private const int ThumbnailMaxWidth  = 700;
+    private const int ThumbnailMaxHeight = 994;
+
     public IReadOnlyList<GameManifest> Games { get; }
     public int SelectedIndex { get; private set; }
     public LocalizationData Localization { get; }
@@ -40,6 +50,7 @@ internal sealed class GameCarouselScreen : IDisposable
 
     private readonly Dictionary<string, IntPtr> _thumbnails = new();
     private readonly AnimatedImagePlayer? _background;
+    private readonly Action<IntPtr>? _onSurfaceDisposing;
 
     private int _slideDirection;        // -1 previous, +1 next, 0 = no transition in flight
     private int _previousSelectedIndex; // arrangement being slid FROM
@@ -48,18 +59,26 @@ internal sealed class GameCarouselScreen : IDisposable
     private bool _descriptionShown;
     private long _flipStartTicks = Environment.TickCount64 - FlipDurationMs; // settled at construction time
 
+    /// <param name="onSurfaceDisposing">
+    /// Called for each thumbnail/background-frame surface right before it's destroyed (see
+    /// Dispose) — the owner must forward this to IFrameRenderer.InvalidateSurfaceTexture so the
+    /// overlay paint context's cached GPU texture for that surface is evicted too, before a
+    /// later, unrelated surface can be allocated at the same (recycled) address. Optional so
+    /// tests that never touch SDL rendering can omit it.
+    /// </param>
     public GameCarouselScreen(IReadOnlyList<GameManifest> games, string gamesRoot, string carouselBackgroundPath,
-        LocalizationData localization)
+        LocalizationData localization, Action<IntPtr>? onSurfaceDisposing = null)
     {
         Games = games;
         Localization = localization;
+        _onSurfaceDisposing = onSurfaceDisposing;
 
         if (!string.IsNullOrWhiteSpace(carouselBackgroundPath))
         {
             var shellContext = new GameContext(gamesRoot, gameId: "");
             string? resolved = MainMenuScreen.ResolveAssetPath(carouselBackgroundPath, shellContext);
             if (resolved is not null)
-                _background = AnimatedImagePlayer.LoadFromFile(resolved);
+                _background = AnimatedImagePlayer.LoadFromFile(resolved, onSurfaceDisposing);
         }
 
         foreach (var game in games)
@@ -69,9 +88,40 @@ internal sealed class GameCarouselScreen : IDisposable
             string? resolved = MainMenuScreen.ResolveAssetPath(game.ThumbnailPath, ctx);
             if (resolved is null) continue; // missing art is not an error — renderer falls back to a placeholder
 
-            IntPtr surface = SdlSurfaceLoader.LoadFromFile(resolved);
+            IntPtr surface = LoadThumbnail(resolved);
             if (surface != IntPtr.Zero) _thumbnails[game.GameId] = surface;
         }
+    }
+
+    /// <summary>
+    /// Contain-fits source dimensions within maxWidth/maxHeight, preserving aspect ratio.
+    /// Returns the source dimensions unchanged when they're already within bounds — never upscales.
+    /// </summary>
+    internal static (int width, int height) ComputeThumbnailSize(int sourceWidth, int sourceHeight, int maxWidth, int maxHeight)
+    {
+        if (sourceWidth <= maxWidth && sourceHeight <= maxHeight) return (sourceWidth, sourceHeight);
+
+        float scale = Math.Min((float)maxWidth / sourceWidth, (float)maxHeight / sourceHeight);
+        return (Math.Max(1, (int)(sourceWidth * scale)), Math.Max(1, (int)(sourceHeight * scale)));
+    }
+
+    /// <summary>Loads a thumbnail and downscales it to fit within ThumbnailMaxWidth/Height if the source art is larger (never upscales).</summary>
+    private static IntPtr LoadThumbnail(string path)
+    {
+        IntPtr surface = SdlSurfaceLoader.LoadFromFile(path);
+        if (surface == IntPtr.Zero) return IntPtr.Zero;
+
+        var (width, height) = SDL3PaintContext.GetSurfaceSize(surface);
+        var (scaledWidth, scaledHeight) = ComputeThumbnailSize(width, height, ThumbnailMaxWidth, ThumbnailMaxHeight);
+        if (scaledWidth == width && scaledHeight == height) return surface;
+
+        IntPtr scaled = SDL.CreateSurface(scaledWidth, scaledHeight, SDL.PixelFormat.ARGB8888);
+        if (scaled == IntPtr.Zero) return surface; // fall back to the full-size original
+
+        var destRect = new SDL.Rect { X = 0, Y = 0, W = scaledWidth, H = scaledHeight };
+        SDL.BlitSurfaceScaled(surface, IntPtr.Zero, scaled, in destRect, SDL.ScaleMode.Linear);
+        SDL.DestroySurface(surface);
+        return scaled;
     }
 
     public IntPtr? BackgroundFrame => _background?.CurrentFrame;
@@ -181,7 +231,11 @@ internal sealed class GameCarouselScreen : IDisposable
     public void Dispose()
     {
         _background?.Dispose();
-        foreach (var surface in _thumbnails.Values) SDL.DestroySurface(surface);
+        foreach (var surface in _thumbnails.Values)
+        {
+            _onSurfaceDisposing?.Invoke(surface);
+            SDL.DestroySurface(surface);
+        }
         _thumbnails.Clear();
     }
 }

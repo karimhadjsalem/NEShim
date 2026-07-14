@@ -58,6 +58,17 @@ internal interface IFrameRenderer : IDisposable
     void MarkOverlayDirty();
 
     /// <summary>
+    /// Evicts the overlay paint context's cached GPU texture for <paramref name="surface"/>, if
+    /// one exists. Callers that own an SDL surface previously drawn via a stateless renderer's
+    /// <c>BlitSurface</c>/<c>BlitSurfaceAlpha</c> (e.g. GameCarouselScreen's thumbnails and
+    /// animated background frames) MUST call this before destroying that surface — otherwise a
+    /// later, unrelated surface allocated at the same (recycled) address could incorrectly reuse
+    /// the stale cached texture. No-op if the overlay paint context doesn't currently exist
+    /// (device loss/resize) or never cached a texture for this surface.
+    /// </summary>
+    void InvalidateSurfaceTexture(IntPtr surface);
+
+    /// <summary>
     /// Applies Brightness / Contrast / Saturation / Hue picture adjustments.
     /// Values are integers in the range -100..100; 0 = neutral for all four.
     /// Routes through a dedicated post-process pass on both D3D11 and SDL_GPU paths.

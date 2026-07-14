@@ -16,29 +16,37 @@ internal sealed class AnimatedImagePlayer : IDisposable
     private readonly IReadOnlyList<IntPtr> _frames;
     private readonly IReadOnlyList<int> _delaysMs;
     private readonly IntPtr _nativeAnimation; // Zero when loaded via the static-image fallback
+    private readonly Action<IntPtr>? _onSurfaceDisposing;
     private readonly long _startTicks;
 
     internal bool IsAnimated => _frames.Count > 1;
     internal IntPtr CurrentFrame => _frames[ComputeFrameIndex(Environment.TickCount64 - _startTicks, _delaysMs)];
 
-    private AnimatedImagePlayer(IReadOnlyList<IntPtr> frames, IReadOnlyList<int> delaysMs, IntPtr nativeAnimation)
+    private AnimatedImagePlayer(IReadOnlyList<IntPtr> frames, IReadOnlyList<int> delaysMs, IntPtr nativeAnimation,
+        Action<IntPtr>? onSurfaceDisposing)
     {
         _frames = frames;
         _delaysMs = delaysMs;
         _nativeAnimation = nativeAnimation;
+        _onSurfaceDisposing = onSurfaceDisposing;
         _startTicks = Environment.TickCount64;
     }
 
-    /// <summary>Returns null when the file can't be decoded at all (neither as an animation nor a static image).</summary>
-    internal static AnimatedImagePlayer? LoadFromFile(string path)
+    /// <summary>
+    /// Returns null when the file can't be decoded at all (neither as an animation nor a static
+    /// image). <paramref name="onSurfaceDisposing"/> is called for every frame surface right
+    /// before it becomes invalid (see Dispose) — forward IFrameRenderer.InvalidateSurfaceTexture
+    /// so the overlay paint context's cached GPU texture for that frame is evicted too.
+    /// </summary>
+    internal static AnimatedImagePlayer? LoadFromFile(string path, Action<IntPtr>? onSurfaceDisposing = null)
     {
         var animation = SdlSurfaceLoader.LoadAnimationFromFile(path);
         if (animation is { } a)
-            return new AnimatedImagePlayer(a.Frames, a.DelaysMs, a.NativeAnimation);
+            return new AnimatedImagePlayer(a.Frames, a.DelaysMs, a.NativeAnimation, onSurfaceDisposing);
 
         IntPtr single = SdlSurfaceLoader.LoadFromFile(path);
         if (single == IntPtr.Zero) return null;
-        return new AnimatedImagePlayer(new[] { single }, new[] { 0 }, IntPtr.Zero);
+        return new AnimatedImagePlayer(new[] { single }, new[] { 0 }, IntPtr.Zero, onSurfaceDisposing);
     }
 
     /// <summary>
@@ -65,6 +73,9 @@ internal sealed class AnimatedImagePlayer : IDisposable
 
     public void Dispose()
     {
+        if (_onSurfaceDisposing is not null)
+            foreach (var f in _frames) _onSurfaceDisposing(f);
+
         if (_nativeAnimation != IntPtr.Zero)
             SdlSurfaceLoader.FreeAnimation(_nativeAnimation);
         else

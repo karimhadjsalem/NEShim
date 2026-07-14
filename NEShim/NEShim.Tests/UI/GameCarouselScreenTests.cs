@@ -334,4 +334,55 @@ internal class GameCarouselScreenTests
         Assert.That(GameCarouselScreen.ComputeFlipProgress(260, 260), Is.EqualTo(1f));
         Assert.That(GameCarouselScreen.ComputeFlipProgress(9999, 260), Is.EqualTo(1f));
     }
+
+    // ---- ComputeThumbnailSize (pure) ----
+
+    [Test]
+    public void ComputeThumbnailSize_SmallerThanBounds_ReturnsUnchanged()
+    {
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(400, 500, maxWidth: 700, maxHeight: 994);
+        Assert.That((w, h), Is.EqualTo((400, 500)));
+    }
+
+    [Test]
+    public void ComputeThumbnailSize_ExactlyAtBounds_ReturnsUnchanged()
+    {
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(700, 994, maxWidth: 700, maxHeight: 994);
+        Assert.That((w, h), Is.EqualTo((700, 994)));
+    }
+
+    [Test]
+    public void ComputeThumbnailSize_LargerSource_ScalesDownPreservingAspectRatio()
+    {
+        // 1400x1988 is exactly double the 700x994 bounds — should scale by exactly 0.5.
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(1400, 1988, maxWidth: 700, maxHeight: 994);
+        Assert.That((w, h), Is.EqualTo((700, 994)));
+    }
+
+    [Test]
+    public void ComputeThumbnailSize_NeverUpscales()
+    {
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(100, 142, maxWidth: 700, maxHeight: 994);
+        Assert.That(w, Is.LessThanOrEqualTo(100));
+        Assert.That(h, Is.LessThanOrEqualTo(142));
+    }
+
+    [Test]
+    public void ComputeThumbnailSize_WiderThanTallSource_ClampsToWidthRatio()
+    {
+        // Source is proportionally much wider than the NES box's own portrait ratio — width is
+        // the binding constraint even though the source's height also exceeds maxHeight.
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(2000, 1200, maxWidth: 700, maxHeight: 994);
+        Assert.That(w, Is.EqualTo(700));
+        Assert.That(h, Is.LessThanOrEqualTo(994));
+    }
+
+    [Test]
+    public void ComputeThumbnailSize_ResultAspectRatioMatchesSource()
+    {
+        var (w, h) = GameCarouselScreen.ComputeThumbnailSize(3000, 4000, maxWidth: 700, maxHeight: 994);
+        float sourceRatio = 3000f / 4000f;
+        float resultRatio = (float)w / h;
+        Assert.That(resultRatio, Is.EqualTo(sourceRatio).Within(0.01f));
+    }
 }

@@ -137,6 +137,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) => _menuSceneProvider = provider;
     public void MarkOverlayDirty() => _overlayDirty = true;
+    public void InvalidateSurfaceTexture(IntPtr surface) => _paintContext?.InvalidateTexture(surface);
 
     public event EventHandler? DeviceLost;
 

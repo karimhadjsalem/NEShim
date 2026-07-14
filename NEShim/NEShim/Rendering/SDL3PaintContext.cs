@@ -7,11 +7,23 @@ namespace NEShim.Rendering;
 /// Wraps an SDL software renderer. All drawing goes through <c>_renderer</c> so that
 /// <c>SDL.RenderPresent</c> correctly flushes the composited frame to the target surface.
 /// Does not own the renderer or font cache — caller disposes those.
+///
+/// <see cref="BlitSurface"/>/<see cref="BlitSurfaceAlpha"/> cache one GPU texture per source
+/// surface pointer (<see cref="_textureCache"/>) instead of uploading a fresh texture on every
+/// call — repainting several tiles' worth of box art every frame previously re-uploaded each
+/// one from scratch each time, a CPU-bound cost proportional to image size and blit count that
+/// showed up as choppy carousel animation with real (larger) box art. The cache is scoped to
+/// this instance's lifetime: <c>_renderer</c>'s owner destroys the SDL renderer (which SDL
+/// itself uses to auto-invalidate every texture created from it) whenever this context is
+/// discarded, so no explicit per-texture cleanup is needed there. The one case that DOES need
+/// an explicit call is a surface being destroyed while this context is still alive — see
+/// <see cref="InvalidateTexture"/>.
 /// </summary>
 internal sealed class SDL3PaintContext
 {
     private readonly IntPtr        _renderer;
     private readonly SDL3FontCache _fontCache;
+    private readonly Dictionary<IntPtr, IntPtr> _textureCache = new();
 
     internal int Width  { get; }
     internal int Height { get; }
@@ -23,6 +35,19 @@ internal sealed class SDL3PaintContext
         Width      = width;
         Height     = height;
         SDL.SetRenderDrawBlendMode(_renderer, SDL.BlendMode.Blend);
+    }
+
+    /// <summary>
+    /// Destroys and evicts the cached GPU texture for <paramref name="surface"/>, if one exists.
+    /// Callers MUST call this before destroying a surface they previously passed to
+    /// BlitSurface/BlitSurfaceAlpha on this context — otherwise a later, unrelated surface that
+    /// happens to be allocated at the same (recycled) address would incorrectly reuse this
+    /// texture's stale pixel data instead of getting its own.
+    /// </summary>
+    internal void InvalidateTexture(IntPtr surface)
+    {
+        if (_textureCache.Remove(surface, out IntPtr texture))
+            SDL.DestroyTexture(texture);
     }
 
     // ---- Primitives (go through renderer; composited on RenderPresent) ----
@@ -135,25 +160,27 @@ internal sealed class SDL3PaintContext
 
     private void RenderSurface(IntPtr surface, SDL.FRect? srcFRect, SDL.FRect dstFRect, float alpha)
     {
-        IntPtr texture = SDL.CreateTextureFromSurface(_renderer, surface);
-        if (texture == IntPtr.Zero) return;
-        try
+        if (!_textureCache.TryGetValue(surface, out IntPtr texture))
         {
+            texture = SDL.CreateTextureFromSurface(_renderer, surface);
+            if (texture == IntPtr.Zero) return;
             SDL.SetTextureBlendMode(texture, SDL.BlendMode.Blend);
-            if (alpha < 1f)
-                SDL.SetTextureAlphaMod(texture, (byte)Math.Clamp(alpha * 255f, 0f, 255f));
-
-            if (srcFRect.HasValue)
-            {
-                var srcF = srcFRect.Value;
-                SDL.RenderTexture(_renderer, texture, in srcF, in dstFRect);
-            }
-            else
-            {
-                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstFRect);
-            }
+            _textureCache[surface] = texture;
         }
-        finally { SDL.DestroyTexture(texture); }
+
+        // Set unconditionally (not just "if alpha < 1f") — the texture is now reused across
+        // calls, so a previous frame's fade could otherwise leak into this one.
+        SDL.SetTextureAlphaMod(texture, (byte)Math.Clamp(alpha * 255f, 0f, 255f));
+
+        if (srcFRect.HasValue)
+        {
+            var srcF = srcFRect.Value;
+            SDL.RenderTexture(_renderer, texture, in srcF, in dstFRect);
+        }
+        else
+        {
+            SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstFRect);
+        }
     }
 
     private void DrawSingleText(

@@ -181,6 +181,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetMenuSceneProvider(IMenuSceneProvider? provider) => _menuSceneProvider = provider;
     public void MarkOverlayDirty() => _overlayDirty = true;
+    public void InvalidateSurfaceTexture(IntPtr surface) => _paintContext?.InvalidateTexture(surface);
 
     // ---- Frame upload ------------------------------------------------------------------
 
