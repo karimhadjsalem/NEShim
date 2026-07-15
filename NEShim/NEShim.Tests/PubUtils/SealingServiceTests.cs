@@ -1,6 +1,6 @@
 using NEShim.Achievements;
 
-namespace NEShim.Tests.SealAchievements;
+namespace NEShim.Tests.PubUtils;
 
 [TestFixture]
 internal class SealingServiceTests

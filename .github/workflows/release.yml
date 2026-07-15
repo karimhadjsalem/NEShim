@@ -36,16 +36,16 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      # Full solution restore for win-x64 (covers all projects including SealAchievementsUI).
+      # Full solution restore for win-x64 (covers all projects including PubUtilsUI).
       - name: Restore (win-x64)
         run: dotnet restore NEShim/NEShim.sln -r win-x64 -p:PublishReadyToRun=true
 
-      # Per-project restore for linux-x64 — SealAchievementsUI targets net9.0-windows
+      # Per-project restore for linux-x64 — PubUtilsUI targets net9.0-windows
       # and cannot be restored for a non-Windows RID.
       - name: Restore (linux-x64)
         run: |
           dotnet restore NEShim/NEShim/NEShim.csproj -r linux-x64 -p:PublishReadyToRun=true
-          dotnet restore NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj -r linux-x64
+          dotnet restore NEShim/NEShim.PubUtils/NEShim.PubUtils.csproj -r linux-x64
 
       - name: Test
         run: >
@@ -114,40 +114,40 @@ jobs:
           -p:DebugType=none
           -o publish/NEShim-linux-x64
 
-      # ── Publish sealer CLI ────────────────────────────────────────────────────
-      - name: Publish sealer CLI (win-x64)
+      # ── Publish pub-utils CLI ─────────────────────────────────────────────────
+      - name: Publish pub-utils CLI (win-x64)
         run: >
-          dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj
+          dotnet publish NEShim/NEShim.PubUtils/NEShim.PubUtils.csproj
           --no-restore
           -c Release
           -r win-x64
           --self-contained true
           -p:Version=${{ steps.version.outputs.VERSION }}
           -p:DebugType=none
-          -o publish/SealAchievements-win-x64
+          -o publish/PubUtils-win-x64
 
-      - name: Publish sealer CLI (linux-x64)
+      - name: Publish pub-utils CLI (linux-x64)
         run: >
-          dotnet publish NEShim/NEShim.SealAchievements/NEShim.SealAchievements.csproj
+          dotnet publish NEShim/NEShim.PubUtils/NEShim.PubUtils.csproj
           --no-restore
           -c Release
           -r linux-x64
           --self-contained true
           -p:Version=${{ steps.version.outputs.VERSION }}
           -p:DebugType=none
-          -o publish/SealAchievements-linux-x64
+          -o publish/PubUtils-linux-x64
 
-      # ── Publish sealer UI (Windows only — uses Windows Forms) ─────────────────
-      - name: Publish sealer UI (win-x64)
+      # ── Publish pub-utils UI (Windows only — uses Windows Forms) ──────────────
+      - name: Publish pub-utils UI (win-x64)
         run: >
-          dotnet publish NEShim/NEShim.SealAchievementsUI/NEShim.SealAchievementsUI.csproj
+          dotnet publish NEShim/NEShim.PubUtilsUI/NEShim.PubUtilsUI.csproj
           --no-restore
           -c Release
           -r win-x64
           --self-contained true
           -p:Version=${{ steps.version.outputs.VERSION }}
           -p:DebugType=none
-          -o publish/SealAchievements-win-x64
+          -o publish/PubUtils-win-x64
 
       # ── Package artifacts ─────────────────────────────────────────────────────
       - name: Archive game (win-x64)
@@ -158,13 +158,13 @@ jobs:
         shell: bash
         run: tar -czf NEShim-${{ github.ref_name }}-linux-x64.tar.gz -C publish/NEShim-linux-x64 .
 
-      - name: Archive sealer (win-x64)
+      - name: Archive pub-utils (win-x64)
         shell: pwsh
-        run: Compress-Archive -Path publish/SealAchievements-win-x64/* -DestinationPath SealAchievements-${{ github.ref_name }}-win-x64.zip
+        run: Compress-Archive -Path publish/PubUtils-win-x64/* -DestinationPath PubUtils-${{ github.ref_name }}-win-x64.zip
 
-      - name: Archive sealer (linux-x64)
+      - name: Archive pub-utils (linux-x64)
         shell: bash
-        run: tar -czf SealAchievements-${{ github.ref_name }}-linux-x64.tar.gz -C publish/SealAchievements-linux-x64 .
+        run: tar -czf PubUtils-${{ github.ref_name }}-linux-x64.tar.gz -C publish/PubUtils-linux-x64 .
 
       # ── GitHub Release ────────────────────────────────────────────────────────
       - name: Create GitHub Release
@@ -176,8 +176,8 @@ jobs:
           files: |
             NEShim-${{ github.ref_name }}-win-x64.zip
             NEShim-${{ github.ref_name }}-linux-x64.tar.gz
-            SealAchievements-${{ github.ref_name }}-win-x64.zip
-            SealAchievements-${{ github.ref_name }}-linux-x64.tar.gz
+            PubUtils-${{ github.ref_name }}-win-x64.zip
+            PubUtils-${{ github.ref_name }}-linux-x64.tar.gz
 
       # ── Docs snapshot (stable releases only) ─────────────────────────────────
       - name: Checkout gh-pages

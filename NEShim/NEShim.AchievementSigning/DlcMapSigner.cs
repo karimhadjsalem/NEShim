@@ -11,7 +11,7 @@ namespace NEShim.Achievements;
 /// AchievementSigner directly, because this MUST be a separate keypair from achievement signing
 /// — never reuse the same keypair for both. They protect different things (gameplay-trigger
 /// integrity vs. DLC ownership integrity); a leaked or rotated key for one must not force
-/// touching the other, and generating a second free keypair (`seal-achievements --gen-keypair`)
+/// touching the other, and generating a second free keypair (`pub-utils --gen-keypair`)
 /// costs nothing.
 ///
 /// The private key lives only on the publisher's build machine — never ships with the game.
@@ -37,7 +37,7 @@ public static class DlcMapSigner
     //
     // IMPORTANT: this MUST be a DIFFERENT keypair from AchievementSigner.EmbeddedPublicKeyBase64
     // / achievementPublicKey — do not reuse the achievement-signing key here. Generate a fresh
-    // one: seal-achievements --gen-keypair
+    // one: pub-utils --gen-keypair
     public const string? EmbeddedPublicKeyBase64 = null;
 
     /// <summary>
@@ -52,7 +52,7 @@ public static class DlcMapSigner
     /// <summary>
     /// Signs <paramref name="gameDlcAppIds"/> with <paramref name="privateKeyBase64"/> (SEC1 DER
     /// format, base64-encoded) and returns the ECDSA-P256 signature as a base64 string. Called
-    /// only by the seal-achievements build tool — never at runtime.
+    /// only by the pub-utils build tool — never at runtime.
     /// </summary>
     public static string ComputeSig(IReadOnlyDictionary<string, uint> gameDlcAppIds, string privateKeyBase64)
     {

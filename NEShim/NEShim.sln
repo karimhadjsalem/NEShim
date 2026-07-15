@@ -8,9 +8,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BizHawk", "BizHawk\BizHawk.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.AchievementSigning", "NEShim.AchievementSigning\NEShim.AchievementSigning.csproj", "{B1C2D3E4-F5A6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.SealAchievements", "NEShim.SealAchievements\NEShim.SealAchievements.csproj", "{A9B8C7D6-E5F4-3210-FEDC-BA9876543210}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.PubUtils", "NEShim.PubUtils\NEShim.PubUtils.csproj", "{A9B8C7D6-E5F4-3210-FEDC-BA9876543210}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.SealAchievementsUI", "NEShim.SealAchievementsUI\NEShim.SealAchievementsUI.csproj", "{C1D2E3F4-A5B6-7890-CDEF-012345678901}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NEShim.PubUtilsUI", "NEShim.PubUtilsUI\NEShim.PubUtilsUI.csproj", "{C1D2E3F4-A5B6-7890-CDEF-012345678901}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

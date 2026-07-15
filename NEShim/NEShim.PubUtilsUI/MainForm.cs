@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using NEShim.Achievements;
 
-namespace NEShim.SealAchievementsUI;
+namespace NEShim.PubUtilsUI;
 
 internal sealed class MainForm : Form
 {

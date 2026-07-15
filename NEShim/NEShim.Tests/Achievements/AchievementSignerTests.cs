@@ -6,7 +6,7 @@ namespace NEShim.Tests.Achievements;
 internal class AchievementSignerTests
 {
     // Test keypair A — used for signing and positive verification in all round-trip tests.
-    // Generated with seal-achievements --gen-keypair; test-only, not production keys.
+    // Generated with pub-utils --gen-keypair; test-only, not production keys.
     private const string TestPrivateKeyBase64 =
         "MHcCAQEEIJX+aCzo2G6R5dUkmZWSRbUDpJMqj57dNvMZBNRhdjoqoAoGCCqGSM49AwEHoUQDQgAE" +
         "aAlvnWP1jf2S6o45HLmZB0se6yQFFdTU3B/IZWrG1UrpLxMjW3kP5m6l5ZK6wo2JjZ2AA7Y0JK3S" +

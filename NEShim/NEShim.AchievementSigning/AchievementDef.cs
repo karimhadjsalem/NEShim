@@ -42,7 +42,7 @@ public sealed record AchievementDef
 
     /// <summary>
     /// ECDSA-P256 signature (IEEE P1363, 64 bytes, base64-encoded) of this definition's
-    /// trigger fields, written by the seal-achievements tool. Any definition with a missing
+    /// trigger fields, written by the pub-utils tool. Any definition with a missing
     /// or invalid signature is silently rejected at load time — it will never fire in the game.
     /// </summary>
     public string? Sig { get; set; }

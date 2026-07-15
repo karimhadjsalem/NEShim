@@ -1,16 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <TargetFramework>net9.0</TargetFramework>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <UseWindowsForms>true</UseWindowsForms>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <AssemblyName>seal-achievements</AssemblyName>
+        <AssemblyName>pub-utils-ui</AssemblyName>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
     </ItemGroup>
-
 
 </Project>

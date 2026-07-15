@@ -4,7 +4,7 @@
     Pass this file via: dotnet test -settings coverage.runsettings
 
     Include only the NEShim assembly. BizHawk (vendored emulation core),
-    NEShim.AchievementSigning, and seal-achievements are excluded implicitly.
+    NEShim.AchievementSigning, and NEShim.PubUtils are excluded implicitly.
 
     The classes below are excluded because they wrap SDL/D3D11/NAudio native APIs and
     have no unit-testable surface. Every method either opens a native SDL renderer,

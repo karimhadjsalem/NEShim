@@ -8,7 +8,7 @@ namespace NEShim.Achievements;
 /// <summary>
 /// Loads per-game achievement definitions from achievements.json, keyed by ROM SHA1 hash.
 /// Any definition whose ECDSA-P256 signature does not verify is silently dropped — it will
-/// never fire in the game. Run seal-achievements to stamp valid signatures after editing the file.
+/// never fire in the game. Run pub-utils to stamp valid signatures after editing the file.
 /// Key resolution precedence: AchievementSigner.EmbeddedPublicKeyBase64 (binary-embedded, highest
 /// priority) → achievementPublicKey in config.json → neither configured (returns null, no achievements fire).
 ///
@@ -25,7 +25,7 @@ namespace NEShim.Achievements;
 ///         "encoding": "binary",
 ///         "comparison": "equals",
 ///         "value": 1,
-///         "sig": "...base64 ECDSA-P256 signature written by seal-achievements..."
+///         "sig": "...base64 ECDSA-P256 signature written by pub-utils..."
 ///       }
 ///     ]
 ///   }
@@ -111,7 +111,7 @@ internal static class AchievementConfigLoader
                     bool valid = AchievementSigner.Verify(def, publicKey);
                     if (!valid)
                         Logger.Log(
-                            $"[Achievements] Rejected '{def.SteamId}' — missing or invalid signature. Run seal-achievements to fix.");
+                            $"[Achievements] Rejected '{def.SteamId}' — missing or invalid signature. Run pub-utils to fix.");
                     return valid;
                 })
                 .ToList();

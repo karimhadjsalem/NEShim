@@ -1,4 +1,4 @@
-using NEShim.SealAchievementsUI;
+using NEShim.PubUtilsUI;
 
 Application.EnableVisualStyles();
 Application.SetCompatibleTextRenderingDefault(false);

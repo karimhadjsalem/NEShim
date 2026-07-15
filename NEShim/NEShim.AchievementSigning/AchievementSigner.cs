@@ -7,7 +7,7 @@ namespace NEShim.Achievements;
 /// Signs and verifies <see cref="AchievementDef"/> trigger fields using ECDSA-P256.
 ///
 /// The private key lives only on the publisher's build machine and is passed to
-/// <see cref="ComputeSig"/> by the seal-achievements tool — it never ships with the game.
+/// <see cref="ComputeSig"/> by the pub-utils tool — it never ships with the game.
 ///
 /// The public key is resolved at runtime by <c>AchievementConfigLoader</c> using this precedence:
 ///   1. <see cref="EmbeddedPublicKeyBase64"/> — set this constant at build time for maximum
@@ -15,7 +15,7 @@ namespace NEShim.Achievements;
 ///   2. <c>achievementPublicKey</c> in config.json — the pre-built release path; no rebuild needed.
 ///   3. Neither set → achievements are disabled.
 ///
-/// There is no default key. To generate a keypair: seal-achievements --gen-keypair
+/// There is no default key. To generate a keypair: pub-utils --gen-keypair
 /// </summary>
 public static class AchievementSigner
 {
@@ -32,7 +32,7 @@ public static class AchievementSigner
     /// <summary>
     /// Signs the trigger fields of <paramref name="def"/> with <paramref name="privateKeyBase64"/>
     /// (SEC1 DER format, base64-encoded) and returns the ECDSA-P256 signature as a base64 string.
-    /// Called only by the seal-achievements build tool — never at runtime.
+    /// Called only by the pub-utils build tool — never at runtime.
     /// </summary>
     public static string ComputeSig(AchievementDef def, string privateKeyBase64)
     {

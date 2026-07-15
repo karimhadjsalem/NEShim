@@ -5,14 +5,14 @@ using System.Text.Json.Serialization;
 using NEShim.Achievements;
 
 // ── Usage ────────────────────────────────────────────────────────────────────
-//   seal-achievements --gen-keypair
-//   seal-achievements --key-file <private_key_file> [path/to/achievements.json]
-//   seal-achievements --key <base64_private_key>    [path/to/achievements.json]
-//   seal-achievements --key-env <ENV_VAR>           [path/to/achievements.json]
-//   seal-achievements --validate [--pub-key <base64>] [path/to/package/dir]
-//   seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]
-//   seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]
-//   seal-achievements --seal-dlc-map --key <base64_private_key>    [games/multigame.json]
+//   pub-utils --gen-keypair
+//   pub-utils --key-file <private_key_file> [path/to/achievements.json]
+//   pub-utils --key <base64_private_key>    [path/to/achievements.json]
+//   pub-utils --key-env <ENV_VAR>           [path/to/achievements.json]
+//   pub-utils --validate [--pub-key <base64>] [path/to/package/dir]
+//   pub-utils --seal-dlc-map --key-file <private_key_file> [games/multigame.json]
+//   pub-utils --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]
+//   pub-utils --seal-dlc-map --key <base64_private_key>    [games/multigame.json]
 //
 // --gen-keypair  generates a new ECDSA-P256 keypair and exits. Run this TWICE if you use both
 //                achievement signing and DLC-map signing (--seal-dlc-map) — they MUST use two
@@ -250,9 +250,9 @@ if (args.Length == 1 && args[0] == "--gen-keypair")
 if (args.Length >= 1 && args[0] == "--seal-dlc-map")
 {
     const string dlcMapUsage =
-        "  seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]\n" +
-        "  seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]\n" +
-        "  seal-achievements --seal-dlc-map --key <private_key>            [games/multigame.json]";
+        "  pub-utils --seal-dlc-map --key-file <private_key_file> [games/multigame.json]\n" +
+        "  pub-utils --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]\n" +
+        "  pub-utils --seal-dlc-map --key <private_key>            [games/multigame.json]";
 
     var (dlcPrivateKeyBase64, dlcFileArgOffset) = TryResolvePrivateKeyFromArgs(args, startIndex: 1, dlcMapUsage);
     if (dlcPrivateKeyBase64 is null) return 1;
@@ -264,7 +264,7 @@ if (args.Length >= 1 && args[0] == "--seal-dlc-map")
     if (!File.Exists(manifestPath))
     {
         Console.Error.WriteLine($"File not found: {manifestPath}");
-        Console.Error.WriteLine("Usage: seal-achievements --seal-dlc-map --key-file <file> [path/to/multigame.json]");
+        Console.Error.WriteLine("Usage: pub-utils --seal-dlc-map --key-file <file> [path/to/multigame.json]");
         return 1;
     }
 
@@ -323,10 +323,10 @@ if (args.Length >= 1 && args[0] == "--seal-dlc-map")
 // ── Load private key ─────────────────────────────────────────────────────────
 
 const string sealUsage =
-    "  seal-achievements --gen-keypair\n" +
-    "  seal-achievements --key-file <private_key_file> [achievements.json]\n" +
-    "  seal-achievements --key-env <ENV_VAR> [achievements.json]\n" +
-    "  seal-achievements --key <private_key> [achievements.json]";
+    "  pub-utils --gen-keypair\n" +
+    "  pub-utils --key-file <private_key_file> [achievements.json]\n" +
+    "  pub-utils --key-env <ENV_VAR> [achievements.json]\n" +
+    "  pub-utils --key <private_key> [achievements.json]";
 
 var (privateKeyBase64, fileArgOffset) = TryResolvePrivateKeyFromArgs(args, startIndex: 0, sealUsage);
 if (privateKeyBase64 is null) return 1;
@@ -340,7 +340,7 @@ string path = args.Length > fileArgOffset
 if (!File.Exists(path))
 {
     Console.Error.WriteLine($"File not found: {path}");
-    Console.Error.WriteLine("Usage: seal-achievements --key-file <file> [path/to/achievements.json]");
+    Console.Error.WriteLine("Usage: pub-utils --key-file <file> [path/to/achievements.json]");
     return 1;
 }
 

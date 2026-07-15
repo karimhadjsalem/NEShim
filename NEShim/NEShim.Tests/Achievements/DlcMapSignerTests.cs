@@ -5,7 +5,7 @@ namespace NEShim.Tests.Achievements;
 [TestFixture]
 internal class DlcMapSignerTests
 {
-    // Same test keypair as AchievementSignerTests — generated with seal-achievements
+    // Same test keypair as AchievementSignerTests — generated with pub-utils
     // --gen-keypair; test-only, not production keys.
     private const string TestPrivateKeyBase64 =
         "MHcCAQEEIJX+aCzo2G6R5dUkmZWSRbUDpJMqj57dNvMZBNRhdjoqoAoGCCqGSM49AwEHoUQDQgAE" +
