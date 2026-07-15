@@ -32,6 +32,17 @@ This only applies on first run. If `config.json` already exists (e.g., the user 
 
 ---
 
+## Suspend / resume and GPU device loss
+
+A system sleep/wake cycle (or, less commonly, a GPU driver reset on desktop) can invalidate the underlying graphics device NEShim is rendering with. Both rendering paths recover from this automatically — the game pauses briefly, reinitialises its renderer, and resumes, rather than crashing or requiring a relaunch:
+
+- **Native Linux (SDL_GPU/Vulkan)** — since SDL's renderer API doesn't expose a structured "device lost" error code the way DXGI does on Windows, NEShim treats several consecutive failed frame-present calls in a row as a lost device (a single failed present, e.g. from a transient resize race, is not enough to trigger a full reinitialisation).
+- **Proton (D3D11 via DXVK)** — detected directly from the swap chain's `DXGI_ERROR_DEVICE_REMOVED`/`DXGI_ERROR_DEVICE_RESET` result codes, the same as the native Windows path.
+
+This is more likely to come up on Deck than on desktop, since suspending the Deck to sleep is a routine, frequent action for most players.
+
+---
+
 ## Main menu rendering performance
 
 On Wine/Proton, main menu navigation appeared laggy — pressing a button took noticeably longer to update the screen than in-game menu navigation. The root cause was rendering throughput, not input detection speed: the background image was rescaled on every render frame. The cost of software-mode rescaling on each idle tick was enough to reduce the visible update rate from 60 Hz to roughly 5–10 Hz.
