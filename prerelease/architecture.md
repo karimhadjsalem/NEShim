@@ -34,7 +34,7 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Config` | `AppConfig` POCO + `ConfigLoader` (JSON load/save) |
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
-| `NEShim.Rendering` | `IFrameRenderer` strategy (Windows: `D3D11Renderer` primary / `SDL3HwRenderer` fallback; Linux: `SDL3HwRenderer` via SDL_GPU/Vulkan), `IMenuSceneProvider` pull interface, `SDL3PaintContext` (cross-platform paint surface — wraps an SDL_Surface for menu/HUD rendering), `SDL3FontCache` (SDL3_ttf font lifecycle; keyed by family+size; dispose-tracked), `SdlSurfaceLoader` (cross-platform image loader using SDL3_image), `IOverlayRenderer` (Windows: `SteamOverlayRenderer`; Linux: `NullOverlayRenderer`), `OverlayRenderer` (stateless static helpers — `DrawFps(SDL3PaintContext, rect, fps)` and `DrawToast(SDL3PaintContext, rect, text)` — called by both renderers), `FrameBuffer` (double-buffer), `D3DOverlayHook` (Windows: D3D11 device + swap chain bound to SDL HWND); **D3D11 subsystems** (`Rendering/Filters/Dx11/`): `ID3D11Filter` + 7 implementations, `D3D11FilterFactory`; **SDL subsystems** (`Rendering/Filters/SDL/`, `Rendering/MotionEffects/SDL/`, `Rendering/SDL/`): `ISdlFilter` (mirrors `ID3D11Filter` for SPIR-V; exposes `PixelShaderResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`, `WriteUniformData`), `SdlGpuRenderState` (wraps one SDL_GPUShader + SDL_GPURenderState pair; `Apply(Span<float>)` uploads uniforms; `Clear()` restores default pipeline; created per active filter, disposed on filter change), `SdlFilterFactory` (maps `VideoFilterMode` → `ISdlFilter`), `ISdlMotionEffect` (extends `IMotionEffect`; adds `SpvResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`), `SdlMotionEffectFactory` (maps `VideoMotionEffectMode` → `IMotionEffect`, same mapping as the D3D11-path `MotionEffectFactory` — `SDL3HwRenderer` detects `NeedsTemporalBuffer` on the returned effect to route `PhosphorPersistence` through blend compositing instead of a shader); **shared** (`Filters/`, `MotionEffects/`): `IMotionEffect`, `MotionEffectFactory` (D3D11 path), `VideoFilterMode`, `VideoColorFilterMode`, `VideoMotionEffectMode` |
+| `NEShim.Rendering` | `IFrameRenderer` strategy (Windows: `D3D11Renderer` primary / `SDL3HwRenderer` fallback; Linux: `SDL3HwRenderer` via SDL_GPU/Vulkan), `IMenuSceneProvider` pull interface, `SDL3PaintContext` (cross-platform paint surface — wraps an SDL_Surface for menu/HUD rendering), `SDL3FontCache` (SDL3_ttf font lifecycle; keyed by family+size; dispose-tracked), `SdlSurfaceLoader` (cross-platform image loader using SDL3_image), `IOverlayRenderer` (Windows: `SteamOverlayRenderer`; Linux: `NullOverlayRenderer`), `OverlayRenderer` (stateless static helpers — `DrawFps(SDL3PaintContext, rect, fps)` and `DrawToast(SDL3PaintContext, rect, text)` — called by both renderers), `FrameBuffer` (double-buffer), `SteamOverlayRenderer` (Windows: D3D11 device + swap chain bound to SDL HWND); **D3D11 subsystems** (`Rendering/Filters/Dx11/`): `ID3D11Filter` + 7 implementations, `D3D11FilterFactory`; **SDL subsystems** (`Rendering/Filters/SDL/`, `Rendering/MotionEffects/SDL/`, `Rendering/SDL/`): `ISdlFilter` (mirrors `ID3D11Filter` for SPIR-V; exposes `PixelShaderResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`, `WriteUniformData`), `SdlGpuRenderState` (wraps one SDL_GPUShader + SDL_GPURenderState pair; `Apply(Span<float>)` uploads uniforms; `Clear()` restores default pipeline; created per active filter, disposed on filter change), `SdlFilterFactory` (maps `VideoFilterMode` → `ISdlFilter`), `ISdlMotionEffect` (extends `IMotionEffect`; adds `SpvResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`), `SdlMotionEffectFactory` (maps `VideoMotionEffectMode` → `IMotionEffect`, same mapping as the D3D11-path `MotionEffectFactory` — `SDL3HwRenderer` detects `NeedsTemporalBuffer` on the returned effect to route `PhosphorPersistence` through blend compositing instead of a shader); **shared** (`Filters/`, `MotionEffects/`): `IMotionEffect`, `MotionEffectFactory` (D3D11 path), `VideoFilterMode`, `VideoColorFilterMode`, `VideoMotionEffectMode` |
 | `NEShim.Audio` | `AudioPlayer` (SDL3 audio stream bridge — `SDL.OpenAudioDeviceStream` + callback), 8 `IAudioProcessor` implementations, `AudioEqProcessor`, `MainMenuMusic` |
 | `NEShim.Input` | `InputManager`, `InputSnapshot`; `SDL3GamepadDevice`, `SDL3GamepadSource`, `SDL3GamepadMapper`; `SteamInputSource`, `SteamInputMapper`; `KeyboardInputSource`, `KeyboardMapper` |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
@@ -67,10 +67,10 @@ Program.cs
             3. InitializeInput()            — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input)
             4. InitializeAudio()            — AudioPlayer (SDL3 audio stream)
             5. InitializeSteam()            — SteamManager.Initialize() → overlay callback wired
-            6. InitializeWindowAndD3DHook()
+            6. InitializeWindowAndRenderer()
                ├─ SetWindowMode()
                ├─ OverlayRendererFactory.Create()
-               │    Windows: SteamOverlayRenderer (D3DOverlayHook wraps SDL HWND)
+               │    Windows: SteamOverlayRenderer (SteamOverlayRenderer wraps SDL HWND)
                │    Linux:   NullOverlayRenderer
                └─ RendererFactory.Create()
                     Windows: D3D11Renderer (primary) / SDL3HwRenderer (fallback via SDL_GPU)
@@ -252,7 +252,7 @@ Looping is handled by seeking the decoded audio source back to position 0 when i
 
 Steam's overlay DLL (`GameOverlayRenderer64.dll`) hooks `IDXGISwapChain::Present` at the vtable level — without that hook, `SteamUtils.IsOverlayEnabled()` stays `false` and Shift+Tab does nothing.
 
-**`D3DOverlayHook`** creates a D3D11 device and swap chain bound to the HWND obtained from `SDL3WindowHost.Handle` (`SDL.GetPointerProperty` on the SDL window). `D3D11Renderer.DrawAndPresent()` calls `SwapChain.Present()` every ~16 ms, which Steam intercepts. When D3D11 is unavailable and `SDL3HwRenderer` is the active renderer instead, no `D3DOverlayHook` device is created — the Steam overlay is not available on the Windows fallback path in that case.
+**`SteamOverlayRenderer`** creates a D3D11 device and swap chain bound to the HWND obtained from `SDL3WindowHost.Handle` (`SDL.GetPointerProperty` on the SDL window). `D3D11Renderer.DrawAndPresent()` calls `SwapChain.Present()` every ~16 ms, which Steam intercepts. When D3D11 is unavailable and `SDL3HwRenderer` is the active renderer instead, no `SteamOverlayRenderer` device is created — the Steam overlay is not available on the Windows fallback path in that case.
 
 The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — see [Proton / Steam Deck notes](#proton--steam-deck-notes) below).
 
@@ -276,7 +276,7 @@ The fix: `SteamManager.RunCallbacksAfterPresent()` is called immediately after `
 
 ### Initialisation order
 
-`D3DOverlayHook.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions — `Handle` is retrieved from `SDL3WindowHost.Handle`. `D3D11Renderer` is constructed immediately after `D3DOverlayHook.Initialize()`. An SDL `SDL_EVENT_WINDOW_RESIZED` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
+`SteamOverlayRenderer.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions — `Handle` is retrieved from `SDL3WindowHost.Handle`. `D3D11Renderer` is constructed immediately after `SteamOverlayRenderer.Initialize()`. An SDL `SDL_EVENT_WINDOW_RESIZED` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
 
 ### Proton / Steam Deck notes
 
@@ -293,30 +293,36 @@ DXVK is the Vulkan translation layer Proton uses for D3D11. Key behaviors:
 
 ---
 
-## D3D11 renderer and device loss (Windows only)
+## D3D11 resource ownership, and device loss recovery
 
-### Ownership model
+### Ownership model (D3D11, Windows only)
 
-`D3DOverlayHook` owns the D3D11 device and DXGI swap chain — it creates them and disposes them. `D3D11Renderer` is constructed with a reference to both and owns all other rendering objects:
+`SteamOverlayRenderer` owns the D3D11 device and DXGI swap chain — it creates them and disposes them. `D3D11Renderer` is constructed with a reference to both and owns all other rendering objects:
 
 | Resource | Owner |
 |---|---|
-| `ID3D11Device`, `IDXGISwapChain` | `D3DOverlayHook` |
+| `ID3D11Device`, `IDXGISwapChain` | `SteamOverlayRenderer` |
 | `ID3D11DeviceContext` (immediate) | retrieved from device; not disposed |
 | `ID3D11Texture2D` (NES texture), SRV | `D3D11Renderer` |
 | `ID3D11RenderTargetView` | `D3D11Renderer` (recreated on resize) |
 | Vertex buffer, VS, PS, input layout, sampler | `D3D11Renderer` |
 
-`D3D11Renderer.Dispose()` releases only the objects it owns. `D3DOverlayHook.Dispose()` is called after `D3D11Renderer.Dispose()` in `NEShimApp.Shutdown()`.
+`D3D11Renderer.Dispose()` releases only the objects it owns. `SteamOverlayRenderer.Dispose()` is called after `D3D11Renderer.Dispose()` in `NEShimApp.Shutdown()`.
 
-### Device loss recovery
+### Device loss recovery (both platforms)
 
-`D3D11Renderer.DrawAndPresent()` checks the `Present()` HRESULT for `DXGI_ERROR_DEVICE_REMOVED` (0x887A0005) and `DXGI_ERROR_DEVICE_RESET` (0x887A0007). If either occurs:
+Both `D3D11Renderer` and `SDL3HwRenderer` implement `IFrameRenderer.DeviceLost`, and the recovery handler, `NEShimApp.OnRendererDeviceLost`, is platform-agnostic — subscribed once at initial renderer creation and again inside its own recovery path, and identical either way:
 
-1. `DeviceLost` event fires.
-2. `NEShimApp.OnD3DDeviceLost` handles it: sets `PauseReasons.DeviceLost`, disposes `D3D11Renderer` then `D3DOverlayHook`.
-3. Recreates `D3DOverlayHook` (new device + swap chain) and `D3D11Renderer`.
-4. If recreation succeeds, clears `PauseReasons.DeviceLost` to resume emulation.
+1. Sets `PauseReasons.DeviceLost`.
+2. Disposes the renderer, then the overlay renderer.
+3. Recreates the overlay renderer (`OverlayRendererFactory.Create`) and the frame renderer (`RendererFactory.Create`) — on Windows this may recreate `SteamOverlayRenderer`'s device + swap chain and a fresh `D3D11Renderer`; on Linux (or the Windows SDL_GPU fallback) it recreates `SDL3HwRenderer` and its Vulkan/GPU device.
+4. Re-subscribes `DeviceLost`, reapplies sidebars, the menu scene provider, and rendering options.
+5. If recreation succeeds, clears `PauseReasons.DeviceLost` to resume emulation.
+
+What differs between the two renderers is *how* each detects the loss in the first place, since they're built on different graphics APIs with very different error-reporting granularity:
+
+- **D3D11Renderer** checks the swap chain `Present()` call's HRESULT for the structured `DXGI_ERROR_DEVICE_REMOVED` (0x887A0005) / `DXGI_ERROR_DEVICE_RESET` (0x887A0007) codes and fires `DeviceLost` immediately on the first occurrence — these codes are an unambiguous, direct signal.
+- **SDL3HwRenderer** has no equivalent structured signal available — SDL's `RenderPresent` returns only a bool plus a free-form `SDL.GetError()` string, which can't reliably distinguish a genuinely lost Vulkan/GPU device from a benign, self-recovering hiccup (e.g. a resize-driven swapchain race). `PresentAndCheckDeviceLost` requires 3 *consecutive* failed presents before firing `DeviceLost`, and resets that counter whenever `Resize()` runs, so a resize's own transient failures can't accumulate into a false trigger.
 
 Device loss is rare on desktop (typically caused by a GPU driver reset or suspend/resume cycle). On Steam Deck it is more likely during system sleep.
 
@@ -360,7 +366,7 @@ NES pixel buffer (int[256×240], 0xAARRGGBB / BGRA in little-endian memory)
                       └─ SwapChain.Present(syncInterval=1) — vsync on
 ```
 
-`D3DOverlayHook` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, sampler, and filter constant buffer. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
+`SteamOverlayRenderer` creates and owns the D3D11 device and swap chain. `D3D11Renderer` reuses them (passed via constructor) and owns all other rendering resources: NES texture, overlay texture, SRV, RTV, vertex buffer, shaders, input layout, sampler, and filter constant buffer. NES pixels are `B8G8R8A8_UNorm` — no byte-swapping needed.
 
 **D3D11 renders everything** — not just the NES frame. The logo splash, main menu, in-game menu, toasts, achievement banners, and FPS overlay are all composited by `D3D11Renderer` via an overlay texture pipeline. `NEShimApp` implements `IMenuSceneProvider`, returning a paint delegate (`Action<SDL3PaintContext, SDL.Rect>`) for whichever scene is active (or `null` during pure gameplay — zero overhead on the hot path).
 
@@ -442,9 +448,9 @@ NES pixel buffer (int[256×240], ARGB)
 
 **Filter abstraction layer (`ISdlFilter` / `SdlFilterFactory` / `SdlGpuRenderState`):**
 
-`SDL3HwRenderer.SetFilter(ID3D11Filter filter)` does not use the D3D11 filter object directly — it translates through `SdlFilterFactory.Create(filter.FilterMode)` to obtain an `ISdlFilter` implementation. `ISdlFilter` mirrors the `ID3D11Filter` contract but targets SPIR-V: it exposes `PixelShaderResourceName` (the embedded `.spv` resource name, or null for a passthrough draw), `WriteUniformData(Span<float> dst, int nesWidth, int nesHeight)` (writes the 4-float uniform block), `NumFragmentSamplers`, and `NumFragmentUniformBuffers`. The renderer wraps each active filter in a `SdlGpuRenderState` — a disposable object that creates the `SDL_GPUShader` and `SDL_GPURenderState` once and exposes `Apply(Span<float> uniformData)` (uploads uniforms to slot 0 and activates the render state) and `Clear()` (restores the default SDL pipeline). When the active filter changes, the old `SdlGpuRenderState` is disposed and a new one is created for the replacement filter.
+`IFrameRenderer.SetFilter(VideoFilterMode mode)` takes the platform-neutral `VideoFilterMode` directly — neither renderer's public API is typed on the other's concrete filter object. `SDL3HwRenderer.SetFilter` translates `mode` through `SdlFilterFactory.Create(mode)` to obtain an `ISdlFilter` implementation (mirroring `D3D11Renderer.SetFilter`, which translates the same `mode` through `D3D11FilterFactory.Create(mode)` instead). `ISdlFilter` mirrors the `ID3D11Filter` contract but targets SPIR-V: it exposes `PixelShaderResourceName` (the embedded `.spv` resource name, or null for a passthrough draw), `WriteUniformData(Span<float> dst, int nesWidth, int nesHeight)` (writes the 4-float uniform block), `NumFragmentSamplers`, and `NumFragmentUniformBuffers`. The renderer wraps each active filter in a `SdlGpuRenderState` — a disposable object that creates the `SDL_GPUShader` and `SDL_GPURenderState` once and exposes `Apply(Span<float> uniformData)` (uploads uniforms to slot 0 and activates the render state) and `Clear()` (restores the default SDL pipeline). When the active filter changes, the old `SdlGpuRenderState` is disposed and a new one is created for the replacement filter.
 
-**Video Overlay (`SetOverlayFilter`):** translates through `SdlFilterFactory.Create(overlay.FilterMode)` exactly like `SetFilter` above, since it draws from the same structural-filter set (CrtScanlines, CrtPhosphor, CrtScreen). Allocates a dedicated `_overlayFilterTexture` intermediate and its own `SdlGpuRenderState`, wired into the cascading pipeline as the stage immediately after the primary filter. This needed no new low-level mechanism — overlay is a purely sequential two-pass composite (filter's output sampled once by the overlay shader), the same single-sampler-per-draw shape already proven by the motion-effect and picture-adjust passes.
+**Video Overlay (`SetOverlayFilter(VideoFilterMode? mode)`):** translates a non-null `mode` through `SdlFilterFactory.Create(mode.Value)` exactly like `SetFilter` above, since it draws from the same structural-filter set (CrtScanlines, CrtPhosphor, CrtScreen); a null `mode` clears the overlay. Allocates a dedicated `_overlayFilterTexture` intermediate and its own `SdlGpuRenderState`, wired into the cascading pipeline as the stage immediately after the primary filter. This needed no new low-level mechanism — overlay is a purely sequential two-pass composite (filter's output sampled once by the overlay shader), the same single-sampler-per-draw shape already proven by the motion-effect and picture-adjust passes.
 
 **Motion effects (`ISdlMotionEffect` / `SdlMotionEffectFactory`):**
 
@@ -458,7 +464,7 @@ All four motion effects are supported: **CRT Jitter** and **Scanline Bob** use o
 
 `PlatformDetector.IsD3D11Active` and `PlatformDetector.IsSdlGpuRendererActive` are each set once at startup by `RendererFactory` (Windows and Linux variants), and `PlatformDetector.SupportsAdvancedVideoFeatures` (`IsD3D11Active || IsSdlGpuRendererActive`) is the property both Video menus gate their extended item set on:
 
-- `IsD3D11Active` — D3D11 device successfully initialised via `D3DOverlayHook`; `D3D11Renderer` is the active frame renderer.
+- `IsD3D11Active` — D3D11 device successfully initialised via `SteamOverlayRenderer`; `D3D11Renderer` is the active frame renderer.
 - `IsSdlGpuRendererActive` — `SDL3HwRenderer` initialised with `SDL_CreateGPURenderer` (SPIR-V support) rather than falling back to plain `SDL_CreateRenderer`. True on Linux whenever Vulkan is available, and on Windows whenever D3D11 init failed but SDL's own GPU renderer abstraction still succeeded.
 
 Whenever either flag is true (i.e. `SupportsAdvancedVideoFeatures`), every video feature is available: structural filters, Video Overlay, all four motion effects (including PhosphorPersistence / Screen Glow), color effects, picture adjustments, and presets — identically on both rendering paths. Only the plain `SDL_CreateRenderer` fallback (both flags false — no GPU device found on either path, `_isGpuRenderer = false`) restricts the menu to Pixel Perfect / Bilinear with no color effects, motion effects, overlay, picture adjustments, or presets.
