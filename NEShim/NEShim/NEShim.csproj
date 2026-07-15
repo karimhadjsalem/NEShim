@@ -59,7 +59,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
-        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
+        <ProjectReference Include="..\NEShim.Signing\NEShim.Signing.csproj" />
     </ItemGroup>
 
     <ItemGroup>

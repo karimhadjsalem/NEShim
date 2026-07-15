@@ -24,7 +24,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\NEShim\NEShim.csproj" />
-        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
+        <ProjectReference Include="..\NEShim.Signing\NEShim.Signing.csproj" />
         <ProjectReference Include="..\NEShim.PubUtils\NEShim.PubUtils.csproj" />
     </ItemGroup>
 

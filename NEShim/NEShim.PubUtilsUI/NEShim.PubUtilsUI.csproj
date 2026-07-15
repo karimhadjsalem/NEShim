@@ -10,7 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
+        <ProjectReference Include="..\NEShim.Signing\NEShim.Signing.csproj" />
     </ItemGroup>
 
 </Project>

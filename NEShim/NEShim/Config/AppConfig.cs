@@ -43,7 +43,7 @@ public sealed class AppConfig
     public Dictionary<string, uint> GameDlcAppIds { get; set; } = new();
 
     // games/multigame.json shell config only. ECDSA-P256 signature (base64) over GameDlcAppIds
-    // — see NEShim.AchievementSigning.DlcMapSigner, sealed with the same pub-utils tool
+    // — see DlcMapSigner (NEShim.Signing project, NEShim.Achievements namespace), sealed with the pub-utils tool
     // (--seal-dlc-map). Verified against DlcMapSigner.EmbeddedPublicKeyBase64, a compile-time
     // constant — NOT read from config, so a copied/tampered install can't just supply its own
     // matching keypair. Setting this signature without also compiling in the matching public
