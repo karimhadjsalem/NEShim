@@ -306,6 +306,8 @@ dotnet publish NEShim/NEShim/NEShim.csproj \
 
 `PublishReadyToRun` pre-compiles managed IL to native code at build time. Without it, the .NET JIT compiles methods on first call at runtime — on Proton/Wine this is significantly more expensive because every JIT step calls `VirtualAlloc`/`VirtualProtect`, which Wine intercepts and translates. The result is noticeable frame spikes on ROM load, menu transitions, and achievement unlocks. Always include this flag; **do not use plain `dotnet build` output for performance testing on Proton or Steam Deck**.
 
+**Cross-compiling from Windows:** you can build both `win-x64` and `linux-x64` from the same Windows machine — platform-specific files (the D3D11 renderer vs. the SDL_GPU/Vulkan renderer and its Linux native libraries) are selected based on the `-r` target you pass, not the machine you're building on, so a `linux-x64` build produced this way is a real, functional Linux build. This is also how the official release pipeline works — it publishes both platforms from a single Windows runner.
+
 After the build completes, copy your game assets (`config.json`, `achievements.json`, `game.nes`, artwork, audio) into each platform's output directory, then copy the matching Steamworks native library from the [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) alongside the exe (see [step 5](#5-steamworks-native-library)).
 
 ---

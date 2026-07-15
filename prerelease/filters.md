@@ -82,7 +82,7 @@ The active rendering path is detected at startup and shown in `neshim.log` when 
 
 **Fallback behaviour:** if `config.json` specifies a shader filter but the current renderer is not shader-capable, NEShim logs a warning, falls back to `PixelPerfect`, and saves the fallback value back to `config.json`.
 
-**Adding a new structural filter:** see the [Architecture guide — Adding a new D3D11 video filter](architecture.md#adding-a-new-d3d11-video-filter-structural).
+**Adding a new structural filter:** see the [Architecture guide — Adding a new video filter](architecture.md#adding-a-new-video-filter-structural).
 
 ---
 
