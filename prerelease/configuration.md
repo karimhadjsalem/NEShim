@@ -113,7 +113,7 @@ The background image is stretched to fill the entire window with no cropping. If
 
 ### Carousel background sizing
 
-Like the main menu background, `carouselBackgroundPath` is stretched to fill the window — design at your target resolution (see the table above) to avoid distortion. Unlike the main menu background, it can be an **animated GIF**: each frame is decoded once at carousel startup and played back using the GIF's own per-frame delay timing, looping continuously for as long as the carousel is shown. There's no frame-count or resolution limit enforced, but keep animated backgrounds modest in size — every carousel frame re-uploads the current GIF frame to the GPU, so a very large or very long animation is unnecessary overhead for a screen players pass through quickly.
+Like the main menu background, `carouselBackgroundPath` is stretched to fill the window — design at your target resolution (see the table above) to avoid distortion. Unlike the main menu background, it can be an **animated GIF**: each frame is decoded once at carousel startup and played back using the GIF's own per-frame delay timing, looping continuously for as long as the carousel is shown. Every carousel frame re-uploads the current GIF frame to the GPU rather than caching it, so decoded frames are automatically downscaled at load time to the actual window size if the source art is larger — supplying 4K art for a 1080p window costs nothing extra at runtime, it's simply capped down once, before playback starts. There's no frame-count limit, but keep animated backgrounds modest in length — a long animation is still unnecessary overhead for a screen players pass through quickly.
 
 ### Box art sizing
 
