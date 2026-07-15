@@ -26,8 +26,16 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
     public SDL3WindowHost(string title, int width, int height)
     {
         PlatformDetector.ConfigureVideoDriverForSteamOverlay();
-        if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events | SDL.InitFlags.Audio | SDL.InitFlags.Gamepad))
+        if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events | SDL.InitFlags.Gamepad))
             throw new InvalidOperationException($"SDL_Init failed: {SDL.GetError()}");
+
+        // Audio is initialized separately and non-fatally: some Linux environments have no
+        // working audio backend at all (e.g. missing libjack.so.0 with no PulseAudio/ALSA/
+        // PipeWire fallback available either), which must not prevent the app from starting.
+        // AudioPlayer.Start() already tolerates SDL_OpenAudioDeviceStream failing (logs and
+        // runs muted) — this applies the same tolerance one level up, at subsystem init.
+        if (!SDL.InitSubSystem(SDL.InitFlags.Audio))
+            Logger.Log($"[Audio] SDL audio subsystem init failed, running muted: {SDL.GetError()}");
 
         _window = SDL.CreateWindow(title, width, height, SDL.WindowFlags.Resizable | SDL.WindowFlags.Hidden);
         if (_window == IntPtr.Zero)
