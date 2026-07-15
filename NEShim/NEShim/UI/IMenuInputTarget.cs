@@ -4,7 +4,7 @@ namespace NEShim.UI;
 
 /// <summary>
 /// Receives gamepad menu navigation dispatched from the emulation thread.
-/// Implemented by MainForm so EmulationThread does not depend on GamePanel.
+/// Implemented by NEShimApp so EmulationThread does not depend on the UI/menu layer directly.
 /// </summary>
 internal interface IMenuInputTarget
 {

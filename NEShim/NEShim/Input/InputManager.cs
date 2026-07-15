@@ -11,7 +11,7 @@ namespace NEShim.Input;
 /// <summary>
 /// Coordinates input sources and mappers to produce per-frame InputSnapshot values.
 /// Fires IoC events for hotkey edges, menu-toggle, and controller disconnect so callers
-/// (EmulationThread, MainForm) register handlers once rather than polling each frame.
+/// (EmulationThread, NEShimApp) register handlers once rather than polling each frame.
 /// </summary>
 internal sealed class InputManager : IInputReader
 {

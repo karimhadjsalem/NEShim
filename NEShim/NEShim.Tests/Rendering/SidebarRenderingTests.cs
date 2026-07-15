@@ -1,3 +1,4 @@
+using SDL3;
 using NEShim.Rendering;
 
 namespace NEShim.Tests.Rendering;
@@ -118,5 +119,107 @@ internal class SidebarRenderingTests
         Assert.That(v0, Is.GreaterThanOrEqualTo(0f));
         Assert.That(u1, Is.LessThanOrEqualTo(1f + 0.001f));
         Assert.That(v1, Is.LessThanOrEqualTo(1f + 0.001f));
+    }
+
+    // ---- ComputeCoverSrcFRect (SDL_GPU path) ----
+    // Same cover-crop math as ComputeCoverUV above, expressed as a pixel-space source rect
+    // (what SDL.RenderTexture expects) rather than normalized UVs (what D3D11 sampling expects).
+
+    [Test]
+    public void ComputeCoverSrcFRect_IdenticalSizes_UsesEntireImage()
+    {
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((100, 200), 100f, 200f);
+
+        Assert.That(src.X, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.Y, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.W, Is.EqualTo(100f).Within(0.01f));
+        Assert.That(src.H, Is.EqualTo(200f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_WideImageNarrowQuad_CropsSidesNotTopBottom()
+    {
+        // 200×100 image → 100×100 quad: scale=1 (height), srcW=100, srcH=100, srcX=50
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((200, 100), 100f, 100f);
+
+        Assert.That(src.Y, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.H, Is.EqualTo(100f).Within(0.01f));
+        Assert.That(src.X, Is.EqualTo(50f).Within(0.01f));
+        Assert.That(src.W, Is.EqualTo(100f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_TallImageWideQuad_CropsTopBottomNotSides()
+    {
+        // 100×200 image → 100×100 quad: scale=1 (width), srcW=100, srcH=100, srcY=50
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((100, 200), 100f, 100f);
+
+        Assert.That(src.X, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.W, Is.EqualTo(100f).Within(0.01f));
+        Assert.That(src.Y, Is.EqualTo(50f).Within(0.01f));
+        Assert.That(src.H, Is.EqualTo(100f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SmallImageLargeQuad_NoClipping()
+    {
+        // 50×100 image → 100×200 quad: same aspect ratio, scale=2, no cropping
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((50, 100), 100f, 200f);
+
+        Assert.That(src.X, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.Y, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(src.W, Is.EqualTo(50f).Within(0.01f));
+        Assert.That(src.H, Is.EqualTo(100f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SrcIsCenteredHorizontallyOnImage()
+    {
+        // 300×100 image → 100×100 quad
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((300, 100), 100f, 100f);
+        float centerX = src.X + src.W / 2f;
+        Assert.That(centerX, Is.EqualTo(150f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SrcIsCenteredVerticallyOnImage()
+    {
+        // 100×300 image → 100×100 quad
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((100, 300), 100f, 100f);
+        float centerY = src.Y + src.H / 2f;
+        Assert.That(centerY, Is.EqualTo(150f).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SrcWidthFillsQuad_AfterScaling()
+    {
+        (int W, int H) imageSize = (100, 150);
+        float quadW = 48f, quadH = 480f;
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect(imageSize, quadW, quadH);
+        float scale = Math.Max(quadW / imageSize.W, quadH / imageSize.H);
+
+        Assert.That(src.W * scale, Is.EqualTo(quadW).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SrcHeightFillsQuad_AfterScaling()
+    {
+        (int W, int H) imageSize = (100, 150);
+        float quadW = 48f, quadH = 480f;
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect(imageSize, quadW, quadH);
+        float scale = Math.Max(quadW / imageSize.W, quadH / imageSize.H);
+
+        Assert.That(src.H * scale, Is.EqualTo(quadH).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeCoverSrcFRect_SrcRectIsWithinImageBounds()
+    {
+        SDL.FRect src = SDL3HwRenderer.ComputeCoverSrcFRect((80, 200), 48f, 480f);
+
+        Assert.That(src.X, Is.GreaterThanOrEqualTo(0f));
+        Assert.That(src.Y, Is.GreaterThanOrEqualTo(0f));
+        Assert.That(src.X + src.W, Is.LessThanOrEqualTo(80f + 0.01f));
+        Assert.That(src.Y + src.H, Is.LessThanOrEqualTo(200f + 0.01f));
     }
 }

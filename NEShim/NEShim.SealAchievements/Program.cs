@@ -46,6 +46,67 @@ using NEShim.Achievements;
 //                ("DLC ownership anti-tamper") or the docs site's multi-game guide.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const int RomHashDisplayLength = 12; // truncation length for the ROM hash shown in console output
+
+// Resolves a private key from --key-file/--key-env/--key starting at args[startIndex] (shared by
+// the main sealing path and --seal-dlc-map, which differ only in where their own leading flag(s)
+// push this sub-parse's start index to). Returns null and writes an error/usage message to
+// stderr on any failure — missing/unrecognized flag, missing file, unset env var, empty key
+// value, or malformed base64 — so callers can just check for null and return 1.
+static (string? privateKeyBase64, int nextArgIndex) TryResolvePrivateKeyFromArgs(
+    string[] args, int startIndex, string usage)
+{
+    string? privateKeyBase64;
+    int nextArgIndex;
+
+    if (args.Length >= startIndex + 2 && args[startIndex] == "--key-file")
+    {
+        string keyFile = args[startIndex + 1];
+        if (!File.Exists(keyFile))
+        {
+            Console.Error.WriteLine($"Key file not found: {keyFile}");
+            return (null, 0);
+        }
+        privateKeyBase64 = File.ReadAllText(keyFile).Trim();
+        nextArgIndex = startIndex + 2;
+    }
+    else if (args.Length >= startIndex + 2 && args[startIndex] == "--key-env")
+    {
+        string envVar = args[startIndex + 1];
+        privateKeyBase64 = Environment.GetEnvironmentVariable(envVar);
+        if (string.IsNullOrEmpty(privateKeyBase64))
+        {
+            Console.Error.WriteLine($"Environment variable '{envVar}' is not set or empty.");
+            return (null, 0);
+        }
+        nextArgIndex = startIndex + 2;
+    }
+    else if (args.Length >= startIndex + 2 && args[startIndex] == "--key")
+    {
+        privateKeyBase64 = args[startIndex + 1];
+        if (string.IsNullOrEmpty(privateKeyBase64))
+        {
+            Console.Error.WriteLine("Key parameter is missing or empty.");
+            return (null, 0);
+        }
+        nextArgIndex = startIndex + 2;
+    }
+    else
+    {
+        Console.Error.WriteLine("Usage:");
+        Console.Error.WriteLine(usage);
+        return (null, 0);
+    }
+
+    try { Convert.FromBase64String(privateKeyBase64); }
+    catch
+    {
+        Console.Error.WriteLine("Private key is not valid base64.");
+        return (null, 0);
+    }
+
+    return (privateKeyBase64, nextArgIndex);
+}
 
 if (args.Length >= 1 && args[0] == "--validate")
 {
@@ -148,7 +209,7 @@ if (args.Length >= 1 && args[0] == "--validate")
     int totalValid = 0, totalFailed = 0;
     foreach (var (romHash, config) in validateConfigs)
     {
-        Console.WriteLine($"\nROM {romHash[..Math.Min(12, romHash.Length)]}…  ({config.Achievements.Count} achievement(s))");
+        Console.WriteLine($"\nROM {romHash[..Math.Min(RomHashDisplayLength, romHash.Length)]}…  ({config.Achievements.Count} achievement(s))");
 
         var romResult = ValidationService.Validate(
             new Dictionary<string, GameAchievementConfig> { [romHash] = config },
@@ -188,51 +249,13 @@ if (args.Length == 1 && args[0] == "--gen-keypair")
 
 if (args.Length >= 1 && args[0] == "--seal-dlc-map")
 {
-    string? dlcPrivateKeyBase64 = null;
-    int dlcFileArgOffset = 1;
+    const string dlcMapUsage =
+        "  seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]\n" +
+        "  seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]\n" +
+        "  seal-achievements --seal-dlc-map --key <private_key>            [games/multigame.json]";
 
-    if (args.Length >= 3 && args[1] == "--key-file")
-    {
-        string keyFile = args[2];
-        if (!File.Exists(keyFile))
-        {
-            Console.Error.WriteLine($"Key file not found: {keyFile}");
-            return 1;
-        }
-        dlcPrivateKeyBase64 = File.ReadAllText(keyFile).Trim();
-        dlcFileArgOffset = 3;
-    }
-    else if (args.Length >= 3 && args[1] == "--key-env")
-    {
-        string envVar = args[2];
-        dlcPrivateKeyBase64 = Environment.GetEnvironmentVariable(envVar);
-        if (string.IsNullOrEmpty(dlcPrivateKeyBase64))
-        {
-            Console.Error.WriteLine($"Environment variable '{envVar}' is not set or empty.");
-            return 1;
-        }
-        dlcFileArgOffset = 3;
-    }
-    else if (args.Length >= 3 && args[1] == "--key")
-    {
-        dlcPrivateKeyBase64 = args[2];
-        dlcFileArgOffset = 3;
-    }
-    else
-    {
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key-file <private_key_file> [games/multigame.json]");
-        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key-env <ENV_VAR>           [games/multigame.json]");
-        Console.Error.WriteLine("  seal-achievements --seal-dlc-map --key <private_key>            [games/multigame.json]");
-        return 1;
-    }
-
-    try { Convert.FromBase64String(dlcPrivateKeyBase64!); }
-    catch
-    {
-        Console.Error.WriteLine("Private key is not valid base64.");
-        return 1;
-    }
+    var (dlcPrivateKeyBase64, dlcFileArgOffset) = TryResolvePrivateKeyFromArgs(args, startIndex: 1, dlcMapUsage);
+    if (dlcPrivateKeyBase64 is null) return 1;
 
     string manifestPath = args.Length > dlcFileArgOffset
         ? args[dlcFileArgOffset]
@@ -282,7 +305,7 @@ if (args.Length >= 1 && args[0] == "--seal-dlc-map")
     foreach (var (gameId, appId) in gameDlcAppIds.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         Console.WriteLine($"  {gameId} = {appId}");
 
-    string dlcSignature = DlcMapSigner.ComputeSig(gameDlcAppIds, dlcPrivateKeyBase64!);
+    string dlcSignature = DlcMapSigner.ComputeSig(gameDlcAppIds, dlcPrivateKeyBase64);
     manifestRoot["gameDlcAppIdsSignature"] = dlcSignature;
 
     File.WriteAllText(manifestPath, manifestRoot.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
@@ -299,58 +322,14 @@ if (args.Length >= 1 && args[0] == "--seal-dlc-map")
 
 // ── Load private key ─────────────────────────────────────────────────────────
 
-string? privateKeyBase64 = null;
+const string sealUsage =
+    "  seal-achievements --gen-keypair\n" +
+    "  seal-achievements --key-file <private_key_file> [achievements.json]\n" +
+    "  seal-achievements --key-env <ENV_VAR> [achievements.json]\n" +
+    "  seal-achievements --key <private_key> [achievements.json]";
 
-int fileArgOffset = 0;
-if (args.Length >= 2 && args[0] == "--key-file")
-{
-    string keyFile = args[1];
-    if (!File.Exists(keyFile))
-    {
-        Console.Error.WriteLine($"Key file not found: {keyFile}");
-        return 1;
-    }
-    privateKeyBase64 = File.ReadAllText(keyFile).Trim();
-    fileArgOffset = 2;
-}
-else if (args.Length >= 2 && args[0] == "--key-env")
-{
-    string envVar = args[1];
-    privateKeyBase64 = Environment.GetEnvironmentVariable(envVar);
-    if (string.IsNullOrEmpty(privateKeyBase64))
-    {
-        Console.Error.WriteLine($"Environment variable '{envVar}' is not set or empty.");
-        return 1;
-    }
-    fileArgOffset = 2;
-}
-else if (args.Length >= 2 && args[0] == "--key")
-{
-    privateKeyBase64 = args[1];
-    if (string.IsNullOrEmpty(privateKeyBase64))
-    {
-        Console.Error.WriteLine($"Key parameter is missing or empty.");
-        return 1;
-    }
-    fileArgOffset = 2;
-}
-else
-{
-    Console.Error.WriteLine("Usage:");
-    Console.Error.WriteLine("  seal-achievements --gen-keypair");
-    Console.Error.WriteLine("  seal-achievements --key-file <private_key_file> [achievements.json]");
-    Console.Error.WriteLine("  seal-achievements --key-env <ENV_VAR> [achievements.json]");
-    Console.Error.WriteLine("  seal-achievements --key <private_key> [achievements.json]");
-    return 1;
-}
-
-// Validate the private key is well-formed before proceeding
-try { Convert.FromBase64String(privateKeyBase64); }
-catch
-{
-    Console.Error.WriteLine("Private key is not valid base64.");
-    return 1;
-}
+var (privateKeyBase64, fileArgOffset) = TryResolvePrivateKeyFromArgs(args, startIndex: 0, sealUsage);
+if (privateKeyBase64 is null) return 1;
 
 // ── Load achievements.json ───────────────────────────────────────────────────
 
@@ -391,7 +370,7 @@ if (configs is null || configs.Count == 0)
 }
 
 foreach (var (romHash, config) in configs)
-    Console.WriteLine($"\nROM {romHash[..Math.Min(12, romHash.Length)]}...  ({config.Achievements.Count} achievement(s))");
+    Console.WriteLine($"\nROM {romHash[..Math.Min(RomHashDisplayLength, romHash.Length)]}...  ({config.Achievements.Count} achievement(s))");
 
 var result = SealingService.Seal(configs, privateKeyBase64);
 

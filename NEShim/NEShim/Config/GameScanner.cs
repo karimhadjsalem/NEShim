@@ -68,69 +68,89 @@ internal static class GameScanner
                               "invalid until this is fixed. This is intentional: a broken signature must never " +
                               "silently fall back to trusting each game's own unsigned claim.");
 
-        var results = new List<GameManifest>();
-        foreach (var dir in Directory.GetDirectories(gamesRoot))
-        {
-            string gameId = Path.GetFileName(dir);
-            string configPath = Path.Combine(dir, "config.json");
-
-            if (!File.Exists(configPath))
-            {
-                Logger.LogAlways($"[GameScanner] '{dir}' has no config.json — listing as invalid.");
-                results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "", IsValid: false));
-                continue;
-            }
-
-            if (!ConfigLoader.TryParseFrom(configPath, out var cfg))
-            {
-                Logger.LogAlways($"[GameScanner] '{dir}' config.json failed to parse — listing as invalid.");
-                results.Add(new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "", IsValid: false));
-                continue;
-            }
-
-            string title = string.IsNullOrWhiteSpace(cfg.GameDisplayTitle) ? cfg.WindowTitle : cfg.GameDisplayTitle;
-
-            if (signingEnabled)
-            {
-                // Signed mode: fails closed on a bad signature (every game invalid, regardless
-                // of its own claim), and once verified, the map is authoritative AND complete —
-                // a gameId missing from it is rejected too, not trusted through.
-                bool appIdMatches = signatureValid
-                    && trustedDlcAppIds!.TryGetValue(gameId, out uint expectedAppId)
-                    && expectedAppId == cfg.SteamDlcAppId;
-
-                if (!appIdMatches)
-                {
-                    if (signatureValid)
-                        Logger.LogAlways($"[GameScanner] '{dir}' (gameId '{gameId}') is missing from the signed " +
-                                          $"gameDlcAppIds map, or its claimed steamDlcAppId doesn't match — listing as invalid.");
-                    results.Add(new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
-                        Description: cfg.GameDescription, IsValid: false));
-                    continue;
-                }
-            }
-            else if (trustedDlcAppIds is not null
-                && trustedDlcAppIds.TryGetValue(gameId, out uint softExpectedAppId)
-                && softExpectedAppId != cfg.SteamDlcAppId)
-            {
-                Logger.LogAlways($"[GameScanner] '{dir}' claims steamDlcAppId={cfg.SteamDlcAppId} but the unsigned " +
-                                  $"shell manifest expects {softExpectedAppId} for gameId '{gameId}' — listing as invalid.");
-                results.Add(new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
-                    Description: cfg.GameDescription, IsValid: false));
-                continue;
-            }
-
-            var ctx = GameContext.ForGame(gamesRoot, gameId);
-            string romAbsolute = GameContext.ResolvePath(cfg.RomPath, ctx);
-            bool romExists = File.Exists(romAbsolute);
-            if (!romExists)
-                Logger.LogAlways($"[GameScanner] '{dir}' ROM file not found at '{romAbsolute}' — listing as invalid.");
-
-            results.Add(new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
-                Description: cfg.GameDescription,
-                IsValid: romExists));
-        }
+        var results = Directory.GetDirectories(gamesRoot)
+            .Select(dir => ScanGame(dir, gamesRoot, trustedDlcAppIds, signingEnabled, signatureValid))
+            .ToList();
 
         return results.OrderBy(g => g.DisplayTitle, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static GameManifest ScanGame(string dir, string gamesRoot,
+        IReadOnlyDictionary<string, uint>? trustedDlcAppIds, bool signingEnabled, bool signatureValid)
+    {
+        string gameId = Path.GetFileName(dir);
+        string configPath = Path.Combine(dir, "config.json");
+
+        if (!File.Exists(configPath))
+        {
+            Logger.LogAlways($"[GameScanner] '{dir}' has no config.json — listing as invalid.");
+            return new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "", IsValid: false);
+        }
+
+        if (!ConfigLoader.TryParseFrom(configPath, out var cfg))
+        {
+            Logger.LogAlways($"[GameScanner] '{dir}' config.json failed to parse — listing as invalid.");
+            return new GameManifest(gameId, gameId, SteamDlcAppId: 0, ThumbnailPath: "", IsValid: false);
+        }
+
+        string title = string.IsNullOrWhiteSpace(cfg.GameDisplayTitle) ? cfg.WindowTitle : cfg.GameDisplayTitle;
+
+        if (!IsDlcClaimTrusted(gameId, cfg.SteamDlcAppId, trustedDlcAppIds, signingEnabled, signatureValid))
+        {
+            LogDlcTrustFailure(dir, gameId, cfg.SteamDlcAppId, trustedDlcAppIds, signingEnabled, signatureValid);
+            return new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
+                Description: cfg.GameDescription, IsValid: false);
+        }
+
+        var ctx = GameContext.ForGame(gamesRoot, gameId);
+        string romAbsolute = GameContext.ResolvePath(cfg.RomPath, ctx);
+        bool romExists = File.Exists(romAbsolute);
+        if (!romExists)
+            Logger.LogAlways($"[GameScanner] '{dir}' ROM file not found at '{romAbsolute}' — listing as invalid.");
+
+        return new GameManifest(gameId, title, cfg.SteamDlcAppId, cfg.ThumbnailPath,
+            Description: cfg.GameDescription,
+            IsValid: romExists);
+    }
+
+    /// <summary>
+    /// Pure and I/O-free: the DLC trust-tier decision described in this class's doc comment,
+    /// isolated from directory scanning so it's directly unit-testable. Signed mode fails
+    /// closed — a bad signature makes every claim untrusted regardless of its own value, and
+    /// once verified, the map is authoritative AND complete (a gameId absent from it is
+    /// rejected, not trusted through). Unsigned mode is a soft cross-check — a gameId listed in
+    /// the map must match, but one absent from it is trusted as declared.
+    /// </summary>
+    internal static bool IsDlcClaimTrusted(string gameId, uint claimedAppId,
+        IReadOnlyDictionary<string, uint>? trustedDlcAppIds, bool signingEnabled, bool signatureValid)
+    {
+        if (signingEnabled)
+            return signatureValid
+                && trustedDlcAppIds is not null
+                && trustedDlcAppIds.TryGetValue(gameId, out uint expectedAppId)
+                && expectedAppId == claimedAppId;
+
+        return trustedDlcAppIds is null
+            || !trustedDlcAppIds.TryGetValue(gameId, out uint softExpectedAppId)
+            || softExpectedAppId == claimedAppId;
+    }
+
+    private static void LogDlcTrustFailure(string dir, string gameId, uint claimedAppId,
+        IReadOnlyDictionary<string, uint>? trustedDlcAppIds, bool signingEnabled, bool signatureValid)
+    {
+        if (signingEnabled)
+        {
+            // A missing/invalid signature already logged one loud warning before the scan loop
+            // started — every game fails for that same reason, so logging it again per-game
+            // here would just be noise.
+            if (signatureValid)
+                Logger.LogAlways($"[GameScanner] '{dir}' (gameId '{gameId}') is missing from the signed " +
+                                  $"gameDlcAppIds map, or its claimed steamDlcAppId doesn't match — listing as invalid.");
+            return;
+        }
+
+        if (trustedDlcAppIds is not null && trustedDlcAppIds.TryGetValue(gameId, out uint softExpectedAppId))
+            Logger.LogAlways($"[GameScanner] '{dir}' claims steamDlcAppId={claimedAppId} but the unsigned " +
+                              $"shell manifest expects {softExpectedAppId} for gameId '{gameId}' — listing as invalid.");
     }
 }

@@ -118,11 +118,16 @@ internal sealed class D3D11Renderer : IFrameRenderer
 
     private const int OverscanCropRows = 8;
 
+    // Picture-adjust scaling: -100..100 input range mapped to each field's working range.
+    private const float BrightnessScale = 0.002f;
+    private const float PercentScale    = 0.01f;  // contrast/saturation: 1 + value * PercentScale
+    private const float HueScale        = MathF.PI / 100f; // -100..100 → -π..+π rad
+
     // Letterbox clip-space edges — updated by UpdateLetterboxRect().
     // _nesY0 is the TOP edge (higher clip-space y), _nesY1 is the BOTTOM (lower clip-space y).
     private float _nesX0, _nesX1, _nesY0, _nesY1;
 
-    // Menu/logo scene provider — set by MainForm after renderer creation.
+    // Menu/logo scene provider — set by NEShimApp after renderer creation.
     private IMenuSceneProvider? _menuSceneProvider;
 
     // Overlay state — FPS fields written from emulation thread (volatile), rest from UI thread.
@@ -356,11 +361,12 @@ internal sealed class D3D11Renderer : IFrameRenderer
     public void ShowAchievementNotification(string name) { }
 
     /// <summary>
-    /// Injects a new D3D11 filter. Swaps the active pixel shader and updates the destination rect.
-    /// Called by MainForm with a filter created by D3D11FilterFactory.
+    /// Injects a new D3D11 filter for <paramref name="mode"/> (resolved via D3D11FilterFactory).
+    /// Swaps the active pixel shader and updates the destination rect.
     /// </summary>
-    public void SetFilter(Filters.ID3D11Filter filter)
+    public void SetFilter(VideoFilterMode mode)
     {
+        var filter = Filters.D3D11FilterFactory.Create(mode);
         _activeFilter      = filter;
         _activePixelShader = ResolvePixelShader(filter);
         UpdateLetterboxRect();
@@ -391,15 +397,16 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// </summary>
     public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
     {
-        _brightness = brightness * 0.002f;
-        _contrast   = 1f + contrast   * 0.01f;
-        _saturation = 1f + saturation * 0.01f;
-        _hue        = hue * (float)Math.PI / 100f; // -100..100 → -π..+π rad
+        _brightness = brightness * BrightnessScale;
+        _contrast   = 1f + contrast   * PercentScale;
+        _saturation = 1f + saturation * PercentScale;
+        _hue        = hue * HueScale;
         SyncPictureAdjustRt();
     }
 
-    public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
+    public void SetOverlayFilter(VideoFilterMode? mode)
     {
+        var overlay = mode is { } m ? Filters.D3D11FilterFactory.Create(m) : null;
         _activeOverlay            = overlay;
         _activeOverlayPixelShader = overlay is not null ? ResolvePixelShader(overlay) : null;
         SyncOverlayRt();
@@ -417,8 +424,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     /// Applies filter, overscan, and colour grade in one call. Used at startup and after device recovery.
     /// </summary>
     public void InitializeRenderingOptions(
-        Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode = VideoColorFilterMode.None)
+        VideoFilterMode mode, OverscanMode overscan, VideoColorFilterMode colorMode = VideoColorFilterMode.None)
     {
+        var filter = Filters.D3D11FilterFactory.Create(mode);
         _activeFilter      = filter;
         _activePixelShader = ResolvePixelShader(filter);
         _overscanMode      = overscan;

@@ -64,6 +64,11 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private const float StandardPAR      = 8f / 7f;
     private const int   UniformFloats    = 4;
 
+    // Picture-adjust scaling: -100..100 input range mapped to each field's working range.
+    private const float BrightnessScale = 0.002f;
+    private const float PercentScale    = 0.01f;  // contrast/saturation: 1 + value * PercentScale
+    private const float HueScale        = MathF.PI / 100f; // -100..100 → -π..+π rad
+
     private IMenuSceneProvider? _menuSceneProvider;
 
     private volatile bool  _showFps;
@@ -117,9 +122,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     /// <summary>True when SDL_CreateGPURenderer succeeded (SPIR-V shader support available).</summary>
     internal bool IsGpuRendererActive => _isGpuRenderer;
 
-#pragma warning disable CS0067
+    // Consecutive RenderPresent failures before treating the GPU/Vulkan device as genuinely
+    // lost — see PresentAndCheckDeviceLost's doc comment for why this needs debouncing (unlike
+    // D3D11Renderer's single-shot DXGI error-code check).
+    private const int DeviceLostFailureThreshold = 3;
+    private int _consecutivePresentFailures;
+
     public event EventHandler? DeviceLost;
-#pragma warning restore CS0067
 
     internal SDL3HwRenderer(IntPtr sdlWindow, int nesWidth, int nesHeight)
     {
@@ -234,7 +243,36 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         DrawNesFrame(nesDest);
         DrawOverlay();
 
-        SDL.RenderPresent(_sdlRenderer);
+        PresentAndCheckDeviceLost();
+    }
+
+    /// <summary>
+    /// Unlike D3D11Renderer's PresentAndCheckResult, which checks the swap chain Present call's
+    /// HRESULT for the specific DXGI_ERROR_DEVICE_REMOVED/RESET codes, SDL's renderer API has no
+    /// structured error codes to check — RenderPresent returns only a bool plus a free-form
+    /// SDL.GetError() string, which can't reliably distinguish a genuinely lost GPU/Vulkan device
+    /// from a benign, self-recovering hiccup (e.g. a swapchain-recreation race during a window
+    /// resize). Requiring several CONSECUTIVE failures before firing DeviceLost avoids tearing
+    /// down and rebuilding the entire renderer over a single transient frame, while still
+    /// recovering — rather than permanently freezing on a black/stale frame, which is what
+    /// happened before this existed — once a real device loss is confirmed by repetition.
+    /// </summary>
+    private void PresentAndCheckDeviceLost()
+    {
+        if (SDL.RenderPresent(_sdlRenderer))
+        {
+            _consecutivePresentFailures = 0;
+            return;
+        }
+
+        _consecutivePresentFailures++;
+        Logger.Log($"[SDL3HwRenderer] RenderPresent failed ({_consecutivePresentFailures}/{DeviceLostFailureThreshold}): {SDL.GetError()}");
+
+        if (_consecutivePresentFailures >= DeviceLostFailureThreshold)
+        {
+            Logger.Log("[SDL3HwRenderer] Device appears lost after repeated present failures. Firing DeviceLost event.");
+            DeviceLost?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     // ---- Geometry ----------------------------------------------------------------------
@@ -255,12 +293,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         sidebarW = destX;
     }
 
-    private int ComputeDisplayHeight()
-    {
-        int overscanTop = (_overscanMode == OverscanMode.Overscan && _contentHeight >= OverscanCropRows * 2)
-            ? OverscanCropRows : 0;
-        return _contentHeight - overscanTop * 2;
-    }
+    private int ComputeDisplayHeight() => _contentHeight - ComputeOverscanTop() * 2;
 
     private int ComputeOverscanTop() =>
         (_overscanMode == OverscanMode.Overscan && _contentHeight >= OverscanCropRows * 2)
@@ -333,64 +366,77 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             ApplyPictureAdjustPass(_pictureAdjustTexture);
     }
 
+    // Redirects rendering to an intermediate texture, clearing it to transparent black first —
+    // the shared 3-line boilerplate every cascading pass needs before it draws. A Zero target
+    // means "render straight to the backbuffer," so nothing is redirected; the returned bool
+    // records which happened, to be passed to the matching EndRenderToTarget call.
+    private bool BeginRenderToTarget(IntPtr target)
+    {
+        bool toIntermediate = target != IntPtr.Zero;
+        if (toIntermediate)
+        {
+            SDL.SetRenderTarget(_sdlRenderer, target);
+            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
+            SDL.RenderClear(_sdlRenderer);
+        }
+        return toIntermediate;
+    }
+
+    // Restores the backbuffer as the render target, undoing a BeginRenderToTarget call that
+    // actually redirected (toIntermediate == false means BeginRenderToTarget was already a
+    // no-op, so there's nothing to restore here either).
+    private void EndRenderToTarget(bool toIntermediate)
+    {
+        if (toIntermediate)
+            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+    }
+
     // NES texture -> structural filter -> targetTexture (or straight to the backbuffer when
     // targetTexture is Zero).
     private void RunFilterPass(SDL.FRect src, SDL.FRect dest, IntPtr targetTexture, bool applyColorMode)
     {
-        bool toIntermediate = targetTexture != IntPtr.Zero;
-        if (toIntermediate)
-        {
-            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
-            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-            SDL.RenderClear(_sdlRenderer);
-        }
+        bool toIntermediate = BeginRenderToTarget(targetTexture);
         ApplyFilterRenderState(applyColorMode);
         SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         _filterRenderState?.Clear();
-        if (toIntermediate)
-            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        EndRenderToTarget(toIntermediate);
     }
 
     // Overlay intermediate -> overlay filter shader -> targetTexture (or backbuffer).
     private void RunOverlayPass(IntPtr targetTexture, bool applyColorMode)
     {
-        bool toIntermediate = targetTexture != IntPtr.Zero;
-        if (toIntermediate)
-        {
-            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
-            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-            SDL.RenderClear(_sdlRenderer);
-        }
+        // Callers only invoke this when DrawNesFrame's hasOverlay check already confirmed both
+        // are non-null and valid — this guard is a defensive backstop against that invariant
+        // ever being violated, not an expected path, matching ApplyFilterRenderState's pattern.
+        if (_activeOverlayFilter is null || _overlayFilterRenderState is null) return;
+
+        bool toIntermediate = BeginRenderToTarget(targetTexture);
         SDL.SetTextureScaleMode(_overlayFilterTexture,
-            _activeOverlayFilter!.UseLinearSampler ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+            _activeOverlayFilter.UseLinearSampler ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
         Span<float> uniforms = stackalloc float[UniformFloats];
         _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
         uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
-        _overlayFilterRenderState!.Apply(uniforms);
+        _overlayFilterRenderState.Apply(uniforms);
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         SDL.RenderTexture(_sdlRenderer, _overlayFilterTexture, in fullRect, in fullRect);
         _overlayFilterRenderState.Clear();
-        if (toIntermediate)
-            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        EndRenderToTarget(toIntermediate);
     }
 
     // Motion-effect intermediate -> ME shader -> targetTexture (or backbuffer). Always the
     // last colour-aware stage when active, so colour mode is never deferred here.
     private void RunMotionEffectShaderPass(IntPtr targetTexture)
     {
-        bool toIntermediate = targetTexture != IntPtr.Zero;
-        if (toIntermediate)
-        {
-            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
-            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-            SDL.RenderClear(_sdlRenderer);
-        }
+        // Same defensive backstop as RunOverlayPass — DrawNesFrame's hasMeShader check already
+        // confirmed this is non-null and valid before calling here.
+        if (_motionEffectRenderState is null) return;
+
+        bool toIntermediate = BeginRenderToTarget(targetTexture);
         ApplyMotionEffectRenderState();
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
-        _motionEffectRenderState!.Clear();
-        if (toIntermediate)
-            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        _motionEffectRenderState.Clear();
+        EndRenderToTarget(toIntermediate);
     }
 
     // Temporal phosphor blend: accumulates writeTex = max(current frame, history * decay)
@@ -404,10 +450,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         IntPtr writeTex   = _phosphorUseA ? _phosphorTexB : _phosphorTexA;
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
 
-        SDL.SetRenderTarget(_sdlRenderer, writeTex);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-
+        // writeTex is always a real texture here (allocated whenever phosphor persistence is
+        // active), so this always redirects — unlike the other passes, where the target can
+        // legitimately be Zero (straight to the backbuffer).
+        bool wroteToTarget = BeginRenderToTarget(writeTex);
         SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
 
         Span<float> decayParams = stackalloc float[UniformFloats];
@@ -417,38 +463,35 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SDL.SetTextureBlendMode(historyTex, MaximumBlendMode);
         SDL.RenderTexture(_sdlRenderer, historyTex, in fullRect, in fullRect);
 
-        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        EndRenderToTarget(wroteToTarget);
 
         // Composite the accumulated frame. writeTex may have last served as the decayed
         // history source under the opposite ping-pong role, so its blend mode and colour
         // mod must be reset explicitly rather than trusted to be at their defaults.
-        bool toIntermediate = targetTexture != IntPtr.Zero;
-        if (toIntermediate)
-        {
-            SDL.SetRenderTarget(_sdlRenderer, targetTexture);
-            SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-            SDL.RenderClear(_sdlRenderer);
-        }
+        bool toIntermediate = BeginRenderToTarget(targetTexture);
         SDL.SetTextureColorModFloat(writeTex, 1f, 1f, 1f);
         SDL.SetTextureBlendMode(writeTex, SDL.BlendMode.Blend);
         SDL.RenderTexture(_sdlRenderer, writeTex, in fullRect, in fullRect);
-        if (toIntermediate)
-            SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        EndRenderToTarget(toIntermediate);
 
         _phosphorUseA = !_phosphorUseA;
     }
 
     private void ApplyPictureAdjustPass(IntPtr sourceTexture)
     {
+        // Same defensive backstop as RunOverlayPass/RunMotionEffectShaderPass — DrawNesFrame's
+        // hasPa check already confirmed this is non-null before calling here.
+        if (_pictureAdjustRenderState is null) return;
+
         Span<float> uniforms = stackalloc float[UniformFloats];
         uniforms[0] = _brightness;
         uniforms[1] = _contrast;
         uniforms[2] = _saturation;
         uniforms[3] = _hue;
-        _pictureAdjustRenderState!.Apply(uniforms);
+        _pictureAdjustRenderState.Apply(uniforms);
         var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         SDL.RenderTexture(_sdlRenderer, sourceTexture, in fullRect, in fullRect);
-        _pictureAdjustRenderState!.Clear();
+        _pictureAdjustRenderState.Clear();
     }
 
     private void ApplyMotionEffectRenderState()
@@ -499,7 +542,8 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         }
     }
 
-    private static SDL.FRect ComputeCoverSrcFRect((int W, int H) texSize, float destW, float destH)
+    /// <summary>Pure geometry, unit-tested: the SDL-path equivalent of D3D11Renderer.ComputeCoverUV.</summary>
+    internal static SDL.FRect ComputeCoverSrcFRect((int W, int H) texSize, float destW, float destH)
     {
         float scale = Math.Max(destW / texSize.W, destH / texSize.H);
         float srcW  = destW / scale;
@@ -562,6 +606,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         SyncMotionEffectTexture();
         SyncPhosphorTextures();
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
+        // A resize is a plausible source of a transient present failure (swapchain recreation
+        // race) — start the device-lost debounce fresh rather than carrying over failures that
+        // may have been caused by the resize itself, not a real lost device.
+        _consecutivePresentFailures = 0;
         Logger.Log($"[SDL3HwRenderer] Resized to {_viewportWidth}×{_viewportHeight}.");
     }
 
@@ -591,35 +639,35 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
     {
-        _brightness = brightness * 0.002f;
-        _contrast   = 1f + contrast   * 0.01f;
-        _saturation = 1f + saturation * 0.01f;
-        _hue        = hue * (float)Math.PI / 100f;
+        _brightness = brightness * BrightnessScale;
+        _contrast   = 1f + contrast   * PercentScale;
+        _saturation = 1f + saturation * PercentScale;
+        _hue        = hue * HueScale;
         _hasPictureAdjust = _brightness != 0f || _contrast != 1f || _saturation != 1f || _hue != 0f;
         SyncPictureAdjustRenderState();
     }
 
     public void SetOverscanMode(OverscanMode mode) => _overscanMode = mode;
 
-    public void InitializeRenderingOptions(Filters.ID3D11Filter filter, OverscanMode overscan, VideoColorFilterMode colorMode)
+    public void InitializeRenderingOptions(VideoFilterMode mode, OverscanMode overscan, VideoColorFilterMode colorMode)
     {
         _overscanMode    = overscan;
         _activeColorMode = colorMode;
-        ApplyGpuFilter(SdlFilterFactory.Create(filter.FilterMode));
+        ApplyGpuFilter(SdlFilterFactory.Create(mode));
     }
 
-    public void SetFilter(Filters.ID3D11Filter filter) => ApplyGpuFilter(SdlFilterFactory.Create(filter.FilterMode));
+    public void SetFilter(VideoFilterMode mode) => ApplyGpuFilter(SdlFilterFactory.Create(mode));
 
-    public void SetOverlayFilter(Filters.ID3D11Filter? overlay)
+    public void SetOverlayFilter(VideoFilterMode? mode)
     {
         _overlayFilterRenderState?.Dispose();
         _overlayFilterRenderState = null;
         _activeOverlayFilter      = null;
         _hasOverlayFilter         = false;
 
-        if (overlay is not null && _isGpuRenderer)
+        if (mode is { } m && _isGpuRenderer)
         {
-            var filter = SdlFilterFactory.Create(overlay.FilterMode);
+            var filter = SdlFilterFactory.Create(m);
             _activeOverlayFilter = filter;
             _hasOverlayFilter    = true;
             if (filter.PixelShaderResourceName is { } resourceName)
@@ -766,10 +814,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         if (tex == IntPtr.Zero) return tex;
 
         SDL.SetTextureBlendMode(tex, SDL.BlendMode.Blend);
-        SDL.SetRenderTarget(_sdlRenderer, tex);
-        SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 0);
-        SDL.RenderClear(_sdlRenderer);
-        SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
+        EndRenderToTarget(BeginRenderToTarget(tex));
         return tex;
     }
 

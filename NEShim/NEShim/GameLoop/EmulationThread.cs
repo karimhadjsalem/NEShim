@@ -196,7 +196,7 @@ internal sealed class EmulationThread
             _inputProcessor.AdvanceHotkeys(_config);
 
             // 4. Pause check — block here while paused, polling gamepad for menu input
-            // (Steam callbacks are ticked on the UI thread via MainForm._steamTimer)
+            // (Steam callbacks are ticked on the UI thread via NEShimApp.OnIdle)
             if (IsPaused)
             {
                 _inputProcessor.PollPausedMenuInput(_config);
@@ -324,6 +324,6 @@ internal sealed class EmulationThread
                 }
                 break;
         }
-        // Window mode toggle handled by MainForm via F11 key event
+        // Window mode toggle handled by NEShimApp.SetWindowMode via F11 key event
     }
 }

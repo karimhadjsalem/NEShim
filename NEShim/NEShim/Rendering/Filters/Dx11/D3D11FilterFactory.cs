@@ -2,7 +2,8 @@ namespace NEShim.Rendering.Filters;
 
 /// <summary>
 /// Creates the <see cref="ID3D11Filter"/> implementation for a given <see cref="VideoFilterMode"/>.
-/// Called by MainForm after filter validation to inject the correct behaviour into D3D11Renderer.
+/// Called by D3D11Renderer's own SetFilter/SetOverlayFilter/InitializeRenderingOptions
+/// (see IFrameRenderer) to resolve the platform-neutral mode into a concrete D3D11 filter.
 /// </summary>
 internal static class D3D11FilterFactory
 {

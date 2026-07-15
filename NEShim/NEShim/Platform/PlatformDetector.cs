@@ -25,10 +25,10 @@ internal static class PlatformDetector
 
     /// <summary>
     /// True when D3D11 initialisation succeeded and the D3D11 render path is active.
-    /// Set once at startup by <see cref="MainForm"/> after <see cref="D3D11Renderer"/> is
-    /// constructed. False on systems where D3D11 is unavailable (GDI+ fallback is used).
-    /// All D3D11-only video filters (CRT, NTSC, palette shaders) must gate on this
-    /// property before offering themselves as menu options.
+    /// Set once at startup by <c>RendererFactory.Windows.cs</c> after <see cref="D3D11Renderer"/>
+    /// is (or isn't) constructed. False on systems where D3D11 is unavailable
+    /// (<c>SDL3HwRenderer</c> fallback is used). All D3D11-only video filters (CRT, NTSC,
+    /// palette shaders) must gate on this property before offering themselves as menu options.
     /// </summary>
     internal static bool IsD3D11Active { get; private set; }
 

@@ -39,7 +39,15 @@ internal interface IFrameRenderer : IDisposable
     /// <summary>Shows an achievement-unlocked notification.</summary>
     void ShowAchievementNotification(string name);
 
-    /// <summary>Fired when the GPU device is lost. Only D3D11Renderer fires this; SDL3HwRenderer never does.</summary>
+    /// <summary>
+    /// Fired when the GPU device is lost. Both renderers implement this, but detect loss
+    /// differently, reflecting what each platform's API actually exposes: D3D11Renderer checks
+    /// the swap chain Present call's HRESULT for the structured DXGI_ERROR_DEVICE_REMOVED/RESET
+    /// codes and fires immediately; SDL3HwRenderer has no such structured signal (SDL.RenderPresent
+    /// returns only a bool plus a free-form error string) and requires several consecutive
+    /// present failures before firing, to avoid mistaking a transient, self-recovering hiccup
+    /// (e.g. a resize-driven swapchain race) for a genuine device loss.
+    /// </summary>
     event EventHandler? DeviceLost;
 
     /// <summary>
@@ -82,26 +90,30 @@ internal interface IFrameRenderer : IDisposable
     void SetOverscanMode(OverscanMode overscan);
 
     /// <summary>
-    /// Applies filter and overscan settings at startup before the first frame.
-    /// SDL3HwRenderer overrides this to translate D3D11 filters to their ISdlFilter equivalents.
-    /// D3D11Renderer override configures DXBC shaders directly.
+    /// Applies filter and overscan settings at startup before the first frame. Takes the
+    /// platform-neutral <see cref="VideoFilterMode"/> rather than a concrete filter object —
+    /// each renderer resolves it through its own factory (D3D11Renderer via D3D11FilterFactory,
+    /// SDL3HwRenderer via SdlFilterFactory) so callers never need to know which platform is
+    /// active to pick a filter.
     /// </summary>
     void InitializeRenderingOptions(
-        Filters.ID3D11Filter filter,
-        OverscanMode         overscan,
-        VideoColorFilterMode colorMode = VideoColorFilterMode.None) { }
+        VideoFilterMode       mode,
+        OverscanMode          overscan,
+        VideoColorFilterMode  colorMode = VideoColorFilterMode.None) { }
 
     /// <summary>
-    /// Changes the structural video filter. D3D11Renderer applies DXBC; SDL3HwRenderer
-    /// translates via SdlFilterFactory to apply SPIR-V via SDL_GPURenderState.
+    /// Changes the structural video filter. D3D11Renderer resolves <paramref name="mode"/> via
+    /// D3D11FilterFactory and applies DXBC; SDL3HwRenderer resolves it via SdlFilterFactory and
+    /// applies SPIR-V via SDL_GPURenderState.
     /// </summary>
-    void SetFilter(Filters.ID3D11Filter filter) { }
+    void SetFilter(VideoFilterMode mode) { }
 
     /// <summary>
-    /// Sets or clears the two-pass overlay filter. Supported on both D3D11 and SDL_GPU
-    /// (SDL3HwRenderer translates via SdlFilterFactory, same as SetFilter).
+    /// Sets or clears the two-pass overlay filter (null clears it). Supported on both D3D11 and
+    /// SDL_GPU, each resolving <paramref name="mode"/> through its own factory as in
+    /// <see cref="SetFilter"/>.
     /// </summary>
-    void SetOverlayFilter(Filters.ID3D11Filter? overlay) { }
+    void SetOverlayFilter(VideoFilterMode? mode) { }
 
     /// <summary>
     /// Sets the colour-grade mode applied after structural filtering.

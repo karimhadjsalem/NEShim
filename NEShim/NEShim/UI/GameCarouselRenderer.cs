@@ -53,6 +53,26 @@ internal static class GameCarouselRenderer
     private const float DescriptionBodyHorizontalPad = 24f; // left/right inset for the description body text — the shared 8px tile padding reads as negligible now that the card is DescriptionWidthMultiplier times wider
     private const int   DescriptionTitleMaxLines = 2; // budgeted title height — generous enough for a wrapped 2-line title without needing dynamic downstream layout
     private const float DescriptionWidthMultiplier = 2.2f; // the description card is drawn last (see DrawStatic) so it can overlay its neighbors — significantly wider than a single tile
+    private const float DescriptionTitleHorizontalPad = 8f; // left/right inset for the description card's title — narrower than DescriptionBodyHorizontalPad since the title is centered and short
+    private const float DescriptionTitleBodyGap       = 4f; // vertical gap between the description card's title block and its body text
+    private const float DescriptionBodyBottomPad      = 20f; // bottom inset for the description body, mirroring DescriptionTitleTopPad at the top
+
+    private const float PlaceholderBorderThickness = 2f; // shared by the placeholder card and the description card's own border
+
+    private const float NoGamesPtSize = 16f; // "no games available" empty-state message
+    private const float NoGamesTextYFraction = 0.5f; // vertically centered in bounds
+    private const float LegendPtSize = 11f;
+    private const float LegendLine1YFraction = 0.89f;
+    private const float LegendLine2YFraction = 0.96f;
+
+    private const float FilmstripBandTopFraction    = 0.18f; // where the filmstrip band starts, as a fraction of bounds.H
+    private const float FilmstripBandHeightFraction = 0.62f; // filmstrip band height, as a fraction of bounds.H
+
+    private const float InvalidOverlayPadding         = 4f; // left/right inset for both lines of the invalid-entry overlay text
+    private const float InvalidHeadlineYFraction       = 0.08f;
+    private const float InvalidHeadlineHeightFraction  = 0.24f;
+    private const float InvalidBodyYFraction           = 0.34f;
+    private const float InvalidBodyHeightFraction      = 0.62f;
 
     private static readonly SDL.Color BgColor              = new() { R = 10,  G = 10,  B = 20,  A = 255 };
     private static readonly SDL.Color TitleColor           = new() { R = 195, G = 225, B = 255, A = 255 };
@@ -73,7 +93,7 @@ internal static class GameCarouselRenderer
 
         if (carousel.Games.Count == 0)
         {
-            ctx.DrawText(loc.CarouselNoGamesAvailable, CenterRect(bounds, 0.5f), EmptyColor, FontFamily, 16f * MenuScale.Scale, bold: true);
+            ctx.DrawText(loc.CarouselNoGamesAvailable, CenterRect(bounds, NoGamesTextYFraction), EmptyColor, FontFamily, NoGamesPtSize * MenuScale.Scale, bold: true);
             return;
         }
 
@@ -89,8 +109,8 @@ internal static class GameCarouselRenderer
         // quit, fullscreen) name their actual bindings instead. No game counter or arrow glyphs —
         // the centered, highlighted tile already shows the selection; a numeric count and "<"/">"
         // hints added nothing the filmstrip itself doesn't already convey.
-        ctx.DrawText(loc.CarouselLegendLine1, CenterRect(bounds, 0.89f), HintColor, FontFamily, 11f * MenuScale.Scale, bold: false);
-        ctx.DrawText(loc.CarouselLegendLine2, CenterRect(bounds, 0.96f), HintColor, FontFamily, 11f * MenuScale.Scale, bold: false);
+        ctx.DrawText(loc.CarouselLegendLine1, CenterRect(bounds, LegendLine1YFraction), HintColor, FontFamily, LegendPtSize * MenuScale.Scale, bold: false);
+        ctx.DrawText(loc.CarouselLegendLine2, CenterRect(bounds, LegendLine2YFraction), HintColor, FontFamily, LegendPtSize * MenuScale.Scale, bold: false);
     }
 
     // ---- Pure layout/geometry helpers (unit tested; no SDL rendering side effects) ----
@@ -194,9 +214,9 @@ internal static class GameCarouselRenderer
     private static SDL.Rect FilmstripBand(SDL.Rect bounds) => new()
     {
         X = bounds.X,
-        Y = bounds.Y + (int)(bounds.H * 0.18f),
+        Y = bounds.Y + (int)(bounds.H * FilmstripBandTopFraction),
         W = bounds.W,
-        H = (int)(bounds.H * 0.62f),
+        H = (int)(bounds.H * FilmstripBandHeightFraction),
     };
 
     private static void DrawStatic(SDL3PaintContext ctx, SDL.Rect band, GameCarouselScreen carousel)
@@ -379,13 +399,21 @@ internal static class GameCarouselRenderer
         float subPt      = ScaledPtSize(InvalidSubPtSize, textScale);
         float lineHeight = ScaledPtSize(InvalidLineHeight, textScale);
 
-        var headlineRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.08f, W = f.W - 8, H = f.H * 0.24f };
+        var headlineRect = new SDL.FRect
+        {
+            X = f.X + InvalidOverlayPadding, Y = f.Y + f.H * InvalidHeadlineYFraction,
+            W = f.W - InvalidOverlayPadding * 2, H = f.H * InvalidHeadlineHeightFraction,
+        };
         ctx.DrawText(loc.CarouselUnavailable, headlineRect, InvalidTextColor, FontFamily, headlinePt, bold: true);
 
         // The specific reason (missing/corrupt config, missing ROM) is deliberately not shown
         // here — it isn't even carried on GameManifest; it's always written to neshim.log
         // instead (GameScanner, Logger.LogAlways) — see LocalizationData.CarouselUnavailable.
-        var bodyRect = new SDL.FRect { X = f.X + 4, Y = f.Y + f.H * 0.34f, W = f.W - 8, H = f.H * 0.62f };
+        var bodyRect = new SDL.FRect
+        {
+            X = f.X + InvalidOverlayPadding, Y = f.Y + f.H * InvalidBodyYFraction,
+            W = f.W - InvalidOverlayPadding * 2, H = f.H * InvalidBodyHeightFraction,
+        };
         DrawWrappedText(ctx, loc.CarouselContactPublisher, bodyRect, InvalidSubTextColor, subPt, lineHeight);
     }
 
@@ -393,7 +421,7 @@ internal static class GameCarouselRenderer
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(PlaceholderFill, alpha));
-        ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
+        ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: PlaceholderBorderThickness);
         string glyph = string.IsNullOrEmpty(game.DisplayTitle) ? "?" : game.DisplayTitle[0].ToString().ToUpperInvariant();
         float glyphPtSize = ScaledPtSize(PlaceholderGlyphPtSize, textScale);
         ctx.DrawText(glyph, f, WithAlpha(PlaceholderGlyphColor, alpha), FontFamily, glyphPtSize, bold: true);
@@ -404,7 +432,7 @@ internal static class GameCarouselRenderer
     {
         var f = ToFRect(rect);
         ctx.FillRect(f, WithAlpha(DescriptionBackFill, alpha));
-        ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: 2f);
+        ctx.DrawRect(f, WithAlpha(PlaceholderBorder, alpha), thickness: PlaceholderBorderThickness);
 
         // Budgeted for up to DescriptionTitleMaxLines lines so a long title (common now that the
         // card is much wider than a single tile, but still possible) wraps instead of being
@@ -414,16 +442,20 @@ internal static class GameCarouselRenderer
         var (_, titleLineHeight) = ctx.MeasureText(game.DisplayTitle, FontFamily, titlePtSize, bold: true);
         float titleBlockHeight = titleLineHeight * TitleLineSpacing * DescriptionTitleMaxLines;
 
-        var titleRect = new SDL.FRect { X = f.X + 8, Y = f.Y + DescriptionTitleTopPad, W = f.W - 16, H = titleBlockHeight };
+        var titleRect = new SDL.FRect
+        {
+            X = f.X + DescriptionTitleHorizontalPad, Y = f.Y + DescriptionTitleTopPad,
+            W = f.W - DescriptionTitleHorizontalPad * 2, H = titleBlockHeight,
+        };
         DrawTitle(ctx, game.DisplayTitle, titleRect, titleRect.W, WithAlpha(TitleColor, alpha), textScale);
 
         string description = string.IsNullOrWhiteSpace(game.Description) ? loc.CarouselNoDescription : game.Description;
         var bodyRect = new SDL.FRect
         {
             X = f.X + DescriptionBodyHorizontalPad,
-            Y = titleRect.Y + titleRect.H + 4,
+            Y = titleRect.Y + titleRect.H + DescriptionTitleBodyGap,
             W = f.W - DescriptionBodyHorizontalPad * 2,
-            H = f.H - DescriptionTitleTopPad - titleRect.H - 20,
+            H = f.H - DescriptionTitleTopPad - titleRect.H - DescriptionBodyBottomPad,
         };
 
         // measuredHeight is the font's own line height at this ptSize (ascent+descent), not just

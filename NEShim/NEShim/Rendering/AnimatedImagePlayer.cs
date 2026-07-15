@@ -39,15 +39,14 @@ internal sealed class AnimatedImagePlayer : IDisposable
     /// before it becomes invalid (see Dispose) — forward IFrameRenderer.InvalidateSurfaceTexture
     /// so the overlay paint context's cached GPU texture for that frame is evicted too.
     /// </summary>
-    /// <param name="maxWidth">
-    /// <param name="maxHeight">
-    /// Optional cap (paired together, both required to take effect): every decoded frame larger
-    /// than this is downscaled once at load time, never upscaled. Bounds per-frame re-upload
-    /// cost for a large source asset — this player's <see cref="CurrentFrame"/> is re-uploaded
-    /// to the GPU on every draw call rather than cached (see <c>SDL3PaintContext.BlitSurfaceUncached</c>),
-    /// since a frame pointer here can legitimately mean different pixel content at different
-    /// points in playback and a persistent cache would freeze the first upload in place.
-    /// </param>
+    /// <param name="maxWidth">Optional cap, paired with <paramref name="maxHeight"/> (both
+    /// required to take effect): every decoded frame larger than this is downscaled once at load
+    /// time, never upscaled. Bounds per-frame re-upload cost for a large source asset — this
+    /// player's <see cref="CurrentFrame"/> is re-uploaded to the GPU on every draw call rather
+    /// than cached (see <c>SDL3PaintContext.BlitSurfaceUncached</c>), since a frame pointer here
+    /// can legitimately mean different pixel content at different points in playback and a
+    /// persistent cache would freeze the first upload in place.</param>
+    /// <param name="maxHeight">See <paramref name="maxWidth"/>.</param>
     internal static AnimatedImagePlayer? LoadFromFile(
         string path, Action<IntPtr>? onSurfaceDisposing = null, int? maxWidth = null, int? maxHeight = null)
     {

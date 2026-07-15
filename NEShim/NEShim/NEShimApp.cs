@@ -99,7 +99,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         InitializeInput();
         InitializeAudio();
         InitializeSteam();
-        InitializeWindowAndD3DHook();
+        InitializeWindowAndRenderer();
         if (_config!.NoLogo)
             FinishInitialization(achievements);
         else
@@ -115,7 +115,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // the manifest file exists.
         //
         // Overlaid with ShellUserConfigPath (not the raw LoadFrom-only manifest) so the window
-        // mode InitializeWindowAndD3DHook applies below is already the player's persisted
+        // mode InitializeWindowAndRenderer applies below is already the player's persisted
         // carousel preference — mirrors InitializeEmulatorSingleGame, whose LoadGameContent
         // already resolves the user.json overlay before the same call. Without this, the logo
         // screen would briefly show in the shell manifest's publisher-configured mode and then
@@ -127,7 +127,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _frameBuffer = new FrameBuffer();
         InitializeInput();
         InitializeSteam(); // must run before the carousel can query DLC ownership
-        InitializeWindowAndD3DHook(); // renderer/device created once for the process lifetime
+        InitializeWindowAndRenderer(); // renderer/device created once for the process lifetime
         if (_config.NoLogo)
             InitializeCarousel();
         else
@@ -269,12 +269,12 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         InitializeCarousel();
     }
 
-    private void InitializeWindowAndD3DHook()
+    private void InitializeWindowAndRenderer()
     {
         ApplyConfiguredWindowMode();
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
-        _renderer.DeviceLost += OnD3DDeviceLost;
+        _renderer.DeviceLost += OnRendererDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
 
@@ -302,15 +302,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         }
 
         var overlayMode = Rendering.VideoFilterModeParser.ParseOverlay(_config!.VideoFilterOverlay);
-        _renderer?.InitializeRenderingOptions(Rendering.Filters.D3D11FilterFactory.Create(mode), overscan, colorMode);
+        _renderer?.InitializeRenderingOptions(mode, overscan, colorMode);
         _renderer?.SetMotionEffect(motionMode);
         _renderer?.SetPictureAdjust(_config!.VideoBrightness, _config.VideoContrast, _config.VideoSaturation, _config.VideoHue);
-        _renderer?.SetOverlayFilter(overlayMode.HasValue
-            ? Rendering.Filters.D3D11FilterFactory.Create(overlayMode.Value)
-            : null);
+        _renderer?.SetOverlayFilter(overlayMode);
     }
 
-    private void OnD3DDeviceLost(object? sender, EventArgs e)
+    private void OnRendererDeviceLost(object? sender, EventArgs e)
     {
         Logger.Log("[Renderer] Recovering from device loss — pausing emulation and reinitialising.");
         _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.DeviceLost, true);
@@ -322,7 +320,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
-        _renderer.DeviceLost += OnD3DDeviceLost;
+        _renderer.DeviceLost += OnRendererDeviceLost;
         _renderer.SetSidebars(_sidebarLeft, _sidebarRight);
         _renderer.SetMenuSceneProvider(this);
         ApplyRenderingOptions();
@@ -598,13 +596,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onVideoFilterChanged: mode =>
             {
                 _config!.VideoFilter = mode.ToString();
-                _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                _renderer?.SetFilter(mode);
                 ConfigLoader.Save(_config, _game);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
+                _renderer?.SetOverlayFilter(mode);
                 ConfigLoader.Save(_config, _game);
             },
             onVideoColorFilterChanged: mode =>
@@ -702,13 +700,13 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onVideoFilterChanged: mode =>
             {
                 _config!.VideoFilter = mode.ToString();
-                _renderer?.SetFilter(Rendering.Filters.D3D11FilterFactory.Create(mode));
+                _renderer?.SetFilter(mode);
                 ConfigLoader.Save(_config, _game);
             },
             onVideoFilterOverlayChanged: mode =>
             {
                 _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                _renderer?.SetOverlayFilter(mode.HasValue ? Rendering.Filters.D3D11FilterFactory.Create(mode.Value) : null);
+                _renderer?.SetOverlayFilter(mode);
                 ConfigLoader.Save(_config, _game);
             },
             onVideoColorFilterChanged: mode =>
@@ -854,7 +852,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     }
 
     /// <summary>Applies whatever WindowMode the current _config specifies. Called at true startup
-    /// (InitializeWindowAndD3DHook), when loading a chosen game (LoadGame), and when
+    /// (InitializeWindowAndRenderer), when loading a chosen game (LoadGame), and when
     /// (re-)entering the carousel (InitializeCarousel) — each is an explicit "this config says X"
     /// moment, where _config has already been loaded with the appropriate source's own persisted
     /// preference (the game's user.json, or ShellUserConfigPath for the carousel).</summary>

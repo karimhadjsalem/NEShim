@@ -10,10 +10,10 @@ namespace NEShim.Rendering;
 /// Steam's GameOverlayRenderer64.dll can hook IDXGISwapChain::Present and enable
 /// the overlay. Without a Present() call, Steam's overlay DLL does not activate.
 ///
-/// <para>Steam renders its overlay UI directly into the swap chain's back buffer
-/// via the vtable hook. Because <see cref="GamePanel"/> (a GDI+ child control)
-/// is composited above the swap chain surface by DWM, the overlay is only visible
-/// when GamePanel is hidden — see MainForm's overlay toggle handler.</para>
+/// <para>Steam renders its overlay UI directly into the swap chain's back buffer via the
+/// vtable hook. The swap chain is bound directly to the SDL3 window's HWND (no separate child
+/// control sits above it, unlike the pre-SDL3-migration WinForms layout), so the overlay is
+/// simply visible whenever <see cref="D3D11Renderer"/> presents to that same swap chain.</para>
 ///
 /// <para>If D3D11 is unavailable, initialization silently fails and all methods
 /// become no-ops; the game continues without overlay support.</para>
@@ -39,8 +39,8 @@ internal sealed class SteamOverlayRenderer : IOverlayRenderer
 
     /// <summary>
     /// Creates the D3D11 device and swap chain bound to <paramref name="hwnd"/>.
-    /// Pass the top-level MainForm handle. Must be called on the UI thread after
-    /// the window has been sized to its final dimensions.
+    /// Pass the top-level SDL3 window handle (<see cref="Platform.SDL3WindowHost.Handle"/>).
+    /// Must be called on the UI thread after the window has been sized to its final dimensions.
     /// </summary>
     public void Initialize(IntPtr hwnd, int width, int height)
     {
@@ -70,7 +70,7 @@ internal sealed class SteamOverlayRenderer : IOverlayRenderer
             // swap effect is emulated in DXVK via a slower blit path. FlipDiscard maps
             // cleanly to VK_PRESENT_MODE_FIFO_KHR, which is the correct Vulkan path.
             // Windowed = true is intentional: borderless windowed fullscreen is managed
-            // by MainForm.SetWindowMode; exclusive fullscreen has poor Alt+Tab on Proton.
+            // by NEShimApp.SetWindowMode; exclusive fullscreen has poor Alt+Tab on Proton.
             _swapChain = factory.CreateSwapChain(_device, new SwapChainDescription
             {
                 BufferCount       = 2,
@@ -85,7 +85,7 @@ internal sealed class SteamOverlayRenderer : IOverlayRenderer
                 Windowed          = true,
             });
 
-            // Prevent DXGI from hijacking Alt+Enter — window mode is managed by MainForm.
+            // Prevent DXGI from hijacking Alt+Enter — window mode is managed by NEShimApp.
             factory.MakeWindowAssociation(hwnd, WindowAssociationFlags.IgnoreAltEnter);
             Logger.Log($"[SteamOverlayRenderer] Swap chain created ({width}×{height}). Steam overlay hook is active.");
         }

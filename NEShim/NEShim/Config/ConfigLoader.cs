@@ -120,7 +120,8 @@ public static class ConfigLoader
     internal static void SaveUserTo(AppConfig config, string userConfigPath)
     {
         var userConfig = UserConfig.FromConfig(config);
-        Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
+        string? userConfigDir = Path.GetDirectoryName(userConfigPath);
+        if (!string.IsNullOrEmpty(userConfigDir)) Directory.CreateDirectory(userConfigDir);
         string json = JsonSerializer.Serialize(userConfig, _userOptions);
         File.WriteAllText(userConfigPath, json);
         Logger.Log($"[Config] User config saved to {userConfigPath}");
