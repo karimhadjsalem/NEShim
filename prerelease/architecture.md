@@ -25,6 +25,8 @@ This page describes the internal design of NEShim for contributors and anyone ex
 
 `NEShim` targets `net9.0` (cross-platform) with platform-specific files selected at build time via MSBuild `<Compile Remove>` conditions: D3D11 renderer, Steam overlay renderer, and their factory implementations are excluded on non-Windows; the SDL_GPU renderer factory and null overlay renderer are excluded on Windows.
 
+**This selection is keyed on `$(RuntimeIdentifier)`, never the bare `$(OS)` property** (`NEShim.csproj` computes a `$(_TargetsWindows)` property once — a RID-prefix check, falling back to the host OS only when `RuntimeIdentifier` is empty — and every platform-file/package condition reads that). `$(OS)` reflects the *build machine's* OS, not the publish target, so it would get this backwards for the project's actual release topology: the GitHub Actions release workflow (`release.yml`) builds **both** `win-x64` and `linux-x64` from a single `windows-latest` runner via `dotnet publish -r linux-x64`. Cross-compiling the Linux artifact from Windows isn't a rare edge case here — it's the *only* way `linux-x64` is ever produced, for every tagged release. Keying on `$(OS)` would silently compile the Windows-only D3D11/Vortice.Direct3D11 stack into every "linux-x64" build while omitting the Linux SDL3 native bundles (`SDL3-CS.Linux`/`.Image`/`.TTF`) entirely — a build that can't start on Linux at all, shipped as the official release artifact every time.
+
 ---
 
 ## Namespace map
