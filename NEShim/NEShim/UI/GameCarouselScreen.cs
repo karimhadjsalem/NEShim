@@ -66,8 +66,17 @@ internal sealed class GameCarouselScreen : IDisposable
     /// later, unrelated surface can be allocated at the same (recycled) address. Optional so
     /// tests that never touch SDL rendering can omit it.
     /// </param>
+    /// <param name="viewportWidth">Current window/viewport pixel width, paired with
+    /// <paramref name="viewportHeight"/> — the background is stretched to fill it, so a decoded
+    /// frame is never held or re-uploaded at a resolution larger than what will ever actually be
+    /// displayed (unlike thumbnails, the background has no fixed max display size to cap
+    /// against, since it can legitimately fill anything from a 720p window to a 4K one — the cap
+    /// has to track the real render target instead). &lt;= 0 disables the cap (tests that never
+    /// load a real background can safely omit these).</param>
+    /// <param name="viewportHeight">See <paramref name="viewportWidth"/>.</param>
     public GameCarouselScreen(IReadOnlyList<GameManifest> games, string gamesRoot, string carouselBackgroundPath,
-        LocalizationData localization, Action<IntPtr>? onSurfaceDisposing = null)
+        LocalizationData localization, Action<IntPtr>? onSurfaceDisposing = null,
+        int viewportWidth = 0, int viewportHeight = 0)
     {
         Games = games;
         Localization = localization;
@@ -78,7 +87,11 @@ internal sealed class GameCarouselScreen : IDisposable
             var shellContext = new GameContext(gamesRoot, gameId: "");
             string? resolved = MainMenuScreen.ResolveAssetPath(carouselBackgroundPath, shellContext);
             if (resolved is not null)
-                _background = AnimatedImagePlayer.LoadFromFile(resolved, onSurfaceDisposing);
+            {
+                int? maxWidth  = viewportWidth  > 0 ? viewportWidth  : null;
+                int? maxHeight = viewportHeight > 0 ? viewportHeight : null;
+                _background = AnimatedImagePlayer.LoadFromFile(resolved, onSurfaceDisposing, maxWidth, maxHeight);
+            }
         }
 
         foreach (var game in games)

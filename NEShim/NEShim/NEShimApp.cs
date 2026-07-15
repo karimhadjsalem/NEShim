@@ -188,7 +188,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             MultiGameMode.GamesRoot, _config.GameDlcAppIds, _config.GameDlcAppIdsSignature));
         _carousel?.Dispose();
         _carousel = new GameCarouselScreen(games, MultiGameMode.GamesRoot, _config.CarouselBackgroundPath, localization,
-            onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
+            onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface),
+            viewportWidth: _sdlHost.ClientWidth, viewportHeight: _sdlHost.ClientHeight);
         _carousel.GameChosen += g => _marshalToMainThread(() =>
             LoadGame(GameContext.ForGame(MultiGameMode.GamesRoot, g.GameId)));
         // The carousel is the top-level screen in multi-game mode — there's no parent menu to
