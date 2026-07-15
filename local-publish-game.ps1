@@ -75,10 +75,10 @@ if (-not (Test-Path $configPath)) {
 
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 if ([string]::IsNullOrWhiteSpace($config.gameDisplayTitle)) {
-    Write-Warning "gameDisplayTitle is not set in config.json — the carousel will fall back to windowTitle."
+    Write-Warning "gameDisplayTitle is not set in config.json - the carousel will fall back to windowTitle."
 }
 if (-not $config.steamDlcAppId -or $config.steamDlcAppId -eq 0) {
-    Write-Host "steamDlcAppId is 0 or unset — this game will show unconditionally (no Steam DLC ownership check)." -ForegroundColor Yellow
+    Write-Host "steamDlcAppId is 0 or unset - this game will show unconditionally (no Steam DLC ownership check)." -ForegroundColor Yellow
     Write-Host "  This is expected if you're bundling every game in a single deploy. If this game should" -ForegroundColor Yellow
     Write-Host "  instead be sold as separate Steam DLC, set steamDlcAppId before publishing." -ForegroundColor Yellow
 }
@@ -99,7 +99,7 @@ Copy-Item -Path (Join-Path $SourceDir "*") -Destination $dest -Recurse -Force
 Write-Host "Done."
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "  1. Make sure the engine publish (local-publish.ps1) ships games\multigame.json — its"
+Write-Host "  1. Make sure the engine publish (local-publish.ps1) ships games\multigame.json - its"
 Write-Host "     presence is what activates multi-game/carousel mode; it is not created by this script."
 Write-Host "  2. Seal this game's achievements: pub-utils --key-file private_key.txt `"$dest\achievements.json`""
 Write-Host "  3. If (and only if) this game is sold as separate Steam DLC, set steamDlcAppId in"
@@ -111,5 +111,5 @@ Write-Host "     field) and rebuild, then run:"
 Write-Host "       pub-utils --seal-dlc-map --key-file private_key.txt games\multigame.json"
 Write-Host "     See 'DLC ownership anti-tamper' in the docs. Leave steamDlcAppId at 0, with no"
 Write-Host "     gameDlcAppIds entry, to bundle this game directly in the base install instead."
-Write-Host "  4. Remember: this game's achievement steamIds must be namespaced/prefixed uniquely — all"
+Write-Host "  4. Remember: this game's achievement steamIds must be namespaced/prefixed uniquely - all"
 Write-Host "     games in a multi-game build share one Steam base App ID and therefore one achievement schema."

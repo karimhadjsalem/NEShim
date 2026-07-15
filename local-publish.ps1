@@ -61,7 +61,7 @@ function Invoke-Publish {
 }
 
 Write-Host ""
-Write-Host "NEShim v$Version — local publish"
+Write-Host "NEShim v$Version - local publish"
 Write-Host "  Platforms: $($gameRids -join ', ')"
 Write-Host "  Output:    $outBase"
 Write-Host ""
