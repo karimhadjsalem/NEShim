@@ -16,21 +16,6 @@ internal class GameCarouselRendererTests
     }
 
     [Test]
-    public void ComputeSlotGameIndices_GameCountOne_AllSlotsSameIndex()
-    {
-        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 1, visibleSlotCount: 5);
-        Assert.That(result, Is.EqualTo(new[] { 0, 0, 0, 0, 0 }));
-    }
-
-    [Test]
-    public void ComputeSlotGameIndices_GameCountTwo_ProducesWraparoundDuplication()
-    {
-        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 2, visibleSlotCount: 5);
-        // offsets -2..2 against 2 games: (0-2)%2=0, (0-1)%2=1, 0, 1, (0+2)%2=0 — same game at both far edges.
-        Assert.That(result, Is.EqualTo(new[] { 0, 1, 0, 1, 0 }));
-    }
-
-    [Test]
     public void ComputeSlotGameIndices_GameCountExceedsVisibleSlots_NoDuplicates()
     {
         var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 2, gameCount: 10, visibleSlotCount: 5);
@@ -43,6 +28,109 @@ internal class GameCarouselRendererTests
     {
         var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 7, gameCount: 10, visibleSlotCount: 5);
         Assert.That(result[2], Is.EqualTo(7));
+    }
+
+    // ---- ComputeSlotGameIndices: small-library edge cases ----
+    // A library smaller than visibleSlotCount wraps around freely to fill the strip — the same
+    // neighbor legitimately shows up on both sides of the centered game, since it really is
+    // reachable in either direction (that's what makes it read as a carousel). The one game that
+    // must never repeat in a non-center slot is the centered/highlighted one itself. The sole
+    // exception is a single game, where there's nothing else to wrap to at all.
+
+    [Test]
+    public void ComputeSlotGameIndices_OneGame_OnlyCenterFilled_EverythingElseEmpty()
+    {
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 1, visibleSlotCount: 5);
+        Assert.That(result, Is.EqualTo(new[]
+        {
+            GameCarouselRenderer.NoGame, GameCarouselRenderer.NoGame,
+            0,
+            GameCarouselRenderer.NoGame, GameCarouselRenderer.NoGame,
+        }));
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_OneGame_WiderSlideSlotCount_OnlyCenterFilled()
+    {
+        // Same guarantee must hold for DrawSliding's wider 7-slot pass, not just the 5-slot
+        // static filmstrip.
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 1, visibleSlotCount: 7);
+        Assert.That(result.Count(i => i != GameCarouselRenderer.NoGame), Is.EqualTo(1));
+        Assert.That(result[3], Is.EqualTo(0)); // center of a 7-wide array is index 3
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_TwoGames_OtherGameShownOnBothSides()
+    {
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 2, visibleSlotCount: 5);
+        // Center (index 2) is the selected game (0); the only other game (1) is reachable by
+        // going either left or right, so it appears immediately on both sides. The outer slots
+        // (distance 2) would wrap back to the centered game, so those stay empty instead of
+        // repeating it.
+        Assert.That(result, Is.EqualTo(new[]
+        {
+            GameCarouselRenderer.NoGame, 1,
+            0,
+            1, GameCarouselRenderer.NoGame,
+        }));
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_TwoGames_CenterGameNeverRepeats()
+    {
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 2, visibleSlotCount: 5);
+        Assert.That(result.Count(i => i == 0), Is.EqualTo(1)); // centered game shown exactly once
+        Assert.That(result.Count(i => i == 1), Is.EqualTo(2)); // the other game, on both sides
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_TwoGames_OtherGameSelected_StillCenterOnlyOnce()
+    {
+        // Same guarantee regardless of which of the two games is currently highlighted.
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 1, gameCount: 2, visibleSlotCount: 5);
+        Assert.That(result[2], Is.EqualTo(1)); // center is always the selected game
+        Assert.That(result.Count(i => i == 1), Is.EqualTo(1));
+        Assert.That(result.Count(i => i == 0), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_TwoGames_WiderSlideSlotCount_CenterStillOnlyOnce()
+    {
+        // With a strip wider than the library, the non-center game keeps wrapping in to fill
+        // every remaining slot except the two that would land back on the centered game.
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 2, visibleSlotCount: 7);
+        Assert.That(result.Count(i => i == 0), Is.EqualTo(1));
+        Assert.That(result.Count(i => i == GameCarouselRenderer.NoGame), Is.EqualTo(2));
+        Assert.That(result.Count(i => i == 1), Is.EqualTo(4));
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_ThreeGames_AllThreeShown_NoGaps()
+    {
+        // 3 games wrapped into 5 slots: both neighbors are distinct from the centered game and
+        // from each other, but with 5 slots to fill from only 3 games, the two farthest-out slots
+        // wrap back around and repeat a neighbor rather than sitting empty.
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 3, visibleSlotCount: 5);
+        Assert.That(result, Has.None.EqualTo(GameCarouselRenderer.NoGame));
+        Assert.That(result.Count(i => i == 0), Is.EqualTo(1)); // centered game shown exactly once
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_FourGames_CenterGameNeverRepeats()
+    {
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 4, visibleSlotCount: 5);
+        Assert.That(result, Has.None.EqualTo(GameCarouselRenderer.NoGame));
+        Assert.That(result.Count(i => i == 0), Is.EqualTo(1)); // centered game shown exactly once
+    }
+
+    [Test]
+    public void ComputeSlotGameIndices_FiveGames_ExactlyFillsAllSlots_NoDuplicatesOrGaps()
+    {
+        // The boundary where the small-library fix and the plain modulo case meet: exactly
+        // enough games to fill every slot, so no NoGame sentinel should appear at all.
+        var result = GameCarouselRenderer.ComputeSlotGameIndices(selectedIndex: 0, gameCount: 5, visibleSlotCount: 5);
+        Assert.That(result, Has.None.EqualTo(GameCarouselRenderer.NoGame));
+        Assert.That(result.Distinct().Count(), Is.EqualTo(5));
     }
 
     // ---- ComputeBoxArtRect ----

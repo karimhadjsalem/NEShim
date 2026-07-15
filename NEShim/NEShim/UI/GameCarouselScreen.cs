@@ -135,9 +135,11 @@ internal sealed class GameCarouselScreen : IDisposable
     public bool DescriptionShown => _descriptionShown;
     public float FlipProgress => ComputeFlipProgress(Environment.TickCount64 - _flipStartTicks, FlipDurationMs);
 
+    // A single game has nothing to wrap to — Left/Right is a no-op rather than a slide
+    // animation that lands back on the same tile.
     public void MoveNext()
     {
-        if (Games.Count == 0) return;
+        if (Games.Count <= 1) return;
         _previousSelectedIndex = SelectedIndex;
         SelectedIndex = (SelectedIndex + 1) % Games.Count;
         _slideDirection = +1;
@@ -147,7 +149,7 @@ internal sealed class GameCarouselScreen : IDisposable
 
     public void MovePrevious()
     {
-        if (Games.Count == 0) return;
+        if (Games.Count <= 1) return;
         _previousSelectedIndex = SelectedIndex;
         SelectedIndex = (SelectedIndex - 1 + Games.Count) % Games.Count;
         _slideDirection = -1;

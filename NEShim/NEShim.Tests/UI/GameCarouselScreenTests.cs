@@ -86,6 +86,41 @@ internal class GameCarouselScreenTests
         Assert.That(screen.SelectedIndex, Is.EqualTo(0));
     }
 
+    // A single game has nothing to wrap to — Left/Right should be a true no-op, not a slide
+    // animation that lands back on the same tile.
+
+    [Test]
+    public void MoveNext_SingleGame_DoesNotChangeSelectedIndex()
+    {
+        var screen = NewScreen(Game("a"));
+        screen.MoveNext();
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void MoveNext_SingleGame_DoesNotTriggerSlideAnimation()
+    {
+        var screen = NewScreen(Game("a"));
+        screen.MoveNext();
+        Assert.That(screen.SlideDirection, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void MovePrevious_SingleGame_DoesNotChangeSelectedIndex()
+    {
+        var screen = NewScreen(Game("a"));
+        screen.MovePrevious();
+        Assert.That(screen.SelectedIndex, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void MovePrevious_SingleGame_DoesNotTriggerSlideAnimation()
+    {
+        var screen = NewScreen(Game("a"));
+        screen.MovePrevious();
+        Assert.That(screen.SlideDirection, Is.EqualTo(0));
+    }
+
     [Test]
     public void MoveNext_SetsSlideDirectionPositive_AndPreviousIndex()
     {

@@ -156,6 +156,29 @@ internal sealed class SDL3PaintContext
         RenderSurface(surface, null, ToFRect(dstRect), alpha);
     }
 
+    /// <summary>
+    /// Blits without touching <see cref="_textureCache"/> — uploads a fresh texture and destroys
+    /// it immediately after drawing. Required for a surface pointer that is reused across frames
+    /// with different pixel content behind it (an animation's "current frame" pointer changes
+    /// which logical frame it refers to over time from the same handle in some cases) — caching
+    /// by pointer would freeze the very first upload's pixels in place forever. Static, one-shot
+    /// surfaces (box art, thumbnails) should use <see cref="BlitSurface"/> instead so the cache's
+    /// perf benefit still applies where content truly never changes.
+    /// </summary>
+    internal void BlitSurfaceUncached(IntPtr surface, SDL.Rect dstRect)
+    {
+        if (surface == IntPtr.Zero) return;
+        IntPtr texture = SDL.CreateTextureFromSurface(_renderer, surface);
+        if (texture == IntPtr.Zero) return;
+        try
+        {
+            SDL.SetTextureBlendMode(texture, SDL.BlendMode.Blend);
+            var dstF = ToFRect(dstRect);
+            SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstF);
+        }
+        finally { SDL.DestroyTexture(texture); }
+    }
+
     // ---- Private helpers ----
 
     private void RenderSurface(IntPtr surface, SDL.FRect? srcFRect, SDL.FRect dstFRect, float alpha)

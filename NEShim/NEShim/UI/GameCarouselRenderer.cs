@@ -9,11 +9,14 @@ namespace NEShim.UI;
 /// <summary>
 /// Stateless renderer for <see cref="GameCarouselScreen"/>: a filmstrip of box-art tiles
 /// (<see cref="ComputeSlotGameIndices"/> maps carousel state to which game occupies each
-/// visible slot, wrapping/duplicating games when the library is smaller than the visible
-/// slot count), an animated slide when the selection changes, and a card-flip on the
-/// selected tile revealing a description (<see cref="ComputeFlipVisual"/>). All player-facing
-/// strings come from <see cref="GameCarouselScreen.Localization"/> (resolved from the shell
-/// config's <c>language</c> field before the carousel is ever shown — see
+/// visible slot via modulo wraparound, so a library smaller than the visible slot count
+/// naturally repeats games to fill the strip — the one exception being the centered/selected
+/// game itself, which never repeats in a non-center slot; see <see cref="NoGame"/>), an
+/// animated slide when the selection changes, and a card-flip on the selected tile revealing a
+/// description (see
+/// <see cref="ComputeFlipVisual"/>). All player-facing strings come from
+/// <see cref="GameCarouselScreen.Localization"/> (resolved from the shell config's
+/// <c>language</c> field before the carousel is ever shown — see
 /// <c>NEShimApp.InitializeCarousel</c>), same as every other menu renderer in this codebase.
 /// </summary>
 internal static class GameCarouselRenderer
@@ -92,24 +95,46 @@ internal static class GameCarouselRenderer
 
     // ---- Pure layout/geometry helpers (unit tested; no SDL rendering side effects) ----
 
+    /// <summary>Sentinel returned by <see cref="ComputeSlotGameIndices"/> for a slot that has no game assigned — see its doc comment.</summary>
+    internal const int NoGame = -1;
+
     /// <summary>
-    /// Which game occupies each of <paramref name="visibleSlotCount"/> filmstrip slots
-    /// (offsets <c>-half..+half</c> from the centered <paramref name="selectedIndex"/>).
-    /// Modulo wraparound naturally duplicates games when <paramref name="gameCount"/> is
-    /// smaller than <paramref name="visibleSlotCount"/> — e.g. 2 games across 5 slots yields
-    /// the same two games repeated, including the same game at both far edges.
+    /// Which game occupies each of <paramref name="visibleSlotCount"/> filmstrip slots (offsets
+    /// <c>-half..+half</c> from the centered <paramref name="selectedIndex"/>), via plain modulo
+    /// wraparound — a library smaller than <paramref name="visibleSlotCount"/> naturally repeats
+    /// games to fill the strip, which reads correctly as a carousel (the same neighbor really is
+    /// reachable from either direction). The one exception is the centered/highlighted game
+    /// itself: it never appears a second time in a non-center slot (that slot gets
+    /// <see cref="NoGame"/> instead) — e.g. a single game shows only at the centered slot with
+    /// both neighbors empty (nothing to wrap to), and a 2-game library shows the other game on
+    /// both the left and right of the centered slot, with the next slot out on each side empty
+    /// (wrapping from there would land back on the centered game).
     /// </summary>
     internal static int[] ComputeSlotGameIndices(int selectedIndex, int gameCount, int visibleSlotCount)
     {
         if (gameCount == 0) return Array.Empty<int>();
         int half = visibleSlotCount / 2;
         var result = new int[visibleSlotCount];
-        for (int i = 0; i < visibleSlotCount; i++)
+        Array.Fill(result, NoGame);
+
+        int centerIndex = ((selectedIndex % gameCount) + gameCount) % gameCount;
+        result[half] = centerIndex;
+
+        for (int distance = 1; distance <= half; distance++)
         {
-            int offset = i - half;
-            result[i] = ((selectedIndex + offset) % gameCount + gameCount) % gameCount;
+            FillSlotUnlessCenter(result, half, distance, centerIndex, selectedIndex, gameCount);
+            FillSlotUnlessCenter(result, half, -distance, centerIndex, selectedIndex, gameCount);
         }
+
         return result;
+    }
+
+    private static void FillSlotUnlessCenter(int[] result, int half, int offset, int centerIndex, int selectedIndex, int gameCount)
+    {
+        int slot = half + offset;
+        if (slot < 0 || slot >= result.Length) return;
+        int gameIndex = ((selectedIndex + offset) % gameCount + gameCount) % gameCount;
+        if (gameIndex != centerIndex) result[slot] = gameIndex;
     }
 
     /// <summary>
@@ -161,7 +186,7 @@ internal static class GameCarouselRenderer
     {
         var frame = carousel.BackgroundFrame;
         if (frame is { } surface && surface != IntPtr.Zero)
-            ctx.BlitSurface(surface, null, bounds);
+            ctx.BlitSurfaceUncached(surface, bounds);
         else
             ctx.Clear(BgColor);
     }
@@ -182,10 +207,11 @@ internal static class GameCarouselRenderer
         // Center drawn last so its flipped description card — significantly wider than its own
         // slot (see DescriptionWidthMultiplier) — paints over its neighbors instead of being
         // covered by them. Non-center slots never overlap each other, so their relative order
-        // doesn't matter.
+        // doesn't matter. A NoGame slot (small library — see ComputeSlotGameIndices) is simply
+        // skipped rather than drawing a duplicate of an already-visible game.
         for (int i = 0; i < VisibleSlotCount; i++)
         {
-            if (i == half) continue;
+            if (i == half || indices[i] == NoGame) continue;
             DrawSlotAt(ctx, band, offsetFromCenter: i - half, carousel.Games[indices[i]], carousel, allowFlip: true);
         }
         DrawSlotAt(ctx, band, offsetFromCenter: 0, carousel.Games[indices[half]], carousel, allowFlip: true);
@@ -200,6 +226,7 @@ internal static class GameCarouselRenderer
 
         for (int i = 0; i < SlideWideSlotCount; i++)
         {
+            if (indices[i] == NoGame) continue; // small library (see ComputeSlotGameIndices) — nothing to slide here
             float oldOffset = i - wideHalf;
             float newOffset = oldOffset - direction; // each old slot slides toward the slot one position closer to the new selection
             float offset = oldOffset + (newOffset - oldOffset) * eased;
