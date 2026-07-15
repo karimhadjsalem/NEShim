@@ -156,7 +156,7 @@ Without these defaults, players must configure their controller bindings manuall
 NEShim uses ECDSA-P256 asymmetric signing. The default keypair in the source is publicly known — generate your own before shipping.
 
 ```bash
-seal-achievements --gen-keypair
+pub-utils --gen-keypair
 ```
 
 Output:
@@ -179,7 +179,7 @@ Public key (embed in AchievementSigner.DefaultPublicKeyBase64 OR set as achievem
    This bakes the key into the binary. It takes precedence over `achievementPublicKey` in config.json and cannot be overridden without recompiling.
 
 3. Rebuild the solution.
-4. Re-seal all `achievements.json` files: `seal-achievements --key-file private_key.txt achievements.json`.
+4. Re-seal all `achievements.json` files: `pub-utils --key-file private_key.txt achievements.json`.
 
 The keypair only needs to be generated once for the lifetime of the game. Achievements will not fire until a key is configured. See [Achievement system — Key management](achievements.md#key-management).
 
@@ -226,7 +226,7 @@ Example:
 4. Seal the file using your private key:
 
 ```bash
-seal-achievements --key-file private_key.txt achievements.json
+pub-utils --key-file private_key.txt achievements.json
 ```
 
 Verify all definitions are listed as `[sealed]` in the output. Never edit `achievements.json` after sealing without re-sealing — any changed definition will fail signature verification and silently stop firing.
@@ -343,7 +343,7 @@ For the native Linux build, copy the linux-x64 publish output to the Deck. No Pr
 - [ ] `windowTitle` set in `config.json`
 - [ ] `icon.ico` replaced with your game artwork
 - [ ] `<AssemblyName>` changed in `NEShim.csproj` if renaming the assembly (optional)
-- [ ] Signing keypair generated with `seal-achievements --gen-keypair`; public key set in `AchievementSigner.EmbeddedPublicKeyBase64` and solution rebuilt; private key stored outside source control
+- [ ] Signing keypair generated with `pub-utils --gen-keypair`; public key set in `AchievementSigner.EmbeddedPublicKeyBase64` and solution rebuilt; private key stored outside source control
 - [ ] `steam_appid.txt` updated with your production App ID
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf` in source
 - [ ] Steamworks native library copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory (`steam_api64.dll` for Windows, `libsteam_api.so` for Linux) and included in the corresponding Steam depots
@@ -352,7 +352,7 @@ For the native Linux build, copy the linux-x64 publish output to the Deck. No Pr
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] Translated achievement names and descriptions added in Steamworks dashboard for each supported language
-- [ ] `achievements.json` authored and sealed with `seal-achievements --key-file <keyfile>`
+- [ ] `achievements.json` authored and sealed with `pub-utils --key-file <keyfile>`
 - [ ] `lang/*.json` files present for each supported language (built-in files are compiled in; confirm `lang\*.json` content items copy to output)
 - [ ] Supported languages list set in Steamworks dashboard under **Store Presence → Basic Info**
 - [ ] Localized store descriptions and screenshots uploaded in Steamworks dashboard for each supported language

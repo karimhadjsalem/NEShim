@@ -175,7 +175,7 @@ Example:
 4. Seal the file using your private key:
 
 ```bash
-seal-achievements --key-file private_key.txt achievements.json
+pub-utils --key-file private_key.txt achievements.json
 ```
 
 Verify all definitions are listed as `[sealed]` in the output. Never edit `achievements.json` after sealing without re-sealing — any changed definition will fail signature verification and silently stop firing.
@@ -187,7 +187,7 @@ There is no default signing key — achievements are disabled until you configur
 1. Generate your own keypair:
 
    ```bash
-   seal-achievements --gen-keypair
+   pub-utils --gen-keypair
    ```
 
 2. Set `achievementPublicKey` in `config.json` to the printed public key:
@@ -201,7 +201,7 @@ There is no default signing key — achievements are disabled until you configur
 3. Re-seal your `achievements.json` with your private key:
 
    ```bash
-   seal-achievements --key-file private_key.txt achievements.json
+   pub-utils --key-file private_key.txt achievements.json
    ```
 
 Store the private key securely (1Password, local file outside source control, or CI secret). See [Achievement system — Key management](achievements.md#key-management).
@@ -267,8 +267,8 @@ NEShim runs on Steam Deck natively via the Linux x64 build (SDL_GPU/Vulkan path)
 - [ ] Each `controller_bindings/*.vdf` uploaded as Default Configuration for its controller type
 - [ ] All achievements created in the Steamworks dashboard with matching API names
 - [ ] Translated achievement names and descriptions added in Steamworks dashboard for each supported language
-- [ ] Signing keypair generated with `seal-achievements --gen-keypair`; `achievementPublicKey` set in `config.json`; private key stored outside source control (if protecting achievements)
-- [ ] `achievements.json` authored and sealed with `seal-achievements --key-file <keyfile>`
+- [ ] Signing keypair generated with `pub-utils --gen-keypair`; `achievementPublicKey` set in `config.json`; private key stored outside source control (if protecting achievements)
+- [ ] `achievements.json` authored and sealed with `pub-utils --key-file <keyfile>`
 - [ ] `lang/*.json` files present for each supported language (built-in files ship automatically; add any extras alongside the exe)
 - [ ] Supported languages list set in Steamworks dashboard under **Store Presence → Basic Info**
 - [ ] Localized store descriptions and screenshots uploaded in Steamworks dashboard for each supported language

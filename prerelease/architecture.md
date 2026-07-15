@@ -18,8 +18,8 @@ This page describes the internal design of NEShim for contributors and anyone ex
 |---|---|---|
 | `NEShim` | `net9.0` | Main application — SDL3 windowing + rendering, Steam wiring, game loop (Windows x64 + Linux x64) |
 | `NEShim.AchievementSigning` | `net9.0` | Shared library — `AchievementDef` type, ECDSA-P256 signing/verification logic |
-| `NEShim.SealAchievements` | `net9.0` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` (Windows + Linux) |
-| `NEShim.SealAchievementsUI` | `net9.0-windows` | Developer GUI tool — Windows Forms UI for the sealer (Windows only) |
+| `NEShim.PubUtils` | `net9.0` | Publisher CLI tool — stamps ECDSA-P256 signatures onto `achievements.json` and, in multi-game mode, onto the DLC-ownership map (Windows + Linux) |
+| `NEShim.PubUtilsUI` | `net9.0-windows` | Developer GUI tool — Windows Forms UI for the achievement-sealing half of `NEShim.PubUtils` (Windows only) |
 | `NEShim.Tests` | `net9.0` | NUnit test suite |
 | `BizHawk` | `net8.0` | NES emulation core, adapted from the BizHawk multi-system emulator |
 

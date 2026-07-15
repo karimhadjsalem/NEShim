@@ -3,7 +3,7 @@ layout: default
 title: Achievements
 nav_order: 3
 parent: Pre-release
-description: "Memory-watch triggers, achievements.json format, BCD encoding, ECDSA-P256 signature verification, and the seal-achievements tool."
+description: "Memory-watch triggers, achievements.json format, BCD encoding, ECDSA-P256 signature verification, and the pub-utils tool."
 ---
 
 # Achievement system
@@ -41,7 +41,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
         "encoding":   "binary",
         "comparison": "equals",
         "value":      1,
-        "sig":        "base64-ecdsa-p256-written-by-seal-achievements"
+        "sig":        "base64-ecdsa-p256-written-by-pub-utils"
       }
     ]
   }
@@ -69,7 +69,7 @@ The file is a JSON object keyed by ROM SHA1 hash. Each value is a config block w
 | `encoding` | string | `"binary"` | No | `"binary"` — interpret the assembled bytes as a standard integer. `"bcd"` — decode as binary-coded decimal (see below). |
 | `comparison` | string | `"equals"` | No | Trigger condition: `"equals"`, `"greaterOrEqual"`, `"greaterThan"`, `"lessOrEqual"`, or `"lessThan"`. |
 | `value` | integer | — | Yes | Threshold for the comparison. |
-| `sig` | string | — | Yes (to fire) | ECDSA-P256 signature (64 bytes, IEEE P1363, base64-encoded) written by `seal-achievements --key-file <keyfile>`. Definitions without a valid signature are silently ignored at runtime. |
+| `sig` | string | — | Yes (to fire) | ECDSA-P256 signature (64 bytes, IEEE P1363, base64-encoded) written by `pub-utils --key-file <keyfile>`. Definitions without a valid signature are silently ignored at runtime. |
 
 ---
 
@@ -160,7 +160,7 @@ Use this hash as the key in `achievements.json`.
 
 ## Signing and sealing
 
-Achievement definitions must be signed before they will fire in-game. NEShim uses **ECDSA-P256** asymmetric signing: the private key lives only on the publisher's build machine and is used by `seal-achievements` to sign definitions; the public key is used at runtime to verify them. Possession of the public key cannot forge signatures.
+Achievement definitions must be signed before they will fire in-game. NEShim uses **ECDSA-P256** asymmetric signing: the private key lives only on the publisher's build machine and is used by `pub-utils` to sign definitions; the public key is used at runtime to verify them. Possession of the public key cannot forge signatures.
 
 There is no default key — achievements will not fire until a key is configured. Two paths are available:
 
@@ -171,7 +171,7 @@ There is no default key — achievements will not fire until a key is configured
 
 The binary-embedded key takes precedence over the config key when both are present.
 
-> `seal-achievements` also has a `--seal-dlc-map` mode, used only in multi-game mode to sign the DLC-ownership anti-tamper map (`games/multigame.json`'s `gameDlcAppIds`) — a separate payload from achievements, with its own dedicated keypair (`DlcMapSigner`) and **no config-file key option at all** (unlike achievements above, that key must be compiled in). **Use a keypair generated separately from your achievement-signing keypair — never reuse the same one for both.** See [Multi-Game Mode — DLC ownership anti-tamper](multi-game#dlc-ownership-anti-tamper).
+> `pub-utils` also has a `--seal-dlc-map` mode, used only in multi-game mode to sign the DLC-ownership anti-tamper map (`games/multigame.json`'s `gameDlcAppIds`) — a separate payload from achievements, with its own dedicated keypair (`DlcMapSigner`) and **no config-file key option at all** (unlike achievements above, that key must be compiled in). **Use a keypair generated separately from your achievement-signing keypair — never reuse the same one for both.** See [Multi-Game Mode — DLC ownership anti-tamper](multi-game#dlc-ownership-anti-tamper).
 
 ### Running the sealer
 
@@ -179,16 +179,16 @@ Sealing requires the private half of your signing keypair:
 
 ```bash
 # Seal achievements.json in the current directory using a key file
-seal-achievements --key-file private_key.txt
+pub-utils --key-file private_key.txt
 
 # Seal a specific file
-seal-achievements --key-file private_key.txt path/to/achievements.json
+pub-utils --key-file private_key.txt path/to/achievements.json
 
 # Pass the private key directly as base64 (useful in scripts)
-seal-achievements --key <base64_private_key> achievements.json
+pub-utils --key <base64_private_key> achievements.json
 
 # Seal using a private key from an environment variable (useful in CI)
-seal-achievements --key-env NESHIM_SIGNING_KEY achievements.json
+pub-utils --key-env NESHIM_SIGNING_KEY achievements.json
 ```
 
 Output:
@@ -218,7 +218,7 @@ The `"sig"` field itself is excluded. Changing any trigger field without re-seal
 #### 1. Generate a keypair
 
 ```bash
-seal-achievements --gen-keypair
+pub-utils --gen-keypair
 ```
 
 Output:
@@ -263,7 +263,7 @@ If neither is set, the loader logs a warning and no achievements fire.
 
 #### 4. Re-seal after a key change
 
-Whenever you rotate to a new keypair, re-run `seal-achievements --key <newkeyfile> achievements.json`. Signatures from the old private key will fail verification with the new public key and be silently rejected.
+Whenever you rotate to a new keypair, re-run `pub-utils --key <newkeyfile> achievements.json`. Signatures from the old private key will fail verification with the new public key and be silently rejected.
 
 **A key must be configured before any achievements will fire.** There is no default key — achievements are silently disabled until either `EmbeddedPublicKeyBase64` is set at build time (source build) or `achievementPublicKey` is set in `config.json` (pre-built release).
 
