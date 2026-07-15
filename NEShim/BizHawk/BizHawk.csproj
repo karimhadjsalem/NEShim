@@ -31,20 +31,20 @@
 		<Using Include="System" />
 	</ItemGroup>
 
-    <!-- Native DLLs required by P/Invoke in the emulation core.
-         _IsLinuxTarget is true when cross-publishing with -r linux-x64 or building natively on Linux.
-         Linux .so files live in dll/linux-x64/ and are NOT committed — see dll/linux-x64/README.md. -->
+    <!-- Native libraries required by P/Invoke in the emulation core, laid out symmetrically as
+         dll/<rid>/<file> — the same convention .NET itself uses for runtimes/<rid>/native/.
+         _IsLinuxTarget is true when cross-publishing with -r linux-x64 or building natively on Linux. -->
     <PropertyGroup>
         <_IsLinuxTarget Condition="$(RuntimeIdentifier.StartsWith('linux'))">true</_IsLinuxTarget>
         <_IsLinuxTarget Condition="'$(_IsLinuxTarget)' == '' And '$(OS)' != 'Windows_NT'">true</_IsLinuxTarget>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(_IsLinuxTarget)' != 'true'">
-        <Content Include="$(MSBuildProjectDirectory)/dll/blip_buf.dll">
+        <Content Include="$(MSBuildProjectDirectory)/dll/win-x64/blip_buf.dll">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <Link>blip_buf.dll</Link>
         </Content>
-        <Content Include="$(MSBuildProjectDirectory)/dll/libbizhash.dll">
+        <Content Include="$(MSBuildProjectDirectory)/dll/win-x64/libbizhash.dll">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <Link>libbizhash.dll</Link>
         </Content>
