@@ -243,7 +243,7 @@ Never commit the private key to source control. Options:
 
 Two options — use whichever fits your release path:
 
-**Binary embedding (source build):** Set `EmbeddedPublicKeyBase64` in `NEShim/NEShim.AchievementSigning/AchievementSigner.cs`, then rebuild:
+**Binary embedding (source build):** Set `EmbeddedPublicKeyBase64` in `NEShim/NEShim.Signing/AchievementSigner.cs`, then rebuild:
 
 ```csharp
 public const string? EmbeddedPublicKeyBase64 = "MFkwEwYHKo..."; // your public key

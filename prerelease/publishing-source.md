@@ -165,12 +165,12 @@ Output:
 Private key (keep secret — never commit; store in 1Password, a local file, or a CI secret):
 <base64>
 
-Public key (embed in AchievementSigner.DefaultPublicKeyBase64 OR set as achievementPublicKey in config.json):
+Public key (embed in AchievementSigner.EmbeddedPublicKeyBase64 OR set as achievementPublicKey in config.json):
 <base64>
 ```
 
 1. Store the private key securely outside source control (local file, 1Password, or CI secret).
-2. Set `EmbeddedPublicKeyBase64` in `NEShim/NEShim.AchievementSigning/AchievementSigner.cs` to the printed public key:
+2. Set `EmbeddedPublicKeyBase64` in `NEShim/NEShim.Signing/AchievementSigner.cs` to the printed public key:
 
    ```csharp
    public const string? EmbeddedPublicKeyBase64 = "MFkwEwYHKo..."; // your public key
@@ -374,7 +374,7 @@ MyGame-win-x64/
 ├── MyGame.dll
 ├── MyGame.deps.json
 ├── MyGame.runtimeconfig.json
-├── NEShim.AchievementSigning.dll
+├── NEShim.Signing.dll
 ├── BizHawk.dll
 ├── steam_api64.dll             ← from Steamworks.NET release zip; Windows depot only
 ├── steam_appid.txt

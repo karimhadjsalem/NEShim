@@ -289,7 +289,7 @@ MyGame/
 ├── NEShim.dll                  ← must keep this name; baked into the app host
 ├── NEShim.deps.json
 ├── NEShim.runtimeconfig.json
-├── NEShim.AchievementSigning.dll
+├── NEShim.Signing.dll
 ├── BizHawk.dll
 ├── steam_api64.dll             ← from Steamworks.NET release zip; include in your Windows depot
 ├── steam_appid.txt

@@ -105,7 +105,7 @@ This closes the "edit one field" bypass, but not one that edits *both* the game'
 `gameDlcAppIds` can be signed with ECDSA-P256, verified against a public key that is **compiled into the binary, never read from any config file**:
 
 1. Generate a **fresh keypair dedicated to this purpose**: `pub-utils --gen-keypair`. **Do not reuse your achievement-signing keypair here** — the two protect different things (gameplay-trigger integrity vs. DLC ownership integrity), and a leaked or rotated key for one must never force touching the other. A second keypair costs nothing to generate.
-2. Embed the printed public key in `NEShim.AchievementSigning/DlcMapSigner.cs`'s `EmbeddedPublicKeyBase64` constant, and rebuild from source. This is the *only* way to configure it — deliberately no config.json equivalent, unlike `achievementPublicKey`. A config-driven key would let a tampered install simply supply its own matching keypair alongside a forged map, defeating the whole point.
+2. Embed the printed public key in `NEShim.Signing/DlcMapSigner.cs`'s `EmbeddedPublicKeyBase64` constant, and rebuild from source. This is the *only* way to configure it — deliberately no config.json equivalent, unlike `achievementPublicKey`. A config-driven key would let a tampered install simply supply its own matching keypair alongside a forged map, defeating the whole point.
 3. Seal the map: `pub-utils --seal-dlc-map --key-file private_key.txt games/multigame.json` — writes `gameDlcAppIdsSignature` into the manifest in place. Re-run this any time `gameDlcAppIds` changes.
 
 Once a public key is compiled in, `GameScanner` behaves very differently from tier 1:
