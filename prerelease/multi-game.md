@@ -135,9 +135,9 @@ Every game's data is fully separate — nothing bleeds between games in a multi-
 
 ## The carousel
 
-The carousel is a filmstrip shown before any game's config is loaded: several game tiles are visible at once, the selected game centered and highlighted, with neighbors visible (and slightly scaled/dimmed) on both sides. When a library has fewer games than visible slots, games repeat — including the same game appearing at both far edges for a 1- or 2-game library — rather than leaving empty gaps.
+The carousel is a filmstrip shown before any game's config is loaded: several game tiles are visible at once, the selected game centered and highlighted, with neighbors visible (and slightly scaled/dimmed) on both sides. When a library has fewer games than visible slots, the strip wraps around freely to fill every slot — a 2-game library shows the other game on both the left and right of the centered tile, since it's genuinely reachable in either direction, and a 3-game library fills every remaining slot the same way rather than sitting on empty gaps. The one game that's never repeated is the centered/highlighted one itself. A 1-game library is the sole exception: there's nothing to wrap to at all, so only the centered tile is shown, and Left/Right don't animate — there's no slide, since the selection can't actually change.
 
-- **Left/Right** — switch games, animated as a short slide rather than an instant cut.
+- **Left/Right** — switch games, animated as a short slide rather than an instant cut (except with only one game in the library, where there's nothing to switch to).
 - **Up** — flip the selected tile like a card to reveal `gameDescription` on the back; press Up again to flip back.
 - **Enter / gamepad A** — select the highlighted game (no-op on an invalid entry — see below).
 - **Esc / gamepad B** — quit the app. The carousel is the first screen shown in multi-game mode, with no parent menu to back out to.
