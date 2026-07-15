@@ -235,7 +235,7 @@ Releases are built and published automatically on version tags (`v*.*.*`) via Gi
 | Project | Purpose |
 |---|---|
 | `NEShim` | Main application — SDL3 windowing + rendering, Steam wiring, game loop (Windows x64 + Linux x64) |
-| `NEShim.AchievementSigning` | Shared library — achievement types and ECDSA-P256 signing logic, plus `DlcMapSigner` for multi-game DLC-ownership anti-tamper (a separate keypair from achievement signing) |
+| `NEShim.Signing` | Shared library — achievement types and ECDSA-P256 signing logic, plus `DlcMapSigner` for multi-game DLC-ownership anti-tamper (a separate keypair from achievement signing) |
 | `NEShim.PubUtils` | Developer CLI tool — stamps ECDSA-P256 signatures onto `achievements.json`, and (`--seal-dlc-map`) onto a multi-game DLC-ownership map (Windows + Linux) |
 | `NEShim.PubUtilsUI` | Developer GUI tool — Windows Forms UI for the achievement-sealing half of pub-utils (Windows only) |
 | `NEShim.Tests` | NUnit test suite |

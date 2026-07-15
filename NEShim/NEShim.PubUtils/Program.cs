@@ -314,7 +314,7 @@ if (args.Length >= 1 && args[0] == "--seal-dlc-map")
     Console.WriteLine($"Done. gameDlcAppIdsSignature written to {manifestPath}.");
     Console.WriteLine();
     Console.WriteLine("IMPORTANT: this signature has no effect until the matching public key is compiled");
-    Console.WriteLine("into DlcMapSigner.EmbeddedPublicKeyBase64 (NEShim.AchievementSigning/DlcMapSigner.cs)");
+    Console.WriteLine("into DlcMapSigner.EmbeddedPublicKeyBase64 (NEShim.Signing/DlcMapSigner.cs)");
     Console.WriteLine("and the game is rebuilt from source — there is no config.json equivalent, by design.");
     Console.WriteLine("Re-run this command any time gameDlcAppIds changes.");
     return 0;
