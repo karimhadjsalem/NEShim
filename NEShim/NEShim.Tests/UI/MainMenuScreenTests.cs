@@ -39,7 +39,8 @@ internal class MainMenuScreenTests
         Action<NEShim.Rendering.VideoFilterMode>?          onVideoFilterChanged             = null,
         Action<NEShim.Rendering.VideoFilterMode?>?         onVideoFilterOverlayChanged      = null,
         Action<NEShim.Rendering.VideoColorFilterMode>?     onVideoColorFilterChanged        = null,
-        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null) =>
+        Action<NEShim.Rendering.OverscanMode>?             onOverscanModeChanged            = null,
+        Action<IntPtr>?                                    onSurfaceDisposing               = null) =>
         new(_saves, _config, new LocalizationData(), null,
             _ => { },
             () => { },
@@ -51,7 +52,9 @@ internal class MainMenuScreenTests
             onVideoColorFilterChanged        ?? (_ => { }),
             _ => { },
             onOverscanModeChanged            ?? (_ => { }),
-            _ => { }, (_, _, _, _) => { }, (_, _, _) => { });
+            _ => { }, (_, _, _, _) => { }, (_, _, _) => { },
+            bgImage: default,
+            onSurfaceDisposing: onSurfaceDisposing);
 
     // ---- CanResume ----
 
@@ -2148,5 +2151,20 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         Assert.That(screen.GetTitle(), Does.Contain("MENU"));
+    }
+
+    // ---- onSurfaceDisposing callback ----
+    // CreateScreen never loads a background image, so Background and _scaledBackground both
+    // stay IntPtr.Zero — the only state safely testable without a real SDL surface reaching the
+    // native SDL.DestroySurface call inside Dispose() (a boundary-crossing concern, not a unit
+    // test one).
+
+    [Test]
+    public void Dispose_WithNoBackgroundLoaded_DoesNotInvokeCallback()
+    {
+        bool invoked = false;
+        var screen = CreateScreen(onSurfaceDisposing: _ => invoked = true);
+        screen.Dispose();
+        Assert.That(invoked, Is.False);
     }
 }

@@ -123,4 +123,18 @@ internal class LogoScreenTests
         var screen = new LogoScreen(IntPtr.Zero);
         Assert.That(() => screen.Dispose(), Throws.Nothing);
     }
+
+    // ---- onSurfaceDisposing callback ----
+    // Only the IntPtr.Zero case is safely unit-testable here — a non-zero Image would reach the
+    // real SDL.DestroySurface native call in Dispose(), which needs an actual SDL surface to be
+    // valid to call safely (a boundary-crossing concern, not a unit test one).
+
+    [Test]
+    public void Dispose_WithNullSurface_DoesNotInvokeCallback()
+    {
+        bool invoked = false;
+        var screen = new LogoScreen(IntPtr.Zero, onSurfaceDisposing: _ => invoked = true);
+        screen.Dispose();
+        Assert.That(invoked, Is.False);
+    }
 }

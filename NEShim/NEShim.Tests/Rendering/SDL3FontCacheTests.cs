@@ -138,4 +138,38 @@ internal class SDL3FontCacheTests
         var files = SDL3FontCache.CandidateFilenames("Tahoma", bold: true, italic: true);
         Assert.That(files, Contains.Item("arialbi.ttf"));
     }
+
+    // ---- LinuxSansCandidateFilenames ----
+
+    [Test]
+    public void LinuxSansCandidateFilenames_Regular_PrefersDejaVuSans()
+    {
+        var files = SDL3FontCache.LinuxSansCandidateFilenames(bold: false, italic: false);
+        Assert.That(files[0], Is.EqualTo("DejaVuSans.ttf"));
+        Assert.That(files, Contains.Item("LiberationSans-Regular.ttf"));
+    }
+
+    [Test]
+    public void LinuxSansCandidateFilenames_Bold_PrefersDejaVuSansBold()
+    {
+        var files = SDL3FontCache.LinuxSansCandidateFilenames(bold: true, italic: false);
+        Assert.That(files[0], Is.EqualTo("DejaVuSans-Bold.ttf"));
+        Assert.That(files, Contains.Item("LiberationSans-Bold.ttf"));
+    }
+
+    [Test]
+    public void LinuxSansCandidateFilenames_Italic_PrefersDejaVuSansOblique()
+    {
+        var files = SDL3FontCache.LinuxSansCandidateFilenames(bold: false, italic: true);
+        Assert.That(files[0], Is.EqualTo("DejaVuSans-Oblique.ttf"));
+        Assert.That(files, Contains.Item("LiberationSans-Italic.ttf"));
+    }
+
+    [Test]
+    public void LinuxSansCandidateFilenames_BoldItalic_PrefersDejaVuSansBoldOblique()
+    {
+        var files = SDL3FontCache.LinuxSansCandidateFilenames(bold: true, italic: true);
+        Assert.That(files[0], Is.EqualTo("DejaVuSans-BoldOblique.ttf"));
+        Assert.That(files, Contains.Item("LiberationSans-BoldItalic.ttf"));
+    }
 }

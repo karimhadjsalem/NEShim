@@ -129,8 +129,8 @@ internal static class MainMenuRenderer
                            ? menu.OpenMenuBindingIndex : -1;
         bool hasSep      = openMenuIdx >= 0;
         bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
-        int  ctrlAreaW   = MenuRenderConstants.PanelW(ControllerAreaW, bounds.W);
-        int  panelW      = showCtrl ? MenuRenderConstants.PanelW(FullPanelW, bounds.W) : MenuRenderConstants.PanelW(SlimPanelW, bounds.W);
+        int  ctrlAreaW   = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
+        int  panelW      = showCtrl ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W) : MenuRenderConstants.PanelW(SlimPanelW, bounds.W);
         int  listW       = showCtrl ? panelW - ctrlAreaW : panelW;
         int  panelH      = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
         int  panelX      = Math.Max(8, (bounds.W - panelW) / 2);
@@ -327,10 +327,11 @@ internal static class MainMenuRenderer
         float contentW = itemRect.W - ItemTextIndent;
         float labelW   = labelColumnW;
         float valueW   =  48f * scale;
+        float valuePad =   5f * scale; // keeps the value number from hugging the panel's right edge
         float barGap   =   6f * scale;
         float barH     =   8f * scale;
         float barX     = contentX + labelW + barGap;
-        float barW     = contentW - labelW - barGap * 2f - valueW;
+        float barW     = contentW - labelW - barGap * 2f - valueW - valuePad;
         float barY     = itemRect.Y + (itemRect.H - barH) * 0.5f;
 
         ctx.DrawText(data.Label, new SDL.FRect { X = contentX, Y = itemRect.Y, W = labelW, H = itemRect.H },

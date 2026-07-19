@@ -32,6 +32,7 @@ internal sealed partial class MainMenuScreen : IDisposable
     // Pre-scaled background surface cache — rebuilt only when bounds change.
     private IntPtr        _scaledBackground;
     private (int W, int H) _scaledBoundsSize;
+    private readonly Action<IntPtr>? _onSurfaceDisposing;
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
@@ -122,8 +123,10 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<string>                         onLanguageChanged,
         Action<int, int, int, int>             onPictureAdjustChanged,
         Action<int, int, int>                  onAudioEqChanged,
-        IntPtr           bgImage = default)
+        IntPtr           bgImage = default,
+        Action<IntPtr>?  onSurfaceDisposing = null)
     {
+        _onSurfaceDisposing        = onSurfaceDisposing;
         _saveStates                = saveStates;
         _config                    = config;
         _localization              = localization;
@@ -563,6 +566,7 @@ internal sealed partial class MainMenuScreen : IDisposable
 
         if (_scaledBackground != IntPtr.Zero)
         {
+            _onSurfaceDisposing?.Invoke(_scaledBackground);
             SDL.DestroySurface(_scaledBackground);
             _scaledBackground = IntPtr.Zero;
         }
@@ -600,8 +604,17 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     public void Dispose()
     {
-        if (_scaledBackground != IntPtr.Zero) { SDL.DestroySurface(_scaledBackground); _scaledBackground = IntPtr.Zero; }
-        if (Background       != IntPtr.Zero)    SDL.DestroySurface(Background);
+        if (_scaledBackground != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(_scaledBackground);
+            SDL.DestroySurface(_scaledBackground);
+            _scaledBackground = IntPtr.Zero;
+        }
+        if (Background != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(Background);
+            SDL.DestroySurface(Background);
+        }
     }
 
     /// <summary>

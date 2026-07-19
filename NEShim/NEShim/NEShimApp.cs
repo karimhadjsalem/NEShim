@@ -355,7 +355,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             FinishInitialization(achievements);
             return;
         }
-        _logoScreen = new UI.LogoScreen(Rendering.SdlSurfaceLoader.LoadFromStream(stream));
+        _logoScreen = new UI.LogoScreen(Rendering.SdlSurfaceLoader.LoadFromStream(stream),
+            onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
         _preloadTask = Task.Run(PreloadAssets);
     }
 
@@ -646,7 +647,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             {
                 _audio?.SetEq(bass, mid, treble);
                 ConfigLoader.Save(_config!, _game);
-            });
+            },
+            onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
 
         _preloadedMenuBackground = IntPtr.Zero;
 

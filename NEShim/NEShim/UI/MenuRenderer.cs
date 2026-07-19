@@ -210,9 +210,9 @@ internal static class MenuRenderer
     private static (int panelX, int panelY, int panelW, int panelH, int listW) PanelMetrics(
         SDL.Rect bounds, int itemCount, int warningRowH, bool hasSeparator, bool showCtrl)
     {
-        int ctrlAreaW = MenuRenderConstants.PanelW(ControllerAreaW, bounds.W);
+        int ctrlAreaW = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
         int panelW = showCtrl
-            ? MenuRenderConstants.PanelW(FullPanelW, bounds.W)
+            ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W)
             : MenuRenderConstants.PanelW(SlimPanelW, bounds.W);
         int listW  = showCtrl ? panelW - ctrlAreaW : panelW;
         int panelH = PanelHeaderH + warningRowH + itemCount * ItemH + PanelPad + (hasSeparator ? SeparatorH : 0);

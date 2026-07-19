@@ -15,9 +15,24 @@ internal static class MenuRenderConstants
 
     // On Steam Deck, panel widths scale by the same 1.5× factor as fonts and row heights,
     // capped at viewportW - 60 to prevent overflow on very small viewports.
-    // On desktop (IsSteamDeck = false) returns baseW unchanged.
+    // On desktop (IsSteamDeck = false) returns baseW unchanged — deliberately preserved:
+    // narrower panels (Settings, and any other screen using SlimPanelW/MainPanelMaxW/
+    // RebindPanelMaxW/DisconnectPanelW) are meant to read as visibly skinnier than the wider
+    // binding-screen panels, and scaling every panel by the same resolution-relative
+    // MenuScale.Scale on desktop erased that distinction (they all grew by the same ratio,
+    // so a Slim panel just became a bigger Slim panel instead of staying comparatively narrow).
+    // See ScaledPanelW for the one case that DOES need to grow on desktop too.
     internal static int PanelW(int baseW, int viewportW) =>
         PlatformDetector.IsSteamDeck
             ? Math.Min((int)Math.Round(baseW * MenuScale.Scale), viewportW - 60)
             : baseW;
+
+    // Used only for the binding-screen geometry (FullPanelW, ControllerAreaW) — the controller
+    // diagram column and its enclosing panel must grow with MenuScale.Scale on every platform,
+    // not just Steam Deck, or the item list text (which already scales via MenuScale.Scale in
+    // every DrawText call) outgrows its fixed-width column and visibly bleeds into the
+    // controller diagram at any fullscreen resolution meaningfully larger than the 1024×672
+    // reference (reproduced on both Windows and native Linux at 1920×1080, July 2026).
+    internal static int ScaledPanelW(int baseW, int viewportW) =>
+        Math.Min((int)Math.Round(baseW * MenuScale.Scale), viewportW - 60);
 }
