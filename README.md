@@ -57,7 +57,7 @@ https://karimhadjsalem.github.io/NEShim/
 
 **End users / players:** none — published builds are self-contained and prepackaged. Runs natively on Windows 10+ (x64) and Linux x64.
 
-**Publishers:** see the [publishing guide](https://karimhadjsalem.github.io/NEShim/) on the project site. For the Windows build you will also need `steam_api64.dll` from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — place it alongside the executable. For the Linux build, `libsteam_api.so` from the same release zip is required. Neither file is included in the repository (Valve SDK license); do not commit them to source control.
+**Publishers:** see the [publishing guide](https://karimhadjsalem.github.io/NEShim/) on the project site. For the Windows build you will also need `steam_api64.dll` from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) — place it alongside the executable. For the Linux build, `libsteam_api.so` from the same release zip is required, but must be **renamed to `libsteam_api64.so`** alongside the executable — the wrapper's native-library lookup resolves to that name, and under the zip's default filename Steam init fails at startup (caught internally, so the app still runs, but achievements/overlay/DLC checks are silently disabled). Neither file is included in the repository (Valve SDK license); do not commit them to source control.
 
 **Developers (building from source):** .NET 9 SDK. Building for Windows additionally requires Windows 10+ (x64). Filter development (adding or modifying HLSL shaders) requires `fxc.exe` from the Windows 10 SDK for DXBC shaders (D3D11/Windows) or `dxc.exe` (from the `Microsoft.Direct3D.DXC` NuGet package) for SPIR-V shaders (SDL_GPU/Linux). Standard builds use pre-compiled `.cso`/`.spv` files checked into source control and do not need either tool. See [Building from source](#building-from-source) below.
 
@@ -224,7 +224,7 @@ dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r linux-x64 --self-contai
 .\local-publish.ps1 1.0.0
 ```
 
-**After publishing**, copy the matching Steamworks SDK native library from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe: `steam_api64.dll` for Windows, `libsteam_api.so` for Linux. Use the copy bundled with the wrapper — it is matched to the wrapper version. Do not commit these files to source control.
+**After publishing**, copy the matching Steamworks SDK native library from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe: `steam_api64.dll` for Windows, `libsteam_api.so` for Linux — **rename the Linux file to `libsteam_api64.so`** in the output directory (the wrapper's native-library lookup resolves to that name; under the zip's default filename Steam init fails at startup, caught internally, silently disabling achievements/overlay/DLC checks). Use the copy bundled with the wrapper — it is matched to the wrapper version. Do not commit these files to source control.
 
 Releases are built and published automatically on version tags (`v*.*.*`) via GitHub Actions, producing platform-named archives for both `win-x64` and `linux-x64`.
 
