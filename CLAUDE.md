@@ -113,7 +113,7 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 
 ### Rendering architecture: Windows vs Linux
 
-**Windows (D3D11):** `RendererFactory.Windows.cs` creates a `D3D11Renderer` using the `SteamOverlayRenderer`'s device and swap chain (bound to the HWND obtained from `SDL3WindowHost.Handle`). If D3D11 initialisation fails, it falls back to `SDL3HwRenderer`. `PlatformDetector.IsD3D11Active` is set once at startup to reflect which path was taken.
+**Windows (D3D11):** primary path, built on the `SteamOverlayRenderer`'s device/swap chain; falls back to `SDL3HwRenderer` if D3D11 init fails — see "D3D11 rendering and Steam overlay architecture" below for the full mechanism.
 
 **Linux (SDL_GPU):** `RendererFactory.cs` creates an SDL_GPU renderer backed by Vulkan. `NullOverlayRenderer` is used (Steam's overlay is injected via `LD_PRELOAD` on Linux; no swap chain hook is needed). `PlatformDetector.IsD3D11Active` is `false` on Linux; D3D11-specific features are not offered in menus.
 
@@ -129,7 +129,7 @@ Each NES cartridge type maps to a `NesBoardBase` subclass in `Boards/`. The boar
 - **`FontSizeCorrection = 0.75f`** (`SDL3FontCache`) — the existing `96/72 * 1.4` GDI+/FreeType factor, combined with `MenuScale.Scale` (which legitimately grows past 1.0 at large fullscreen resolutions — don't cap it, see `MenuScale`'s own doc comment), read too large on both platforms at 1920×1080. Applied unconditionally on both platforms; empirically tuned, re-tune if needed.
 - **`PanelW` vs `ScaledPanelW`** (`MenuRenderConstants`) — `PanelW` only scaled with `MenuScale.Scale` on Steam Deck; on desktop it stayed fixed-width regardless of resolution, so at large fullscreen resolutions the binding screens' item-list text (which does scale) outgrew its column and bled into the controller diagram. Fix is scoped, not universal: narrower panels (Settings, etc.) are meant to stay skinnier than binding-screen panels, so only `FullPanelW`/`ControllerAreaW` (the two binding screens, in `MainMenuRenderer`/`MenuRenderer`) use the new always-scaling `ScaledPanelW`; every other panel keeps `PanelW`'s original Steam-Deck-only behavior.
 
-The rest of this section describes the D3D11 Windows path in detail.
+The following section covers the D3D11 Windows path in detail.
 
 ### D3D11 rendering and Steam overlay architecture (Windows)
 
@@ -180,6 +180,10 @@ The rest of this section describes the D3D11 Windows path in detail.
 - Use `local-publish.ps1`, not raw `dotnet build`, for Proton performance testing.
 
 `SteamAPI.RestartAppIfNecessary(appId)` is called in `Program.Main` before `new SDL3WindowHost(...)`. It reads the App ID from `steam_appid.txt`. If the game was not launched via Steam, the call returns `true` and the process exits so Steam can relaunch it with the overlay DLL already injected (Windows: `GameOverlayRenderer64.dll`; Linux: `steamoverlayvulkanlayer.so` via `LD_PRELOAD`).
+
+### Third-party native dependency pinning
+
+Both dependencies below pair a managed wrapper with a platform-specific native binary — the same class of bug (managed/native version skew) has bitten this project for real on both, so they're grouped here rather than under either Windows or Linux specifically.
 
 #### Steamworks.NET version pinning
 

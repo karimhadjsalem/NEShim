@@ -322,7 +322,31 @@ internal static class MainMenuRenderer
             ctx.FillRect(accentLine, AccentBar);
         }
 
-        float scale    = MenuScale.Scale;
+        float scale = MenuScale.Scale;
+        var   geo   = ComputeSliderGeometry(itemRect, labelColumnW, scale);
+
+        ctx.DrawText(data.Label, geo.LabelRect,
+            textColor, fontFamily, 12f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
+
+        if (geo.BarRect.W > 0)
+        {
+            ctx.FillRect(geo.BarRect, BarEmpty);
+            float fillW = Math.Clamp(data.Fill01, 0f, 1f) * geo.BarRect.W;
+            if (fillW > 0)
+                ctx.FillRect(geo.BarRect with { W = fillW }, BarFill);
+        }
+
+        ctx.DrawText(data.ValueText, geo.ValueRect,
+            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Far, TextVAlign.Center);
+    }
+
+    /// <summary>
+    /// Pure geometry for one slider row, unit-tested independent of drawing (which needs a real
+    /// <c>SDL3PaintContext</c>) — mirrors the ComputeDisplayRect/ComputeCoverSrcFRect convention
+    /// used elsewhere for extracting testable layout math out of stateless renderers.
+    /// </summary>
+    internal static SliderGeometry ComputeSliderGeometry(SDL.Rect itemRect, float labelColumnW, float scale)
+    {
         float contentX = itemRect.X + ItemTextIndent;
         float contentW = itemRect.W - ItemTextIndent;
         float labelW   = labelColumnW;
@@ -333,21 +357,12 @@ internal static class MainMenuRenderer
         float barX     = contentX + labelW + barGap;
         float barW     = contentW - labelW - barGap * 2f - valueW - valuePad;
         float barY     = itemRect.Y + (itemRect.H - barH) * 0.5f;
+        float valueX   = barX + Math.Max(0f, barW) + barGap;
 
-        ctx.DrawText(data.Label, new SDL.FRect { X = contentX, Y = itemRect.Y, W = labelW, H = itemRect.H },
-            textColor, fontFamily, 12f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
-
-        if (barW > 0)
-        {
-            ctx.FillRect(new SDL.FRect { X = barX, Y = barY, W = barW, H = barH }, BarEmpty);
-            float fillW = Math.Clamp(data.Fill01, 0f, 1f) * barW;
-            if (fillW > 0)
-                ctx.FillRect(new SDL.FRect { X = barX, Y = barY, W = fillW, H = barH }, BarFill);
-        }
-
-        float valueX = barX + Math.Max(0f, barW) + barGap;
-        ctx.DrawText(data.ValueText, new SDL.FRect { X = valueX, Y = itemRect.Y, W = valueW, H = itemRect.H },
-            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Far, TextVAlign.Center);
+        return new SliderGeometry(
+            LabelRect: new SDL.FRect { X = contentX, Y = itemRect.Y, W = labelW, H = itemRect.H },
+            BarRect:   new SDL.FRect { X = barX, Y = barY, W = barW, H = barH },
+            ValueRect: new SDL.FRect { X = valueX, Y = itemRect.Y, W = valueW, H = itemRect.H });
     }
 
     private static float ComputeSliderLabelColumnW(SDL3PaintContext ctx, MainMenuScreen menu, int itemCount, float scale)

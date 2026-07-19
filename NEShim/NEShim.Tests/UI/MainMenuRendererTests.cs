@@ -143,4 +143,63 @@ internal class MainMenuRendererTests
         Assert.That(rect.X, Is.EqualTo((800 - PanelW) / 2));
         Assert.That(rect.Y, Is.EqualTo((600 - PanelH) / 2));
     }
+
+    // ---- ComputeSliderGeometry ----
+    // itemRect = {X=100, Y=50, W=400, H=42}, labelColumnW=80. Expected values below are derived
+    // from the same formula as the implementation (ItemTextIndent=13, valueW=48, valuePad=5,
+    // barGap=6, barH=8, all * scale) — worked out by hand so a regression in the formula itself
+    // would still be caught.
+
+    private static readonly SDL.Rect SliderItemRect = new() { X = 100, Y = 50, W = 400, H = 42 };
+
+    [Test]
+    public void ComputeSliderGeometry_AtDefaultScale_ComputesExpectedRects()
+    {
+        var geo = MainMenuRenderer.ComputeSliderGeometry(SliderItemRect, labelColumnW: 80, scale: 1f);
+
+        Assert.That(geo.LabelRect, Is.EqualTo(new SDL.FRect { X = 113, Y = 50, W = 80, H = 42 }));
+        Assert.That(geo.BarRect,   Is.EqualTo(new SDL.FRect { X = 199, Y = 67, W = 242, H = 8 }));
+        Assert.That(geo.ValueRect, Is.EqualTo(new SDL.FRect { X = 447, Y = 50, W = 48, H = 42 }));
+    }
+
+    [Test]
+    public void ComputeSliderGeometry_ValueRect_StaysPaddedFromContentRightEdge()
+    {
+        // Regression test for the "value number hugging the panel's right edge" fix: the value
+        // rect's right edge must sit exactly valuePad (5 * scale) short of the item's own right
+        // edge, at any scale.
+        const float scale = 1.75f;
+        var geo = MainMenuRenderer.ComputeSliderGeometry(SliderItemRect, labelColumnW: 80, scale: scale);
+
+        float expectedRightEdge = SliderItemRect.X + SliderItemRect.W - 5f * scale;
+        Assert.That(geo.ValueRect.X + geo.ValueRect.W, Is.EqualTo(expectedRightEdge).Within(0.01f));
+    }
+
+    [Test]
+    public void ComputeSliderGeometry_AtDoubleScale_ScalesSpacingProportionally()
+    {
+        var geo = MainMenuRenderer.ComputeSliderGeometry(SliderItemRect, labelColumnW: 80, scale: 2f);
+
+        Assert.That(geo.BarRect.H, Is.EqualTo(16f)); // barH = 8 * 2
+        Assert.That(geo.ValueRect.W, Is.EqualTo(96f)); // valueW = 48 * 2
+    }
+
+    [Test]
+    public void ComputeSliderGeometry_WhenLabelColumnTooWide_BarWidthGoesNegative()
+    {
+        // labelColumnW (350) leaves no room for the bar once value width/pad/gaps are
+        // subtracted — BarRect.W goes negative, which DrawSliderItem must check for before
+        // filling it (drawing is untested here; this only verifies the geometry itself).
+        var geo = MainMenuRenderer.ComputeSliderGeometry(SliderItemRect, labelColumnW: 350, scale: 1f);
+        Assert.That(geo.BarRect.W, Is.LessThan(0f));
+    }
+
+    [Test]
+    public void ComputeSliderGeometry_WhenBarWidthNegative_ValueXIgnoresIt()
+    {
+        // valueX must clamp the negative bar width to 0 rather than shifting the value rect
+        // left of the bar's own starting position.
+        var geo = MainMenuRenderer.ComputeSliderGeometry(SliderItemRect, labelColumnW: 350, scale: 1f);
+        Assert.That(geo.ValueRect.X, Is.EqualTo(geo.BarRect.X + 6f)); // barX + barGap (bar width clamped to 0)
+    }
 }
