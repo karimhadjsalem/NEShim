@@ -35,7 +35,7 @@ NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, w
 - **Linux x64**: SDL_GPU/Vulkan rendering path; runs natively on Ubuntu 22.04+, SteamOS, and other mainstream distros
 - .NET 9 runtime (bundled in self-contained publish)
 - Steam client — required for achievements and overlay; the emulator runs without it but Steam features are silently disabled
-- **Steamworks native library** — must be placed alongside the executable; not included in the repository (Valve SDK license). Use the matching copy from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases): `steam_api64.dll` (Windows) or `libsteam_api.so` (Linux). Games deployed through Steam receive it automatically via the Steam depot.
+- **Steamworks native library** — must be placed alongside the executable; not included in the repository (Valve SDK license). Use the matching copy from the [Steamworks.NET 2025.163.0 release zip](https://github.com/rlabrecque/Steamworks.NET/releases): `steam_api64.dll` (Windows) or `libsteam_api.so` (Linux) **renamed to `libsteam_api64.so`** — the wrapper's native-library lookup resolves to that name; under the zip's default Linux filename, Steam init fails at startup (caught internally — the app still runs, but achievements/overlay/DLC checks are silently disabled). Games deployed through Steam receive it automatically via the Steam depot.
 - A `.nes` ROM file
 
 ---
@@ -74,6 +74,6 @@ dotnet publish NEShim/NEShim/NEShim.csproj -c Release -r linux-x64 --self-contai
 .\local-publish.ps1 1.0.0
 ```
 
-After publishing, copy the Steamworks native library from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe: `steam_api64.dll` for Windows, `libsteam_api.so` for Linux. See the [publishing guide](publishing-source.md#5-steam_api64dll) for details.
+After publishing, copy the Steamworks native library from the [Steamworks.NET GitHub release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into the output directory alongside the exe: `steam_api64.dll` for Windows, `libsteam_api.so` for Linux — **rename the Linux file to `libsteam_api64.so`** (the wrapper's native-library lookup resolves to that name; Steam init fails at startup under the zip's default name, caught internally and silently disabling achievements/overlay/DLC checks). See the [publishing guide](publishing-source.md#5-steam_api64dll) for details.
 
 See the [architecture guide](architecture.md) for a detailed walkthrough of the codebase.

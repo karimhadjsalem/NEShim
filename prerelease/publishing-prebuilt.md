@@ -61,7 +61,9 @@ The Steamworks native library is **not** included in the NEShim release package.
 | Platform | File |
 |---|---|
 | Windows (`NEShim-win-x64`) | `steam_api64.dll` |
-| Linux (`NEShim-linux-x64`) | `libsteam_api.so` |
+| Linux (`NEShim-linux-x64`) | `libsteam_api.so`, **renamed to `libsteam_api64.so`** |
+
+**Linux naming gotcha:** the zip's Linux redistributable is named `libsteam_api.so`, but the Steamworks.NET wrapper's `DllImport` targets are compiled against the literal name `steam_api64`, which .NET's Linux native-library resolution maps to `libsteam_api64.so`. Deploying the file under its zip-default name causes `SteamAPI.Init()` to throw internally (native library not found); `SteamManager.Initialize` catches this, logs it, and disables Steam entirely — the app keeps running with no crash, but achievements, overlay, and DLC ownership checks are all silently unavailable. Rename it before including it in your Linux depot.
 
 Include the appropriate file in each platform's Steam depot; Valve does not inject it automatically. Once it is in your depot, Steam distributes it to players as part of the normal game install.
 
@@ -260,7 +262,7 @@ NEShim runs on Steam Deck natively via the Linux x64 build (SDL_GPU/Vulkan path)
 - [ ] `NEShim.exe` renamed to `MyGame.exe` (only the exe; all other `NEShim.*` files stay as-is)
 - [ ] `windowTitle` set in `config.json`
 - [ ] `steam_appid.txt` updated with your production App ID
-- [ ] Steamworks native library copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory (`steam_api64.dll` for Windows, `libsteam_api.so` for Linux) and included in the corresponding Steam depots
+- [ ] Steamworks native library copied from [Steamworks.NET release zip](https://github.com/rlabrecque/Steamworks.NET/releases) into each platform's output directory (`steam_api64.dll` for Windows, `libsteam_api.so` for Linux **renamed to `libsteam_api64.so`**) and included in the corresponding Steam depots
 - [ ] Steam Auto-Cloud configured in the Steamworks dashboard (`saves\*` and `game.srm` under `GameInstall` root; `config.json` excluded — player preferences live in AppData `user.json`, which Steam cannot touch)
 - [ ] `game_actions_0.vdf` renamed to `game_actions_<appid>.vdf`
 - [ ] Renamed VDF uploaded to Steamworks dashboard under **Steam Input → Default Configuration**
@@ -320,5 +322,5 @@ MyGame/
 
 The layout is identical, with these differences:
 - No `.exe` extension: the executable is `NEShim` (or `MyGame` if renamed)
-- `libsteam_api.so` replaces `steam_api64.dll`
+- `libsteam_api64.so` replaces `steam_api64.dll` — note the name change: the Steamworks.NET release zip ships this file as `libsteam_api.so`, but it must be **renamed to `libsteam_api64.so`** in your depot. The wrapper's `DllImport` resolves to `libsteam_api64.so`; under the zip's default name, Steam init fails at startup (caught internally, so the app still runs, but achievements/overlay/DLC checks are silently disabled)
 - The `.NET runtime files` include Linux-specific binaries
