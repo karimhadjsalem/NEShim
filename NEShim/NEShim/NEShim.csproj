@@ -38,16 +38,31 @@
         <Compile Remove="Rendering\RendererFactory.cs" />
     </ItemGroup>
 
+    <!-- SDL3-CS (managed P/Invoke bindings) must be pinned to the EXACT same version as every
+         native SDL3-CS.<Platform> package below, not left floating ("3.*"). A floating managed
+         package resolves independently of a pinned native one, so the two can silently drift:
+         this happened for real (Steam Deck + WSL2, July 2026) — SDL3-CS floated to 3.4.12.6
+         while SDL3-CS.Linux stayed pinned at 3.4.12, six patch releases behind. Two of those
+         patches (3.4.12.2, 3.4.12.3) changed renderer P/Invoke signatures upstream
+         (SDL_SetRenderViewport, SDL_RenderTextureAffine); calling the newer managed surface
+         against the older native binary corrupted memory on the SDL_CreateGPURenderer path,
+         crashing inside unrelated SDL-internal code (SDL_RemoveWindowRenderer) rather than
+         failing cleanly. 3.4.12.6 is also unlisted for SDL3-CS.Linux specifically (a broken/
+         retracted native build), so the fix pins everything down to 3.4.12.1 — the newest
+         version confirmed listed and available for SDL3-CS, SDL3-CS.Windows, SDL3-CS.Linux, and
+         SDL3-CS.MacOS alike. When upgrading SDL3-CS, bump every platform variant together in the
+         same change and confirm each one is actually listed on NuGet, rather than trusting "3.*"
+         to keep them in sync. -->
     <ItemGroup>
-        <PackageReference Include="SDL3-CS" Version="3.*" />
-        <PackageReference Include="SDL3-CS.MacOS" Version="3.4.12" />
+        <PackageReference Include="SDL3-CS" Version="3.4.12.1" />
+        <PackageReference Include="SDL3-CS.MacOS" Version="3.4.12.1" />
         <PackageReference Include="SDL3-CS.MacOS.Image" Version="3.4.4.5" />
         <!-- Windows: SDL3 native DLL bundles -->
-        <PackageReference Include="SDL3-CS.Windows" Version="3.*" Condition="'$(_TargetsWindows)' == 'true'" />
+        <PackageReference Include="SDL3-CS.Windows" Version="3.4.12.1" Condition="'$(_TargetsWindows)' == 'true'" />
         <PackageReference Include="SDL3-CS.Windows.TTF" Version="3.*" Condition="'$(_TargetsWindows)' == 'true'" />
         <PackageReference Include="SDL3-CS.Windows.Image" Version="3.*" Condition="'$(_TargetsWindows)' == 'true'" />
         <!-- Linux: SDL3 native .so bundles -->
-        <PackageReference Include="SDL3-CS.Linux" Version="3.4.12" Condition="'$(_TargetsWindows)' != 'true'" />
+        <PackageReference Include="SDL3-CS.Linux" Version="3.4.12.1" Condition="'$(_TargetsWindows)' != 'true'" />
         <PackageReference Include="SDL3-CS.Linux.TTF" Version="3.*" Condition="'$(_TargetsWindows)' != 'true'" />
         <PackageReference Include="SDL3-CS.Linux.Image" Version="3.4.4.5" Condition="'$(_TargetsWindows)' != 'true'" />
         <!-- D3D11 renderer (Windows-only) -->

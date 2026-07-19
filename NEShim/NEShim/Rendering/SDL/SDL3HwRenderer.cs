@@ -170,7 +170,12 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         gpuDevice = IntPtr.Zero;
         try
         {
-            IntPtr renderer = SDL.CreateGPURenderer(sdlWindow, new IntPtr((int)SDL.GPUShaderFormat.SPIRV));
+            // SDL_CreateGPURenderer's real signature is (SDL_GPUDevice *device, SDL_Window
+            // *window) — device first, window second, with no shader-format parameter at all
+            // (verified against the SDL wiki and the SDL3-CS binding's declared parameter
+            // names). Passing IntPtr.Zero for device lets SDL create one automatically; its
+            // shader format is queried afterward via GetGPURendererDevice, not requested here.
+            IntPtr renderer = SDL.CreateGPURenderer(IntPtr.Zero, sdlWindow);
             if (renderer == IntPtr.Zero) return IntPtr.Zero;
             gpuDevice = SDL.GetGPURendererDevice(renderer);
             if (gpuDevice == IntPtr.Zero)

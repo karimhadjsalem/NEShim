@@ -272,6 +272,19 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private void InitializeWindowAndRenderer()
     {
         ApplyConfiguredWindowMode();
+
+        // SDL_GPU's Vulkan surface/swapchain creation on Linux needs the window to have
+        // already gone through its initial map/configure handshake — a window created Hidden
+        // (kept that way everywhere else, to avoid a visible flash before the first frame
+        // renders) never receives that under Wayland, or XWayland proxying to one. Depending
+        // on the compositor this has been observed to either hang SDL_CreateGPURenderer
+        // indefinitely (XWayland) or crash inside SDL's own failure-cleanup path,
+        // SDL_RemoveWindowRenderer (native Wayland) — reproduced on both Steam Deck and WSL2's
+        // WSLg compositor, July 2026, which rules out a driver-specific cause. D3D11 has no
+        // such requirement, so Windows keeps the deferred Show() and its flash-avoidance.
+        if (OperatingSystem.IsLinux())
+            _sdlHost.Show();
+
         _overlayRenderer = Rendering.OverlayRendererFactory.Create(_sdlHost);
         _renderer = Rendering.RendererFactory.Create(_overlayRenderer, 256, 240, _sdlHost);
         _renderer.DeviceLost += OnRendererDeviceLost;
