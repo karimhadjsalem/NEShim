@@ -14,7 +14,13 @@
     float hue;
 }
 
-struct PSInput { float4 pos : SV_POSITION; float2 texcoord : TEXCOORD0; };
+// Vertex stage is SDL's own built-in shader (SDL_GPURenderState swaps only the fragment
+// shader): COLOR0 (vec4) at location 0, TEXCOORD0 (vec2) at location 1 — must match exactly.
+struct PSInput
+{
+    float4 color    : COLOR0;
+    float2 texcoord : TEXCOORD0;
+};
 
 float3 rotateHue(float3 col, float angle)
 {
@@ -43,5 +49,5 @@ float4 main(PSInput input) : SV_TARGET
     c.rgb = (c.rgb - 0.5) * contrast + 0.5;
     c.rgb += brightness;
     c.rgb = saturate(c.rgb);
-    return float4(c.rgb, c.a);
+    return float4(c.rgb, c.a) * input.color;
 }

@@ -12,18 +12,31 @@ namespace NEShim.Rendering;
 [ExcludeFromCodeCoverage]
 internal sealed class SdlGpuRenderState : IDisposable
 {
-    // Matches SDL_GPURenderStateCreateInfo layout (SDL 3.4.0+).
+    // Matches SDL_GPURenderStateCreateInfo layout (SDL 3.4.0+): fragment_shader, then three
+    // (count, pointer) pairs for EXTRA bindings beyond what SDL_RenderTexture already supplies
+    // for the primary source texture — sampler bindings, storage textures, storage buffers.
+    // Confirmed against the real header-derived field list (fragment_shader, num_sampler_bindings,
+    // sampler_bindings, num_storage_textures, storage_textures, num_storage_buffers,
+    // storage_buffers, props) — the previous version of this struct had a fabricated field set
+    // (bogus "vertex" sampler/storage counts, no pointer fields at all, an extra
+    // "NumFragmentUniformBuffers" that doesn't exist here) that didn't match any real SDL layout,
+    // corrupting native memory on every SDL_CreateGPURenderState call: first field aligned by
+    // coincidence, everything after read from the wrong offsets (including past the end of the
+    // stack-allocated struct), so a filter needing a shader (i.e. any filter but PixelPerfect)
+    // corrupted the GPU renderer's state on Linux — nothing rendered afterward (not even the
+    // in-game menu, sharing the same corrupted SDL_Renderer), input froze if Present blocked on a
+    // GPU fence that never signaled, while audio (separate subsystem) kept running. Reproduced
+    // identically on Steam Deck and WSL2, confirming a real ABI mismatch, not a driver quirk.
     [StructLayout(LayoutKind.Sequential)]
     private struct RenderStateCreateInfo
     {
         public IntPtr FragmentShader;
-        public uint   NumVertexSamplers;
-        public uint   NumVertexStorageTextures;
-        public uint   NumVertexStorageBuffers;
-        public uint   NumFragmentSamplers;
-        public uint   NumFragmentStorageTextures;
-        public uint   NumFragmentStorageBuffers;
-        public uint   NumFragmentUniformBuffers;
+        public int    NumSamplerBindings;
+        public IntPtr SamplerBindings;
+        public int    NumStorageTextures;
+        public IntPtr StorageTextures;
+        public int    NumStorageBuffers;
+        public IntPtr StorageBuffers;
         public uint   Props;
     }
 
@@ -47,7 +60,7 @@ internal sealed class SdlGpuRenderState : IDisposable
         _shader      = LoadShader(gpuDevice, resourceName, numFragmentSamplers, numFragmentUniformBuffers);
         if (_shader == IntPtr.Zero) return;
 
-        _renderState = CreateRenderState(sdlRenderer, _shader, numFragmentSamplers, numFragmentUniformBuffers);
+        _renderState = CreateRenderState(sdlRenderer, _shader);
         if (_renderState == IntPtr.Zero)
         {
             Logger.Log($"[SdlGpuRenderState] CreateGPURenderState failed for '{resourceName}': {SDL.GetError()}");
@@ -123,23 +136,20 @@ internal sealed class SdlGpuRenderState : IDisposable
         }
     }
 
-    private static unsafe IntPtr CreateRenderState(
-        IntPtr sdlRenderer,
-        IntPtr shader,
-        uint   numFragmentSamplers,
-        uint   numFragmentUniformBuffers)
+    // No current filter/motion-effect shader needs bindings beyond the primary source texture
+    // SDL_RenderTexture already supplies, so every extra (count, pointer) pair stays zero/null.
+    private static unsafe IntPtr CreateRenderState(IntPtr sdlRenderer, IntPtr shader)
     {
         var info = new RenderStateCreateInfo
         {
-            FragmentShader           = shader,
-            NumVertexSamplers        = 0,
-            NumVertexStorageTextures = 0,
-            NumVertexStorageBuffers  = 0,
-            NumFragmentSamplers      = numFragmentSamplers,
-            NumFragmentStorageTextures = 0,
-            NumFragmentStorageBuffers  = 0,
-            NumFragmentUniformBuffers  = numFragmentUniformBuffers,
-            Props                    = 0,
+            FragmentShader     = shader,
+            NumSamplerBindings = 0,
+            SamplerBindings    = IntPtr.Zero,
+            NumStorageTextures = 0,
+            StorageTextures    = IntPtr.Zero,
+            NumStorageBuffers  = 0,
+            StorageBuffers     = IntPtr.Zero,
+            Props              = 0,
         };
         return SDL.CreateGPURenderState(sdlRenderer, (IntPtr)(&info));
     }

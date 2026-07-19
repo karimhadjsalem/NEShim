@@ -14,7 +14,13 @@
     float colorMode;
 }
 
-struct PSInput { float4 pos : SV_POSITION; float2 texcoord : TEXCOORD0; };
+// Vertex stage is SDL's own built-in shader (SDL_GPURenderState swaps only the fragment
+// shader): COLOR0 (vec4) at location 0, TEXCOORD0 (vec2) at location 1 — must match exactly.
+struct PSInput
+{
+    float4 color    : COLOR0;
+    float2 texcoord : TEXCOORD0;
+};
 
 float2 BarrelWarp(float2 uv, float k)
 {
@@ -32,7 +38,7 @@ float4 main(PSInput input) : SV_TARGET
     float2 uvB = BarrelWarp(uv, barrelStrength - chromaStrength);
 
     if (any(uvG < 0.0) || any(uvG > 1.0))
-        return float4(0.0, 0.0, 0.0, 1.0);
+        return float4(0.0, 0.0, 0.0, 1.0) * input.color;
 
     float r = nesTexture.Sample(nesSampler, uvR).r;
     float g = nesTexture.Sample(nesSampler, uvG).g;
@@ -43,5 +49,5 @@ float4 main(PSInput input) : SV_TARGET
     float vign = 1.0 - vignetteStrength * dot(vc, vc) * 4.0;
     c.rgb *= saturate(vign);
 
-    return ApplyColorGrade(c, colorMode);
+    return ApplyColorGrade(c, colorMode) * input.color;
 }
