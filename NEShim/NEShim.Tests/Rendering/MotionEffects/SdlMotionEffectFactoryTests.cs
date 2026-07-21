@@ -35,12 +35,10 @@ internal class SdlMotionEffectFactoryTests
     }
 
     [Test]
-    public void Create_PhosphorPersistence_ReturnsPhosphorPersistenceMotionEffect()
+    public void Create_PhosphorPersistence_ReturnsPhosphorPersistenceSdlMotionEffect()
     {
-        // No SDL_GPU shader for this effect — SDL3HwRenderer detects NeedsTemporalBuffer
-        // and reproduces the D3D11 shader's blend via GPU blend compositing instead.
         var effect = SdlMotionEffectFactory.Create(VideoMotionEffectMode.PhosphorPersistence);
-        Assert.That(effect, Is.InstanceOf<PhosphorPersistenceMotionEffect>());
+        Assert.That(effect, Is.InstanceOf<PhosphorPersistenceSdlMotionEffect>());
     }
 
     [Test]

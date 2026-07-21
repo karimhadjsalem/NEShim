@@ -14,13 +14,7 @@
     float colorMode;
 }
 
-// Vertex stage is SDL's own built-in shader (SDL_GPURenderState swaps only the fragment
-// shader): COLOR0 (vec4) at location 0, TEXCOORD0 (vec2) at location 1 — must match exactly.
-struct PSInput
-{
-    float4 color    : COLOR0;
-    float2 texcoord : TEXCOORD0;
-};
+struct PSInput { float4 pos : SV_POSITION; float2 texcoord : TEXCOORD0; };
 
 float3 RGBtoYIQ(float3 rgb)
 {
@@ -60,5 +54,5 @@ float4 main(PSInput input) : SV_TARGET
     float  noise = frac(sin(dot(input.texcoord + frameParity * 0.0057, float2(127.1, 311.7))) * 43758.5453) * 0.04;
     rgb = saturate(rgb + noise);
 
-    return ApplyColorGrade(float4(rgb, center.a), colorMode) * input.color;
+    return ApplyColorGrade(float4(rgb, center.a), colorMode);
 }

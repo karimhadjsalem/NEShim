@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using NEShim.Platform;
 using SDL3;
 using Steamworks;
@@ -14,6 +15,13 @@ static class Program
     {
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             HandleCrash(e.ExceptionObject as Exception);
+
+        // AppDomain.ProcessExit (Logger's own flush hook) only reliably fires on a normal Main
+        // return or Environment.Exit() — an unhandled Ctrl+C (SIGINT) or `kill` (SIGTERM) can
+        // terminate the process before the logger's background writer thread ever drains its
+        // queue, silently truncating neshim.log's last few lines. Flush explicitly on both.
+        TryRegisterFlushOnSignal(PosixSignal.SIGINT);
+        TryRegisterFlushOnSignal(PosixSignal.SIGTERM);
 
         var appIdPath = Path.Combine(AppContext.BaseDirectory, "steam_appid.txt");
         if (File.Exists(appIdPath) &&
@@ -45,6 +53,22 @@ static class Program
         {
             PlatformDetector.EndHighResolutionTiming();
         }
+    }
+
+    // Held for the process lifetime — PosixSignalRegistration.Create's return value must stay
+    // rooted or the GC can collect it and silently unregister the handler.
+    private static PosixSignalRegistration? _sigintRegistration;
+    private static PosixSignalRegistration? _sigtermRegistration;
+
+    private static void TryRegisterFlushOnSignal(PosixSignal signal)
+    {
+        try
+        {
+            var registration = PosixSignalRegistration.Create(signal, _ => Logger.Instance.Dispose());
+            if (signal == PosixSignal.SIGINT) _sigintRegistration  = registration;
+            else                              _sigtermRegistration = registration;
+        }
+        catch (PlatformNotSupportedException) { }
     }
 
     private static void HandleCrash(Exception? ex)

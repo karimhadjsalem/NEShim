@@ -13,17 +13,21 @@ namespace NEShim.Rendering;
 /// Used as the primary renderer on Linux and as the Windows fallback when D3D11 direct-init is unavailable.
 ///
 /// When the GPU renderer is active (<see cref="_isGpuRenderer"/> true):
-/// - Structural filters are applied via SPIR-V shaders and SDL_GPURenderState (SdlFilterFactory → ISdlFilter).
+/// - Structural filters, the overlay filter, shader-backed motion effects, and picture adjust all
+///   run through <see cref="SdlGpuPipeline"/> — a full custom SDL_GPUGraphicsPipeline per filter,
+///   sharing one vertex shader and one static fullscreen-quad vertex buffer (see the fields near
+///   the top of this class). This replaced SDL_CreateGPURenderState (SdlFilterFactory →
+///   ISdlFilter still supplies the fragment shader resource name/sampler count either way), which
+///   reproducibly caused SDL's input event queue to go silent forever the first time a
+///   shader-bound frame was drawn, on both WSL2 and Steam Deck — see SdlGpuPipeline's own doc
+///   comment and github.com/libsdl-org/SDL/issues/13892 for the matching upstream report.
 /// - Color effects share ColorGrade.hlsli with the D3D11 path; the colorMode uniform is written identically.
 /// - CRT Jitter, Scanline Bob, and Magnetic Distortion motion effects are fully supported (SdlMotionEffectFactory).
 /// - Video Overlay (second-pass filter slot: CrtScanlines/CrtPhosphor/CrtScreen) is supported as an
 ///   additional sequential pass, mirroring the D3D11 overlay slot.
-/// - PhosphorPersistence (Screen Glow) is supported without a shader: SDL_GPURenderState only binds one
-///   texture sampler per draw (no public API exists to bind a second, unlike D3D11's PSSetShaderResource
-///   slot 1), so the D3D11 shader's <c>max(current, previous * decay)</c> formula is instead reproduced
-///   with two single-sampler draws into a ping-pong accumulation texture using a custom
-///   <see cref="SDL.ComposeCustomBlendMode"/> (Maximum op) plus <see cref="SDL.SetTextureColorModFloat"/>
-///   for the decay scale — GPU fixed-function blending, no CPU pixel work.
+/// - PhosphorPersistence (Screen Glow) uses its own real 2-sampler shader (currentFrame +
+///   historyFrame, both bound simultaneously — see RunPhosphorPass), now that the custom pipeline
+///   supports more than one fragment sampler.
 /// - Picture adjust (brightness/contrast/saturation/hue) is implemented as a two-pass render-to-texture.
 /// - All four post-filter stages (Overlay, Motion Effect shader / Phosphor accumulation, Picture Adjust)
 ///   are optional and composable; see DrawNesFrame for the cascading-target pipeline that chains
@@ -40,6 +44,23 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private readonly int    _nesWidth;
     private readonly int    _nesHeight;
     private          IntPtr _nesTexture;
+    // The NES source frame's *own* SDL_GPUTexture, uploaded via SDL_UploadToGPUTexture (cycle=true)
+    // instead of going through _nesTexture's SDL_Renderer-managed Streaming/LockTexture path. Every
+    // other texture our custom pipeline reads via the GPU-texture-pointer property bridge
+    // (SdlGpuPipeline.GetGpuTexture) is written *only* by our own render passes, so SDL_Renderer's
+    // own internal tracking for that resource never conflicts with our manual reads. _nesTexture is
+    // the one exception — SDL_LockTexture/UnlockTexture write it through SDL_Renderer's own opaque,
+    // undocumented Streaming-texture upload mechanism, entirely separate from the SDL_GPU-tracked
+    // resource state our manually-submitted render passes rely on — mixing the two caused SDL's
+    // input event pump to silently stop delivering events the moment real gameplay frames began
+    // uploading (reproduced on both WSL2 and Steam Deck; confirmed absent with no filter active,
+    // since the PixelPerfect fast path only ever reads _nesTexture via SDL_Renderer's own
+    // SDL_RenderTexture, never through the property bridge). Keeping the NES frame entirely inside
+    // the SDL_GPU-managed system end-to-end (our own texture, our own cycle-aware upload, our own
+    // render pass read) avoids the conflict — matches SDL's documented cycling model, under which
+    // resources synchronize automatically as long as all access goes through the SDL_GPU API.
+    private IntPtr _nesGpuTexture;
+    private IntPtr _nesUploadTransferBuffer;
 
     private IntPtr            _overlayTexture;
     private IntPtr            _overlaySurface;
@@ -78,35 +99,63 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     private bool _vsync;
 
+    // Shared custom-pipeline infrastructure (see SdlGpuPipeline's class doc comment for why this
+    // replaces SDL_CreateGPURenderState). One vertex shader + one static fullscreen-quad vertex
+    // buffer, reused by every SdlGpuPipeline instance below — every custom-pipeline draw targets
+    // a full-size offscreen texture (never the swapchain, never a letterboxed sub-rect; that
+    // positioning is applied afterward by the existing, unchanged SDL_RenderTexture compositing
+    // calls, including motion-effect jitter), so the same static -1,1..1,-1 clip-space quad with
+    // 0,0..1,1 UV works for every consumer — no per-draw vertex updates needed.
+    private IntPtr _gpuVertexShader;
+    private IntPtr _quadVertexBuffer;
+    // The structural filter is the one custom-pipeline consumer that samples a *cropped* region
+    // of its source texture (overscan) rather than the whole thing, which the static _quadVertexBuffer's
+    // fixed 0,0..1,1 UV can't express — SDL_RenderTexture's src rect used to do this remapping for
+    // free. This small buffer holds the same clip-space quad but with UVs matching the current
+    // overscan crop, rewritten once per frame (cheap — 96 bytes) in RunFilterPass.
+    private IntPtr _filterSourceVertexBuffer;
+    private IntPtr _filterSourceTransferBuffer;
+    private IntPtr _nearestSampler;
+    private IntPtr _linearSampler;
+    private SDL.GPUTextureFormat _gpuColorTargetFormat = SDL.GPUTextureFormat.B8G8R8A8Unorm;
+    private IntPtr _activeCommandBuffer; // valid only between DrawAndPresent's acquire/submit
+
     // Active filter state
     private ISdlFilter     _activeFilter      = new PixelPerfectSdlFilter();
-    private SdlGpuRenderState? _filterRenderState;
+    private SdlGpuPipeline? _filterPipeline;
     private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
     private long  _frameCount;
+
+    // Written into by whichever custom-pipeline stage is last in the active chain that frame
+    // (filter alone, overlay, motion-effect shader/phosphor, or picture adjust — see DrawNesFrame)
+    // since none of them may render straight to the backbuffer. One final plain SDL_RenderTexture
+    // composite (SDL_Renderer's own, unchanged 2D API) then lands it at the real letterboxed,
+    // motion-effect-jittered destination rect. Allocated whenever the GPU renderer is active,
+    // regardless of which filter/effects are currently selected, since any of them could be
+    // switched on at any time.
+    private IntPtr _finalStageOutputTexture;
 
     // Active overlay filter state (two-pass overlay: CrtScanlines/CrtPhosphor/CrtScreen
     // composited as a second pass on top of the primary structural filter).
     private Filters.ISdlFilter? _activeOverlayFilter;
-    private SdlGpuRenderState?  _overlayFilterRenderState;
+    private SdlGpuPipeline?     _overlayFilterPipeline;
     private IntPtr              _overlayFilterTexture;
     private bool                _hasOverlayFilter;
 
     // Active motion effect state
     private IMotionEffect      _activeMotionEffect      = new NoneMotionEffect();
-    private SdlGpuRenderState? _motionEffectRenderState;
+    private SdlGpuPipeline?    _motionEffectPipeline;
     private IntPtr             _motionEffectTexture;
     private bool               _hasShaderMotionEffect;
 
-    // Phosphor persistence: temporal accumulation via GPU blend compositing (ping-pong pair)
-    // instead of a 2-sampler shader — see class doc comment for why.
+    // Phosphor persistence: temporal accumulation via its own 2-sampler shader (currentFrame +
+    // historyFrame), now that the custom pipeline supports more than one fragment sampler —
+    // see PhosphorPersistenceMotionEffect's class doc comment.
     private bool   _hasPhosphorPersistence;
+    private SdlGpuPipeline? _phosphorPipeline;
     private IntPtr _phosphorTexA;
     private IntPtr _phosphorTexB;
     private bool   _phosphorUseA = true;
-
-    private static readonly SDL.BlendMode MaximumBlendMode = SDL.ComposeCustomBlendMode(
-        SDL.BlendFactor.One, SDL.BlendFactor.One, SDL.BlendOperation.Maximum,
-        SDL.BlendFactor.One, SDL.BlendFactor.One, SDL.BlendOperation.Maximum);
 
     // Picture adjust state
     private float _brightness;
@@ -115,7 +164,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     private float _hue;
     private bool  _hasPictureAdjust;
     private IntPtr         _pictureAdjustTexture;
-    private SdlGpuRenderState? _pictureAdjustRenderState;
+    private SdlGpuPipeline? _pictureAdjustPipeline;
 
     public bool OwnsFrameSurface => true;
 
@@ -161,8 +210,169 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _nesTexture = CreateNesTexture();
         CreateOverlayResources();
 
+        if (_isGpuRenderer)
+            InitializeCustomPipelineInfrastructure();
+
         Logger.Log($"[SDL3HwRenderer] Initialised ({nesWidth}×{nesHeight}, ARGB8888). " +
                    $"GPU filters: {(_isGpuRenderer ? "enabled" : "disabled")}.");
+    }
+
+    // Shared vertex shader, static fullscreen-quad vertex buffer, and the two samplers every
+    // SdlGpuPipeline draw needs — see the fields' own doc comment for why one static quad works
+    // for every consumer. The vertex buffer is populated once via a throwaway transfer buffer
+    // (destroyed immediately after) since its content never changes afterward.
+    private unsafe void InitializeCustomPipelineInfrastructure()
+    {
+        _gpuVertexShader = SdlGpuPipeline.LoadVertexShader(_gpuDevice);
+        if (_gpuVertexShader == IntPtr.Zero)
+        {
+            Logger.Log("[SDL3HwRenderer] Shared vertex shader failed to load; custom-pipeline filters disabled.");
+            return;
+        }
+
+        _nearestSampler = CreateSampler(linear: false);
+        _linearSampler  = CreateSampler(linear: true);
+        SyncFinalStageOutputTexture();
+
+        // {pos.xy, uv.xy} per vertex, 16 bytes/vertex, 6 vertices (2 triangles) — a full
+        // -1,1..1,-1 clip-space quad with 0,0..1,1 UV. Matches Passthrough.vs.hlsl's VSInput.
+        Span<float> quad = stackalloc float[]
+        {
+            -1f,  1f, 0f, 0f,
+             1f,  1f, 1f, 0f,
+             1f, -1f, 1f, 1f,
+            -1f,  1f, 0f, 0f,
+             1f, -1f, 1f, 1f,
+            -1f, -1f, 0f, 1f,
+        };
+        uint quadBytes = (uint)(quad.Length * sizeof(float));
+
+        var vbCreateInfo = new SDL.GPUBufferCreateInfo { Usage = SDL.GPUBufferUsageFlags.Vertex, Size = quadBytes, Props = 0 };
+        _quadVertexBuffer = SDL.CreateGPUBuffer(_gpuDevice, in vbCreateInfo);
+        if (_quadVertexBuffer == IntPtr.Zero)
+        {
+            Logger.Log($"[SDL3HwRenderer] CreateGPUBuffer (quad) failed: {SDL.GetError()}");
+            return;
+        }
+
+        var transferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = quadBytes, Props = 0 };
+        IntPtr transferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in transferInfo);
+        if (transferBuffer == IntPtr.Zero)
+        {
+            Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (quad) failed: {SDL.GetError()}");
+            return;
+        }
+
+        IntPtr mapped = SDL.MapGPUTransferBuffer(_gpuDevice, transferBuffer, false);
+        if (mapped != IntPtr.Zero)
+        {
+            fixed (float* src = quad)
+                Buffer.MemoryCopy(src, (void*)mapped, quadBytes, quadBytes);
+            SDL.UnmapGPUTransferBuffer(_gpuDevice, transferBuffer);
+
+            IntPtr uploadCmd = SDL.AcquireGPUCommandBuffer(_gpuDevice);
+            if (uploadCmd != IntPtr.Zero)
+            {
+                IntPtr copyPass = SDL.BeginGPUCopyPass(uploadCmd);
+                var srcLoc = new SDL.GPUTransferBufferLocation { TransferBuffer = transferBuffer, Offset = 0 };
+                var dstReg = new SDL.GPUBufferRegion { Buffer = _quadVertexBuffer, Offset = 0, Size = quadBytes };
+                SDL.UploadToGPUBuffer(copyPass, in srcLoc, in dstReg, false);
+                SDL.EndGPUCopyPass(copyPass);
+                SDL.SubmitGPUCommandBuffer(uploadCmd);
+            }
+        }
+        SDL.ReleaseGPUTransferBuffer(_gpuDevice, transferBuffer);
+
+        var filterVbInfo = new SDL.GPUBufferCreateInfo { Usage = SDL.GPUBufferUsageFlags.Vertex, Size = quadBytes, Props = 0 };
+        _filterSourceVertexBuffer = SDL.CreateGPUBuffer(_gpuDevice, in filterVbInfo);
+        if (_filterSourceVertexBuffer == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] CreateGPUBuffer (filter source quad) failed: {SDL.GetError()}");
+
+        var filterTransferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = quadBytes, Props = 0 };
+        _filterSourceTransferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in filterTransferInfo);
+        if (_filterSourceTransferBuffer == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (filter source quad) failed: {SDL.GetError()}");
+
+        var nesTexInfo = new SDL.GPUTextureCreateInfo
+        {
+            Type              = SDL.GPUTextureType.TextureType2D,
+            Format            = _gpuColorTargetFormat,
+            Usage             = SDL.GPUTextureUsageFlags.Sampler,
+            Width             = (uint)_nesWidth,
+            Height            = (uint)_nesHeight,
+            LayerCountOrDepth = 1,
+            NumLevels         = 1,
+            SampleCount       = SDL.GPUSampleCount.SampleCount1,
+            Props             = 0,
+        };
+        _nesGpuTexture = SDL.CreateGPUTexture(_gpuDevice, in nesTexInfo);
+        if (_nesGpuTexture == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] CreateGPUTexture (NES source) failed: {SDL.GetError()}");
+
+        uint nesBytes = (uint)(_nesWidth * _nesHeight * 4);
+        var nesTransferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = nesBytes, Props = 0 };
+        _nesUploadTransferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in nesTransferInfo);
+        if (_nesUploadTransferBuffer == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (NES source) failed: {SDL.GetError()}");
+    }
+
+    // Rewrites _filterSourceVertexBuffer's UVs to match the current overscan crop (srcPixels, in
+    // NES-texture pixel coordinates) — see the buffer's own field doc comment for why the
+    // structural filter alone needs this instead of the static full-quad buffer. Must run on
+    // _activeCommandBuffer, between DrawAndPresent's acquire/submit.
+    private unsafe void UpdateFilterSourceQuad(SDL.FRect srcPixels)
+    {
+        if (_filterSourceVertexBuffer == IntPtr.Zero || _filterSourceTransferBuffer == IntPtr.Zero
+            || _activeCommandBuffer == IntPtr.Zero || _nesWidth == 0 || _nesHeight == 0)
+            return;
+
+        float u0 = srcPixels.X / _nesWidth;
+        float v0 = srcPixels.Y / _nesHeight;
+        float u1 = (srcPixels.X + srcPixels.W) / _nesWidth;
+        float v1 = (srcPixels.Y + srcPixels.H) / _nesHeight;
+
+        Span<float> quad = stackalloc float[]
+        {
+            -1f,  1f, u0, v0,
+             1f,  1f, u1, v0,
+             1f, -1f, u1, v1,
+            -1f,  1f, u0, v0,
+             1f, -1f, u1, v1,
+            -1f, -1f, u0, v1,
+        };
+        uint quadBytes = (uint)(quad.Length * sizeof(float));
+
+        // cycle=true on both the map and the upload: this buffer is rewritten every frame, so
+        // cycling lets SDL rotate to a fresh underlying allocation if the previous frame's is
+        // still in use by in-flight GPU work, avoiding a CPU-side stall waiting on the GPU.
+        IntPtr mapped = SDL.MapGPUTransferBuffer(_gpuDevice, _filterSourceTransferBuffer, true);
+        if (mapped == IntPtr.Zero) return;
+        fixed (float* src = quad)
+            Buffer.MemoryCopy(src, (void*)mapped, quadBytes, quadBytes);
+        SDL.UnmapGPUTransferBuffer(_gpuDevice, _filterSourceTransferBuffer);
+
+        IntPtr copyPass = SDL.BeginGPUCopyPass(_activeCommandBuffer);
+        var srcLoc = new SDL.GPUTransferBufferLocation { TransferBuffer = _filterSourceTransferBuffer, Offset = 0 };
+        var dstReg = new SDL.GPUBufferRegion { Buffer = _filterSourceVertexBuffer, Offset = 0, Size = quadBytes };
+        SDL.UploadToGPUBuffer(copyPass, in srcLoc, in dstReg, true);
+        SDL.EndGPUCopyPass(copyPass);
+    }
+
+    private IntPtr CreateSampler(bool linear)
+    {
+        var info = new SDL.GPUSamplerCreateInfo
+        {
+            MinFilter    = linear ? SDL.GPUFilter.Linear : SDL.GPUFilter.Nearest,
+            MagFilter    = linear ? SDL.GPUFilter.Linear : SDL.GPUFilter.Nearest,
+            MipmapMode   = SDL.GPUSamplerMipmapMode.Nearest,
+            AddressModeU = SDL.GPUSamplerAddressMode.ClampToEdge,
+            AddressModeV = SDL.GPUSamplerAddressMode.ClampToEdge,
+            AddressModeW = SDL.GPUSamplerAddressMode.ClampToEdge,
+        };
+        IntPtr sampler = SDL.CreateGPUSampler(_gpuDevice, in info);
+        if (sampler == IntPtr.Zero)
+            Logger.Log($"[SDL3HwRenderer] CreateGPUSampler ({(linear ? "linear" : "nearest")}) failed: {SDL.GetError()}");
+        return sampler;
     }
 
     private static IntPtr TryCreateGpuRenderer(IntPtr sdlWindow, out IntPtr gpuDevice)
@@ -221,6 +431,52 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         {
             SDL.UnlockTexture(_nesTexture);
         }
+
+        if (_isGpuRenderer)
+            UploadNesGpuTexture(pixels, contentWidth, contentHeight);
+    }
+
+    // Uploads the same pixel data into _nesGpuTexture — see that field's doc comment for why this
+    // exists alongside _nesTexture's own SDL_LockTexture-based upload above. Uses its own
+    // acquire/submit since this runs before DrawAndPresent's _activeCommandBuffer exists for the
+    // frame; cycle=true on both the map and the upload lets SDL rotate to a fresh underlying
+    // allocation if the previous frame's copy is still being sampled by in-flight GPU work.
+    private unsafe void UploadNesGpuTexture(ReadOnlySpan<int> pixels, int contentWidth, int contentHeight)
+    {
+        if (_nesGpuTexture == IntPtr.Zero || _nesUploadTransferBuffer == IntPtr.Zero) return;
+
+        IntPtr mapped = SDL.MapGPUTransferBuffer(_gpuDevice, _nesUploadTransferBuffer, true);
+        if (mapped == IntPtr.Zero) return;
+        var srcBytes = MemoryMarshal.AsBytes(pixels);
+        fixed (byte* src = srcBytes)
+            Buffer.MemoryCopy(src, (void*)mapped, srcBytes.Length, srcBytes.Length);
+        SDL.UnmapGPUTransferBuffer(_gpuDevice, _nesUploadTransferBuffer);
+
+        IntPtr cmd = SDL.AcquireGPUCommandBuffer(_gpuDevice);
+        if (cmd == IntPtr.Zero) return;
+        IntPtr copyPass = SDL.BeginGPUCopyPass(cmd);
+        var source = new SDL.GPUTextureTransferInfo
+        {
+            TransferBuffer = _nesUploadTransferBuffer,
+            Offset         = 0,
+            PixelsPerRow   = (uint)contentWidth,
+            RowsPerLayer   = (uint)contentHeight,
+        };
+        var destination = new SDL.GPUTextureRegion
+        {
+            Texture  = _nesGpuTexture,
+            MipLevel = 0,
+            Layer    = 0,
+            X        = 0,
+            Y        = 0,
+            Z        = 0,
+            W        = (uint)contentWidth,
+            H        = (uint)contentHeight,
+            D        = 1,
+        };
+        SDL.UploadToGPUTexture(copyPass, in source, in destination, true);
+        SDL.EndGPUCopyPass(copyPass);
+        SDL.SubmitGPUCommandBuffer(cmd);
     }
 
     // ---- Present -----------------------------------------------------------------------
@@ -237,6 +493,14 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     private void DrawAndPresent()
     {
+        // Acquired once per frame — every custom-pipeline draw this frame (structural filter,
+        // overlay filter, motion-effect shader/phosphor, picture adjust) shares it, submitted
+        // once at the end so all of that GPU work is queued and ordered before SDL_Renderer's
+        // own subsequent draws/present of the same textures (submission order on one device's
+        // queue is what gives this the synchronization it needs — no explicit fences required).
+        if (_isGpuRenderer)
+            _activeCommandBuffer = SDL.AcquireGPUCommandBuffer(_gpuDevice);
+
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 255);
         SDL.RenderClear(_sdlRenderer);
 
@@ -247,6 +511,12 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         DrawNesFrame(nesDest);
         DrawOverlay();
+
+        if (_activeCommandBuffer != IntPtr.Zero)
+        {
+            SDL.SubmitGPUCommandBuffer(_activeCommandBuffer);
+            _activeCommandBuffer = IntPtr.Zero;
+        }
 
         PresentAndCheckDeviceLost();
     }
@@ -336,28 +606,44 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
                 H = dest.H,
             };
 
+        bool usingCustomFilter = _filterPipeline is { IsValid: true };
         bool hasOverlay  = _hasOverlayFilter
-                        && _overlayFilterTexture     != IntPtr.Zero
-                        && _overlayFilterRenderState is { IsValid: true };
+                        && _overlayFilterTexture   != IntPtr.Zero
+                        && _overlayFilterPipeline is { IsValid: true };
         bool hasMeShader = _hasShaderMotionEffect
-                        && _motionEffectTexture     != IntPtr.Zero
-                        && _motionEffectRenderState is { IsValid: true };
+                        && _motionEffectTexture   != IntPtr.Zero
+                        && _motionEffectPipeline is { IsValid: true };
         bool hasPhosphor = _hasPhosphorPersistence
                         && _motionEffectTexture != IntPtr.Zero
                         && _phosphorTexA        != IntPtr.Zero
-                        && _phosphorTexB        != IntPtr.Zero;
+                        && _phosphorTexB        != IntPtr.Zero
+                        && _phosphorPipeline is { IsValid: true };
         bool hasPa       = _hasPictureAdjust
-                        && _pictureAdjustTexture    != IntPtr.Zero
-                        && _pictureAdjustRenderState is not null;
+                        && _pictureAdjustTexture   != IntPtr.Zero
+                        && _pictureAdjustPipeline is { IsValid: true };
 
-        IntPtr motionTarget  = hasPa ? _pictureAdjustTexture : IntPtr.Zero;
+        if (!usingCustomFilter && !hasOverlay && !hasMeShader && !hasPhosphor && !hasPa)
+        {
+            // Fast path: no custom-pipeline stage active this frame — draw straight to the
+            // backbuffer via SDL_Renderer's own default pipeline, exactly as before this rewrite.
+            SDL.SetTextureScaleMode(_nesTexture, _activeFilter.UseLinearSampler ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+            SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
+            return;
+        }
+
+        // At least one custom-pipeline stage is active this frame. None of them may render
+        // straight to the backbuffer (see SdlGpuPipeline's class doc comment) — every stage
+        // always targets an intermediate texture, and exactly one final plain composite
+        // (SDL_Renderer's own, unchanged 2D API, at the bottom of this method) lands the last
+        // stage's output at the real letterboxed, motion-effect-jittered dest rect.
+        IntPtr motionTarget  = hasPa ? _pictureAdjustTexture : _finalStageOutputTexture;
         IntPtr overlayTarget = (hasMeShader || hasPhosphor) ? _motionEffectTexture : motionTarget;
         IntPtr filterTarget  = hasOverlay ? _overlayFilterTexture : overlayTarget;
 
         bool filterAppliesColorMode  = !hasOverlay && !hasMeShader;
         bool overlayAppliesColorMode = hasOverlay  && !hasMeShader;
 
-        RunFilterPass(src, dest, filterTarget, filterAppliesColorMode);
+        RunFilterPass(src, filterTarget, filterAppliesColorMode);
 
         if (hasOverlay)
             RunOverlayPass(overlayTarget, overlayAppliesColorMode);
@@ -368,13 +654,17 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             RunPhosphorPass(motionTarget);
 
         if (hasPa)
-            ApplyPictureAdjustPass(_pictureAdjustTexture);
+            ApplyPictureAdjustPass(_pictureAdjustTexture, _finalStageOutputTexture);
+
+        var finalSrcRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _finalStageOutputTexture, in finalSrcRect, in dest);
     }
 
-    // Redirects rendering to an intermediate texture, clearing it to transparent black first —
-    // the shared 3-line boilerplate every cascading pass needs before it draws. A Zero target
-    // means "render straight to the backbuffer," so nothing is redirected; the returned bool
-    // records which happened, to be passed to the matching EndRenderToTarget call.
+    // Redirects rendering to an intermediate texture via SDL_Renderer's own SetRenderTarget,
+    // clearing it to transparent black first. Only used for the plain (non-custom-pipeline)
+    // draws left in this file — RunFilterPass's no-shader (PixelPerfect) fallback and the
+    // phosphor-accumulation composite below — never for a custom-pipeline stage, which always
+    // targets its own intermediate directly via SdlGpuPipeline.Draw's own render pass instead.
     private bool BeginRenderToTarget(IntPtr target)
     {
         bool toIntermediate = target != IntPtr.Zero;
@@ -396,132 +686,148 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
     }
 
-    // NES texture -> structural filter -> targetTexture (or straight to the backbuffer when
-    // targetTexture is Zero).
-    private void RunFilterPass(SDL.FRect src, SDL.FRect dest, IntPtr targetTexture, bool applyColorMode)
+    // NES texture -> structural filter (if the active filter has one) -> targetTexture. Always
+    // redirects to an intermediate now that at least one custom-pipeline stage is active this
+    // frame (DrawNesFrame's fast-path check already ruled out "nothing active") — even when the
+    // filter itself has no shader (PixelPerfect), since a later stage still needs this texture's
+    // content, so that case falls back to a plain SDL_Renderer draw instead of a custom-pipeline one.
+    private void RunFilterPass(SDL.FRect src, IntPtr targetTexture, bool applyColorMode)
     {
+        if (_filterPipeline is { IsValid: true } pipeline)
+        {
+            UpdateFilterSourceQuad(src);
+            if (_nesGpuTexture == IntPtr.Zero) return;
+
+            Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[1];
+            bindings[0] = new SDL.GPUTextureSamplerBinding
+            {
+                Texture = _nesGpuTexture,
+                Sampler = _activeFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
+            };
+
+            Span<float> uniforms = stackalloc float[UniformFloats];
+            _activeFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
+            uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
+
+            pipeline.Draw(_activeCommandBuffer, _filterSourceVertexBuffer, targetTexture, bindings, uniforms);
+            return;
+        }
+
+        // No shader for the active filter (PixelPerfect) — a plain copy via SDL_Renderer's own
+        // default pipeline still needs to land the NES texture's cropped content in
+        // targetTexture for whichever custom-pipeline stage runs next.
         bool toIntermediate = BeginRenderToTarget(targetTexture);
-        ApplyFilterRenderState(applyColorMode);
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
-        _filterRenderState?.Clear();
+        SDL.SetTextureScaleMode(_nesTexture, SDL.ScaleMode.Nearest);
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in fullRect);
         EndRenderToTarget(toIntermediate);
     }
 
-    // Overlay intermediate -> overlay filter shader -> targetTexture (or backbuffer).
+    // Overlay intermediate -> overlay filter shader -> targetTexture.
     private void RunOverlayPass(IntPtr targetTexture, bool applyColorMode)
     {
-        // Callers only invoke this when DrawNesFrame's hasOverlay check already confirmed both
-        // are non-null and valid — this guard is a defensive backstop against that invariant
-        // ever being violated, not an expected path, matching ApplyFilterRenderState's pattern.
-        if (_activeOverlayFilter is null || _overlayFilterRenderState is null) return;
+        // Callers only invoke this when DrawNesFrame's hasOverlay check already confirmed this
+        // is valid — this guard is a defensive backstop against that invariant ever being
+        // violated, not an expected path.
+        if (_activeOverlayFilter is null || _overlayFilterPipeline is not { IsValid: true } pipeline) return;
 
-        bool toIntermediate = BeginRenderToTarget(targetTexture);
-        SDL.SetTextureScaleMode(_overlayFilterTexture,
-            _activeOverlayFilter.UseLinearSampler ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
+        IntPtr sourceGpuTex = SdlGpuPipeline.GetGpuTexture(_overlayFilterTexture);
+        if (sourceGpuTex == IntPtr.Zero) return;
+
+        Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[1];
+        bindings[0] = new SDL.GPUTextureSamplerBinding
+        {
+            Texture = sourceGpuTex,
+            Sampler = _activeOverlayFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
+        };
+
         Span<float> uniforms = stackalloc float[UniformFloats];
         _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
         uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
-        _overlayFilterRenderState.Apply(uniforms);
-        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _overlayFilterTexture, in fullRect, in fullRect);
-        _overlayFilterRenderState.Clear();
-        EndRenderToTarget(toIntermediate);
+
+        pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, targetTexture, bindings, uniforms);
     }
 
-    // Motion-effect intermediate -> ME shader -> targetTexture (or backbuffer). Always the
-    // last colour-aware stage when active, so colour mode is never deferred here.
+    // Motion-effect intermediate -> ME shader -> targetTexture. Always the last colour-aware
+    // stage when active, so colour mode is never deferred here.
     private void RunMotionEffectShaderPass(IntPtr targetTexture)
     {
-        // Same defensive backstop as RunOverlayPass — DrawNesFrame's hasMeShader check already
-        // confirmed this is non-null and valid before calling here.
-        if (_motionEffectRenderState is null) return;
+        if (_motionEffectPipeline is not { IsValid: true } pipeline) return;
 
-        bool toIntermediate = BeginRenderToTarget(targetTexture);
-        ApplyMotionEffectRenderState();
-        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
-        _motionEffectRenderState.Clear();
-        EndRenderToTarget(toIntermediate);
+        IntPtr sourceGpuTex = SdlGpuPipeline.GetGpuTexture(_motionEffectTexture);
+        if (sourceGpuTex == IntPtr.Zero) return;
+
+        bool useLinear = _activeMotionEffect is ISdlMotionEffect sdlEffect && sdlEffect.UseLinearSampler;
+        Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[1];
+        bindings[0] = new SDL.GPUTextureSamplerBinding
+        {
+            Texture = sourceGpuTex,
+            Sampler = useLinear ? _linearSampler : _nearestSampler,
+        };
+
+        Span<float> uniforms = stackalloc float[UniformFloats];
+        _activeMotionEffect.WriteShaderParams(uniforms, _contentWidth, _contentHeight);
+        uniforms[3] = (float)_activeColorMode;
+
+        pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, targetTexture, bindings, uniforms);
     }
 
-    // Temporal phosphor blend: accumulates writeTex = max(current frame, history * decay)
-    // using GPU fixed-function blending (no shader — see class doc comment), then composites
-    // the result into targetTexture (or the backbuffer). Swaps the ping-pong roles each call.
-    // Colour mode was already applied upstream (filter or overlay pass) when this stage is
-    // active, since phosphor accumulation has no shader of its own to apply it.
+    // Temporal phosphor blend via its own real 2-sampler shader: writeTex = max(currentFrame,
+    // historyFrame * decay), both bound simultaneously in one draw — see
+    // PhosphorPersistenceMotionEffect's class doc comment for why this replaced the older
+    // 2-draw GPU-blend-compositing workaround (SDL_CreateGPURenderState's one-sampler limit).
+    // Composites the accumulated frame into targetTexture via a plain SDL_Renderer draw, then
+    // swaps the ping-pong roles for next frame. Colour mode was already applied upstream (filter
+    // or overlay pass) when this stage is active, since phosphor accumulation is colour-blind,
+    // matching picture adjust.
     private void RunPhosphorPass(IntPtr targetTexture)
     {
+        if (_phosphorPipeline is not { IsValid: true } pipeline) return;
+
         IntPtr historyTex = _phosphorUseA ? _phosphorTexA : _phosphorTexB;
         IntPtr writeTex   = _phosphorUseA ? _phosphorTexB : _phosphorTexA;
-        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
 
-        // writeTex is always a real texture here (allocated whenever phosphor persistence is
-        // active), so this always redirects — unlike the other passes, where the target can
-        // legitimately be Zero (straight to the backbuffer).
-        bool wroteToTarget = BeginRenderToTarget(writeTex);
-        SDL.RenderTexture(_sdlRenderer, _motionEffectTexture, in fullRect, in fullRect);
+        IntPtr currentGpuTex = SdlGpuPipeline.GetGpuTexture(_motionEffectTexture);
+        IntPtr historyGpuTex = SdlGpuPipeline.GetGpuTexture(historyTex);
+        if (currentGpuTex == IntPtr.Zero || historyGpuTex == IntPtr.Zero) return;
 
-        Span<float> decayParams = stackalloc float[UniformFloats];
-        _activeMotionEffect.WriteShaderParams(decayParams, _contentWidth, _contentHeight);
-        float decay = decayParams[0];
-        SDL.SetTextureColorModFloat(historyTex, decay, decay, decay);
-        SDL.SetTextureBlendMode(historyTex, MaximumBlendMode);
-        SDL.RenderTexture(_sdlRenderer, historyTex, in fullRect, in fullRect);
+        Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[2];
+        bindings[0] = new SDL.GPUTextureSamplerBinding { Texture = currentGpuTex, Sampler = _linearSampler };
+        bindings[1] = new SDL.GPUTextureSamplerBinding { Texture = historyGpuTex, Sampler = _linearSampler };
 
-        EndRenderToTarget(wroteToTarget);
+        Span<float> uniforms = stackalloc float[UniformFloats];
+        _activeMotionEffect.WriteShaderParams(uniforms, _contentWidth, _contentHeight);
+        uniforms[3] = (float)_activeColorMode;
 
-        // Composite the accumulated frame. writeTex may have last served as the decayed
-        // history source under the opposite ping-pong role, so its blend mode and colour
-        // mod must be reset explicitly rather than trusted to be at their defaults.
+        pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, writeTex, bindings, uniforms);
+
         bool toIntermediate = BeginRenderToTarget(targetTexture);
-        SDL.SetTextureColorModFloat(writeTex, 1f, 1f, 1f);
-        SDL.SetTextureBlendMode(writeTex, SDL.BlendMode.Blend);
+        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
         SDL.RenderTexture(_sdlRenderer, writeTex, in fullRect, in fullRect);
         EndRenderToTarget(toIntermediate);
 
         _phosphorUseA = !_phosphorUseA;
     }
 
-    private void ApplyPictureAdjustPass(IntPtr sourceTexture)
+    private void ApplyPictureAdjustPass(IntPtr sourceTexture, IntPtr targetTexture)
     {
-        // Same defensive backstop as RunOverlayPass/RunMotionEffectShaderPass — DrawNesFrame's
-        // hasPa check already confirmed this is non-null before calling here.
-        if (_pictureAdjustRenderState is null) return;
+        // Same defensive backstop as the other Run*Pass methods — DrawNesFrame's hasPa check
+        // already confirmed this is valid before calling here.
+        if (_pictureAdjustPipeline is not { IsValid: true } pipeline) return;
+
+        IntPtr sourceGpuTex = SdlGpuPipeline.GetGpuTexture(sourceTexture);
+        if (sourceGpuTex == IntPtr.Zero) return;
+
+        Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[1];
+        bindings[0] = new SDL.GPUTextureSamplerBinding { Texture = sourceGpuTex, Sampler = _nearestSampler };
 
         Span<float> uniforms = stackalloc float[UniformFloats];
         uniforms[0] = _brightness;
         uniforms[1] = _contrast;
         uniforms[2] = _saturation;
         uniforms[3] = _hue;
-        _pictureAdjustRenderState.Apply(uniforms);
-        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, sourceTexture, in fullRect, in fullRect);
-        _pictureAdjustRenderState.Clear();
-    }
 
-    private void ApplyMotionEffectRenderState()
-    {
-        if (_motionEffectRenderState is null || !_motionEffectRenderState.IsValid) return;
-        SDL.SetTextureScaleMode(_motionEffectTexture,
-            (_activeMotionEffect is ISdlMotionEffect sdlEffect && sdlEffect.UseLinearSampler)
-                ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
-        Span<float> uniforms = stackalloc float[UniformFloats];
-        _activeMotionEffect.WriteShaderParams(uniforms, _contentWidth, _contentHeight);
-        uniforms[3] = (float)_activeColorMode;
-        _motionEffectRenderState.Apply(uniforms);
-    }
-
-    private void ApplyFilterRenderState(bool applyColorMode)
-    {
-        if (_filterRenderState is null || !_filterRenderState.IsValid) return;
-
-        SDL.SetTextureScaleMode(_nesTexture, _activeFilter.UseLinearSampler
-            ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest);
-
-        Span<float> uniforms = stackalloc float[UniformFloats];
-        _activeFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
-        uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
-        _filterRenderState.Apply(uniforms);
+        pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, targetTexture, bindings, uniforms);
     }
 
     // ---- Sidebar draw ------------------------------------------------------------------
@@ -606,6 +912,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _viewportWidth  = Math.Max(width,  1);
         _viewportHeight = Math.Max(height, 1);
         CreateOverlayResources();
+        SyncFinalStageOutputTexture();
         SyncOverlayFilterTexture();
         SyncPictureAdjustTexture();
         SyncMotionEffectTexture();
@@ -665,10 +972,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetOverlayFilter(VideoFilterMode? mode)
     {
-        _overlayFilterRenderState?.Dispose();
-        _overlayFilterRenderState = null;
-        _activeOverlayFilter      = null;
-        _hasOverlayFilter         = false;
+        _overlayFilterPipeline?.Dispose();
+        _overlayFilterPipeline = null;
+        _activeOverlayFilter   = null;
+        _hasOverlayFilter      = false;
 
         if (mode is { } m && _isGpuRenderer)
         {
@@ -677,8 +984,8 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             _hasOverlayFilter    = true;
             if (filter.PixelShaderResourceName is { } resourceName)
             {
-                _overlayFilterRenderState = new SdlGpuRenderState(
-                    _sdlRenderer, _gpuDevice,
+                _overlayFilterPipeline = new SdlGpuPipeline(
+                    _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
                     resourceName,
                     filter.NumFragmentSamplers,
                     filter.NumFragmentUniformBuffers);
@@ -692,26 +999,34 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void SetMotionEffect(VideoMotionEffectMode mode)
     {
-        _motionEffectRenderState?.Dispose();
-        _motionEffectRenderState = null;
-        _hasShaderMotionEffect   = false;
-        _hasPhosphorPersistence  = false;
-        _activeMotionEffect      = SdlMotionEffectFactory.Create(mode);
+        _motionEffectPipeline?.Dispose();
+        _motionEffectPipeline  = null;
+        _phosphorPipeline?.Dispose();
+        _phosphorPipeline       = null;
+        _hasShaderMotionEffect  = false;
+        _hasPhosphorPersistence = false;
+        _activeMotionEffect     = SdlMotionEffectFactory.Create(mode);
         _activeMotionEffect.NotifyLayout(_viewportWidth, _viewportHeight, _viewportHeight);
 
-        if (_isGpuRenderer && _activeMotionEffect.NeedsTemporalBuffer)
+        if (_isGpuRenderer
+            && _activeMotionEffect.NeedsTemporalBuffer
+            && _activeMotionEffect is ISdlMotionEffect phosphorEffect
+            && phosphorEffect.SpvResourceName is { } phosphorSpvName)
         {
-            // PhosphorPersistence: no shader on this path — handled via blend compositing
-            // in RunPhosphorPass. See class doc comment.
             _hasPhosphorPersistence = true;
+            _phosphorPipeline = new SdlGpuPipeline(
+                _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
+                phosphorSpvName,
+                phosphorEffect.NumFragmentSamplers,
+                phosphorEffect.NumFragmentUniformBuffers);
         }
         else if (_isGpuRenderer
             && _activeMotionEffect is ISdlMotionEffect sdlEffect
             && sdlEffect.SpvResourceName is { } spvName)
         {
             _hasShaderMotionEffect = true;
-            _motionEffectRenderState = new SdlGpuRenderState(
-                _sdlRenderer, _gpuDevice,
+            _motionEffectPipeline = new SdlGpuPipeline(
+                _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
                 spvName,
                 sdlEffect.NumFragmentSamplers,
                 sdlEffect.NumFragmentUniformBuffers);
@@ -723,19 +1038,31 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     public void Dispose()
     {
-        _filterRenderState?.Dispose();
-        _filterRenderState = null;
-        _overlayFilterRenderState?.Dispose();
-        _overlayFilterRenderState = null;
+        _filterPipeline?.Dispose();
+        _filterPipeline = null;
+        _overlayFilterPipeline?.Dispose();
+        _overlayFilterPipeline = null;
         if (_overlayFilterTexture != IntPtr.Zero) { SDL.DestroyTexture(_overlayFilterTexture); _overlayFilterTexture = IntPtr.Zero; }
-        _motionEffectRenderState?.Dispose();
-        _motionEffectRenderState = null;
+        _motionEffectPipeline?.Dispose();
+        _motionEffectPipeline = null;
+        _phosphorPipeline?.Dispose();
+        _phosphorPipeline = null;
         if (_motionEffectTexture  != IntPtr.Zero) { SDL.DestroyTexture(_motionEffectTexture);  _motionEffectTexture  = IntPtr.Zero; }
         if (_phosphorTexA != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexA); _phosphorTexA = IntPtr.Zero; }
         if (_phosphorTexB != IntPtr.Zero) { SDL.DestroyTexture(_phosphorTexB); _phosphorTexB = IntPtr.Zero; }
-        _pictureAdjustRenderState?.Dispose();
-        _pictureAdjustRenderState = null;
+        _pictureAdjustPipeline?.Dispose();
+        _pictureAdjustPipeline = null;
         if (_pictureAdjustTexture != IntPtr.Zero) { SDL.DestroyTexture(_pictureAdjustTexture); _pictureAdjustTexture = IntPtr.Zero; }
+        if (_finalStageOutputTexture != IntPtr.Zero) { SDL.DestroyTexture(_finalStageOutputTexture); _finalStageOutputTexture = IntPtr.Zero; }
+        if (_quadVertexBuffer != IntPtr.Zero) { SDL.ReleaseGPUBuffer(_gpuDevice, _quadVertexBuffer); _quadVertexBuffer = IntPtr.Zero; }
+        if (_filterSourceVertexBuffer != IntPtr.Zero) { SDL.ReleaseGPUBuffer(_gpuDevice, _filterSourceVertexBuffer); _filterSourceVertexBuffer = IntPtr.Zero; }
+        if (_filterSourceTransferBuffer != IntPtr.Zero) { SDL.ReleaseGPUTransferBuffer(_gpuDevice, _filterSourceTransferBuffer); _filterSourceTransferBuffer = IntPtr.Zero; }
+        if (_nesGpuTexture != IntPtr.Zero) { SDL.ReleaseGPUTexture(_gpuDevice, _nesGpuTexture); _nesGpuTexture = IntPtr.Zero; }
+        if (_nesUploadTransferBuffer != IntPtr.Zero) { SDL.ReleaseGPUTransferBuffer(_gpuDevice, _nesUploadTransferBuffer); _nesUploadTransferBuffer = IntPtr.Zero; }
+        if (_nearestSampler != IntPtr.Zero) { SDL.ReleaseGPUSampler(_gpuDevice, _nearestSampler); _nearestSampler = IntPtr.Zero; }
+        if (_linearSampler  != IntPtr.Zero) { SDL.ReleaseGPUSampler(_gpuDevice, _linearSampler);  _linearSampler  = IntPtr.Zero; }
+        SdlGpuPipeline.ReleaseVertexShader(_gpuDevice, _gpuVertexShader);
+        _gpuVertexShader = IntPtr.Zero;
         DisposeOverlayResources();
         DisposeSidebarTextures();
         if (_nesTexture   != IntPtr.Zero) { SDL.DestroyTexture(_nesTexture); _nesTexture = IntPtr.Zero; }
@@ -746,15 +1073,27 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     private void ApplyGpuFilter(ISdlFilter filter)
     {
-        _filterRenderState?.Dispose();
-        _filterRenderState = null;
+        _filterPipeline?.Dispose();
+        _filterPipeline = null;
         _activeFilter = filter;
         if (!_isGpuRenderer || filter.PixelShaderResourceName is null) return;
-        _filterRenderState = new SdlGpuRenderState(
-            _sdlRenderer, _gpuDevice,
+        _filterPipeline = new SdlGpuPipeline(
+            _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
             filter.PixelShaderResourceName,
             filter.NumFragmentSamplers,
             filter.NumFragmentUniformBuffers);
+    }
+
+    private void SyncFinalStageOutputTexture()
+    {
+        if (_finalStageOutputTexture != IntPtr.Zero) { SDL.DestroyTexture(_finalStageOutputTexture); _finalStageOutputTexture = IntPtr.Zero; }
+        if (!_isGpuRenderer) return;
+        _finalStageOutputTexture = SDL.CreateTexture(_sdlRenderer, SDL.PixelFormat.ARGB8888,
+            SDL.TextureAccess.Target, _viewportWidth, _viewportHeight);
+        if (_finalStageOutputTexture != IntPtr.Zero)
+            SDL.SetTextureBlendMode(_finalStageOutputTexture, SDL.BlendMode.Blend);
+        else
+            Logger.Log($"[SDL3HwRenderer] Failed to create final-stage-output texture: {SDL.GetError()}");
     }
 
     private void SyncPictureAdjustTexture()
@@ -835,10 +1174,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             _pictureAdjustTexture = IntPtr.Zero;
         }
 
-        if (!_hasPictureAdjust) { _pictureAdjustRenderState?.Dispose(); _pictureAdjustRenderState = null; return; }
-        if (_pictureAdjustRenderState is not null) return;
-        _pictureAdjustRenderState = new SdlGpuRenderState(
-            _sdlRenderer, _gpuDevice,
+        if (!_hasPictureAdjust) { _pictureAdjustPipeline?.Dispose(); _pictureAdjustPipeline = null; return; }
+        if (_pictureAdjustPipeline is not null) return;
+        _pictureAdjustPipeline = new SdlGpuPipeline(
+            _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
             "NEShim.Rendering.Shaders.Vulkan.PictureAdjust.ps.spv",
             numFragmentSamplers:     1,
             numFragmentUniformBuffers: 1);

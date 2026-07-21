@@ -6,9 +6,10 @@
 /// producing a soft after-image trail that fades over roughly 10–15 frames.
 /// The effect uses a ping-pong pair of intermediate render targets; NeedsTemporalBuffer
 /// signals this requirement. D3D11Renderer reads DecayFactor via WriteShaderParams into a
-/// 2-sampler pixel shader (PixelShaderResourceName); SDL3HwRenderer has no SPIR-V
-/// equivalent of that shader and instead reads the same DecayFactor to drive GPU blend
-/// compositing (SDL_ComposeCustomBlendMode Maximum op) — see SDL3HwRenderer.RunPhosphorPass.
+/// 2-sampler pixel shader (PixelShaderResourceName). The SDL_GPU path has its own separate
+/// <see cref="ISdlMotionEffect"/> implementation instead of using this member — see
+/// <c>PhosphorPersistenceSdlMotionEffect</c> in the SDL subfolder, same pattern as
+/// MagneticDistortion's D3D11/SDL split.
 /// </summary>
 internal sealed class PhosphorPersistenceMotionEffect : IMotionEffect
 {

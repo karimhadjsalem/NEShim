@@ -7,9 +7,7 @@ internal static class SdlMotionEffectFactory
         VideoMotionEffectMode.CrtJitter           => new CrtJitterMotionEffect(),
         VideoMotionEffectMode.ScanlineBob         => new ScanlineBobMotionEffect(),
         VideoMotionEffectMode.MagneticDistortion  => new MagneticDistortionSdlMotionEffect(),
-        // No SDL_GPU shader — SDL3HwRenderer detects NeedsTemporalBuffer and reproduces the
-        // D3D11 shader's max(current, previous * decay) via blend compositing instead.
-        VideoMotionEffectMode.PhosphorPersistence => new PhosphorPersistenceMotionEffect(),
+        VideoMotionEffectMode.PhosphorPersistence => new PhosphorPersistenceSdlMotionEffect(),
         _                                         => new NoneMotionEffect(),
     };
 }
