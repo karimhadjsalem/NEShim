@@ -364,6 +364,17 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     {
         _logoScreen?.Dispose();
         _logoScreen = null;
+
+        // Whatever button skipped the logo (if any) can still be physically held when the next
+        // screen (main menu or carousel) starts polling gamepad/Steam menu nav for real — that
+        // screen's own edge-detectors have never seen this press (PollAnyControllerButton above
+        // tracks its own separate edge state), so without priming them here the still-held button
+        // reads as a brand-new Confirm/nav edge the instant the new screen becomes active (e.g.
+        // auto-selecting "New Game"). Discarding the result primes each detector's "already seen"
+        // state — same technique already used when exiting gamepad rebinding mode, see
+        // InputProcessor.PollPausedMenuInput.
+        _input?.PollMenuNav(_config!);
+
         if (MultiGameMode.IsActive)
             InitializeCarousel();
         else

@@ -86,8 +86,10 @@ internal static class SteamInputManager
     private static InputDigitalActionHandle_t _hMenuConfirm, _hMenuBack;
 
     // -- Menu nav edge detection --
-    private static bool _prevMenuUp, _prevMenuDown, _prevMenuLeft, _prevMenuRight;
-    private static bool _prevMenuConfirm, _prevMenuBack;
+    // debounceMs: 0 (disabled) — Steam Input abstracts the underlying controller/driver and
+    // already handles signal cleanliness at that layer, unlike SDL3GamepadSource's direct
+    // evdev-on-Linux path (see MenuNavEdgeDetector's own doc comment).
+    private static readonly MenuNavEdgeDetector MenuNavDetector = new();
 
     public static bool IsAvailable { get; private set; }
 
@@ -258,8 +260,7 @@ internal static class SteamInputManager
         int count = RefreshControllers();
         if (count == 0)
         {
-            _prevMenuUp = _prevMenuDown = _prevMenuLeft = _prevMenuRight = false;
-            _prevMenuConfirm = _prevMenuBack = false;
+            MenuNavDetector.Reset();
             return default;
         }
 
@@ -271,24 +272,7 @@ internal static class SteamInputManager
         bool confirm = Digital(h, _hMenuConfirm);
         bool back    = Digital(h, _hMenuBack);
 
-        var nav = new MenuNavInput
-        {
-            Up      = up      && !_prevMenuUp,
-            Down    = down    && !_prevMenuDown,
-            Left    = left    && !_prevMenuLeft,
-            Right   = right   && !_prevMenuRight,
-            Confirm = confirm && !_prevMenuConfirm,
-            Back    = back    && !_prevMenuBack,
-        };
-
-        _prevMenuUp      = up;
-        _prevMenuDown    = down;
-        _prevMenuLeft    = left;
-        _prevMenuRight   = right;
-        _prevMenuConfirm = confirm;
-        _prevMenuBack    = back;
-
-        return nav;
+        return MenuNavDetector.Advance(up, down, left, right, confirm, back);
     }
 
     /// <summary>

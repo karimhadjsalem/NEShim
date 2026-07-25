@@ -21,12 +21,25 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
     // in-game also registers here.
     private const int AnyInputAnalogThreshold = 8000;
 
+    // Minimum time between two accepted menu-nav edges for the *same* direction. Windows'
+    // XInput/DirectInput stack debounces D-pad/stick signals at the driver level, but SDL3's
+    // Linux (evdev) gamepad backend passes raw HID reports through — genuine mechanical D-pad
+    // contact bounce (or stick axis jitter crossing the deadzone boundary) can therefore surface
+    // as several real, distinct press/release transitions from a single physical tap on Linux,
+    // even though the edge-detection itself is correct (each is a real transition, not a logic
+    // bug). 50ms is comfortably above typical mechanical bounce (a few ms) and comfortably below
+    // the fastest realistic deliberate human repeat presses.
+    private const long MenuNavDebounceMs = 50;
+
     private readonly IGamepadDevice _device;
+    private readonly MenuNavEdgeDetector _menuNavDetector = new(MenuNavDebounceMs);
 
     private GamepadState _lastState;
-    private GamepadState _prevMenuState;
     private GamepadState _prevBindingState;
     private GamepadState _prevAnyState;
+
+    // Test seam: injects a controllable time source for debounce testing; null means Environment.TickCount64.
+    internal Func<long>? NowProvider { set => _menuNavDetector.NowProvider = value; }
 
     // Change-detection for analog stick logging — only logs when stick moves or analog output changes.
     private short _lastLoggedLX;
@@ -112,12 +125,12 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
     public MenuNavInput GetMenuNav(AppConfig config)
     {
         var curr = _device.GetState(0);
-        var prev = _prevMenuState;
-
-        _prevMenuState = curr.Connected ? curr : default;
 
         if (!curr.Connected)
+        {
+            _menuNavDetector.Reset();
             return default;
+        }
 
         int dz = config.GamepadDeadzone;
 
@@ -128,22 +141,7 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
         bool confirm = curr.A;
         bool back    = curr.B || curr.Back;
 
-        bool prevUp      = prev.Connected && (prev.DPadUp    || AnalogStickHelper.StickUp(prev.ThumbLX,   prev.ThumbLY,   dz));
-        bool prevDown    = prev.Connected && (prev.DPadDown  || AnalogStickHelper.StickDown(prev.ThumbLX,  prev.ThumbLY,  dz));
-        bool prevLeft    = prev.Connected && (prev.DPadLeft  || AnalogStickHelper.StickLeft(prev.ThumbLX,  prev.ThumbLY,  dz));
-        bool prevRight   = prev.Connected && (prev.DPadRight || AnalogStickHelper.StickRight(prev.ThumbLX, prev.ThumbLY,  dz));
-        bool prevConfirm = prev.Connected && prev.A;
-        bool prevBack    = prev.Connected && (prev.B || prev.Back);
-
-        return new MenuNavInput
-        {
-            Up      = up      && !prevUp,
-            Down    = down    && !prevDown,
-            Left    = left    && !prevLeft,
-            Right   = right   && !prevRight,
-            Confirm = confirm && !prevConfirm,
-            Back    = back    && !prevBack,
-        };
+        return _menuNavDetector.Advance(up, down, left, right, confirm, back);
     }
 
     // ── IBindingSource ─────────────────────────────────────────────────────────

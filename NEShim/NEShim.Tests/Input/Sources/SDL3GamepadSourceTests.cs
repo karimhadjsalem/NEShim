@@ -186,6 +186,32 @@ internal class SDL3GamepadSourceTests
         Assert.That(nav.Back, Is.True);
     }
 
+    // ── Menu nav debounce ─────────────────────────────────────────────────────────
+    // Exhaustive debounce behavior (per-direction independence, window timing, the
+    // never-debounce-the-first-press sentinel) is covered directly against MenuNavEdgeDetector
+    // in MenuNavEdgeDetectorTests — this just confirms SDL3GamepadSource actually wires the
+    // debounce through rather than bypassing it.
+
+    [Test]
+    public void GetMenuNav_RapidReleaseAndRepress_WithinDebounceWindow_SecondEdgeSuppressed()
+    {
+        long now = 0;
+        var device = Substitute.For<IGamepadDevice>();
+        bool pressed = true;
+        device.GetState(Arg.Any<uint>()).Returns(_ => Connected(dpadDown: pressed));
+        var source = new SDL3GamepadSource(device) { NowProvider = () => now };
+
+        var first = source.GetMenuNav(_config); // t=0: genuine press, accepted
+        pressed = false;
+        source.GetMenuNav(_config);             // t=0: released (simulated contact bounce)
+        pressed = true;
+        now = 10;                               // t=10ms: re-pressed — within the debounce window
+        var bounced = source.GetMenuNav(_config);
+
+        Assert.That(first.Down, Is.True);
+        Assert.That(bounced.Down, Is.False);
+    }
+
     // ── FlushEdges ──────────────────────────────────────────────────────────────
 
     [Test]

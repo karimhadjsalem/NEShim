@@ -13,10 +13,27 @@ internal sealed class SDL3GamepadDevice : IGamepadDevice
 {
     private IntPtr _gamepad = IntPtr.Zero;
 
+    // A gamepad's button/axis state right after SDL_OpenGamepad can be stale/incomplete until
+    // SDL's internal state has a chance to settle (a real, documented SDL3 gamepad quirk —
+    // see github.com/libsdl-org/SDL/issues/8177, "gamepad opened too early" — plus a related
+    // "not working if plugged in at game start" report). Reporting Connected=false for just the
+    // one GetState call immediately after opening — rather than trusting whatever that first
+    // read happens to contain — means every downstream edge-detector (MenuNavEdgeDetector etc.)
+    // starts from a genuinely settled baseline instead of a possibly-garbage one, which otherwise
+    // manifested as a burst of spurious extra menu moves right at the start of the very first
+    // press after the controller connects.
+    private bool _justOpened;
+
     public GamepadState GetState(uint userIndex = 0)
     {
         IntPtr pad = EnsureGamepadOpen(userIndex);
         if (pad == IntPtr.Zero) return default;
+
+        if (_justOpened)
+        {
+            _justOpened = false;
+            return default;
+        }
 
         return new GamepadState
         {
@@ -59,6 +76,7 @@ internal sealed class SDL3GamepadDevice : IGamepadDevice
 
         uint targetId = userIndex < (uint)count ? ids[userIndex] : ids[0];
         _gamepad = SDL.OpenGamepad(targetId);
+        if (_gamepad != IntPtr.Zero) _justOpened = true;
         return _gamepad;
     }
 }
