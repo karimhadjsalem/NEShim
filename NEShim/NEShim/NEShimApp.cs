@@ -547,15 +547,22 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _sdlHost.KeyDown += OnKeyDown;
 
         // Handled here rather than in EmulationThread.HandleHotkeyAction: that subscriber
-        // suppresses hotkeys while a menu is open or paused at the main menu, but window mode
-        // should toggle everywhere (carousel, main menu, in-game menu, gameplay) — same reasoning
-        // as every other cross-screen concern, dispatched through a delegate rather than a
-        // screen-specific key check. Always marshals: this can fire from either the emulation
-        // thread (AdvanceHotkeyState polled from EmulationThread's loop while a game is active)
-        // or the UI thread (polled from OnIdle while the carousel is up).
+        // suppresses hotkeys while a menu is open or paused at the main menu, but the keyboard
+        // F11 toggle should work everywhere a game is loaded (main menu, in-game menu, gameplay)
+        // — same reasoning as every other cross-screen concern, dispatched through a delegate
+        // rather than a screen-specific key check. Always marshals: this can fire from either the
+        // emulation thread (AdvanceHotkeyState polled from EmulationThread's loop while a game is
+        // active) or the UI thread (polled from OnIdle while the carousel is up).
+        //
+        // "ToggleWindowCarousel" (gamepad Y — see its GamepadHotkeyMappings doc comment) is
+        // handled as a separate action from "ToggleWindow" (keyboard F11) and gated on
+        // _carousel is not null so it only ever fires while the carousel is the active screen,
+        // never during actual gameplay where Y is also the P1 Start button.
         _input.HotkeyFired += action =>
         {
             if (action == "ToggleWindow")
+                _marshalToMainThread(() => SetWindowMode(!_isFullscreen));
+            else if (action == "ToggleWindowCarousel" && _carousel is not null)
                 _marshalToMainThread(() => SetWindowMode(!_isFullscreen));
         };
     }

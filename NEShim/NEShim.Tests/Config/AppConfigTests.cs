@@ -81,10 +81,10 @@ internal class AppConfigTests
     }
 
     [Test]
-    public void DefaultGamepadHotkeyMappings_ToggleWindow_MapsToY()
+    public void DefaultGamepadHotkeyMappings_ToggleWindowCarousel_MapsToY()
     {
         var config = new AppConfig();
-        Assert.That(config.GamepadHotkeyMappings["ToggleWindow"], Is.EqualTo("Y"));
+        Assert.That(config.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("Y"));
     }
 
     [Test]

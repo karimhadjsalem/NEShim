@@ -175,8 +175,15 @@ public sealed class AppConfig
     /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>
     public Dictionary<string, string> GamepadHotkeyMappings { get; set; } = new()
     {
-        ["OpenMenu"]     = "LeftShoulder", // Left bumper opens/closes the in-game menu
-        ["ToggleWindow"] = "Y",            // Y button toggles fullscreen/windowed, mirroring the F11 keyboard hotkey
+        ["OpenMenu"]             = "LeftShoulder", // Left bumper opens/closes the in-game menu
+        // Y toggles fullscreen/windowed, but only while the game carousel is showing (see
+        // NEShimApp's HotkeyFired handler) — deliberately a *different* action name from
+        // HotkeyMappings["ToggleWindow"] (F11), not just a gamepad alias for it, because Y is
+        // also the default gamepad button for the NES "P1 Start" input. A shared action name
+        // would fire both every time a player presses Start during actual gameplay, flipping
+        // the window mode on every pause-menu open. F11 stays the only fullscreen toggle once a
+        // game is loaded (main menu, in-game menu, gameplay); this one never fires there.
+        ["ToggleWindowCarousel"] = "Y",
     };
 
     public Dictionary<string, string> HotkeyMappings { get; set; } = new()

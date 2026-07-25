@@ -170,5 +170,18 @@ public static class ConfigLoader
             "NTSC" or "Auto" => "Overscan",
             _                => config.OverscanMode,
         };
+
+        // Renamed from "ToggleWindow" to "ToggleWindowCarousel" so gamepad Y (also the default
+        // P1 Start button) only toggles fullscreen while the carousel is showing, not during
+        // gameplay — see AppConfig.GamepadHotkeyMappings's doc comment. GamepadHotkeyMappings is
+        // overlaid from user.json as a whole-dictionary replace (UserConfig.ApplyTo), so any
+        // user.json bootstrapped before this rename still carries the old key and would silently
+        // keep the pre-fix behavior forever otherwise — a stale "ToggleWindow" entry is never
+        // read by anything anymore, but a missing "ToggleWindowCarousel" entry is.
+        if (config.GamepadHotkeyMappings.Remove("ToggleWindow")
+            && !config.GamepadHotkeyMappings.ContainsKey("ToggleWindowCarousel"))
+        {
+            config.GamepadHotkeyMappings["ToggleWindowCarousel"] = "Y";
+        }
     }
 }

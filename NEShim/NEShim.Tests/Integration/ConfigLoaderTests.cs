@@ -284,6 +284,28 @@ internal class ConfigLoaderTests
         Assert.That(loaded.OverscanMode, Is.EqualTo("Underscan"));
     }
 
+    [Test]
+    public void LoadFrom_StaleGamepadToggleWindowKey_MigratesToToggleWindowCarousel()
+    {
+        File.WriteAllText(_configPath,
+            """{"gamepadHotkeyMappings":{"OpenMenu":"LeftShoulder","ToggleWindow":"Y"}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.GamepadHotkeyMappings, Does.Not.ContainKey("ToggleWindow"));
+        Assert.That(loaded.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("Y"));
+    }
+
+    [Test]
+    public void LoadFrom_StaleGamepadToggleWindowKey_DoesNotOverrideExistingToggleWindowCarousel()
+    {
+        File.WriteAllText(_configPath,
+            """{"gamepadHotkeyMappings":{"ToggleWindow":"Y","ToggleWindowCarousel":"X"}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.GamepadHotkeyMappings, Does.Not.ContainKey("ToggleWindow"));
+        Assert.That(loaded.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("X"));
+    }
+
     // ---- Two-file layering ----
 
     [Test]
