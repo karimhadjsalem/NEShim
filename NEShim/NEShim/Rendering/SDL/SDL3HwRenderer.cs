@@ -454,7 +454,17 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             SDL.UnlockTexture(_nesTexture);
         }
 
-        if (_isGpuRenderer)
+        // _nesGpuTexture is only ever sampled by RunFilterPass's custom-pipeline branch (the
+        // active filter has a real fragment shader) — PixelPerfect and any other no-shader filter
+        // never reads it, so skip the upload entirely rather than paying for a wasted
+        // acquire/copy-pass/submit cycle every single frame. That "no-op" GPU submit turned out
+        // not to be free: on a software/virtualized Vulkan backend (VirtualBox's llvmpipe
+        // fallback, reproduced there directly) it was one of two needless per-frame submits
+        // (DrawAndPresent's own empty command buffer is the other, see its comment) that together
+        // sent PixelPerfect's frame pacing into a repeating ~1 FPS / ~200 FPS / multi-second-stall
+        // cycle, while any real filter/effect — which actually uses this texture and so always
+        // needed the upload anyway — ran fine throughout.
+        if (_isGpuRenderer && _filterPipeline is { IsValid: true })
             UploadNesGpuTexture(pixels, contentWidth, contentHeight);
     }
 
@@ -520,7 +530,15 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         // once at the end so all of that GPU work is queued and ordered before SDL_Renderer's
         // own subsequent draws/present of the same textures (submission order on one device's
         // queue is what gives this the synchronization it needs — no explicit fences required).
-        if (_isGpuRenderer)
+        // Skipped entirely when nothing this frame will actually record into it (e.g. pure
+        // PixelPerfect with no overlay/motion-effect/picture-adjust — DrawNesFrame's fast path
+        // never touches _activeCommandBuffer) — acquiring+submitting a command buffer with zero
+        // recorded work in it every frame is wasted work, and on a software/virtualized Vulkan
+        // backend (VirtualBox's llvmpipe fallback, reproduced there directly) it was one of two
+        // needless per-frame submits (UploadNesGpuTexture's own redundant upload is the other, see
+        // its comment) that together sent PixelPerfect's frame pacing into a repeating ~1 FPS /
+        // ~200 FPS / multi-second-stall cycle.
+        if (_isGpuRenderer && NeedsCustomPipelineWork())
             _activeCommandBuffer = SDL.AcquireGPUCommandBuffer(_gpuDevice);
 
         SDL.SetRenderDrawColor(_sdlRenderer, 0, 0, 0, 255);
@@ -597,6 +615,18 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             ? OverscanCropRows : 0;
 
     // ---- NES frame draw ----------------------------------------------------------------
+
+    // True when at least one custom-pipeline (SdlGpuPipeline) stage will run this frame — mirrors
+    // DrawNesFrame's own usingCustomFilter/hasOverlay/hasMeShader/hasPhosphor/hasPa flags exactly,
+    // duplicated here (rather than computed once and passed in) only so DrawAndPresent can decide
+    // whether to acquire _activeCommandBuffer at all before DrawNesFrame runs. Keep both in sync.
+    private bool NeedsCustomPipelineWork() =>
+        _filterPipeline is { IsValid: true }
+        || (_hasOverlayFilter && _overlayFilterTexture != IntPtr.Zero && _overlayFilterPipeline is { IsValid: true })
+        || (_hasShaderMotionEffect && _motionEffectTexture != IntPtr.Zero && _motionEffectPipeline is { IsValid: true })
+        || (_hasPhosphorPersistence && _motionEffectTexture != IntPtr.Zero && _phosphorTexA != IntPtr.Zero
+            && _phosphorTexB != IntPtr.Zero && _phosphorPipeline is { IsValid: true })
+        || (_hasPictureAdjust && _pictureAdjustTexture != IntPtr.Zero && _pictureAdjustPipeline is { IsValid: true });
 
     // Pipeline: [structural filter] -> [overlay?] -> [motion-effect shader or phosphor
     // accumulation?] -> [picture adjust?] -> backbuffer. Each optional stage renders into
