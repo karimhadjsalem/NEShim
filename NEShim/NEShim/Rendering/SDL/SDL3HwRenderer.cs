@@ -102,17 +102,28 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     // Shared custom-pipeline infrastructure (see SdlGpuPipeline's class doc comment for why this
     // replaces SDL_CreateGPURenderState). One vertex shader + one static fullscreen-quad vertex
     // buffer, reused by every SdlGpuPipeline instance below — every custom-pipeline draw targets
-    // a full-size offscreen texture (never the swapchain, never a letterboxed sub-rect; that
-    // positioning is applied afterward by the existing, unchanged SDL_RenderTexture compositing
-    // calls, including motion-effect jitter), so the same static -1,1..1,-1 clip-space quad with
-    // 0,0..1,1 UV works for every consumer — no per-draw vertex updates needed.
+    // a full-size offscreen texture (never the swapchain). Every stage *after* the structural
+    // filter reads and writes that same full-viewport-sized texture 1:1 (no resize between them),
+    // so the static -1,1..1,-1 clip-space quad with 0,0..1,1 UV is correct for all of them — no
+    // per-draw vertex updates needed.
     private IntPtr _gpuVertexShader;
     private IntPtr _quadVertexBuffer;
-    // The structural filter is the one custom-pipeline consumer that samples a *cropped* region
-    // of its source texture (overscan) rather than the whole thing, which the static _quadVertexBuffer's
-    // fixed 0,0..1,1 UV can't express — SDL_RenderTexture's src rect used to do this remapping for
-    // free. This small buffer holds the same clip-space quad but with UVs matching the current
-    // overscan crop, rewritten once per frame (cheap — 96 bytes) in RunFilterPass.
+    // The structural filter is the one custom-pipeline consumer that both samples a *cropped*
+    // region of its source texture (overscan) and must land its output at the real letterboxed
+    // destination rect within the full-viewport-sized target texture, not stretched to fill it —
+    // rendering to the full -1,1..1,-1 quad here (as every later stage correctly does, since by
+    // then the content already occupies the right sub-rect) would draw the NES image at the wrong,
+    // aspect-distorted scale, then rely on a second SDL_RenderTexture downscale back to the correct
+    // letterbox size at final composite to fix it up. That second resize is lossy enough to drop
+    // whole texel rows from filters that produce exact single-pixel features (Xbr/"Sharp" — same
+    // failure mode as the D3D11 floor()/frac() line-truncation bug, but caused here by the extra
+    // resize pass rather than by shader-internal precision). So this buffer holds the same
+    // clip-space quad but with both UVs matching the current overscan crop *and* positions matching
+    // the real destination rect (in clip space, relative to the full viewport-sized target),
+    // rewritten once per frame (cheap — 96 bytes) in RunFilterPass/UpdateFilterSourceQuad. Every
+    // later stage then reads/writes that already-correctly-positioned content 1:1 via the plain
+    // full quad above, and the final composite becomes a same-size positional copy (jitter offset
+    // only) instead of a scale.
     private IntPtr _filterSourceVertexBuffer;
     private IntPtr _filterSourceTransferBuffer;
     private IntPtr _nearestSampler;
@@ -128,11 +139,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
     // Written into by whichever custom-pipeline stage is last in the active chain that frame
     // (filter alone, overlay, motion-effect shader/phosphor, or picture adjust — see DrawNesFrame)
-    // since none of them may render straight to the backbuffer. One final plain SDL_RenderTexture
-    // composite (SDL_Renderer's own, unchanged 2D API) then lands it at the real letterboxed,
-    // motion-effect-jittered destination rect. Allocated whenever the GPU renderer is active,
-    // regardless of which filter/effects are currently selected, since any of them could be
-    // switched on at any time.
+    // since none of them may render straight to the backbuffer. The structural filter pass already
+    // placed its output at the real (unjittered) letterbox rect within this full-viewport-sized
+    // texture (see _filterSourceVertexBuffer's doc comment), so the final plain SDL_RenderTexture
+    // composite is a same-size positional copy — source rect = that same unjittered letterbox rect,
+    // dest rect = it shifted by motion-effect jitter — never a scale. Allocated whenever the GPU
+    // renderer is active, regardless of which filter/effects are currently selected, since any of
+    // them could be switched on at any time.
     private IntPtr _finalStageOutputTexture;
 
     // Active overlay filter state (two-pass overlay: CrtScanlines/CrtPhosphor/CrtScreen
@@ -316,14 +329,16 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (NES source) failed: {SDL.GetError()}");
     }
 
-    // Rewrites _filterSourceVertexBuffer's UVs to match the current overscan crop (srcPixels, in
-    // NES-texture pixel coordinates) — see the buffer's own field doc comment for why the
-    // structural filter alone needs this instead of the static full-quad buffer. Must run on
+    // Rewrites _filterSourceVertexBuffer's positions and UVs to match the current overscan crop
+    // (srcPixels, in NES-texture pixel coordinates) and the real letterboxed destination rect
+    // (destPixels, in viewport pixel coordinates) — see the buffer's own field doc comment for why
+    // the structural filter alone needs this instead of the static full-quad buffer. Must run on
     // _activeCommandBuffer, between DrawAndPresent's acquire/submit.
-    private unsafe void UpdateFilterSourceQuad(SDL.FRect srcPixels)
+    private unsafe void UpdateFilterSourceQuad(SDL.FRect srcPixels, SDL.FRect destPixels)
     {
         if (_filterSourceVertexBuffer == IntPtr.Zero || _filterSourceTransferBuffer == IntPtr.Zero
-            || _activeCommandBuffer == IntPtr.Zero || _nesWidth == 0 || _nesHeight == 0)
+            || _activeCommandBuffer == IntPtr.Zero || _nesWidth == 0 || _nesHeight == 0
+            || _viewportWidth == 0 || _viewportHeight == 0)
             return;
 
         float u0 = srcPixels.X / _nesWidth;
@@ -331,14 +346,21 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         float u1 = (srcPixels.X + srcPixels.W) / _nesWidth;
         float v1 = (srcPixels.Y + srcPixels.H) / _nesHeight;
 
+        // destPixels is in top-left-origin, Y-down pixel space; clip space is centre-origin,
+        // Y-up — flip Y on the way in.
+        float x0 = destPixels.X                   / _viewportWidth  * 2f - 1f;
+        float x1 = (destPixels.X + destPixels.W)   / _viewportWidth  * 2f - 1f;
+        float y0 = 1f - destPixels.Y                 / _viewportHeight * 2f;
+        float y1 = 1f - (destPixels.Y + destPixels.H) / _viewportHeight * 2f;
+
         Span<float> quad = stackalloc float[]
         {
-            -1f,  1f, u0, v0,
-             1f,  1f, u1, v0,
-             1f, -1f, u1, v1,
-            -1f,  1f, u0, v0,
-             1f, -1f, u1, v1,
-            -1f, -1f, u0, v1,
+            x0, y0, u0, v0,
+            x1, y0, u1, v0,
+            x1, y1, u1, v1,
+            x0, y0, u0, v0,
+            x1, y1, u1, v1,
+            x0, y1, u0, v1,
         };
         uint quadBytes = (uint)(quad.Length * sizeof(float));
 
@@ -583,7 +605,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     // of {filter, overlay, motion-effect shader} is the last colour-aware stage in the chain
     // — phosphor accumulation and picture adjust are colour-blind post-processes and never
     // apply it themselves.
-    private void DrawNesFrame(SDL.FRect dest)
+    private void DrawNesFrame(SDL.FRect nominalDest)
     {
         if (_nesTexture == IntPtr.Zero) return;
 
@@ -596,14 +618,19 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _activeOverlayFilter?.NotifyFrame(frame);
 
         // Apply CPU-space offset from the motion effect (converts clip-space dx/dy to pixels).
+        // nominalDest (unjittered) is what the custom-pipeline stages below draw their content at,
+        // within the full-viewport-sized intermediate textures; dest (jittered) is only where the
+        // final composite places that already-rendered content on screen — see
+        // _filterSourceVertexBuffer's doc comment for why the two must stay separate.
         var (offsetDx, offsetDy) = _activeMotionEffect.GetFrameOffset(frame);
+        SDL.FRect dest = nominalDest;
         if (offsetDx != 0f || offsetDy != 0f)
             dest = new SDL.FRect
             {
-                X = dest.X + offsetDx * _viewportWidth  / 2f,
-                Y = dest.Y + offsetDy * _viewportHeight / 2f,
-                W = dest.W,
-                H = dest.H,
+                X = nominalDest.X + offsetDx * _viewportWidth  / 2f,
+                Y = nominalDest.Y + offsetDy * _viewportHeight / 2f,
+                W = nominalDest.W,
+                H = nominalDest.H,
             };
 
         bool usingCustomFilter = _filterPipeline is { IsValid: true };
@@ -643,7 +670,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         bool filterAppliesColorMode  = !hasOverlay && !hasMeShader;
         bool overlayAppliesColorMode = hasOverlay  && !hasMeShader;
 
-        RunFilterPass(src, filterTarget, filterAppliesColorMode);
+        RunFilterPass(src, nominalDest, filterTarget, filterAppliesColorMode);
 
         if (hasOverlay)
             RunOverlayPass(overlayTarget, overlayAppliesColorMode);
@@ -656,8 +683,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         if (hasPa)
             ApplyPictureAdjustPass(_pictureAdjustTexture, _finalStageOutputTexture);
 
-        var finalSrcRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _finalStageOutputTexture, in finalSrcRect, in dest);
+        // Same-size positional copy, not a scale: the structural filter pass already placed its
+        // content at nominalDest within the full-viewport-sized texture, so the source rect here
+        // is that same unjittered rect and the dest rect is only shifted by motion-effect jitter.
+        SDL.RenderTexture(_sdlRenderer, _finalStageOutputTexture, in nominalDest, in dest);
     }
 
     // Redirects rendering to an intermediate texture via SDL_Renderer's own SetRenderTarget,
@@ -686,16 +715,19 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             SDL.SetRenderTarget(_sdlRenderer, IntPtr.Zero);
     }
 
-    // NES texture -> structural filter (if the active filter has one) -> targetTexture. Always
-    // redirects to an intermediate now that at least one custom-pipeline stage is active this
-    // frame (DrawNesFrame's fast-path check already ruled out "nothing active") — even when the
-    // filter itself has no shader (PixelPerfect), since a later stage still needs this texture's
-    // content, so that case falls back to a plain SDL_Renderer draw instead of a custom-pipeline one.
-    private void RunFilterPass(SDL.FRect src, IntPtr targetTexture, bool applyColorMode)
+    // NES texture -> structural filter (if the active filter has one) -> targetTexture, landed at
+    // dest (the real letterboxed rect, in viewport pixel coordinates) within the full-viewport-sized
+    // target — never stretched to fill it; see _filterSourceVertexBuffer's doc comment for why.
+    // Always redirects to an intermediate now that at least one custom-pipeline stage is active
+    // this frame (DrawNesFrame's fast-path check already ruled out "nothing active") — even when
+    // the filter itself has no shader (PixelPerfect), since a later stage still needs this
+    // texture's content, so that case falls back to a plain SDL_Renderer draw instead of a
+    // custom-pipeline one.
+    private void RunFilterPass(SDL.FRect src, SDL.FRect dest, IntPtr targetTexture, bool applyColorMode)
     {
         if (_filterPipeline is { IsValid: true } pipeline)
         {
-            UpdateFilterSourceQuad(src);
+            UpdateFilterSourceQuad(src, dest);
             if (_nesGpuTexture == IntPtr.Zero) return;
 
             Span<SDL.GPUTextureSamplerBinding> bindings = stackalloc SDL.GPUTextureSamplerBinding[1];
@@ -715,11 +747,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
 
         // No shader for the active filter (PixelPerfect) — a plain copy via SDL_Renderer's own
         // default pipeline still needs to land the NES texture's cropped content in
-        // targetTexture for whichever custom-pipeline stage runs next.
+        // targetTexture, at dest, for whichever custom-pipeline stage runs next.
         bool toIntermediate = BeginRenderToTarget(targetTexture);
         SDL.SetTextureScaleMode(_nesTexture, SDL.ScaleMode.Nearest);
-        var fullRect = new SDL.FRect { X = 0, Y = 0, W = _viewportWidth, H = _viewportHeight };
-        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in fullRect);
+        SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
         EndRenderToTarget(toIntermediate);
     }
 
