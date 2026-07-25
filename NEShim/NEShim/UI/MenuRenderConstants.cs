@@ -9,7 +9,13 @@ namespace NEShim.UI;
 internal static class MenuRenderConstants
 {
     internal const int ControllerAreaW = 260; // width of the right-side controller column
-    internal const int FullPanelW      = 520; // panel width when controller is shown
+
+    // FullPanelW - ControllerAreaW gives the binding screens' item-list column its width. The
+    // longest values shown there are gamepad button names (e.g. "RightShoulder", "LeftThumb"),
+    // longer than any keyboard key name or localized action label — 620 keeps that column wide
+    // enough for those to render on one line in the common case (DrawText still word-wraps
+    // rather than bleeding/truncating if a future longer string doesn't fit).
+    internal const int FullPanelW      = 620; // panel width when controller is shown
     internal const int SlimPanelW      = 480; // panel width when controller is hidden
     internal const int MinWidthForCtrl = 580; // minimum bounds.Width to show controller column
 

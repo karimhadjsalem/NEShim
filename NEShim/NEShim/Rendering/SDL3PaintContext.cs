@@ -117,16 +117,23 @@ internal sealed class SDL3PaintContext
     {
         if (string.IsNullOrEmpty(text)) return;
 
-        if (tabStop > 0f)
+        // Only split into a label/value pair when the text actually contains a tab — callers
+        // that pass a fixed tabStop unconditionally (e.g. every plain menu row, tab-separated
+        // or not) must still get the FULL rect for an ordinary single-column label. Splitting
+        // unconditionally on tabStop alone confined every plain label to just the tabStop-width
+        // sub-rect regardless of its own text, which happened to look fine only because nothing
+        // clipped the overflow — the instant clipping was added (below), every plain label wider
+        // than tabStop started getting cut off.
+        var (leftPart, rightPart) = tabStop > 0f ? SplitTabText(text) : (text, null);
+
+        if (rightPart != null)
         {
-            var (leftPart, rightPart) = SplitTabText(text);
             DrawSingleText(leftPart,
                 new SDL.FRect { X = rect.X, Y = rect.Y, W = tabStop, H = rect.H },
                 color, fontFamily, ptSize, bold, TextHAlign.Near, valign, italic);
-            if (rightPart != null)
-                DrawSingleText(rightPart,
-                    new SDL.FRect { X = rect.X + tabStop, Y = rect.Y, W = rect.W - tabStop, H = rect.H },
-                    color, fontFamily, ptSize, bold, TextHAlign.Near, valign, italic);
+            DrawSingleText(rightPart,
+                new SDL.FRect { X = rect.X + tabStop, Y = rect.Y, W = rect.W - tabStop, H = rect.H },
+                color, fontFamily, ptSize, bold, TextHAlign.Near, valign, italic);
         }
         else
         {
@@ -211,10 +218,19 @@ internal sealed class SDL3PaintContext
         string fontFamily, float ptSize, bool bold,
         TextHAlign halign, TextVAlign valign, bool italic = false)
     {
+        if (rect.W <= 0f || rect.H <= 0f) return;
+
         var font = _fontCache.Get(fontFamily, ptSize, bold, italic);
         if (font == IntPtr.Zero) return;
 
-        TTF.GetStringSize(font, text, UIntPtr.Zero, out int textW, out int textH);
+        // A string wider than its rect (e.g. a gamepad button name like "LeftShoulder" in a
+        // binding screen's value column) word-wraps onto additional lines within the same rect
+        // rather than either bleeding past its edge or getting silently truncated. SDL_ttf's own
+        // *Wrapped APIs are a no-op for a line that already fits — this is safe to use
+        // unconditionally, not just for text known to overflow.
+        int wrapWidth = Math.Max(1, (int)MathF.Floor(rect.W));
+        TTF.SetFontWrapAlignment(font, ToWrapAlignment(halign));
+        TTF.GetStringSizeWrapped(font, text, UIntPtr.Zero, wrapWidth, out int textW, out int textH);
 
         float x = halign switch
         {
@@ -231,7 +247,7 @@ internal sealed class SDL3PaintContext
             _                 => rect.Y,
         };
 
-        var textSurface = TTF.RenderTextBlended(font, text, UIntPtr.Zero, color);
+        var textSurface = TTF.RenderTextBlendedWrapped(font, text, UIntPtr.Zero, color, wrapWidth);
         if (textSurface == IntPtr.Zero) return;
         try
         {
@@ -240,12 +256,38 @@ internal sealed class SDL3PaintContext
             try
             {
                 var dstF = new SDL.FRect { X = x, Y = y, W = textW, H = textH };
-                SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstF);
+
+                // Safety net for what word-wrap can't fix: a wrapped block still taller than the
+                // row (too many lines), or a single unbroken token wider than the rect (SDL_ttf
+                // does not hyphenate). Clip to the caller's rect so that rare remainder is cut off
+                // cleanly instead of bleeding into neighboring UI, then restore unclipped
+                // rendering immediately after — every other draw call in a frame (FillRect,
+                // BlitSurface, etc.) assumes no clip is active.
+                var clipRect = ToClipRect(rect);
+                SDL.SetRenderClipRect(_renderer, in clipRect);
+                try { SDL.RenderTexture(_renderer, texture, IntPtr.Zero, in dstF); }
+                finally { SDL.SetRenderClipRect(_renderer, IntPtr.Zero); }
             }
             finally { SDL.DestroyTexture(texture); }
         }
         finally { SDL.DestroySurface(textSurface); }
     }
+
+    private static TTF.HorizontalAlignment ToWrapAlignment(TextHAlign halign) => halign switch
+    {
+        TextHAlign.Near   => TTF.HorizontalAlignment.Left,
+        TextHAlign.Center => TTF.HorizontalAlignment.Center,
+        TextHAlign.Far    => TTF.HorizontalAlignment.Right,
+        _                 => TTF.HorizontalAlignment.Left,
+    };
+
+    private static SDL.Rect ToClipRect(SDL.FRect rect) => new()
+    {
+        X = (int)MathF.Floor(rect.X),
+        Y = (int)MathF.Floor(rect.Y),
+        W = (int)MathF.Ceiling(rect.W),
+        H = (int)MathF.Ceiling(rect.H),
+    };
 
     private void SetRenderColor(SDL.Color color) =>
         SDL.SetRenderDrawColor(_renderer, color.R, color.G, color.B, color.A);
