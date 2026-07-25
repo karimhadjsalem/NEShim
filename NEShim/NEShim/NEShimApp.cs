@@ -387,8 +387,20 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         if (_steamStopwatch.ElapsedMilliseconds >= SteamCallbackIntervalMs)
         {
             SteamManager.Tick();
+            // vsync:true, not false — on Linux/KWin (SDL3HwRenderer's Vulkan swapchain, forced
+            // through XWayland by ConfigureVideoDriverForSteamOverlay), an immediate/no-vsync
+            // present doesn't reliably get composited to screen on its own; the window only
+            // visually catches up once something else (e.g. an alt-tab focus change) forces KWin
+            // to recomposite it. Reproduced during real Kubuntu testing, July 2026: the logo→main
+            // menu transition and subsequent menu navigation never appeared on screen until the
+            // window lost and regained focus, even though Tick/Present were both still running
+            // every idle iteration underneath. D3D11's flip-model swap chain doesn't have this
+            // problem (DWM composites it regardless of sync interval), so this wasn't visible on
+            // Windows. vsync:true costs at most one frame's wait, already well inside the
+            // SteamCallbackIntervalMs budget this is gated behind, so it's not a meaningful
+            // latency regression on either platform.
             if (_emulationThread is null || _emulationThread.IsPaused)
-                _renderer?.Tick(vsync: false);
+                _renderer?.Tick(vsync: true);
             _steamStopwatch.Restart();
         }
 
@@ -955,8 +967,10 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         else if (_mainMenuScreen?.IsVisible == true) _mainMenuScreen.HandleGamepadNav(nav);
         else if (_menu?.IsOpen == true)              _menu.HandleGamepadNav(nav);
         _renderer?.MarkOverlayDirty();
+        // vsync:true — see OnIdle's Tick call for why (Linux/KWin compositor requires it to
+        // actually flip the window's Vulkan swapchain).
         if (_emulationThread?.IsPaused == true)
-            _renderer?.Tick(vsync: false);
+            _renderer?.Tick(vsync: true);
     }
 
     void UI.IMenuInputTarget.HandleGamepadButtonPress(string buttonName)
@@ -968,8 +982,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 : _menu?.HandleGamepadButtonPress(buttonName);
         if (toast is not null) _renderer?.ShowToast(toast);
         _renderer?.MarkOverlayDirty();
+        // vsync:true — see OnIdle's Tick call for why.
         if (_emulationThread?.IsPaused == true)
-            _renderer?.Tick(vsync: false);
+            _renderer?.Tick(vsync: true);
     }
 
     // ---- Shutdown ------------------------------------------------------------

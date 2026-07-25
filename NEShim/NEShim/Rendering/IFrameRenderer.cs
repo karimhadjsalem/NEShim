@@ -18,9 +18,14 @@ internal interface IFrameRenderer : IDisposable
     /// <summary>
     /// Presents the last uploaded frame and keeps the Steam overlay heartbeat alive.
     /// During gameplay, called immediately after <see cref="UploadFrame"/> in the same
-    /// MarshalToMainThread batch. When the emulation loop is paused, called from the SDL
-    /// OnIdle callback (~60 Hz) with <paramref name="vsync"/> false to keep the overlay hook
-    /// fed without blocking.
+    /// MarshalToMainThread batch, with <paramref name="vsync"/> true (RenderCoordinator).
+    /// When the emulation loop is paused or hasn't started yet (logo/menu/carousel), called
+    /// from the SDL OnIdle callback and the gamepad-nav handlers, also with vsync true — a
+    /// no-vsync present here used to leave SDL3HwRenderer's Vulkan swapchain uncomposited on
+    /// Linux/KWin until something else (e.g. an alt-tab focus change) forced a recomposite,
+    /// even though Tick/Present were both still running every idle iteration underneath
+    /// (reproduced on real Kubuntu, July 2026). D3D11's flip-model swap chain never had this
+    /// problem, so it stayed invisible on Windows.
     /// </summary>
     void Tick(bool vsync);
 
