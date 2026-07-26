@@ -21,8 +21,8 @@ internal sealed partial class MainMenuScreen
             string active = Menu._config.VideoPreset;
             var items = new string[ItemCount];
             items[0] = active == "None"
-                ? $"✓ {Menu._localization.VideoColorFilterNone}"
-                : $"  {Menu._localization.VideoColorFilterNone}";
+                ? $"✓ {Menu._localization.VideoPresetNoPreset}"
+                : $"  {Menu._localization.VideoPresetNoPreset}";
             for (int i = 0; i < Presets.Length; i++)
             {
                 string name = PresetName(i);
@@ -50,10 +50,11 @@ internal sealed partial class MainMenuScreen
 
         private string PresetName(int index) => index switch
         {
-            0 => Menu._localization.VideoPresetLivingRoom,
-            1 => Menu._localization.VideoPresetArcade,
-            2 => Menu._localization.VideoPresetSharp,
-            3 => Menu._localization.VideoPresetPhosphor,
+            0 => Menu._localization.VideoPresetNoFilters,
+            1 => Menu._localization.VideoPresetLivingRoom,
+            2 => Menu._localization.VideoPresetArcade,
+            3 => Menu._localization.VideoPresetSharp,
+            4 => Menu._localization.VideoPresetPhosphor,
             _ => "?",
         };
     }

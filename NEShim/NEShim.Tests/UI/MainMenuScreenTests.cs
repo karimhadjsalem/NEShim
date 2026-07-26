@@ -2062,7 +2062,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(6));
+        Assert.That(screen.GetCurrentItems().Length, Is.EqualTo(7));
     }
 
     [Test]
@@ -2079,7 +2079,8 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        screen.HandleKey(SDL.Keycode.Down); // LivingRoom (index 1)
+        screen.HandleKey(SDL.Keycode.Down); // NoFilters (index 1)
+        screen.HandleKey(SDL.Keycode.Down); // LivingRoom (index 2)
         screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoPreset, Is.EqualTo("LivingRoom"));
         Assert.That(_config.VideoFilter, Is.EqualTo("CrtScreen"));
@@ -2102,8 +2103,8 @@ internal class MainMenuScreenTests
         _config.VideoPreset = "Sharp";
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        // None(0), LivingRoom(1), Arcade(2), Sharp(3)
-        Assert.That(screen.GetCurrentItems()[3], Does.StartWith("✓"));
+        // None(0), NoFilters(1), LivingRoom(2), Arcade(3), Sharp(4)
+        Assert.That(screen.GetCurrentItems()[4], Does.StartWith("✓"));
         Assert.That(screen.GetCurrentItems()[0], Does.Not.StartWith("✓"));
     }
 

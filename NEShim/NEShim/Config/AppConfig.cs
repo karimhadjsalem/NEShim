@@ -143,8 +143,10 @@ public sealed class AppConfig
     public int VideoSaturation { get; set; } = 0;
     public int VideoHue        { get; set; } = 0;
 
-    // Name of the last-applied video preset ("None", "LivingRoom", "Arcade", "Sharp", "Phosphor").
-    // Cleared to "None" whenever any individual video setting is changed manually.
+    // Name of the last-applied video preset ("None", "NoFilters", "LivingRoom", "Arcade", "Sharp", "Phosphor").
+    // "None" means no preset is tracked as active (current settings may be hand-tuned); "NoFilters"
+    // is a real preset that resets every video setting to its engine default. Cleared to "None"
+    // whenever any individual video setting is changed manually.
     public string VideoPreset { get; set; } = "None";
 
     // When false, main menu music is silenced regardless of MainMenuMusicPath.

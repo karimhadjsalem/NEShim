@@ -195,6 +195,8 @@ internal sealed class LocalizationData
     // ---- Video presets sub-menu ----
     public string VideoPresetsLabel       { get; init; } = "Presets";
     public string VideoPresetsTitle       { get; init; } = "VIDEO PRESETS";
+    public string VideoPresetNoPreset     { get; init; } = "No Preset";
+    public string VideoPresetNoFilters    { get; init; } = "No Filters";
     public string VideoPresetLivingRoom   { get; init; } = "Living Room";
     public string VideoPresetArcade       { get; init; } = "Arcade Monitor";
     public string VideoPresetSharp        { get; init; } = "Sharp";

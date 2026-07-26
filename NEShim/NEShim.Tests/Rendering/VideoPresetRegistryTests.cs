@@ -8,8 +8,12 @@ internal class VideoPresetRegistryTests
     // ---- All array ----
 
     [Test]
-    public void All_ContainsFourPresets()
-        => Assert.That(VideoPresetRegistry.All, Has.Length.EqualTo(4));
+    public void All_ContainsFivePresets()
+        => Assert.That(VideoPresetRegistry.All, Has.Length.EqualTo(5));
+
+    [Test]
+    public void All_ContainsNoFilters()
+        => Assert.That(VideoPresetRegistry.All, Contains.Item(VideoPresetRegistry.NoFilters));
 
     [Test]
     public void All_ContainsLivingRoom()
@@ -33,6 +37,28 @@ internal class VideoPresetRegistryTests
         var names = VideoPresetRegistry.All.Select(p => p.Name).ToList();
         Assert.That(names, Is.Unique);
     }
+
+    // ---- NoFilters ----
+
+    [Test]
+    public void NoFilters_Name_IsNoFilters()
+        => Assert.That(VideoPresetRegistry.NoFilters.Name, Is.EqualTo("NoFilters"));
+
+    [Test]
+    public void NoFilters_Filter_IsPixelPerfect()
+        => Assert.That(VideoPresetRegistry.NoFilters.Filter, Is.EqualTo(VideoFilterMode.PixelPerfect));
+
+    [Test]
+    public void NoFilters_Overlay_IsNull()
+        => Assert.That(VideoPresetRegistry.NoFilters.Overlay, Is.Null);
+
+    [Test]
+    public void NoFilters_ColorFilter_IsNone()
+        => Assert.That(VideoPresetRegistry.NoFilters.ColorFilter, Is.EqualTo(VideoColorFilterMode.None));
+
+    [Test]
+    public void NoFilters_MotionEffect_IsNone()
+        => Assert.That(VideoPresetRegistry.NoFilters.MotionEffect, Is.EqualTo(VideoMotionEffectMode.None));
 
     // ---- LivingRoom ----
 

@@ -111,11 +111,12 @@ internal sealed partial class MainMenuScreen
         {
             return Menu._config.VideoPreset switch
             {
+                "NoFilters"  => Menu._localization.VideoPresetNoFilters,
                 "LivingRoom" => Menu._localization.VideoPresetLivingRoom,
                 "Arcade"     => Menu._localization.VideoPresetArcade,
                 "Sharp"      => Menu._localization.VideoPresetSharp,
                 "Phosphor"   => Menu._localization.VideoPresetPhosphor,
-                _            => Menu._localization.VideoColorFilterNone,
+                _            => Menu._localization.VideoPresetNoPreset,
             };
         }
 

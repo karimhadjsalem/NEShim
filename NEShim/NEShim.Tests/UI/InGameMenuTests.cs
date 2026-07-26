@@ -2446,8 +2446,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
-        // None(0) + 4 presets(1-4) + Back(5)
-        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(6));
+        // None(0) + 5 presets(1-5) + Back(6)
+        Assert.That(menu.GetCurrentItems().Length, Is.EqualTo(7));
     }
 
     [Test]
@@ -2466,7 +2466,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
-        menu.HandleKey(SDL.Keycode.Down); // LivingRoom (index 1)
+        menu.HandleKey(SDL.Keycode.Down); // NoFilters (index 1)
+        menu.HandleKey(SDL.Keycode.Down); // LivingRoom (index 2)
         menu.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoPreset,      Is.EqualTo("LivingRoom"));
         Assert.That(_config.VideoFilter,      Is.EqualTo("CrtScreen"));
@@ -2492,8 +2493,8 @@ internal class InGameMenuTests
         var menu = CreateMenu();
         NEShim.Platform.PlatformDetector.SetD3D11Active(true);
         OpenVideoPresetsScreen(menu);
-        // Arcade is index 2 (None=0, LivingRoom=1, Arcade=2)
-        Assert.That(menu.GetCurrentItems()[2], Does.StartWith("✓"));
+        // Arcade is index 3 (None=0, NoFilters=1, LivingRoom=2, Arcade=3)
+        Assert.That(menu.GetCurrentItems()[3], Does.StartWith("✓"));
         Assert.That(menu.GetCurrentItems()[0], Does.Not.StartWith("✓"));
     }
 
