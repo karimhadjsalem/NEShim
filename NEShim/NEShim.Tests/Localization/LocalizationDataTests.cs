@@ -406,4 +406,66 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.CarouselNoDescription, Is.EqualTo("No description available."));
     }
+
+    // ---- Video presets (No Preset / No Filters) ----
+
+    [Test]
+    public void DefaultInstance_VideoPresetNoPreset_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPresetNoPreset, Is.EqualTo("No Preset"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoPresetNoFilters_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPresetNoFilters, Is.EqualTo("No Filters"));
+    }
+
+    // ---- Controller-disconnected screen ----
+
+    [Test]
+    public void DefaultInstance_ControllerDisconnectedTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ControllerDisconnectedTitle, Is.EqualTo("Controller Disconnected"));
+    }
+
+    [Test]
+    public void DefaultInstance_ControllerDisconnectedHint_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ControllerDisconnectedHint, Is.EqualTo("Press any button to continue…"));
+    }
+
+    // ---- Hotkey toast messages ----
+
+    [Test]
+    public void DefaultInstance_ToastSavedToSlot_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSavedToSlot, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastLoadedSlot_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastLoadedSlot, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastSlotEmpty_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSlotEmpty, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastSlotSelected_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSlotSelected, Does.Contain("{0}"));
+    }
 }

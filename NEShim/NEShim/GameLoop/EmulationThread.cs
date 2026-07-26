@@ -298,15 +298,15 @@ internal sealed class EmulationThread
             case "SaveActiveSlot":
                 Logger.Log($"[Emulation] Hotkey: save slot {_saveStates.ActiveSlot + 1}.");
                 _saveStates.SaveToActiveSlot();
-                _renderCoordinator.ShowToast($"Saved to Slot {_saveStates.ActiveSlot + 1}");
+                _renderCoordinator.ShowToast(string.Format(_menu.Localization.ToastSavedToSlot, _saveStates.ActiveSlot + 1));
                 break;
 
             case "LoadActiveSlot":
                 Logger.Log($"[Emulation] Hotkey: load slot {_saveStates.ActiveSlot + 1}.");
                 bool loaded = _saveStates.LoadFromActiveSlot();
-                _renderCoordinator.ShowToast(loaded
-                    ? $"Loaded Slot {_saveStates.ActiveSlot + 1}"
-                    : $"Slot {_saveStates.ActiveSlot + 1} — Empty");
+                _renderCoordinator.ShowToast(string.Format(loaded
+                    ? _menu.Localization.ToastLoadedSlot
+                    : _menu.Localization.ToastSlotEmpty, _saveStates.ActiveSlot + 1));
                 break;
 
             default:
@@ -318,7 +318,7 @@ internal sealed class EmulationThread
                         Logger.Log($"[Emulation] Hotkey: select slot {i + 1}.");
                         _saveStates.ActiveSlot = _config.ActiveSlot = i;
                         int slot = i;
-                        _renderCoordinator.ShowToast($"Slot {slot + 1} Selected");
+                        _renderCoordinator.ShowToast(string.Format(_menu.Localization.ToastSlotSelected, slot + 1));
                         break;
                     }
                 }

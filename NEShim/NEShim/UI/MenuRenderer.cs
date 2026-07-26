@@ -194,11 +194,11 @@ internal static class MenuRenderer
         ctx.DrawRect(panelFRect, WarningBorder, 2f);
 
         var titleRect = new SDL.FRect { X = panelX, Y = panelY + S(DisconnectTitleY), W = panelW, H = S(DisconnectTitleH) };
-        ctx.DrawText("Controller Disconnected", titleRect, WarningColor,
+        ctx.DrawText(menu.Localization.ControllerDisconnectedTitle, titleRect, WarningColor,
             menu.Localization.FontFamily, 15f * MenuScale.Scale, bold: true);
 
         var hintRect = new SDL.FRect { X = panelX, Y = panelY + S(DisconnectHintY), W = panelW, H = S(DisconnectHintH) };
-        ctx.DrawText("Press any button to continue…", hintRect, DimColor,
+        ctx.DrawText(menu.Localization.ControllerDisconnectedHint, hintRect, DimColor,
             menu.Localization.FontFamily, 11f * MenuScale.Scale, bold: false, italic: true);
     }
 

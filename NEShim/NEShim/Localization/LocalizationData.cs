@@ -202,6 +202,20 @@ internal sealed class LocalizationData
     public string VideoPresetSharp        { get; init; } = "Sharp";
     public string VideoPresetPhosphor     { get; init; } = "Phosphor";
 
+    // ---- In-game controller-disconnected screen ----
+    public string ControllerDisconnectedTitle { get; init; } = "Controller Disconnected";
+    public string ControllerDisconnectedHint  { get; init; } = "Press any button to continue…";
+
+    // ---- In-game hotkey toast messages ----
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSavedToSlot  { get; init; } = "Saved to Slot {0}";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastLoadedSlot   { get; init; } = "Loaded Slot {0}";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSlotEmpty    { get; init; } = "Slot {0} — Empty";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSlotSelected { get; init; } = "Slot {0} Selected";
+
     // ---- Multi-game carousel (only shown in multi-game mode — see MultiGameMode.IsActive) ----
     public string CarouselNoGamesAvailable { get; init; } = "No games available";
     /// <summary>Phrased by direction (Left/Right/Up) so it reads the same on keyboard or gamepad.</summary>
