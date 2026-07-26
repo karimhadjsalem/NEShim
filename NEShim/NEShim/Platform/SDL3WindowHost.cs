@@ -57,7 +57,17 @@ internal sealed class SDL3WindowHost : IWindowHost, IDisposable
         }
     }
 
-    public void Show()       => SDL.ShowWindow(_window);
+    // SDL_ShowWindow only maps the window — it does not guarantee the window manager also
+    // grants it input focus. Several X11/Wayland WMs deliberately withhold focus from a newly
+    // mapped window (anti-focus-stealing heuristics, or "focus follows mouse" policies) unless
+    // something explicitly requests it, which SDL_RaiseWindow does. Without this, the app can
+    // start already in a WindowFocusLost state (see NEShimApp's FocusChanged subscription →
+    // EmulationThread.PauseReasons.FocusLost), paused from the very first frame, until the
+    // player happens to interact with the window in a way the WM treats as a focus request
+    // (e.g. moving the mouse over it under a focus-follows-mouse policy) — indistinguishable
+    // from a hang without checking neshim.log for a "Paused — active reasons: FocusLost" line
+    // that's never followed by "Resumed".
+    public void Show()       { SDL.ShowWindow(_window); SDL.RaiseWindow(_window); }
     public void Hide()       => SDL.HideWindow(_window);
     public void HideCursor() => SDL.HideCursor();
 
