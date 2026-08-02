@@ -154,17 +154,32 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/NEShim-win-x64/* -DestinationPath NEShim-${{ github.ref_name }}-win-x64.zip
 
+      # This runner is windows-latest, so publish/NEShim-linux-x64 lives on NTFS, which has no
+      # Unix executable-bit concept at all - a plain single-pass `tar -czf` here just embeds
+      # whatever default (non-executable) mode Git Bash's tar falls back to for a source file
+      # with no real permission bit, shipping a Linux release archive that needs a manual
+      # `chmod +x` after every download (reproduced: verified via `tar -tvf` that a plain
+      # tar-from-NTFS entry comes out non-executable regardless of source content). Two-pass
+      # mirrors local-publish.ps1's New-LinuxTarball: archive everything except the entry
+      # binaries at default mode, then append just those with --mode=755 before gzipping.
       - name: Archive game (linux-x64)
         shell: bash
-        run: tar -czf NEShim-${{ github.ref_name }}-linux-x64.tar.gz -C publish/NEShim-linux-x64 .
+        run: |
+          tar -cf NEShim-${{ github.ref_name }}-linux-x64.tar -C publish/NEShim-linux-x64 --exclude=NEShim --exclude=createdump .
+          tar --mode='755' -rf NEShim-${{ github.ref_name }}-linux-x64.tar -C publish/NEShim-linux-x64 NEShim createdump
+          gzip -f NEShim-${{ github.ref_name }}-linux-x64.tar
 
       - name: Archive pub-utils (win-x64)
         shell: pwsh
         run: Compress-Archive -Path publish/PubUtils-win-x64/* -DestinationPath PubUtils-${{ github.ref_name }}-win-x64.zip
 
+      # See the game (linux-x64) archive step above for why this needs two passes.
       - name: Archive pub-utils (linux-x64)
         shell: bash
-        run: tar -czf PubUtils-${{ github.ref_name }}-linux-x64.tar.gz -C publish/PubUtils-linux-x64 .
+        run: |
+          tar -cf PubUtils-${{ github.ref_name }}-linux-x64.tar -C publish/PubUtils-linux-x64 --exclude=pub-utils --exclude=createdump .
+          tar --mode='755' -rf PubUtils-${{ github.ref_name }}-linux-x64.tar -C publish/PubUtils-linux-x64 pub-utils createdump
+          gzip -f PubUtils-${{ github.ref_name }}-linux-x64.tar
 
       # ── GitHub Release ────────────────────────────────────────────────────────
       - name: Create GitHub Release
