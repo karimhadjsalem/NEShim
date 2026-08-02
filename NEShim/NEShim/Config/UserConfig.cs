@@ -36,6 +36,7 @@ internal sealed class UserConfig
     public Dictionary<string, string>?       GamepadHotkeyMappings { get; set; }
     public Dictionary<string, string>?       HotkeyMappings        { get; set; }
     public string? AnalogStickMode     { get; set; }
+    public bool?   GamepadDpadStickInterchangeable { get; set; }
 
     // ── Localization ──────────────────────────────────────────────────────────
     public string? Language            { get; set; }
@@ -73,6 +74,7 @@ internal sealed class UserConfig
         if (GamepadHotkeyMappings    is not null) config.GamepadHotkeyMappings    = GamepadHotkeyMappings;
         if (HotkeyMappings           is not null) config.HotkeyMappings           = HotkeyMappings;
         if (AnalogStickMode          is not null) config.AnalogStickMode          = AnalogStickMode;
+        if (GamepadDpadStickInterchangeable is not null) config.GamepadDpadStickInterchangeable = GamepadDpadStickInterchangeable.Value;
         if (Language                 is not null) config.Language                 = Language;
         if (GraphicsSmoothingEnabled is not null) config.GraphicsSmoothingEnabled = GraphicsSmoothingEnabled.Value;
         if (SoundScrubberEnabled     is not null) config.SoundScrubberEnabled     = SoundScrubberEnabled.Value;
@@ -107,6 +109,7 @@ internal sealed class UserConfig
         GamepadHotkeyMappings = config.GamepadHotkeyMappings,
         HotkeyMappings        = config.HotkeyMappings,
         AnalogStickMode       = config.AnalogStickMode,
+        GamepadDpadStickInterchangeable = config.GamepadDpadStickInterchangeable,
         Language              = config.Language,
     };
 }

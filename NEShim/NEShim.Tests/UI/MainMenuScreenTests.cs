@@ -223,9 +223,9 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down); // Settings
         screen.HandleKey(SDL.Keycode.Return);
         string[] items = screen.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(6)); // Video, Sound, Keyboard Controls, Gamepad Controls, Language, ← Back
+        Assert.That(items.Length, Is.EqualTo(7)); // Video, Sound, Keyboard Controls, Gamepad Controls, D-Pad/Stick toggle, Language, ← Back
         Assert.That(items[0], Is.EqualTo("Video"));
-        Assert.That(items[5], Does.StartWith("←"));
+        Assert.That(items[6], Does.StartWith("←"));
     }
 
     // ---- Sound screen ----
@@ -1253,6 +1253,47 @@ internal class MainMenuScreenTests
         Assert.That(_config.ShowFps, Is.EqualTo(!initial));
     }
 
+    // ---- Settings D-Pad/Stick toggle ----
+
+    [Test]
+    public void Settings_DpadStickToggle_ShowsLinkedLabel_WhenEnabled()
+    {
+        _config.GamepadDpadStickInterchangeable = true;
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(screen.GetCurrentItems()[4], Is.EqualTo("D-Pad / Analog Stick: Linked"));
+    }
+
+    [Test]
+    public void Settings_DpadStickToggle_ShowsSeparateLabel_WhenDisabled()
+    {
+        _config.GamepadDpadStickInterchangeable = false;
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(screen.GetCurrentItems()[4], Is.EqualTo("D-Pad / Analog Stick: Separate"));
+    }
+
+    [Test]
+    public void Settings_DpadStickToggle_UpdatesConfig()
+    {
+        bool initial = _config.GamepadDpadStickInterchangeable;
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down);
+        screen.HandleKey(SDL.Keycode.Down); // D-Pad/Stick toggle (index 4)
+        screen.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(_config.GamepadDpadStickInterchangeable, Is.EqualTo(!initial));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+    }
+
     // ---- Settings Back ----
 
     [Test]
@@ -1261,7 +1302,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);    // Settings
         screen.HandleKey(SDL.Keycode.Return);
-        for (int i = 0; i < 5; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 5)
+        for (int i = 0; i < 6; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 6)
         screen.HandleKey(SDL.Keycode.Return);
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
     }
@@ -1879,7 +1920,7 @@ internal class MainMenuScreenTests
     {
         screen.HandleKey(SDL.Keycode.Down);   // Settings (index 2)
         screen.HandleKey(SDL.Keycode.Return); // enter Settings
-        for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // Language (index 4)
+        for (int i = 0; i < 5; i++) screen.HandleKey(SDL.Keycode.Down); // Language (index 5)
         screen.HandleKey(SDL.Keycode.Return); // enter Language
     }
 

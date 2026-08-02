@@ -159,6 +159,14 @@ public sealed class AppConfig
 
     public int GamepadDeadzone { get; set; } = 8000;
 
+    // When true, a binding assigned to a D-pad direction also fires from the left analog
+    // stick's matching direction, and vice versa — regardless of which slot (GamepadButton /
+    // GamepadButton2) a rebind happens to leave holding which identifier (see
+    // SDL3GamepadSource.GetActiveIdentifiers). Left stick only — there is no right-stick
+    // equivalent identifier to pair against. Default on: most players expect both to just work
+    // without needing to manually re-pair bindings after a rebind orphans the default pairing.
+    public bool GamepadDpadStickInterchangeable { get; set; } = true;
+
     // Persists the last-used save slot index (0–7) across sessions.
     public int ActiveSlot { get; set; } = 0;
 

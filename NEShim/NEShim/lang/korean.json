@@ -9,6 +9,8 @@
   "settingsVideo": "영상",
   "settingsSound": "소리",
   "settingsLanguage": "언어",
+  "dpadStickInterchangeableOn": "D-Pad / 아날로그 스틱: 연동",
+  "dpadStickInterchangeableOff": "D-Pad / 아날로그 스틱: 분리",
   "languageTitle": "언어",
   "languageAuto": "자동",
   "videoWindowFullscreen": "화면: 전체 화면",

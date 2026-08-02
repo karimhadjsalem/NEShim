@@ -468,4 +468,20 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.ToastSlotSelected, Does.Contain("{0}"));
     }
+
+    // ---- D-Pad / analog-stick interchangeable toggle ----
+
+    [Test]
+    public void DefaultInstance_DpadStickInterchangeableOn_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.DpadStickInterchangeableOn, Is.EqualTo("D-Pad / Analog Stick: Linked"));
+    }
+
+    [Test]
+    public void DefaultInstance_DpadStickInterchangeableOff_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.DpadStickInterchangeableOff, Is.EqualTo("D-Pad / Analog Stick: Separate"));
+    }
 }

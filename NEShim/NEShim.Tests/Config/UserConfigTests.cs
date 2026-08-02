@@ -246,6 +246,7 @@ internal class UserConfigTests
             GamepadDeadzone    = 10000,
             ActiveSlot         = 3,
             AnalogStickMode    = "Diagonal",
+            GamepadDpadStickInterchangeable = false,
             Language           = "spanish",
         };
 
@@ -276,6 +277,7 @@ internal class UserConfigTests
         Assert.That(target.GamepadDeadzone,      Is.EqualTo(original.GamepadDeadzone));
         Assert.That(target.ActiveSlot,           Is.EqualTo(original.ActiveSlot));
         Assert.That(target.AnalogStickMode,      Is.EqualTo(original.AnalogStickMode));
+        Assert.That(target.GamepadDpadStickInterchangeable, Is.EqualTo(original.GamepadDpadStickInterchangeable));
         Assert.That(target.Language,             Is.EqualTo(original.Language));
     }
 }

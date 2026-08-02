@@ -9,6 +9,8 @@
   "settingsVideo": "映像",
   "settingsSound": "音声",
   "settingsLanguage": "言語",
+  "dpadStickInterchangeableOn": "D-Pad / アナログスティック：連動",
+  "dpadStickInterchangeableOff": "D-Pad / アナログスティック：分離",
   "languageTitle": "言語",
   "languageAuto": "自動",
   "videoWindowFullscreen": "画面: フルスクリーン",

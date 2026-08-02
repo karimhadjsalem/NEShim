@@ -41,6 +41,13 @@ internal class AppConfigTests
     }
 
     [Test]
+    public void DefaultGamepadDpadStickInterchangeable_IsTrue()
+    {
+        var config = new AppConfig();
+        Assert.That(config.GamepadDpadStickInterchangeable, Is.True);
+    }
+
+    [Test]
     public void DefaultMainMenuMusicPath_IsEmpty()
     {
         var config = new AppConfig();

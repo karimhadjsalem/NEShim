@@ -9,6 +9,8 @@
   "settingsVideo": "Видео",
   "settingsSound": "Звук",
   "settingsLanguage": "Язык",
+  "dpadStickInterchangeableOn": "D-Pad / Аналоговый стик: Связаны",
+  "dpadStickInterchangeableOff": "D-Pad / Аналоговый стик: Раздельно",
   "languageTitle": "ЯЗЫК",
   "languageAuto": "Автоматически",
   "videoWindowFullscreen": "Режим: Полный экран",

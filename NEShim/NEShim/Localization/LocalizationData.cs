@@ -22,6 +22,8 @@ internal sealed class LocalizationData
     public string SettingsVideo    { get; init; } = "Video";
     public string SettingsSound    { get; init; } = "Sound";
     public string SettingsLanguage { get; init; } = "Language";
+    public string DpadStickInterchangeableOn  { get; init; } = "D-Pad / Analog Stick: Linked";
+    public string DpadStickInterchangeableOff { get; init; } = "D-Pad / Analog Stick: Separate";
 
     // ---- Language screen ----
     public string LanguageTitle { get; init; } = "LANGUAGE";

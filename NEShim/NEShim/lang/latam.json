@@ -9,6 +9,8 @@
   "settingsVideo": "Video",
   "settingsSound": "Sonido",
   "settingsLanguage": "Idioma",
+  "dpadStickInterchangeableOn": "D-Pad / Stick analógico: Vinculados",
+  "dpadStickInterchangeableOff": "D-Pad / Stick analógico: Separados",
   "languageTitle": "IDIOMA",
   "languageAuto": "Automático",
   "videoWindowFullscreen": "Pantalla: Completa",

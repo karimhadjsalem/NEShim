@@ -8,13 +8,16 @@ internal sealed partial class MainMenuScreen
     {
         public SettingsHandler(MainMenuScreen menu) : base(menu) { }
         public override string   Title     => Menu._localization.SettingsTitle;
-        public override int      ItemCount => 6;
+        public override int      ItemCount => 7;
         public override string[] GetItems() => new[]
         {
             Menu._localization.SettingsVideo,
             Menu._localization.SettingsSound,
             Menu._localization.SettingsKeyboard,
             Menu._localization.SettingsGamepad,
+            Menu._config.GamepadDpadStickInterchangeable
+                ? Menu._localization.DpadStickInterchangeableOn
+                : Menu._localization.DpadStickInterchangeableOff,
             $"{Menu._localization.SettingsLanguage}: {CurrentLanguageName()}",
             Menu._localization.Back,
         };
@@ -34,8 +37,12 @@ internal sealed partial class MainMenuScreen
                 case 1: Menu.NavigateTo(Screen.Sound);            break;
                 case 2: Menu.NavigateTo(Screen.KeyboardBindings); break;
                 case 3: Menu.NavigateTo(Screen.GamepadBindings);  break;
-                case 4: Menu.NavigateTo(Screen.Language);         break;
-                case 5: Menu.NavigateTo(Screen.Main);             break;
+                case 4:
+                    Menu._config.GamepadDpadStickInterchangeable = !Menu._config.GamepadDpadStickInterchangeable;
+                    Menu._onConfigSaved();
+                    break;
+                case 5: Menu.NavigateTo(Screen.Language);         break;
+                case 6: Menu.NavigateTo(Screen.Main);             break;
             }
         }
     }

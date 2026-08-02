@@ -144,6 +144,77 @@ internal class SDL3GamepadSourceTests
         Assert.That(ids, Contains.Item("AnalogRight"));
     }
 
+    // ── D-Pad / analog-stick interchangeability ─────────────────────────────────
+    // AppConfig.GamepadDpadStickInterchangeable defaults to true, matching _config's default
+    // in [SetUp] — most tests below rely on that default rather than setting it explicitly.
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOn_DPadUpAlone_AlsoAddsAnalogUp()
+    {
+        var source = MakeSource(Connected(dpadUp: true));
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Contains.Item("DPadUp"));
+        Assert.That(ids, Contains.Item("AnalogUp"));
+    }
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOn_AnalogStickAlone_AlsoAddsDPadUp()
+    {
+        // thumbLY well above the default 8000 deadzone.
+        var source = MakeSource(Connected(thumbLY: 20000));
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Contains.Item("AnalogUp"));
+        Assert.That(ids, Contains.Item("DPadUp"));
+    }
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOn_DoesNotCrossPairUnrelatedDirections()
+    {
+        var source = MakeSource(Connected(dpadUp: true));
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Does.Not.Contain("AnalogDown"));
+        Assert.That(ids, Does.Not.Contain("AnalogLeft"));
+        Assert.That(ids, Does.Not.Contain("AnalogRight"));
+        Assert.That(ids, Does.Not.Contain("DPadDown"));
+        Assert.That(ids, Does.Not.Contain("DPadLeft"));
+        Assert.That(ids, Does.Not.Contain("DPadRight"));
+    }
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOff_DPadUpAlone_DoesNotAddAnalogUp()
+    {
+        _config.GamepadDpadStickInterchangeable = false;
+        var source = MakeSource(Connected(dpadUp: true));
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Contains.Item("DPadUp"));
+        Assert.That(ids, Does.Not.Contain("AnalogUp"));
+    }
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOff_AnalogStickAlone_DoesNotAddDPadUp()
+    {
+        _config.GamepadDpadStickInterchangeable = false;
+        var source = MakeSource(Connected(thumbLY: 20000));
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Contains.Item("AnalogUp"));
+        Assert.That(ids, Does.Not.Contain("DPadUp"));
+    }
+
+    [Test]
+    public void GetActiveIdentifiers_InterchangeableOn_NeitherPressed_NeitherAdded()
+    {
+        var source = MakeSource(Connected());
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Does.Not.Contain("DPadUp"));
+        Assert.That(ids, Does.Not.Contain("AnalogUp"));
+    }
+
     // ── Menu nav edge detection ─────────────────────────────────────────────────
 
     [Test]

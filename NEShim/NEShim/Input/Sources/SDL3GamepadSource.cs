@@ -97,6 +97,19 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
             if (AnalogStickHelper.StickRight(lx, ly, dz)) result.Add("AnalogRight");
         }
 
+        // When enabled, a D-pad press and its matching analog-stick direction are treated as the
+        // same physical input regardless of which one a binding's GamepadButton/GamepadButton2
+        // slot actually names — so a rebind can't silently orphan the other half of the pair
+        // (see AppConfig.GamepadDpadStickInterchangeable's doc comment). Left stick only; there
+        // is no right-stick equivalent identifier to fold in.
+        if (config.GamepadDpadStickInterchangeable)
+        {
+            if (result.Contains("DPadUp")    || result.Contains("AnalogUp"))    { result.Add("DPadUp");    result.Add("AnalogUp"); }
+            if (result.Contains("DPadDown")  || result.Contains("AnalogDown"))  { result.Add("DPadDown");  result.Add("AnalogDown"); }
+            if (result.Contains("DPadLeft")  || result.Contains("AnalogLeft"))  { result.Add("DPadLeft");  result.Add("AnalogLeft"); }
+            if (result.Contains("DPadRight") || result.Contains("AnalogRight")) { result.Add("DPadRight"); result.Add("AnalogRight"); }
+        }
+
         LogAnalogIfChanged(result, config.GamepadDeadzone, config.AnalogStickMode);
         return result;
     }

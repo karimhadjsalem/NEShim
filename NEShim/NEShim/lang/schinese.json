@@ -9,6 +9,8 @@
   "settingsVideo": "视频",
   "settingsSound": "音频",
   "settingsLanguage": "语言",
+  "dpadStickInterchangeableOn": "D-Pad / 模拟摇杆：联动",
+  "dpadStickInterchangeableOff": "D-Pad / 模拟摇杆：分离",
   "languageTitle": "语言",
   "languageAuto": "自动",
   "videoWindowFullscreen": "显示: 全屏",

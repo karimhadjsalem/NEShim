@@ -377,6 +377,49 @@ internal class InGameMenuTests
     }
 
     [Test]
+    public void Settings_DpadStickToggle_ShowsLinkedLabel_WhenEnabled()
+    {
+        _config.GamepadDpadStickInterchangeable = true;
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+
+        Assert.That(menu.GetCurrentItems()[4], Is.EqualTo("D-Pad / Analog Stick: Linked"));
+    }
+
+    [Test]
+    public void Settings_DpadStickToggle_ShowsSeparateLabel_WhenDisabled()
+    {
+        _config.GamepadDpadStickInterchangeable = false;
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+
+        Assert.That(menu.GetCurrentItems()[4], Is.EqualTo("D-Pad / Analog Stick: Separate"));
+    }
+
+    [Test]
+    public void Settings_DpadStickToggle_TogglesConfigAndStaysOnSettings()
+    {
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+        bool before = _config.GamepadDpadStickInterchangeable;
+
+        menu.HandleKey(SDL.Keycode.Down); // Gamepad Controls (3) -> toggle (4)
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(_config.GamepadDpadStickInterchangeable, Is.EqualTo(!before));
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Settings));
+    }
+
+    [Test]
     public void Settings_FpsToggle_InvokesConfigSavedCallback()
     {
         bool saved = false;
@@ -532,7 +575,7 @@ internal class InGameMenuTests
         menu.HandleKey(SDL.Keycode.Return); // enter Settings
 
         string[] items = menu.GetCurrentItems();
-        Assert.That(items.Length, Is.EqualTo(6)); // Video, Sound, Keyboard Controls, Gamepad Controls, Language, ← Back
+        Assert.That(items.Length, Is.EqualTo(7)); // Video, Sound, Keyboard Controls, Gamepad Controls, D-Pad/Stick toggle, Language, ← Back
         Assert.That(items[0], Is.EqualTo("Video"));
 
         // Window Mode lives in the Video sub-screen
@@ -1687,7 +1730,7 @@ internal class InGameMenuTests
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
         menu.HandleKey(SDL.Keycode.Return); // enter Settings
-        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down); // Back (index 5)
+        for (int i = 0; i < 6; i++) menu.HandleKey(SDL.Keycode.Down); // Back (index 6)
         menu.HandleKey(SDL.Keycode.Return);
         Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.Root));
     }
@@ -2229,7 +2272,7 @@ internal class InGameMenuTests
         menu.Open();
         for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings
         menu.HandleKey(SDL.Keycode.Return);
-        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Language (index 4)
+        for (int i = 0; i < 5; i++) menu.HandleKey(SDL.Keycode.Down); // Language (index 5)
         menu.HandleKey(SDL.Keycode.Return);
     }
 

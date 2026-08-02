@@ -9,6 +9,8 @@
   "settingsVideo": "Vídeo",
   "settingsSound": "Som",
   "settingsLanguage": "Idioma",
+  "dpadStickInterchangeableOn": "D-Pad / Stick analógico: Vinculados",
+  "dpadStickInterchangeableOff": "D-Pad / Stick analógico: Separados",
   "languageTitle": "IDIOMA",
   "languageAuto": "Automático",
   "videoWindowFullscreen": "Tela: Cheia",
