@@ -31,11 +31,17 @@ internal static class MenuRenderer
     // In-game menu items are 4px shorter than main-menu items (38 vs 42) — the in-game
     // overlay is intentionally more compact so the frozen game frame stays visible.
     // On Steam Deck all layout constants scale up so the menus remain readable at handheld distance.
-    internal static readonly int ItemH        = S(38);
-    private  static readonly int PanelPad     = S(16);
-    private  static readonly int SeparatorH   = S(18);
-    private  static readonly int PanelHeaderH = S(64);
-    private  static readonly int ItemsStartY  = S(56);
+    // Properties, not static readonly fields: they depend on MenuScale.Scale, which changes
+    // live on window resize/fullscreen toggle (see MenuScale's doc comment). A static readonly
+    // field would bake in whatever scale was active the first time this class was touched and
+    // never update again, desyncing spacing from the font sizes computed inline in Draw() below
+    // (which do re-read MenuScale.Scale every frame) — reproduced on both Windows and Linux as
+    // items overflowing off-screen in windowed mode and overlapping after returning to fullscreen.
+    internal static int ItemH        => S(38);
+    private  static int PanelPad     => S(16);
+    private  static int SeparatorH   => S(18);
+    private  static int PanelHeaderH => S(64);
+    private  static int ItemsStartY  => S(56);
 
     private const int ControllerAreaW = MenuRenderConstants.ControllerAreaW;
     private const int FullPanelW      = MenuRenderConstants.FullPanelW;
