@@ -134,6 +134,14 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     // Active filter state
     private ISdlFilter     _activeFilter      = new PixelPerfectSdlFilter();
     private SdlGpuPipeline? _filterPipeline;
+
+    // Shared fallback used only when the active structural filter has no shader of its own
+    // (PixelPerfect) but a color filter is active — without it, colorMode is silently dropped
+    // whenever nothing else this frame (overlay/motion-effect shader/picture adjust) already
+    // provides a shader pass to apply it in. Created once alongside the rest of the custom-
+    // pipeline infrastructure; see RunFilterPass's fallback branch and DrawNesFrame's fast-path
+    // gate, which both need to agree on when this is actually needed a given frame.
+    private SdlGpuPipeline? _passthroughColorGradePipeline;
     private VideoColorFilterMode _activeColorMode = VideoColorFilterMode.None;
     private long  _frameCount;
 
@@ -327,6 +335,14 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _nesUploadTransferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in nesTransferInfo);
         if (_nesUploadTransferBuffer == IntPtr.Zero)
             Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (NES source) failed: {SDL.GetError()}");
+
+        // See _passthroughColorGradePipeline's field doc comment. NumFragmentSamplers/
+        // NumFragmentUniformBuffers match Passthrough.ps.hlsl's declared bindings (1 combined
+        // image sampler, 1 uniform buffer) via ISdlFilter's interface defaults.
+        _passthroughColorGradePipeline = new SdlGpuPipeline(
+            _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
+            "NEShim.Rendering.Shaders.Vulkan.Passthrough.ps.spv",
+            numFragmentSamplers: 1, numFragmentUniformBuffers: 1);
     }
 
     // Rewrites _filterSourceVertexBuffer's positions and UVs to match the current overscan crop
@@ -455,16 +471,20 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         }
 
         // _nesGpuTexture is only ever sampled by RunFilterPass's custom-pipeline branch (the
-        // active filter has a real fragment shader) — PixelPerfect and any other no-shader filter
-        // never reads it, so skip the upload entirely rather than paying for a wasted
-        // acquire/copy-pass/submit cycle every single frame. That "no-op" GPU submit turned out
-        // not to be free: on a software/virtualized Vulkan backend (VirtualBox's llvmpipe
-        // fallback, reproduced there directly) it was one of two needless per-frame submits
-        // (DrawAndPresent's own empty command buffer is the other, see its comment) that together
-        // sent PixelPerfect's frame pacing into a repeating ~1 FPS / ~200 FPS / multi-second-stall
-        // cycle, while any real filter/effect — which actually uses this texture and so always
-        // needed the upload anyway — ran fine throughout.
-        if (_isGpuRenderer && _filterPipeline is { IsValid: true })
+        // active filter has a real fragment shader, or the passthrough+color-grade fallback
+        // below is needed) — PixelPerfect with no color filter never reads it, so skip the
+        // upload entirely rather than paying for a wasted acquire/copy-pass/submit cycle every
+        // single frame. That "no-op" GPU submit turned out not to be free: on a
+        // software/virtualized Vulkan backend (VirtualBox's llvmpipe fallback, reproduced there
+        // directly) it was one of two needless per-frame submits (DrawAndPresent's own empty
+        // command buffer is the other, see its comment) that together sent PixelPerfect's frame
+        // pacing into a repeating ~1 FPS / ~200 FPS / multi-second-stall cycle, while any real
+        // filter/effect — which actually uses this texture and so always needed the upload
+        // anyway — ran fine throughout. A non-default color filter is an equally deliberate,
+        // uncommon choice, so paying this cost for it too (even in the rare case it turns out
+        // unnecessary because an overlay/motion-effect shader will apply colorMode instead this
+        // frame) is an acceptable, simple trade — see RunFilterPass's fallback branch.
+        if (_isGpuRenderer && (_filterPipeline is { IsValid: true } || _activeColorMode != VideoColorFilterMode.None))
             UploadNesGpuTexture(pixels, contentWidth, contentHeight);
     }
 
@@ -679,7 +699,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
                         && _pictureAdjustTexture   != IntPtr.Zero
                         && _pictureAdjustPipeline is { IsValid: true };
 
-        if (!usingCustomFilter && !hasOverlay && !hasMeShader && !hasPhosphor && !hasPa)
+        // A color filter still needs a shader pass even when nothing else this frame provides
+        // one (PixelPerfect, no overlay/motion-effect/picture-adjust) — see
+        // _passthroughColorGradePipeline's field doc comment and RunFilterPass's fallback branch.
+        bool needsColorGradeOnly = !usingCustomFilter && !hasOverlay && !hasMeShader
+                                && _activeColorMode != VideoColorFilterMode.None;
+
+        if (!usingCustomFilter && !hasOverlay && !hasMeShader && !hasPhosphor && !hasPa && !needsColorGradeOnly)
         {
             // Fast path: no custom-pipeline stage active this frame — draw straight to the
             // backbuffer via SDL_Renderer's own default pipeline, exactly as before this rewrite.
@@ -755,7 +781,17 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     // custom-pipeline one.
     private void RunFilterPass(SDL.FRect src, SDL.FRect dest, IntPtr targetTexture, bool applyColorMode)
     {
-        if (_filterPipeline is { IsValid: true } pipeline)
+        // Falls back to the shared passthrough+color-grade pipeline when the active filter has
+        // no shader of its own (PixelPerfect) but a color filter is active — see
+        // _passthroughColorGradePipeline's field doc comment. Without this, colorMode would be
+        // silently dropped whenever applyColorMode is true (nothing later in the chain — overlay,
+        // shader motion effect — already applies it) and the active filter has no shader.
+        bool needsColorGradeOnly = applyColorMode && _activeColorMode != VideoColorFilterMode.None;
+        SdlGpuPipeline? effectivePipeline = _filterPipeline is { IsValid: true } fp
+            ? fp
+            : (needsColorGradeOnly ? _passthroughColorGradePipeline : null);
+
+        if (effectivePipeline is { IsValid: true } pipeline)
         {
             UpdateFilterSourceQuad(src, dest);
             if (_nesGpuTexture == IntPtr.Zero) return;
@@ -767,17 +803,25 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
                 Sampler = _activeFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
             };
 
+            // _nesHeight (fixed, allocated texture height), not _contentHeight (this frame's
+            // BizHawk buffer height, which varies — e.g. 224 vs 240 visible NES lines): the UV
+            // crop range (v0/v1, see UpdateFilterSourceQuad) is already computed against
+            // _nesHeight, matching the real texel grid the shader samples from. Passing
+            // _contentHeight here desyncs the shader's own texelSize/neighbour-sampling math
+            // from that grid whenever a frame's height differs from the allocated texture
+            // height — exactly what caused Xbr to visibly drop/misalign rows mid-frame. D3D11's
+            // equivalent (UpdateFilterCbuffer) already uses _nesHeight for this same reason.
             Span<float> uniforms = stackalloc float[UniformFloats];
-            _activeFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
+            _activeFilter.WriteUniformData(uniforms, _contentWidth, _nesHeight);
             uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
 
             pipeline.Draw(_activeCommandBuffer, _filterSourceVertexBuffer, targetTexture, bindings, uniforms);
             return;
         }
 
-        // No shader for the active filter (PixelPerfect) — a plain copy via SDL_Renderer's own
-        // default pipeline still needs to land the NES texture's cropped content in
-        // targetTexture, at dest, for whichever custom-pipeline stage runs next.
+        // No shader for the active filter (PixelPerfect) and no color filter active — a plain
+        // copy via SDL_Renderer's own default pipeline still needs to land the NES texture's
+        // cropped content in targetTexture, at dest, for whichever custom-pipeline stage runs next.
         bool toIntermediate = BeginRenderToTarget(targetTexture);
         SDL.SetTextureScaleMode(_nesTexture, SDL.ScaleMode.Nearest);
         SDL.RenderTexture(_sdlRenderer, _nesTexture, in src, in dest);
@@ -802,8 +846,12 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             Sampler = _activeOverlayFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
         };
 
+        // _nesHeight, not _contentHeight — see the matching comment in RunFilterPass. Overlay
+        // filters (CrtScanlines/CrtPhosphor/CrtScreen) need the original NES scanline count
+        // regardless of the (already-upscaled) overlay intermediate's actual pixel height, and
+        // D3D11's UpdateOverlayCbuffer uses _nesHeight for the same reason.
         Span<float> uniforms = stackalloc float[UniformFloats];
-        _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _contentHeight);
+        _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _nesHeight);
         uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
 
         pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, targetTexture, bindings, uniforms);
@@ -1101,6 +1149,8 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     {
         _filterPipeline?.Dispose();
         _filterPipeline = null;
+        _passthroughColorGradePipeline?.Dispose();
+        _passthroughColorGradePipeline = null;
         _overlayFilterPipeline?.Dispose();
         _overlayFilterPipeline = null;
         if (_overlayFilterTexture != IntPtr.Zero) { SDL.DestroyTexture(_overlayFilterTexture); _overlayFilterTexture = IntPtr.Zero; }
