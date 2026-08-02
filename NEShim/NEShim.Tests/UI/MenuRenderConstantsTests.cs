@@ -12,33 +12,10 @@ internal class MenuRenderConstantsTests
     [TearDown]
     public void TearDown() => MenuScale.UpdateViewport(1024, 672);
 
-    // ---- PanelW: non-Steam-Deck environment — fixed width regardless of MenuScale.Scale ----
-    // Deliberate: narrower panels (Settings, and anything else using SlimPanelW/MainPanelMaxW/
-    // RebindPanelMaxW/DisconnectPanelW) are meant to stay visibly skinnier than the wider
-    // binding-screen panels at any resolution — see ScaledPanelW for the one case that should
-    // grow with resolution (the binding screens' controller diagram column).
-
-    [Test]
-    public void PanelW_WhenNotSteamDeck_ReturnsBaseW()
-    {
-        // SteamDeck env var is never set in the test environment so IsSteamDeck = false.
-        Assert.That(MenuRenderConstants.PanelW(520, 1280), Is.EqualTo(520));
-    }
-
-    [Test]
-    public void PanelW_WhenNotSteamDeck_IgnoresMenuScale()
-    {
-        MenuScale.UpdateViewport(2048, 1344); // Scale == 2.0
-        Assert.That(MenuRenderConstants.PanelW(480, 4000), Is.EqualTo(480));
-    }
-
-    [Test]
-    public void PanelW_WhenNotSteamDeck_IgnoresViewportW()
-    {
-        Assert.That(MenuRenderConstants.PanelW(480, 500), Is.EqualTo(480));
-    }
-
     // ---- ScaledPanelW: always scales with MenuScale.Scale, on every platform ----
+    // Every panel (Slim and Full alike) scales by the same factor — a fixed-width panel whose
+    // own text/spacing scale up via MenuScale.Scale is exactly what caused real overflow/wrap
+    // of item text at fullscreen (see MenuRenderConstants.cs's ScaledPanelW doc comment).
 
     [Test]
     public void ScaledPanelW_AtDefaultScale_ReturnsBaseW()

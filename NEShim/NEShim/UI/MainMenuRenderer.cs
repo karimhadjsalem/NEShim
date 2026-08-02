@@ -114,7 +114,7 @@ internal static class MainMenuRenderer
     private static void DrawMainPanel(SDL3PaintContext ctx, SDL.Rect bounds, MainMenuScreen menu)
     {
         var items  = menu.GetCurrentItems();
-        int panelW = MenuRenderConstants.PanelW(MainPanelMaxW, bounds.W);
+        int panelW = MenuRenderConstants.ScaledPanelW(MainPanelMaxW, bounds.W);
         int panelH = PanelHeaderH + items.Length * ItemH + Pad;
         var panel  = GetMainPanelRect(bounds, panelW, panelH, menu.MenuPosition);
 
@@ -136,7 +136,7 @@ internal static class MainMenuRenderer
         bool hasSep      = openMenuIdx >= 0;
         bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
         int  ctrlAreaW   = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
-        int  panelW      = showCtrl ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W) : MenuRenderConstants.PanelW(SlimPanelW, bounds.W);
+        int  panelW      = showCtrl ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W) : MenuRenderConstants.ScaledPanelW(SlimPanelW, bounds.W);
         int  listW       = showCtrl ? panelW - ctrlAreaW : panelW;
         int  panelH      = PanelHeaderH + items.Length * ItemH + Pad + (hasSep ? SeparatorH : 0);
         int  panelX      = Math.Max(8, (bounds.W - panelW) / 2);
@@ -148,7 +148,7 @@ internal static class MainMenuRenderer
 
     private static void DrawRebindPrompt(SDL3PaintContext ctx, SDL.Rect bounds, MainMenuScreen menu)
     {
-        int panelW = MenuRenderConstants.PanelW(RebindPanelMaxW, bounds.W);
+        int panelW = MenuRenderConstants.ScaledPanelW(RebindPanelMaxW, bounds.W);
         int panelH = S(RebindPanelH);
         int panelX = (bounds.W - panelW) / 2;
         int panelY = (bounds.H - panelH) / 2;
@@ -190,10 +190,16 @@ internal static class MainMenuRenderer
 
         if (showCtrl)
         {
-            ctx.DrawLine(panel.X + listW, panel.Y + 8, panel.X + listW, panel.Y + panel.H - 8,
+            // Bounded to the content region (same as where the item list itself starts/ends,
+            // ItemListStartY/Pad) rather than the raw panel edges — using unscaled literal
+            // offsets here previously let this line start above the title's own scaled Y
+            // (S(10)), so it ran through the header band and visibly cut through the title text.
+            int contentTop    = panel.Y + ItemListStartY;
+            int contentBottom = panel.Y + panel.H - Pad;
+            ctx.DrawLine(panel.X + listW, contentTop, panel.X + listW, contentBottom,
                 new SDL.Color { R = 255, G = 255, B = 255, A = 50 });
 
-            var ctrlArea = new SDL.FRect { X = panel.X + listW + 6, Y = panel.Y + 14, W = panel.W - listW - 10, H = panel.H - 28 };
+            var ctrlArea = new SDL.FRect { X = panel.X + listW + 6, Y = contentTop, W = panel.W - listW - 10, H = contentBottom - contentTop };
             DrawControllerSprite(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily);
         }
 

@@ -106,10 +106,16 @@ internal static class MenuRenderer
         // Controller diagram on the right side of binding screens
         if (showCtrl)
         {
-            ctx.DrawLine(panelX + listW, panelY + 8, panelX + listW, panelY + panelH - 8,
+            // Bounded to the content region (same as where the item list itself starts/ends,
+            // ItemsStartY/PanelPad) rather than the raw panel edges — using unscaled literal
+            // offsets here previously let this line start above the title's own scaled Y
+            // (S(10)), so it ran through the header band and visibly cut through the title text.
+            int contentTop    = panelY + ItemsStartY;
+            int contentBottom = panelY + panelH - PanelPad;
+            ctx.DrawLine(panelX + listW, contentTop, panelX + listW, contentBottom,
                 new SDL.Color { R = 255, G = 255, B = 255, A = 50 });
 
-            var ctrlArea = new SDL.FRect { X = panelX + listW + 6, Y = panelY + 14, W = panelW - listW - 10, H = panelH - 28 };
+            var ctrlArea = new SDL.FRect { X = panelX + listW + 6, Y = contentTop, W = panelW - listW - 10, H = contentBottom - contentTop };
             DrawControllerSprite(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily);
         }
 
@@ -190,7 +196,7 @@ internal static class MenuRenderer
 
     private static void DrawDisconnectScreen(SDL3PaintContext ctx, SDL.Rect bounds, InGameMenu menu)
     {
-        int panelW = MenuRenderConstants.PanelW(DisconnectPanelW, bounds.W);
+        int panelW = MenuRenderConstants.ScaledPanelW(DisconnectPanelW, bounds.W);
         int panelH = S(DisconnectPanelH);
         int panelX = Math.Max(8, (bounds.W - panelW) / 2);
         int panelY = Math.Max(8, (bounds.H - panelH) / 2);
@@ -219,7 +225,7 @@ internal static class MenuRenderer
         int ctrlAreaW = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
         int panelW = showCtrl
             ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W)
-            : MenuRenderConstants.PanelW(SlimPanelW, bounds.W);
+            : MenuRenderConstants.ScaledPanelW(SlimPanelW, bounds.W);
         int listW  = showCtrl ? panelW - ctrlAreaW : panelW;
         int panelH = PanelHeaderH + warningRowH + itemCount * ItemH + PanelPad + (hasSeparator ? SeparatorH : 0);
         int panelX = Math.Max(8, (bounds.W - panelW) / 2);
