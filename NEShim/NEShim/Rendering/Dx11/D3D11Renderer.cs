@@ -560,7 +560,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.OMSetRenderTargets(_motionEffectRt.Rtv!);
             _context.RSSetViewport(0, 0, _motionEffectRt.Width, _motionEffectRt.Height);
             _context.ClearRenderTargetView(_motionEffectRt.Rtv!, new Color4(0f, 0f, 0f, 1f));
-            UpdateOverlayCbuffer(colorModeOverride: 0f);
+            UpdateOverlayCbuffer(applyColorMode: false);
             _context.PSSetShader(_activeOverlayPixelShader!);
             _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
             _context.PSSetShaderResource(0, _overlayRt.Srv!);
@@ -601,7 +601,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.RSSetViewport(0, 0, target.Width, target.Height);
         _context.ClearRenderTargetView(target.Rtv!, new Color4(0f, 0f, 0f, 1f));
         SetupPipelineState();
-        UpdateFilterCbuffer(colorModeOverride: 0f);
+        UpdateFilterCbuffer(applyColorMode: false);
         _context.PSSetShaderResource(0, _nesTextureView);
         WriteQuadToVB(-1f, 1f, 1f, -1f, 0f, _nesV0, 1f, _nesV1);
         _context.Draw(6, 0);
@@ -651,7 +651,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         if (_hasSidebars) DrawSidebars();
         _context.PSSetShader(_passthroughPixelShader);
         _context.PSSetSampler(0, _linearSamplerState);
-        UpdateFilterCbuffer(colorModeOverride: 0f);
+        UpdateFilterCbuffer(applyColorMode: false);
         DrawNesQuad(writeRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount), 0f, 0f, 1f, 1f);
         _context.PSSetShader(_activePixelShader);
 
@@ -699,19 +699,17 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _context.PSSetSampler(0, _activeFilter.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
     }
 
-    private unsafe void UpdateFilterCbuffer(float? colorModeOverride = null)
+    private unsafe void UpdateFilterCbuffer(bool applyColorMode = true)
     {
         Span<float> p = stackalloc float[4];
-        _activeFilter.WriteBaseParams(p, _contentWidth, _nesHeight);
-        p[3] = colorModeOverride ?? (float)_activeColorMode;
+        FilterUniformWriter.Write(p, _activeFilter.WriteBaseParams, _contentWidth, _nesHeight, _activeColorMode, applyColorMode);
         WriteCbufferParams(p);
     }
 
-    private unsafe void UpdateOverlayCbuffer(float? colorModeOverride = null)
+    private unsafe void UpdateOverlayCbuffer(bool applyColorMode = true)
     {
         Span<float> p = stackalloc float[4];
-        _activeOverlay!.WriteBaseParams(p, _contentWidth, _nesHeight);
-        p[3] = colorModeOverride ?? (float)_activeColorMode;
+        FilterUniformWriter.Write(p, _activeOverlay!.WriteBaseParams, _contentWidth, _nesHeight, _activeColorMode, applyColorMode);
         WriteCbufferParams(p);
     }
 
@@ -742,7 +740,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // Sidebar artwork: no structural filter, no color grade.
         // Callers must re-update the cbuffer after this returns.
         _context.PSSetShader(_passthroughPixelShader);
-        UpdateFilterCbuffer(colorModeOverride: 0f);
+        UpdateFilterCbuffer(applyColorMode: false);
 
         float sidebarPixelW = (_nesX0 + 1f) / 2f * _viewportWidth;
 
@@ -842,7 +840,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // Draw through passthrough shader so structural filters (scanlines, NTSC) are not
         // applied to the 2D overlay bitmap. Zero colorMode so color-grade effects (grayscale,
         // sepia, etc.) do not bleed into the menu or HUD — they apply to the NES viewport only.
-        UpdateFilterCbuffer(colorModeOverride: 0f);
+        UpdateFilterCbuffer(applyColorMode: false);
         _context.PSSetShader(_passthroughPixelShader);
         _context.OMSetBlendState(_alphaBlendState);
         _context.PSSetShaderResource(0, _overlaySrv);

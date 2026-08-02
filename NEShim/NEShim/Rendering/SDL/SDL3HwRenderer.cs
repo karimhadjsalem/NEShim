@@ -803,17 +803,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
                 Sampler = _activeFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
             };
 
-            // _nesHeight (fixed, allocated texture height), not _contentHeight (this frame's
-            // BizHawk buffer height, which varies — e.g. 224 vs 240 visible NES lines): the UV
-            // crop range (v0/v1, see UpdateFilterSourceQuad) is already computed against
-            // _nesHeight, matching the real texel grid the shader samples from. Passing
-            // _contentHeight here desyncs the shader's own texelSize/neighbour-sampling math
-            // from that grid whenever a frame's height differs from the allocated texture
-            // height — exactly what caused Xbr to visibly drop/misalign rows mid-frame. D3D11's
-            // equivalent (UpdateFilterCbuffer) already uses _nesHeight for this same reason.
+            // FilterUniformWriter.Write always uses _nesHeight (fixed, allocated texture height),
+            // never _contentHeight (this frame's BizHawk buffer height, which varies) — see its
+            // own doc comment for why (this exact field mix-up is what caused Xbr to visibly
+            // drop/misalign rows mid-frame, Linux only, before this was extracted into a single
+            // shared function both renderers call).
             Span<float> uniforms = stackalloc float[UniformFloats];
-            _activeFilter.WriteUniformData(uniforms, _contentWidth, _nesHeight);
-            uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
+            FilterUniformWriter.Write(uniforms, _activeFilter.WriteUniformData, _contentWidth, _nesHeight, _activeColorMode, applyColorMode);
 
             pipeline.Draw(_activeCommandBuffer, _filterSourceVertexBuffer, targetTexture, bindings, uniforms);
             return;
@@ -846,13 +842,11 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             Sampler = _activeOverlayFilter.UseLinearSampler ? _linearSampler : _nearestSampler,
         };
 
-        // _nesHeight, not _contentHeight — see the matching comment in RunFilterPass. Overlay
+        // FilterUniformWriter.Write always uses _nesHeight — see its own doc comment. Overlay
         // filters (CrtScanlines/CrtPhosphor/CrtScreen) need the original NES scanline count
-        // regardless of the (already-upscaled) overlay intermediate's actual pixel height, and
-        // D3D11's UpdateOverlayCbuffer uses _nesHeight for the same reason.
+        // regardless of the (already-upscaled) overlay intermediate's actual pixel height.
         Span<float> uniforms = stackalloc float[UniformFloats];
-        _activeOverlayFilter.WriteUniformData(uniforms, _contentWidth, _nesHeight);
-        uniforms[3] = applyColorMode ? (float)_activeColorMode : 0f;
+        FilterUniformWriter.Write(uniforms, _activeOverlayFilter.WriteUniformData, _contentWidth, _nesHeight, _activeColorMode, applyColorMode);
 
         pipeline.Draw(_activeCommandBuffer, _quadVertexBuffer, targetTexture, bindings, uniforms);
     }
