@@ -420,6 +420,33 @@ internal class InGameMenuTests
     }
 
     [Test]
+    public void Settings_LanguageItem_ExplicitLanguageCode_ShowsNativeName()
+    {
+        // Covers CurrentLanguageName's non-Auto branch (LanguageRegistry.FindByCode lookup) —
+        // every other Settings test leaves _config.Language at its "Auto" default.
+        _config.Language = "french";
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+
+        Assert.That(menu.GetCurrentItems()[5], Does.Contain("Français"));
+    }
+
+    [Test]
+    public void Settings_LanguageItem_UnknownLanguageCode_FallsBackToRawCode()
+    {
+        // Covers CurrentLanguageName's "?? code" fallback when FindByCode returns null.
+        _config.Language = "not-a-real-language";
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // enter Settings
+
+        Assert.That(menu.GetCurrentItems()[5], Does.Contain("not-a-real-language"));
+    }
+
+    [Test]
     public void Settings_FpsToggle_InvokesConfigSavedCallback()
     {
         bool saved = false;

@@ -1310,6 +1310,31 @@ internal class MainMenuScreenTests
         Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
     }
 
+    [Test]
+    public void Settings_LanguageItem_ExplicitLanguageCode_ShowsNativeName()
+    {
+        // Covers CurrentLanguageName's non-Auto branch (LanguageRegistry.FindByCode lookup) —
+        // every other Settings test leaves _config.Language at its "Auto" default.
+        _config.Language = "french";
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(screen.GetCurrentItems()[5], Does.Contain("Français"));
+    }
+
+    [Test]
+    public void Settings_LanguageItem_UnknownLanguageCode_FallsBackToRawCode()
+    {
+        // Covers CurrentLanguageName's "?? code" fallback when FindByCode returns null.
+        _config.Language = "not-a-real-language";
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down); // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(screen.GetCurrentItems()[5], Does.Contain("not-a-real-language"));
+    }
+
     // ---- Settings Back ----
 
     [Test]

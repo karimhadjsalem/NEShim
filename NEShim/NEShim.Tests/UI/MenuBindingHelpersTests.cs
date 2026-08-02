@@ -86,6 +86,34 @@ internal class MenuBindingHelpersTests
         Assert.That(_config.InputMappings["P1 Down"].GamepadButton2, Is.EqualTo("AnalogDown"));
     }
 
+    // ── SetGamepadBinding: action not already present in InputMappings ─────────
+
+    [Test]
+    public void SetGamepadBinding_ActionNotInMappings_CreatesNewBinding()
+    {
+        // A hotkey-style action name with no default InputMappings entry — exercises the
+        // "not found" branch (new InputBinding(null, buttonName)) rather than the
+        // TryGetValue-succeeds update path every other SetGamepadBinding test uses.
+        Assert.That(_config.InputMappings.ContainsKey("SomeNewAction"), Is.False);
+
+        MenuBindingHelpers.SetGamepadBinding(_config, "SomeNewAction", "X");
+
+        Assert.That(_config.InputMappings["SomeNewAction"].GamepadButton, Is.EqualTo("X"));
+        Assert.That(_config.InputMappings["SomeNewAction"].Key, Is.Null);
+    }
+
+    [Test]
+    public void SetGamepadBinding_ActionNotInMappings_StillClearsButtonFromOtherActions()
+    {
+        // DPadUp is P1 Up's default GamepadButton — binding it to a brand-new action must
+        // still clear it from P1 Up, exercising both branches (dedup loop + "not found" create)
+        // in the same call.
+        MenuBindingHelpers.SetGamepadBinding(_config, "SomeNewAction", "DPadUp");
+
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.Null);
+        Assert.That(_config.InputMappings["SomeNewAction"].GamepadButton, Is.EqualTo("DPadUp"));
+    }
+
     // ── SetBinding: keyboard duplicate prevention ───────────────────────────────
 
     [Test]
@@ -106,6 +134,32 @@ internal class MenuBindingHelpersTests
 
         Assert.That(_config.InputMappings["P1 Up"].GamepadButton,  Is.EqualTo("DPadUp"));
         Assert.That(_config.InputMappings["P1 Up"].GamepadButton2, Is.EqualTo("AnalogUp"));
+    }
+
+    // ── SetBinding: action not already present in InputMappings ────────────────
+
+    [Test]
+    public void SetBinding_ActionNotInMappings_CreatesNewBinding()
+    {
+        // Exercises the "not found" branch (new InputBinding(keyName, null)) rather than the
+        // TryGetValue-succeeds update path every other SetBinding test uses.
+        Assert.That(_config.InputMappings.ContainsKey("SomeNewAction"), Is.False);
+
+        MenuBindingHelpers.SetBinding(_config, "SomeNewAction", "F1");
+
+        Assert.That(_config.InputMappings["SomeNewAction"].Key, Is.EqualTo("F1"));
+        Assert.That(_config.InputMappings["SomeNewAction"].GamepadButton, Is.Null);
+    }
+
+    [Test]
+    public void SetBinding_ActionNotInMappings_StillClearsKeyFromOtherActions()
+    {
+        // "W" is P1 Up's default Key — binding it to a brand-new action must still clear it
+        // from P1 Up, exercising both branches (dedup loop + "not found" create) in one call.
+        MenuBindingHelpers.SetBinding(_config, "SomeNewAction", "W");
+
+        Assert.That(_config.InputMappings["P1 Up"].Key, Is.Null);
+        Assert.That(_config.InputMappings["SomeNewAction"].Key, Is.EqualTo("W"));
     }
 
     // ── LocalizeGamepadButton ────────────────────────────────────────────────────
