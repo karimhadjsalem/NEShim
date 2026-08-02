@@ -529,6 +529,22 @@ internal class MainMenuScreenTests
         Assert.That(screen.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
+    [Test]
+    public void GamepadBindings_DPadUpBinding_ShowsLocalizedText_NotRawIdentifier()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("W", "DPadUp");
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return); // enter Settings
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        screen.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        screen.HandleKey(SDL.Keycode.Return); // GamepadBindings
+
+        Assert.That(screen.GetCurrentItems()[0], Does.Contain("D-Pad Up"));
+        Assert.That(screen.GetCurrentItems()[0], Does.Not.Contain("DPadUp"));
+    }
+
     // ---- Video screen ----
 
     private static void OpenVideoScreen(MainMenuScreen screen)

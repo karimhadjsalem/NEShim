@@ -128,6 +128,28 @@ internal sealed class LocalizationData
     /// <summary>Shown in the binding list when a key or button has not been assigned.</summary>
     public string BindNone   { get; init; } = "(none)";
 
+    // ---- Gamepad physical-button display labels ----
+    // What's actually bound to an action (the value column in the Gamepad Bindings screen) —
+    // distinct from the Bind* labels above, which name the NES-side action being bound, not the
+    // physical control. A/B/X/Y are shown as bare letters in every shipped language (matching
+    // BindA/BindB, which are already just "A"/"B" everywhere) — not a translation question, they
+    // aren't words. Start/Back reuse BindStart/BindSelect. D-Pad/Analog Stick and the shoulder/
+    // thumb-click labels below are real translated terms, split per language between an accepted
+    // loanword ("D-Pad"/"Stick" in French/German/Spanish/Latam/Portuguese/Russian gaming usage)
+    // and a native term where that loanword convention doesn't hold (Japanese/Korean/Chinese).
+    public string GamepadButtonLeftShoulder  { get; init; } = "Left Shoulder";
+    public string GamepadButtonRightShoulder { get; init; } = "Right Shoulder";
+    public string GamepadButtonLeftThumb     { get; init; } = "Left Stick Click";
+    public string GamepadButtonRightThumb    { get; init; } = "Right Stick Click";
+    public string GamepadDpadUp      { get; init; } = "D-Pad Up";
+    public string GamepadDpadDown    { get; init; } = "D-Pad Down";
+    public string GamepadDpadLeft    { get; init; } = "D-Pad Left";
+    public string GamepadDpadRight   { get; init; } = "D-Pad Right";
+    public string GamepadAnalogUp    { get; init; } = "Analog Stick Up";
+    public string GamepadAnalogDown  { get; init; } = "Analog Stick Down";
+    public string GamepadAnalogLeft  { get; init; } = "Analog Stick Left";
+    public string GamepadAnalogRight { get; init; } = "Analog Stick Right";
+
     // ---- Shared save-slot strings ----
     /// <summary>Format string — {0} is the 1-based slot number.</summary>
     public string SlotLabel   { get; init; } = "Slot {0}";

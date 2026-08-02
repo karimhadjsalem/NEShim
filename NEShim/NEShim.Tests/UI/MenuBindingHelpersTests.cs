@@ -1,4 +1,5 @@
 using NEShim.Config;
+using NEShim.Localization;
 using NEShim.UI;
 
 namespace NEShim.Tests.UI;
@@ -105,5 +106,65 @@ internal class MenuBindingHelpersTests
 
         Assert.That(_config.InputMappings["P1 Up"].GamepadButton,  Is.EqualTo("DPadUp"));
         Assert.That(_config.InputMappings["P1 Up"].GamepadButton2, Is.EqualTo("AnalogUp"));
+    }
+
+    // ── LocalizeGamepadButton ────────────────────────────────────────────────────
+
+    [Test]
+    public void LocalizeGamepadButton_Null_ReturnsBindNone()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton(null, loc), Is.EqualTo(loc.BindNone));
+    }
+
+    [TestCase("A", "A")]
+    [TestCase("B", "B")]
+    [TestCase("X", "X")]
+    [TestCase("Y", "Y")]
+    public void LocalizeGamepadButton_FaceButtons_ReturnBareLetter(string identifier, string expected)
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton(identifier, loc), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void LocalizeGamepadButton_Start_ReturnsBindStart()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton("Start", loc), Is.EqualTo(loc.BindStart));
+    }
+
+    [Test]
+    public void LocalizeGamepadButton_Back_ReturnsBindSelect()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton("Back", loc), Is.EqualTo(loc.BindSelect));
+    }
+
+    [TestCase("LeftShoulder",  nameof(LocalizationData.GamepadButtonLeftShoulder))]
+    [TestCase("RightShoulder", nameof(LocalizationData.GamepadButtonRightShoulder))]
+    [TestCase("LeftThumb",     nameof(LocalizationData.GamepadButtonLeftThumb))]
+    [TestCase("RightThumb",    nameof(LocalizationData.GamepadButtonRightThumb))]
+    [TestCase("DPadUp",        nameof(LocalizationData.GamepadDpadUp))]
+    [TestCase("DPadDown",      nameof(LocalizationData.GamepadDpadDown))]
+    [TestCase("DPadLeft",      nameof(LocalizationData.GamepadDpadLeft))]
+    [TestCase("DPadRight",     nameof(LocalizationData.GamepadDpadRight))]
+    [TestCase("AnalogUp",      nameof(LocalizationData.GamepadAnalogUp))]
+    [TestCase("AnalogDown",    nameof(LocalizationData.GamepadAnalogDown))]
+    [TestCase("AnalogLeft",    nameof(LocalizationData.GamepadAnalogLeft))]
+    [TestCase("AnalogRight",   nameof(LocalizationData.GamepadAnalogRight))]
+    public void LocalizeGamepadButton_KnownIdentifier_ReturnsMatchingLocalizationProperty(string identifier, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton(identifier, loc), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void LocalizeGamepadButton_UnrecognizedIdentifier_PassesThroughUnchanged()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.LocalizeGamepadButton("SomeFutureButton", loc), Is.EqualTo("SomeFutureButton"));
     }
 }

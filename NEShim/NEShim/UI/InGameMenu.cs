@@ -509,15 +509,15 @@ internal sealed partial class InGameMenu
     private string GetGamepadLabel(string configKey)
     {
         if (configKey == "OpenMenu")
-            return _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
+            return MenuBindingHelpers.LocalizeGamepadButton(
+                _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), _localization);
 
         if (SteamInputManager.IsUsingNativeActions()
             && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
             return SteamInputManager.GetNativeLabel(actionName);
 
-        return _config.InputMappings.TryGetValue(configKey, out var b)
-            ? b.GamepadButton ?? _localization.BindNone
-            : _localization.BindNone;
+        return MenuBindingHelpers.LocalizeGamepadButton(
+            _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization);
     }
 
     private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch

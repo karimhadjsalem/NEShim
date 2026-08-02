@@ -484,4 +484,90 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.DpadStickInterchangeableOff, Is.EqualTo("D-Pad / Analog Stick: Separate"));
     }
+
+    // ---- Gamepad physical-button display labels ----
+
+    [Test]
+    public void DefaultInstance_GamepadButtonLeftShoulder_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonLeftShoulder, Is.EqualTo("Left Shoulder"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonRightShoulder_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonRightShoulder, Is.EqualTo("Right Shoulder"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonLeftThumb_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonLeftThumb, Is.EqualTo("Left Stick Click"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonRightThumb_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonRightThumb, Is.EqualTo("Right Stick Click"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadUp_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadUp, Is.EqualTo("D-Pad Up"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadDown_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadDown, Is.EqualTo("D-Pad Down"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadLeft_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadLeft, Is.EqualTo("D-Pad Left"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadRight_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadRight, Is.EqualTo("D-Pad Right"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogUp_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogUp, Is.EqualTo("Analog Stick Up"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogDown_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogDown, Is.EqualTo("Analog Stick Down"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogLeft_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogLeft, Is.EqualTo("Analog Stick Left"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogRight_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogRight, Is.EqualTo("Analog Stick Right"));
+    }
 }

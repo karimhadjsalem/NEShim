@@ -932,6 +932,23 @@ internal class InGameMenuTests
         Assert.That(menu.GetCurrentItems()[0], Does.Contain("(none)"));
     }
 
+    [Test]
+    public void GamepadBindings_DPadUpBinding_ShowsLocalizedText_NotRawIdentifier()
+    {
+        _config.InputMappings["P1 Up"] = new InputBinding("W", "DPadUp");
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return); // Settings
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        menu.HandleKey(SDL.Keycode.Down);   // skip Keyboard Controls (index 2)
+        menu.HandleKey(SDL.Keycode.Down);   // Gamepad Controls (index 3)
+        menu.HandleKey(SDL.Keycode.Return); // GamepadBindings
+
+        Assert.That(menu.GetCurrentItems()[0], Does.Contain("D-Pad Up"));
+        Assert.That(menu.GetCurrentItems()[0], Does.Not.Contain("DPadUp"));
+    }
+
     // ---- Video screen ----
 
     private static void OpenVideoScreen(InGameMenu menu)
