@@ -175,7 +175,7 @@ internal class InputManagerTests
     }
 
     [Test]
-    public void PollSnapshot_DisconnectThenReconnect_EventFiresOnceOnDisconnectOnly()
+    public void PollSnapshot_DisconnectThenReconnect_DisconnectedEventFiresOnceOnDisconnectOnly()
     {
         int count = 0;
         _manager.GamepadDisconnected += () => count++;
@@ -187,9 +187,64 @@ internal class InputManagerTests
         _manager.PollSnapshot(_config); // disconnected → fires
 
         _mockGamepadSource.IsAvailable.Returns(true);
-        _manager.PollSnapshot(_config); // reconnected → no fire
+        _manager.PollSnapshot(_config); // reconnected → GamepadConnected fires instead, not this one
 
         Assert.That(count, Is.EqualTo(1));
+    }
+
+    // ── GamepadConnected event (IoC) — mirror edge of GamepadDisconnected ───────
+
+    [Test]
+    public void PollSnapshot_ControllerWasDisconnectedNowConnected_FiresGamepadConnected()
+    {
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // never connected → now connected
+
+        Assert.That(fired, Is.True);
+    }
+
+    [Test]
+    public void PollSnapshot_ControllerStillDisconnected_GamepadConnectedNotFired()
+    {
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+        _manager.PollSnapshot(_config); // still disconnected
+
+        Assert.That(fired, Is.False);
+    }
+
+    [Test]
+    public void PollSnapshot_ControllerStillConnected_GamepadConnectedNotFiredAgain()
+    {
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // connected — fires once
+
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+        _manager.PollSnapshot(_config); // still connected
+
+        Assert.That(fired, Is.False);
+    }
+
+    [Test]
+    public void PollSnapshot_ConnectThenDisconnectThenReconnect_ConnectedEventFiresOnEachConnectEdge()
+    {
+        int count = 0;
+        _manager.GamepadConnected += () => count++;
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // connected → fires (1)
+
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _manager.PollSnapshot(_config); // disconnected → no fire
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // reconnected → fires (2)
+
+        Assert.That(count, Is.EqualTo(2));
     }
 
     // ── HotkeyFired event (IoC) ─────────────────────────────────────────────────

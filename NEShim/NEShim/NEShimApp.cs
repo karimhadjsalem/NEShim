@@ -25,6 +25,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private IEmulationCore?   _host;
     private IInputReader?     _input;
     private IGamepadDevice?   _gamepadDevice;
+    private CachingGamepadGlyphResolver? _glyphResolver;
     private AudioPlayer?      _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;
@@ -534,6 +535,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private void InitializeInput()
     {
         _gamepadDevice = new SDL3GamepadDevice();
+        _glyphResolver = GamepadGlyphResolverFactory.Create(_gamepadDevice);
         _input = new InputManager(
             new Input.Sources.KeyboardInputSource(),
             new Input.Sources.SDL3GamepadSource(_gamepadDevice),
@@ -542,6 +544,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             new Input.Mappers.SDL3GamepadMapper(),
             new Input.Mappers.SteamInputMapper(),
             _gamepadDevice);
+        _input.GamepadConnected    += () => _glyphResolver?.InvalidateCache();
+        _input.GamepadDisconnected += () => _glyphResolver?.InvalidateCache();
         _sdlHost.KeyDown += key => _input.OnKeyDown(key);
         _sdlHost.KeyUp   += key => _input.OnKeyUp(key);
         _sdlHost.KeyDown += OnKeyDown;
@@ -678,6 +682,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                 _audio?.SetEq(bass, mid, treble);
                 ConfigLoader.Save(_config!, _game);
             },
+            glyphResolver: _glyphResolver!,
             onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
 
         _preloadedMenuBackground = IntPtr.Zero;
@@ -782,7 +787,8 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             {
                 _audio?.SetEq(bass, mid, treble);
                 ConfigLoader.Save(_config!, _game);
-            });
+            },
+            glyphResolver: _glyphResolver!);
 
         _menu.Opened += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
         _menu.Closed += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
@@ -866,6 +872,10 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         var newData = LoadLocalization();
         _menu?.UpdateLocalization(newData);
         _mainMenuScreen?.UpdateLocalization(newData);
+        // The text tier's result is localization-dependent, unlike the glyph tiers — a cached
+        // text-only GlyphResult would otherwise keep showing the old language until the next
+        // gamepad connect/disconnect edge.
+        _glyphResolver?.InvalidateCache();
         _renderer?.MarkOverlayDirty();
     }
 
@@ -1033,6 +1043,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _mainMenuScreen?.Dispose();
         FlagImageLoader.Dispose();
         ControllerSprites.Dispose();
+        _glyphResolver?.Dispose();
         _gamepadDevice?.Dispose();
         _audio?.Dispose();
         _host?.Dispose();

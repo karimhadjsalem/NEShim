@@ -1,6 +1,7 @@
 using SDL3;
 using NEShim.Audio;
 using NEShim.Config;
+using NEShim.Input;
 using NEShim.Localization;
 using NEShim.Saves;
 using NEShim.Steam;
@@ -18,6 +19,7 @@ internal sealed partial class InGameMenu
     private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
     private          LocalizationData _localization;
+    private readonly IGamepadGlyphResolver _glyphResolver;
     private readonly Action           _onExitToDesktop;
     private readonly Action           _onResetGame;
     private readonly Action           _onReturnToMainMenu;
@@ -112,11 +114,13 @@ internal sealed partial class InGameMenu
         Action<string>                          onLanguageChanged,
         Action<int, int, int, int>              onPictureAdjustChanged,
         Action<int, int, int>                   onAudioEqChanged,
-        Action?                                 onChangeGame = null)
+        Action?                                 onChangeGame = null,
+        IGamepadGlyphResolver?                  glyphResolver = null)
     {
         _saveStates                 = saveStates;
         _config                     = config;
         _localization               = localization;
+        _glyphResolver               = glyphResolver ?? NullGamepadGlyphResolver.Instance;
         _onExitToDesktop            = onExitToDesktop;
         _onResetGame                = onResetGame;
         _onReturnToMainMenu         = onReturnToMainMenu;
@@ -490,6 +494,9 @@ internal sealed partial class InGameMenu
     public IntPtr GetCurrentItemIcon(int index) =>
         _handlers.TryGetValue(Current, out var handler) ? handler.GetItemIcon(index) : IntPtr.Zero;
 
+    public IntPtr GetCurrentItemValueIcon(int index) =>
+        _handlers.TryGetValue(Current, out var handler) ? handler.GetItemValueIcon(index) : IntPtr.Zero;
+
     public SliderItemData? GetCurrentSliderData(int index) =>
         _handlers.TryGetValue(Current, out var handler) ? handler.GetSliderData(index) : null;
 
@@ -518,6 +525,25 @@ internal sealed partial class InGameMenu
 
         return MenuBindingHelpers.LocalizeGamepadButton(
             _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization);
+    }
+
+    /// <summary>
+    /// Glyph for the binding row's value column — see <see cref="GetGamepadLabel"/> for the
+    /// parallel text-label logic. Native Steam Input mode (genuine trackpad/gyro usage) shows
+    /// text only, matching its existing display; the glyph chain only applies to the SDL path.
+    /// </summary>
+    private IntPtr GetGamepadGlyph(string configKey)
+    {
+        if (configKey == "OpenMenu")
+            return _glyphResolver.Resolve(
+                _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), _localization).Glyph;
+
+        if (SteamInputManager.IsUsingNativeActions()
+            && SteamInputManager.NesButtonToAction.ContainsKey(configKey))
+            return IntPtr.Zero;
+
+        return _glyphResolver.Resolve(
+            _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization).Glyph;
     }
 
     private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch

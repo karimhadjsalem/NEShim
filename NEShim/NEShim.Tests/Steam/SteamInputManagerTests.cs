@@ -150,4 +150,26 @@ internal class SteamInputManagerTests
         Assert.That(left,  Is.False);
         Assert.That(right, Is.False);
     }
+
+    // ---- IsTouchpadOrGyroOrigin: pure predicate driving the refined IsUsingNativeActions gate.
+    // Takes the origin's name (string), not the Steamworks enum, so it's testable without a
+    // Steamworks assembly reference from this test project — see its own doc comment. ----
+
+    [TestCase("k_EInputActionOrigin_SteamController_LeftPad_Click")]
+    [TestCase("k_EInputActionOrigin_SteamController_RightPad_Touch")]
+    [TestCase("k_EInputActionOrigin_SteamController_Gyro_Move")]
+    [TestCase("k_EInputActionOrigin_PS4_CenterPad_Click")]
+    public void IsTouchpadOrGyroOrigin_TrackpadOrGyroOrigins_ReturnsTrue(string originName)
+    {
+        Assert.That(SteamInputManager.IsTouchpadOrGyroOrigin(originName), Is.True);
+    }
+
+    [TestCase("k_EInputActionOrigin_XBoxOne_A")]
+    [TestCase("k_EInputActionOrigin_XBoxOne_DPad_North")]
+    [TestCase("k_EInputActionOrigin_PS4_X")]
+    [TestCase("k_EInputActionOrigin_None")]
+    public void IsTouchpadOrGyroOrigin_RegularButtonOrDpadOrigins_ReturnsFalse(string originName)
+    {
+        Assert.That(SteamInputManager.IsTouchpadOrGyroOrigin(originName), Is.False);
+    }
 }

@@ -68,4 +68,11 @@ internal interface IInputReader
     /// Fired once when a previously-connected controller is no longer detected.
     /// </summary>
     event Action? GamepadDisconnected;
+
+    /// <summary>
+    /// Fired once when a controller is detected after none was connected — the mirror edge of
+    /// <see cref="GamepadDisconnected"/>. Used to invalidate the gamepad glyph cache, since a
+    /// different physical controller may now be active.
+    /// </summary>
+    event Action? GamepadConnected;
 }

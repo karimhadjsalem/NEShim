@@ -307,6 +307,7 @@ MIT, Apache 2.0, BSD 2-Clause, BSD 3-Clause, ISC, Unlicense/Public Domain. All c
 | Vortice.Windows (Vortice.Direct3D11) | MIT | Copyright © Amer Koleci and contributors |
 | SharpGen.Runtime (transitive, via Vortice.Direct3D11) | MIT | Copyright (c) 2010-2017 Alexandre Mutel; 2017-2023 Jeremy Koritzinsky; 2023-2024 Amer Koleci |
 | SDL3-CS (+ platform-native bundles, `.Image`, `.TTF` variants) | MIT | Copyright (c) 2013-2024 Ethan Lee and contributors |
+| Kenney Input Prompts (gamepad glyph icons) | CC0 1.0 (Public Domain) | Kenney (www.kenney.nl) — attribution not required, credited voluntarily |
 
 ### Prohibited licenses — do not add
 - **GPL v1/v2/v3** — copyleft infects the entire binary; incompatible with commercial distribution

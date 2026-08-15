@@ -165,6 +165,7 @@ internal static class MenuRenderer
             var             textColor  = isOpenMenu ? AmberColor : (enabled ? ItemColor : DimColor);
             SliderItemData? sliderData = menu.GetCurrentSliderData(i);
             IntPtr          icon       = menu.GetCurrentItemIcon(i);
+            IntPtr          valueIcon  = menu.GetCurrentItemValueIcon(i);
 
             if (sliderData.HasValue)
             {
@@ -179,15 +180,15 @@ internal static class MenuRenderer
             else if (selected)
             {
                 ctx.FillRect(ToFRect(itemRect), SelectedBg);
-                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: true, selected: true);
+                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: true, selected: true, valueIcon);
             }
             else if (enabled)
             {
-                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: false, selected: false);
+                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: false, selected: false, valueIcon);
             }
             else
             {
-                DrawItemRow(ctx, items[i], itemRect, DimColor, menu.Localization.FontFamily, bold: false, selected: false);
+                DrawItemRow(ctx, items[i], itemRect, DimColor, menu.Localization.FontFamily, bold: false, selected: false, valueIcon);
             }
         }
     }
@@ -261,6 +262,14 @@ internal static class MenuRenderer
     private const int IconH   = 14;
     private const int IconGap = 4;
 
+    // Gamepad glyph box (Kenney's input-prompts art, 64x64 source) — deliberately square and
+    // separate from IconW/IconH above, which sizes the unrelated language-flag icons (naturally
+    // wider than tall). Reusing IconW/IconH here would stretch a square glyph into a 20x14 box,
+    // squashing it vertically; blitting into a square box instead preserves the source aspect
+    // ratio without needing any letterbox/pillarbox math (BlitSurface always stretches to fill
+    // its destination rect — see SDL3PaintContext.cs).
+    private const int GlyphSize = 18;
+
     private static void DrawItemWithIcon(
         SDL3PaintContext ctx, IntPtr icon, string text, bool selected, bool enabled,
         SDL.Rect itemRect, SDL.Color textColor, string fontFamily)
@@ -278,13 +287,28 @@ internal static class MenuRenderer
     }
 
     private static void DrawItemRow(SDL3PaintContext ctx, string text, SDL.Rect itemRect,
-        SDL.Color color, string fontFamily, bool bold, bool selected)
+        SDL.Color color, string fontFamily, bool bold, bool selected, IntPtr valueIcon = default)
     {
         if (selected)
         {
             var bar = new SDL.FRect { X = itemRect.X + 4f, Y = itemRect.Y + 5f, W = 3f, H = itemRect.H - 10f };
             ctx.FillRect(bar, AccentBar);
         }
+
+        float tabStop = S(120);
+        if (valueIcon != IntPtr.Zero)
+        {
+            var (leftPart, _) = SDL3PaintContext.SplitTabText(text);
+            var leftRect = new SDL.FRect { X = itemRect.X + ItemTextIndent, Y = itemRect.Y, W = tabStop, H = itemRect.H };
+            ctx.DrawText(leftPart, leftRect, color, fontFamily, 12f * MenuScale.Scale, bold, TextHAlign.Near, TextVAlign.Center);
+
+            int glyphW = S(GlyphSize), glyphH = S(GlyphSize);
+            int glyphX = (int)(itemRect.X + ItemTextIndent + tabStop);
+            int glyphY = itemRect.Y + (itemRect.H - glyphH) / 2;
+            ctx.BlitSurface(valueIcon, null, new SDL.Rect { X = glyphX, Y = glyphY, W = glyphW, H = glyphH });
+            return;
+        }
+
         var textFRect = new SDL.FRect
         {
             X = itemRect.X + ItemTextIndent,
@@ -293,7 +317,7 @@ internal static class MenuRenderer
             H = itemRect.H,
         };
         ctx.DrawText(text, textFRect, color, fontFamily, 12f * MenuScale.Scale, bold,
-            TextHAlign.Near, TextVAlign.Center, tabStop: S(120));
+            TextHAlign.Near, TextVAlign.Center, tabStop: tabStop);
     }
 
     private static void DrawSliderItem(SDL3PaintContext ctx, SliderItemData data, SDL.Rect itemRect,

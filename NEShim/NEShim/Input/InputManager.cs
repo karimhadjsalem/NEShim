@@ -37,6 +37,7 @@ internal sealed class InputManager : IInputReader
     public event Action<string>? HotkeyFired;
     public event Action?         MenuToggleRequested;
     public event Action?         GamepadDisconnected;
+    public event Action?         GamepadConnected;
 
     // ── Constructor ────────────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ internal sealed class InputManager : IInputReader
         bool controllerNow = _gamepadSource.IsAvailable || _steamSource.IsAvailable;
         if (_wasControllerConnected && !controllerNow)
             GamepadDisconnected?.Invoke();
+        else if (!_wasControllerConnected && controllerNow)
+            GamepadConnected?.Invoke();
         _wasControllerConnected = controllerNow;
 
         bool gamepadNow = _gamepadSource.IsAvailable;

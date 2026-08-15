@@ -283,6 +283,22 @@ GPL option is not exercised.
 
 ---
 
+## Kenney Input Prompts
+
+https://kenney.nl/assets/input-prompts
+
+Gamepad button glyph icons (`NEShim/Assets/gamepad_glyphs/{xbox,playstation,switchpro,switchjoyconpair,steamdeck}/*.png`),
+created and distributed by Kenney (www.kenney.nl).
+
+License: Creative Commons Zero v1.0 Universal (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+CC0 is a public-domain dedication and imposes no attribution requirement — this
+notice is included voluntarily, as Kenney's own license terms invite ("Support
+by crediting 'Kenney' or 'www.kenney.nl' — this is not a requirement").
+
+---
+
 ## Development-Only Dependencies (not distributed)
 
 The following are used during development or testing and are not compiled into

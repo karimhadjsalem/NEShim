@@ -25,6 +25,11 @@ internal sealed partial class MainMenuScreen
             var configKey = Menu._gamepadBindingActions[index].ConfigKey;
             return configKey == "" || configKey == "OpenMenu";
         }
+        public override IntPtr GetItemValueIcon(int index)
+        {
+            var configKey = Menu._gamepadBindingActions[index].ConfigKey;
+            return configKey == "" ? IntPtr.Zero : Menu.GetGamepadGlyph(configKey);
+        }
         public override void Activate(int index)
         {
             var (_, configKey) = Menu._gamepadBindingActions[index];

@@ -115,6 +115,282 @@
         <EmbeddedResource Include="Assets\flags\portuguese.png">
             <LogicalName>NEShim.Assets.flags.portuguese.png</LogicalName>
         </EmbeddedResource>
+        <!-- Gamepad binding-row glyphs — Kenney's "Input Prompts" pack (CC0, see
+             THIRD-PARTY-NOTICES.md). One folder per brand family, 18 identifiers each matching
+             Input.XboxOriginMap, consumed by Input.Sources.SdlBundledGlyphSource.
+             switchjoyconpair reuses switchpro's art for every identifier except the D-pad
+             directions, which use Kenney's paired-Joycon 4-round-face-button icons instead of a
+             real cross-shaped D-pad (Joy-Cons don't have one) — see SdlBundledGlyphSource.cs. -->
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
     </ItemGroup>
 
     <!-- Remove all shader files from SDK auto-includes before re-adding explicitly.
@@ -379,6 +655,13 @@
         </Content>
         <Content Include="lang\*.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <!-- Several compiled dependencies are MIT-licensed, which requires the copyright/
+             permission notice to accompany distributed copies of the software - this file was
+             previously repo-only and never actually shipped in any publish/release output. -->
+        <Content Include="..\..\THIRD-PARTY-NOTICES.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>THIRD-PARTY-NOTICES.md</Link>
         </Content>
     </ItemGroup>
 

@@ -65,12 +65,74 @@ internal static class SteamInputManager
     /// uses XInput passthrough, in which case Gameplay action handles have no origins
     /// and all input flows through XInput instead.
     /// </summary>
+    /// <summary>
+    /// True only when the player has actually assigned a trackpad or gyro input to one of
+    /// NEShim's gameplay/menu actions — not merely because a Steam-managed controller is
+    /// connected. A Steam Controller or Steam Deck used with ordinary face buttons/d-pad
+    /// returns false here and is handled entirely by SDL, exactly like any other controller;
+    /// this is the one case SDL genuinely can't represent (a physical trackpad click/swipe or
+    /// motion-sensor input bound to an NES action), so it's the only case that still needs
+    /// native action-set polling + the rebind lockout.
+    /// </summary>
     public static bool IsUsingNativeActions()
     {
         if (!IsAvailable || _connectedCount == 0) return false;
-        var h = _controllerBuf[0];
+        return AnyBoundOriginIsTouchpadOrGyro(_controllerBuf[0]);
+    }
+
+    private static bool AnyBoundOriginIsTouchpadOrGyro(InputHandle_t h)
+    {
         var origins = new EInputActionOrigin[Constants.STEAM_INPUT_MAX_ORIGINS];
-        return SteamInput.GetDigitalActionOrigins(h, _gameplaySet, _hA, origins) > 0;
+        foreach (var action in GameplayActionHandles)
+        {
+            int n = SteamInput.GetDigitalActionOrigins(h, _gameplaySet, action, origins);
+            for (int i = 0; i < n; i++)
+                if (IsTouchpadOrGyroOrigin(origins[i].ToString())) return true;
+        }
+        foreach (var action in MenuActionHandles)
+        {
+            int n = SteamInput.GetDigitalActionOrigins(h, _menuSet, action, origins);
+            for (int i = 0; i < n; i++)
+                if (IsTouchpadOrGyroOrigin(origins[i].ToString())) return true;
+        }
+        return false;
+    }
+
+    private static InputDigitalActionHandle_t[] GameplayActionHandles =>
+        new[] { _hUp, _hDown, _hLeft, _hRight, _hA, _hB, _hStart, _hSelect };
+
+    private static InputDigitalActionHandle_t[] MenuActionHandles =>
+        new[] { _hMenuUp, _hMenuDown, _hMenuLeft, _hMenuRight, _hMenuConfirm, _hMenuBack };
+
+    /// <summary>
+    /// Pure predicate, separated from the Steamworks I/O loop above — fully unit-testable
+    /// without a live Steam Input session or a Steamworks type reference (takes the origin's
+    /// name, not the enum itself). Origin names are stable across every controller family with
+    /// a trackpad or motion sensor (SteamController_LeftPad_*/RightPad_*, PS4/PS5_*Pad_*,
+    /// Switch_*Gyro_*, Neptune/Deck pad+gyro origins) — checking substrings avoids hardcoding
+    /// the full EInputActionOrigin list, which Valve documents as still being extended over
+    /// time. "LeftPad"/"RightPad"/"CenterPad" deliberately exclude plain "DPad_North" etc.
+    /// (regular d-pad/button origins), which never match any of these.
+    /// </summary>
+    internal static bool IsTouchpadOrGyroOrigin(string originName) =>
+        originName.Contains("LeftPad") || originName.Contains("RightPad")
+            || originName.Contains("CenterPad") || originName.Contains("Gyro");
+
+    /// <summary>
+    /// The first connected Steam Input controller handle, for glyph lookups
+    /// (<see cref="Input.Sources.SteamInputGlyphSource"/> via <see cref="SteamInputGlyphManager"/>).
+    /// Reuses the same P1-only enumeration every other method in this class already relies on,
+    /// rather than introducing a second controller-enumeration path via GetControllerForGamepadIndex.
+    /// Returns default when no controller is connected.
+    /// </summary>
+    internal static InputHandle_t FirstControllerHandle
+    {
+        get
+        {
+            if (!IsAvailable) return default;
+            RefreshControllers();
+            return _connectedCount > 0 ? _controllerBuf[0] : default;
+        }
     }
 
     // -- Action set handles --

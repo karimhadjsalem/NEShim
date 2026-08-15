@@ -10,8 +10,9 @@ internal sealed partial class InGameMenu
         public abstract int      ItemCount { get; }
         public abstract string[] GetItems();
         public abstract void     Activate(int index);
-        public virtual  bool              IsItemEnabled(int index) => true;
-        public virtual  IntPtr            GetItemIcon(int index)   => IntPtr.Zero;
-        public virtual  SliderItemData?   GetSliderData(int index) => null;
+        public virtual  bool              IsItemEnabled(int index)   => true;
+        public virtual  IntPtr            GetItemIcon(int index)     => IntPtr.Zero;
+        public virtual  IntPtr            GetItemValueIcon(int index) => IntPtr.Zero;
+        public virtual  SliderItemData?   GetSliderData(int index)   => null;
     }
 }

@@ -23,6 +23,13 @@ internal sealed class SDL3GamepadDevice : IGamepadDevice
     // manifested as a burst of spurious extra menu moves right at the start of the very first
     // press after the controller connects.
     private bool _justOpened;
+    private SDL.GamepadType _cachedType = SDL.GamepadType.Unknown;
+
+    public SDL.GamepadType GetGamepadType(uint userIndex = 0)
+    {
+        IntPtr pad = EnsureGamepadOpen(userIndex);
+        return pad == IntPtr.Zero ? SDL.GamepadType.Unknown : _cachedType;
+    }
 
     public GamepadState GetState(uint userIndex = 0)
     {
@@ -76,7 +83,11 @@ internal sealed class SDL3GamepadDevice : IGamepadDevice
 
         uint targetId = userIndex < (uint)count ? ids[userIndex] : ids[0];
         _gamepad = SDL.OpenGamepad(targetId);
-        if (_gamepad != IntPtr.Zero) _justOpened = true;
+        if (_gamepad != IntPtr.Zero)
+        {
+            _justOpened  = true;
+            _cachedType  = SDL.GetGamepadType(_gamepad);
+        }
         return _gamepad;
     }
 }
