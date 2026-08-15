@@ -29,4 +29,11 @@ internal class MotionEffectFactoryTests
             Assert.That(effect.EffectMode, Is.EqualTo(mode));
         }
     }
+
+    [Test]
+    public void Create_UnmappedMode_Throws()
+    {
+        Assert.That(() => MotionEffectFactory.Create((VideoMotionEffectMode)999),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
+    }
 }

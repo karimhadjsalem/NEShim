@@ -30,15 +30,17 @@ internal sealed class D3D11Renderer : IFrameRenderer
     // Owned D3D11 resources — all disposed in Dispose().
     private ID3D11Texture2D          _nesTexture     = null!;
     private ID3D11ShaderResourceView _nesTextureView = null!;
-    private readonly ID3D11Buffer             _vertexBuffer;
-    private readonly ID3D11VertexShader       _vertexShader;
-    private readonly ID3D11PixelShader        _passthroughPixelShader;
-    private readonly ID3D11InputLayout        _inputLayout;
-    private readonly ID3D11SamplerState       _pointSamplerState;
-    private readonly ID3D11SamplerState       _linearSamplerState;
-    private readonly ID3D11BlendState         _alphaBlendState;
-    private readonly ID3D11RasterizerState    _scissorRasterizerState;
-    private readonly ID3D11Buffer             _filterCbuffer;
+    // Not readonly — each is set from a dedicated Create*() method called by the constructor
+    // (see D3D11Renderer's split-out init methods) rather than assigned inline in its body.
+    private ID3D11Buffer             _vertexBuffer           = null!;
+    private ID3D11VertexShader       _vertexShader           = null!;
+    private ID3D11PixelShader        _passthroughPixelShader = null!;
+    private ID3D11InputLayout        _inputLayout            = null!;
+    private ID3D11SamplerState       _pointSamplerState      = null!;
+    private ID3D11SamplerState       _linearSamplerState     = null!;
+    private ID3D11BlendState         _alphaBlendState        = null!;
+    private ID3D11RasterizerState    _scissorRasterizerState = null!;
+    private ID3D11Buffer             _filterCbuffer          = null!;
 
     private bool _isDisposed;
 
@@ -46,10 +48,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private readonly Dictionary<string, ID3D11PixelShader> _shaderCache = new();
 
     // Active pixel shader — points at passthrough or a cached structural shader.
-    private ID3D11PixelShader _activePixelShader;
+    private ID3D11PixelShader _activePixelShader = null!;
 
     // Recreated on Resize.
-    private ID3D11RenderTargetView _renderTargetView;
+    private ID3D11RenderTargetView _renderTargetView = null!;
 
     // Viewport-sized overlay texture + SDL software renderer surface — recreated on Resize.
     private ID3D11Texture2D?          _overlayTexture;
@@ -82,6 +84,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
     private MotionEffects.IMotionEffect _activeMotionEffect = new MotionEffects.NoneMotionEffect();
     private ID3D11PixelShader?          _motionEffectPixelShader;
     private int                         _drawFrameCount;
+
+    // Computed once per DrawAndPresent by RenderPassPlanner and read by whichever of
+    // DrawSinglePass/DrawTwoPass's branches ends up being the pipeline's last color-aware stage.
+    private RenderStage                 _colorApplyingStage;
 
     // Intermediate render targets — each groups a D3D11 texture, RTV, SRV, and pixel
     // dimensions into a single object so the three sub-resources always move together.
@@ -160,35 +166,54 @@ internal sealed class D3D11Renderer : IFrameRenderer
         // In little-endian memory the bytes are [B, G, R, A] — BGRA — which maps
         // directly to B8G8R8A8_UNorm with no byte swapping required.
         CreateNesTexture(nesWidth);
+        CreateBackbufferRenderTargetView();
+        CreateVertexBuffer();
+        CreateShadersAndInputLayout();
+        CreateFilterCbuffer();
+        CreateSamplerStates();
+        CreateBlendState();
+        CreateScissorRasterizerState();
 
+        CreateOverlayResources();
+        UpdateOverscanUV();
+        UpdateLetterboxRect();
+
+        Logger.Log($"[D3D11Renderer] Initialized ({_nesTextureWidth}×{_nesHeight}, B8G8R8A8_UNorm, point-clamp). Renderer mode: D3D11.");
+    }
+
+    private void CreateBackbufferRenderTargetView()
+    {
         using var backBuffer = _swapChain.GetBuffer<ID3D11Texture2D>(0);
         _renderTargetView = _device.CreateRenderTargetView(backBuffer);
 
         var swapDesc = _swapChain.Description;
         _viewportWidth  = (int)swapDesc.BufferDescription.Width;
         _viewportHeight = (int)swapDesc.BufferDescription.Height;
+    }
 
-        // Dynamic vertex buffer — updated each draw call to support the NES quad,
-        // sidebar quads, and overlay quad from a single buffer object.
-        unsafe
+    // Dynamic vertex buffer — updated each draw call to support the NES quad,
+    // sidebar quads, and overlay quad from a single buffer object.
+    private unsafe void CreateVertexBuffer()
+    {
+        float[] placeholder = new float[6 * 4]; // 6 vertices × (pos_xy + uv)
+        fixed (float* p = placeholder)
         {
-            float[] placeholder = new float[6 * 4]; // 6 vertices × (pos_xy + uv)
-            fixed (float* p = placeholder)
-            {
-                _device.CreateBuffer(
-                    new BufferDescription
-                    {
-                        ByteWidth      = (uint)(placeholder.Length * sizeof(float)),
-                        Usage          = ResourceUsage.Dynamic,
-                        BindFlags      = BindFlags.VertexBuffer,
-                        CPUAccessFlags = CpuAccessFlags.Write,
-                    },
-                    new SubresourceData((IntPtr)p, 0, 0),
-                    out var vb);
-                _vertexBuffer = vb!;
-            }
+            _device.CreateBuffer(
+                new BufferDescription
+                {
+                    ByteWidth      = (uint)(placeholder.Length * sizeof(float)),
+                    Usage          = ResourceUsage.Dynamic,
+                    BindFlags      = BindFlags.VertexBuffer,
+                    CPUAccessFlags = CpuAccessFlags.Write,
+                },
+                new SubresourceData((IntPtr)p, 0, 0),
+                out var vb);
+            _vertexBuffer = vb!;
         }
+    }
 
+    private void CreateShadersAndInputLayout()
+    {
         byte[] vsBytes = LoadShaderResource("NEShim.Rendering.Shaders.Dx11.Passthrough.vs.cso");
         byte[] psBytes = LoadShaderResource("NEShim.Rendering.Shaders.Dx11.Passthrough.ps.cso");
 
@@ -200,27 +225,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _activePixelShader         = _passthroughPixelShader;
         _pictureAdjustPixelShader  = ResolvePixelShader("NEShim.Rendering.Shaders.Dx11.PictureAdjust.ps.cso");
 
-        // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
-        // Always present — every pixel shader reads from b0.
-        unsafe
-        {
-            float[] zeros = new float[4];
-            fixed (float* p = zeros)
-            {
-                _device.CreateBuffer(
-                    new BufferDescription
-                    {
-                        ByteWidth      = (uint)(4 * sizeof(float)),
-                        Usage          = ResourceUsage.Dynamic,
-                        BindFlags      = BindFlags.ConstantBuffer,
-                        CPUAccessFlags = CpuAccessFlags.Write,
-                    },
-                    new SubresourceData((IntPtr)p, 0, 0),
-                    out var cb);
-                _filterCbuffer = cb!;
-            }
-        }
-
         _inputLayout = _device.CreateInputLayout(
             new[]
             {
@@ -228,7 +232,31 @@ internal sealed class D3D11Renderer : IFrameRenderer
                 new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 8, 0, InputClassification.PerVertexData, 0),
             },
             vsBytes);
+    }
 
+    // 16-byte cbuffer (4 floats): structural params [0..2] + colorMode [3].
+    // Always present — every pixel shader reads from b0.
+    private unsafe void CreateFilterCbuffer()
+    {
+        float[] zeros = new float[4];
+        fixed (float* p = zeros)
+        {
+            _device.CreateBuffer(
+                new BufferDescription
+                {
+                    ByteWidth      = (uint)(4 * sizeof(float)),
+                    Usage          = ResourceUsage.Dynamic,
+                    BindFlags      = BindFlags.ConstantBuffer,
+                    CPUAccessFlags = CpuAccessFlags.Write,
+                },
+                new SubresourceData((IntPtr)p, 0, 0),
+                out var cb);
+            _filterCbuffer = cb!;
+        }
+    }
+
+    private void CreateSamplerStates()
+    {
         // Point-clamp sampler — preserves hard NES pixel edges.
         // Clamping prevents edge wrap artefacts on the NES texture boundary.
         _pointSamplerState = _device.CreateSamplerState(new SamplerDescription
@@ -253,8 +281,11 @@ internal sealed class D3D11Renderer : IFrameRenderer
             MaxAnisotropy  = 1,
             MaxLOD         = float.MaxValue,
         });
+    }
 
-        // Alpha blend state for the GDI+ overlay quad (FPS, toast, achievement).
+    // Alpha blend state for the overlay quad (menus, FPS, toast, achievement banner).
+    private void CreateBlendState()
+    {
         var blendDesc = new BlendDescription();
         blendDesc.RenderTarget[0] = new RenderTargetBlendDescription
         {
@@ -268,7 +299,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
             RenderTargetWriteMask = ColorWriteEnable.All,
         };
         _alphaBlendState = _device.CreateBlendState(blendDesc);
+    }
 
+    private void CreateScissorRasterizerState()
+    {
         _scissorRasterizerState = _device.CreateRasterizerState(new RasterizerDescription
         {
             FillMode        = Vortice.Direct3D11.FillMode.Solid,
@@ -276,12 +310,6 @@ internal sealed class D3D11Renderer : IFrameRenderer
             ScissorEnable   = true,
             DepthClipEnable = true,
         });
-
-        CreateOverlayResources();
-        UpdateOverscanUV();
-        UpdateLetterboxRect();
-
-        Logger.Log($"[D3D11Renderer] Initialized ({_nesTextureWidth}×{_nesHeight}, B8G8R8A8_UNorm, point-clamp). Renderer mode: D3D11.");
     }
 
     // ---- IFrameRenderer ----------------------------------------------------------------
@@ -356,8 +384,9 @@ internal sealed class D3D11Renderer : IFrameRenderer
     }
 
     // No-op in D3D11 mode — Steam's overlay shows its own achievement notification
-    // when SetAchievement + StoreStats are called. GdiRenderer keeps its custom banner
-    // as a fallback for when the overlay isn't available.
+    // when SetAchievement + StoreStats are called. SDL3HwRenderer shows a custom toast
+    // banner instead (see its ShowAchievementNotification), for platforms/fallback paths
+    // where the Steam overlay isn't available.
     public void ShowAchievementNotification(string name) { }
 
     /// <summary>
@@ -511,7 +540,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _activeOverlay?.NotifyFrame(_drawFrameCount);
         _drawFrameCount++;
 
-        if (_activeOverlay is not null && _overlayRt.IsReady)
+        bool hasOverlayPass = _activeOverlay is not null && _overlayRt.IsReady;
+        _colorApplyingStage = RenderPassPlanner.ColorApplyingStage(hasOverlayPass, _motionEffectRt.IsReady);
+
+        if (hasOverlayPass)
             DrawTwoPass();
         else
             DrawSinglePass();
@@ -542,7 +574,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
             SetupPipelineState();
             if (_hasSidebars) DrawSidebars();
-            UpdateFilterCbuffer();
+            UpdateFilterCbuffer(applyColorMode: _colorApplyingStage == RenderStage.Filter);
             DrawNesQuad(_nesTextureView, _activeMotionEffect.GetFrameOffset(_drawFrameCount),
                         0f, _nesV0, 1f, _nesV1);
         }
@@ -560,7 +592,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.OMSetRenderTargets(_motionEffectRt.Rtv!);
             _context.RSSetViewport(0, 0, _motionEffectRt.Width, _motionEffectRt.Height);
             _context.ClearRenderTargetView(_motionEffectRt.Rtv!, new Color4(0f, 0f, 0f, 1f));
-            UpdateOverlayCbuffer(applyColorMode: false);
+            UpdateOverlayCbuffer(applyColorMode: _colorApplyingStage == RenderStage.Overlay);
             _context.PSSetShader(_activeOverlayPixelShader!);
             _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
             _context.PSSetShaderResource(0, _overlayRt.Srv!);
@@ -581,7 +613,7 @@ internal sealed class D3D11Renderer : IFrameRenderer
             _context.RSSetViewport(0, 0, _viewportWidth, _viewportHeight);
             _context.ClearRenderTargetView(finalTarget, new Color4(0f, 0f, 0f, 1f));
             if (_hasSidebars) DrawSidebars();
-            UpdateOverlayCbuffer();
+            UpdateOverlayCbuffer(applyColorMode: _colorApplyingStage == RenderStage.Overlay);
             _context.PSSetShader(_activeOverlayPixelShader!);
             _context.PSSetSampler(0, _activeOverlay!.UseLinearSampler ? _linearSamplerState : _pointSamplerState);
             DrawNesQuad(_overlayRt.Srv!, _activeMotionEffect.GetFrameOffset(_drawFrameCount),

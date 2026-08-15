@@ -63,10 +63,17 @@ internal class SdlFilterFactoryTests
     }
 
     [Test]
-    public void Create_UnsupportedMode_FallsBackToPixelPerfect()
+    public void Create_NearestNeighbour_FallsBackToPixelPerfect()
     {
         var filter = SdlFilterFactory.Create(VideoFilterMode.NearestNeighbour);
         Assert.That(filter, Is.InstanceOf<PixelPerfectSdlFilter>());
+    }
+
+    [Test]
+    public void Create_UnmappedMode_Throws()
+    {
+        Assert.That(() => SdlFilterFactory.Create((VideoFilterMode)999),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]

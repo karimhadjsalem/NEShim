@@ -13,25 +13,24 @@ namespace NEShim.Tests.GameLoop;
 internal class FramePipelineTests
 {
     private IEmulationCore      _core         = null!;
+    private IAudioSink          _audio        = null!;
     private IAchievementProcessor _achievements = null!;
     private IRenderCoordinator  _render       = null!;
     private ISaveManager        _saves        = null!;
     private AppConfig           _config       = null!;
 
-    // AudioPlayer is sealed with no interface; we test audio via FrameData inspection
-    // rather than mock verification. Audio enqueue correctness is covered by AudioPlayer's
-    // own unit tests.
-
     [TearDown]
     public void TearDown()
     {
         _core.Dispose();
+        _audio.Dispose();
     }
 
     [SetUp]
     public void SetUp()
     {
         _core         = Substitute.For<IEmulationCore>();
+        _audio        = Substitute.For<IAudioSink>();
         _achievements = Substitute.For<IAchievementProcessor>();
         _render       = Substitute.For<IRenderCoordinator>();
         _saves        = Substitute.For<ISaveManager>();
@@ -43,11 +42,8 @@ internal class FramePipelineTests
             new FrameData(new int[256 * 240], 256, 240, Array.Empty<short>(), 0));
     }
 
-    private FramePipeline CreatePipeline()
-    {
-        var audio = new AudioPlayer(4, new NesFilterProcessor());
-        return new FramePipeline(_core, audio, _achievements, _render, _saves);
-    }
+    private FramePipeline CreatePipeline() =>
+        new FramePipeline(_core, _audio, _achievements, _render, _saves);
 
     // ---- RunFrame delegates ----
 
@@ -80,6 +76,19 @@ internal class FramePipelineTests
         pipeline.RunFrame(InputSnapshot.Empty, _config, afterPresented: null);
 
         _render.Received(1).SubmitFrame(Arg.Any<FrameData>(), Arg.Any<bool>(), Arg.Any<float>(), Arg.Any<Action?>());
+    }
+
+    [Test]
+    public void RunFrame_EnqueuesFrameAudioToSink()
+    {
+        var samples = new short[] { 1, 2, 3, 4 };
+        _core.RunFrame(Arg.Any<InputSnapshot>()).Returns(
+            new FrameData(new int[256 * 240], 256, 240, samples, samples.Length));
+        var pipeline = CreatePipeline();
+
+        pipeline.RunFrame(InputSnapshot.Empty, _config, afterPresented: null);
+
+        _audio.Received(1).Enqueue(samples, samples.Length);
     }
 
     // ---- Auto-save ----

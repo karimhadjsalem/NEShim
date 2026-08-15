@@ -18,7 +18,7 @@ namespace NEShim.Input.Sources;
 /// in the same frame because it refreshes the internal _controllerBuf that
 /// IsUsingNativeActions reads.
 /// </summary>
-internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButtonSource
+internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButtonSource, IHeldDirectionSource
 {
     private bool   _lastAvailable;
     private bool   _prevNative;
@@ -74,6 +74,11 @@ internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButto
 
     public MenuNavInput GetMenuNav(AppConfig config)
         => Steam.SteamInputManager.GetMenuNav();
+
+    // ── IHeldDirectionSource ───────────────────────────────────────────────────
+
+    public (bool Left, bool Right) GetHeldLeftRight(AppConfig config)
+        => Steam.SteamInputManager.GetMenuHeldLeftRight();
 
     // ── IAnyButtonSource ───────────────────────────────────────────────────────
 

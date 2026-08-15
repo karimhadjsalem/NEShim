@@ -24,8 +24,8 @@ internal sealed partial class InGameMenu
             {
                 var mode = options[i];
                 items[i] = mode == current
-                    ? $"✓ {FilterDisplayName(mode)}"
-                    : $"  {FilterDisplayName(mode)}";
+                    ? $"✓ {MenuBindingHelpers.VideoFilterDisplayName(mode, Menu._localization)}"
+                    : $"  {MenuBindingHelpers.VideoFilterDisplayName(mode, Menu._localization)}";
             }
             items[BackIndex] = Menu._localization.Back;
             return items;
@@ -48,17 +48,5 @@ internal sealed partial class InGameMenu
             }
             Menu.NavigateTo(Screen.Video);
         }
-
-        internal string FilterDisplayName(VideoFilterMode mode) => mode switch
-        {
-            VideoFilterMode.Bilinear      => Menu._localization.VideoFilterSmooth,
-            VideoFilterMode.PixelPerfect  => Menu._localization.VideoFilterPixelPerfect,
-            VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
-            VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
-            VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
-            VideoFilterMode.CrtScreen     => Menu._localization.VideoFilterCrtScreen,
-            VideoFilterMode.Xbr           => Menu._localization.VideoFilterXbr,
-            _                             => mode.ToString(),
-        };
     }
 }

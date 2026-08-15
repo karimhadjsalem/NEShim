@@ -228,9 +228,10 @@ public sealed class AppConfig
     // When true, diagnostic output is appended to neshim.log next to the executable.
     public bool EnableLogging { get; set; } = false;
 
-    // Retained for forward-compatibility with publisher config.json files.
-    // The GDI+ rendering path was removed; this field is read but has no effect.
-    // D3D11 is always attempted first on Windows; SDL_GPU is the fallback.
+    // Retained for forward-compatibility with publisher config.json files — never actually
+    // consulted anywhere in the codebase (deserializing config.json populates it, nothing more).
+    // The GDI+ rendering path this used to select was removed; D3D11 is always attempted first
+    // on Windows, with SDL_GPU as the only fallback (both platforms).
     public string ForceRenderer { get; set; } = "auto";
 
     // Controls the NES region used for emulation. Affects CPU clock rate, PPU scanline

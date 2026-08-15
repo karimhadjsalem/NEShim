@@ -26,7 +26,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private IInputReader?     _input;
     private IGamepadDevice?   _gamepadDevice;
     private CachingGamepadGlyphResolver? _glyphResolver;
-    private AudioPlayer?      _audio;
+    private IAudioSink?       _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;
     private FrameBuffer?      _frameBuffer;
@@ -609,22 +609,77 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             Logger.Log("[Platform] Steam Deck hardware detected.");
     }
 
+    /// <summary>
+    /// Builds the set of config-change callbacks whose bodies are identical between
+    /// <see cref="InitializeMainMenu"/> and <see cref="InitializeInGameMenu"/> — see
+    /// <see cref="MenuConfigCallbacks"/>'s doc comment. Called fresh from each Initialize*Menu
+    /// method (cheap — only runs on game load, not per-frame) rather than cached in a field,
+    /// since every closure captures live <c>this</c> state anyway.
+    /// </summary>
+    private MenuConfigCallbacks BuildMenuConfigCallbacks() => new(
+        OnWindowModeToggle: fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
+        OnConfigSaved:      () => { },
+        OnVolumeChanged:    vol =>
+        {
+            _audio?.SetVolume(vol / 100f);
+            _mainMenuMusic?.SetMasterVolume(vol / 100f);
+        },
+        OnFilterChanged: mode => _audio?.SetProcessor(CreateProcessor(mode)),
+        OnVideoFilterChanged: mode =>
+        {
+            _config!.VideoFilter = mode.ToString();
+            _renderer?.SetFilter(mode);
+            ConfigLoader.Save(_config, _game);
+        },
+        OnVideoFilterOverlayChanged: mode =>
+        {
+            _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
+            _renderer?.SetOverlayFilter(mode);
+            ConfigLoader.Save(_config, _game);
+        },
+        OnVideoColorFilterChanged: mode =>
+        {
+            _config!.VideoColorFilter = mode.ToString();
+            _renderer?.SetColorFilter(mode);
+            ConfigLoader.Save(_config, _game);
+        },
+        OnVideoMotionEffectChanged: mode =>
+        {
+            _config!.VideoMotionEffect = mode.ToString();
+            _renderer?.SetMotionEffect(mode);
+            ConfigLoader.Save(_config, _game);
+        },
+        OnOverscanModeChanged: overscan =>
+        {
+            _config!.OverscanMode = overscan.ToString();
+            _renderer?.SetOverscanMode(overscan);
+            ConfigLoader.Save(_config, _game);
+        },
+        OnLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
+        OnPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
+        {
+            _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
+            ConfigLoader.Save(_config!, _game);
+        },
+        OnAudioEqChanged: (bass, mid, treble) =>
+        {
+            _audio?.SetEq(bass, mid, treble);
+            ConfigLoader.Save(_config!, _game);
+        });
+
     private void InitializeMainMenu(LocalizationData localization)
     {
+        var callbacks = BuildMenuConfigCallbacks();
         _mainMenuScreen = new MainMenuScreen(
             saveStates:          _saves!,
             config:              _config!,
             localization:        localization,
             bgImagePath:         _preloadedMenuBackground == IntPtr.Zero ? _config!.MainMenuBackgroundPath : null,
             bgImage:             _preloadedMenuBackground,
-            onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
-            onConfigSaved:       () => { },
-            onVolumeChanged:     vol =>
-            {
-                _audio?.SetVolume(vol / 100f);
-                _mainMenuMusic?.SetMasterVolume(vol / 100f);
-            },
-            onFilterChanged: mode => _audio?.SetProcessor(CreateProcessor(mode)),
+            onWindowModeToggle:  callbacks.OnWindowModeToggle,
+            onConfigSaved:       callbacks.OnConfigSaved,
+            onVolumeChanged:     callbacks.OnVolumeChanged,
+            onFilterChanged:     callbacks.OnFilterChanged,
             onMenuMusicToggled: on =>
             {
                 if (on)
@@ -641,47 +696,14 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
                     _mainMenuMusic?.Stop();
                 }
             },
-            onVideoFilterChanged: mode =>
-            {
-                _config!.VideoFilter = mode.ToString();
-                _renderer?.SetFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoFilterOverlayChanged: mode =>
-            {
-                _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                _renderer?.SetOverlayFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoColorFilterChanged: mode =>
-            {
-                _config!.VideoColorFilter = mode.ToString();
-                _renderer?.SetColorFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoMotionEffectChanged: mode =>
-            {
-                _config!.VideoMotionEffect = mode.ToString();
-                _renderer?.SetMotionEffect(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onOverscanModeChanged: overscan =>
-            {
-                _config!.OverscanMode = overscan.ToString();
-                _renderer?.SetOverscanMode(overscan);
-                ConfigLoader.Save(_config, _game);
-            },
-            onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
-            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
-            {
-                _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
-                ConfigLoader.Save(_config!, _game);
-            },
-            onAudioEqChanged: (bass, mid, treble) =>
-            {
-                _audio?.SetEq(bass, mid, treble);
-                ConfigLoader.Save(_config!, _game);
-            },
+            onVideoFilterChanged:        callbacks.OnVideoFilterChanged,
+            onVideoFilterOverlayChanged: callbacks.OnVideoFilterOverlayChanged,
+            onVideoColorFilterChanged:   callbacks.OnVideoColorFilterChanged,
+            onVideoMotionEffectChanged:  callbacks.OnVideoMotionEffectChanged,
+            onOverscanModeChanged:       callbacks.OnOverscanModeChanged,
+            onLanguageChanged:           callbacks.OnLanguageChanged,
+            onPictureAdjustChanged:      callbacks.OnPictureAdjustChanged,
+            onAudioEqChanged:            callbacks.OnAudioEqChanged,
             glyphResolver: _glyphResolver!,
             onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
 
@@ -731,6 +753,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeInGameMenu(LocalizationData localization)
     {
+        var callbacks = BuildMenuConfigCallbacks();
         _menu = new InGameMenu(
             saveStates:          _saves!,
             config:              _config!,
@@ -739,55 +762,18 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onResetGame:         () => _emulationThread?.ResetGame(),
             onReturnToMainMenu:  () => _marshalToMainThread(ReturnToMainMenu),
             onChangeGame:        () => _marshalToMainThread(ChangeGame),
-            onWindowModeToggle:  fullscreen => _marshalToMainThread(() => SetWindowMode(fullscreen)),
-            onConfigSaved:       () => { },
-            onVolumeChanged:     vol =>
-            {
-                _audio?.SetVolume(vol / 100f);
-                _mainMenuMusic?.SetMasterVolume(vol / 100f);
-            },
-            onFilterChanged: mode => _audio?.SetProcessor(CreateProcessor(mode)),
-            onVideoFilterChanged: mode =>
-            {
-                _config!.VideoFilter = mode.ToString();
-                _renderer?.SetFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoFilterOverlayChanged: mode =>
-            {
-                _config!.VideoFilterOverlay = mode?.ToString() ?? "None";
-                _renderer?.SetOverlayFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoColorFilterChanged: mode =>
-            {
-                _config!.VideoColorFilter = mode.ToString();
-                _renderer?.SetColorFilter(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onVideoMotionEffectChanged: mode =>
-            {
-                _config!.VideoMotionEffect = mode.ToString();
-                _renderer?.SetMotionEffect(mode);
-                ConfigLoader.Save(_config, _game);
-            },
-            onOverscanModeChanged: overscan =>
-            {
-                _config!.OverscanMode = overscan.ToString();
-                _renderer?.SetOverscanMode(overscan);
-                ConfigLoader.Save(_config, _game);
-            },
-            onLanguageChanged: lang => _marshalToMainThread(() => OnLanguageChanged(lang)),
-            onPictureAdjustChanged: (brightness, contrast, saturation, hue) =>
-            {
-                _renderer?.SetPictureAdjust(brightness, contrast, saturation, hue);
-                ConfigLoader.Save(_config!, _game);
-            },
-            onAudioEqChanged: (bass, mid, treble) =>
-            {
-                _audio?.SetEq(bass, mid, treble);
-                ConfigLoader.Save(_config!, _game);
-            },
+            onWindowModeToggle:  callbacks.OnWindowModeToggle,
+            onConfigSaved:       callbacks.OnConfigSaved,
+            onVolumeChanged:     callbacks.OnVolumeChanged,
+            onFilterChanged:     callbacks.OnFilterChanged,
+            onVideoFilterChanged:        callbacks.OnVideoFilterChanged,
+            onVideoFilterOverlayChanged: callbacks.OnVideoFilterOverlayChanged,
+            onVideoColorFilterChanged:   callbacks.OnVideoColorFilterChanged,
+            onVideoMotionEffectChanged:  callbacks.OnVideoMotionEffectChanged,
+            onOverscanModeChanged:       callbacks.OnOverscanModeChanged,
+            onLanguageChanged:           callbacks.OnLanguageChanged,
+            onPictureAdjustChanged:      callbacks.OnPictureAdjustChanged,
+            onAudioEqChanged:            callbacks.OnAudioEqChanged,
             glyphResolver: _glyphResolver!);
 
         _menu.Opened += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());

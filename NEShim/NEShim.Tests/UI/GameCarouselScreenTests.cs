@@ -343,46 +343,36 @@ internal class GameCarouselScreenTests
         Assert.That(screen.SelectedIndex, Is.EqualTo(0));
     }
 
-    // ---- ComputeSlideProgress (pure) ----
+    // ---- ComputeProgress (pure) — shared by SlideProgress and FlipProgress ----
 
     [Test]
-    public void ComputeSlideProgress_ZeroElapsed_ReturnsZero()
+    public void ComputeProgress_ZeroElapsed_ReturnsZero()
     {
-        Assert.That(GameCarouselScreen.ComputeSlideProgress(0, 220), Is.EqualTo(0f));
+        Assert.That(GameCarouselScreen.ComputeProgress(0, 220), Is.EqualTo(0f));
+        Assert.That(GameCarouselScreen.ComputeProgress(0, 260), Is.EqualTo(0f));
     }
 
     [Test]
-    public void ComputeSlideProgress_Midpoint_ReturnsHalf()
+    public void ComputeProgress_Midpoint_ReturnsHalf()
     {
-        Assert.That(GameCarouselScreen.ComputeSlideProgress(110, 220), Is.EqualTo(0.5f).Within(0.001f));
+        Assert.That(GameCarouselScreen.ComputeProgress(110, 220), Is.EqualTo(0.5f).Within(0.001f));
+        Assert.That(GameCarouselScreen.ComputeProgress(130, 260), Is.EqualTo(0.5f).Within(0.001f));
     }
 
     [Test]
-    public void ComputeSlideProgress_AtOrPastDuration_ReturnsOne()
+    public void ComputeProgress_AtOrPastDuration_ReturnsOne()
     {
-        Assert.That(GameCarouselScreen.ComputeSlideProgress(220, 220), Is.EqualTo(1f));
-        Assert.That(GameCarouselScreen.ComputeSlideProgress(999, 220), Is.EqualTo(1f));
-    }
-
-    // ---- ComputeFlipProgress (pure) ----
-
-    [Test]
-    public void ComputeFlipProgress_ZeroElapsed_ReturnsZero()
-    {
-        Assert.That(GameCarouselScreen.ComputeFlipProgress(0, 260), Is.EqualTo(0f));
+        Assert.That(GameCarouselScreen.ComputeProgress(220, 220), Is.EqualTo(1f));
+        Assert.That(GameCarouselScreen.ComputeProgress(999, 220), Is.EqualTo(1f));
+        Assert.That(GameCarouselScreen.ComputeProgress(260, 260), Is.EqualTo(1f));
+        Assert.That(GameCarouselScreen.ComputeProgress(9999, 260), Is.EqualTo(1f));
     }
 
     [Test]
-    public void ComputeFlipProgress_Midpoint_ReturnsHalf()
+    public void ComputeProgress_NonPositiveDuration_ReturnsOne()
     {
-        Assert.That(GameCarouselScreen.ComputeFlipProgress(130, 260), Is.EqualTo(0.5f).Within(0.001f));
-    }
-
-    [Test]
-    public void ComputeFlipProgress_AtOrPastDuration_ReturnsOne()
-    {
-        Assert.That(GameCarouselScreen.ComputeFlipProgress(260, 260), Is.EqualTo(1f));
-        Assert.That(GameCarouselScreen.ComputeFlipProgress(9999, 260), Is.EqualTo(1f));
+        Assert.That(GameCarouselScreen.ComputeProgress(0, 0), Is.EqualTo(1f));
+        Assert.That(GameCarouselScreen.ComputeProgress(0, -1), Is.EqualTo(1f));
     }
 
     // ---- ComputeThumbnailSize (pure) ----

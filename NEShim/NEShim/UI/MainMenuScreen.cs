@@ -523,6 +523,9 @@ internal sealed partial class MainMenuScreen : IDisposable
     public SliderItemData? GetCurrentSliderData(int index) =>
         _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetSliderData(index) : null;
 
+    public bool ShowsControllerDiagram =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) && handler.ShowsControllerDiagram;
+
     public void UpdateLocalization(LocalizationData data)
     {
         _localization          = data;
@@ -568,19 +571,6 @@ internal sealed partial class MainMenuScreen : IDisposable
         return _glyphResolver.Resolve(
             _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization).Glyph;
     }
-
-    private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
-    {
-        AudioFilterMode.Default       => _localization.AudioFilterDefault,
-        AudioFilterMode.Warm          => _localization.AudioFilterWarm,
-        AudioFilterMode.PseudoStereo  => _localization.AudioFilterPseudoStereo,
-        AudioFilterMode.WarmStereo    => _localization.AudioFilterWarmStereo,
-        AudioFilterMode.Compression   => _localization.AudioFilterCompression,
-        AudioFilterMode.BassBoost     => _localization.AudioFilterBassBoost,
-        AudioFilterMode.Saturation    => _localization.AudioFilterSaturation,
-        AudioFilterMode.DmcStabilizer => _localization.AudioFilterDmcStabilizer,
-        _                             => mode.ToString(),
-    };
 
     // Returns a pre-scaled SDL surface at bounds dimensions, rebuilding only when the bounds change.
     // The caller must not destroy the returned surface — it is owned by this instance.

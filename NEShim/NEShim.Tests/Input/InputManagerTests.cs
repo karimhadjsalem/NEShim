@@ -388,7 +388,7 @@ internal class InputManagerTests
         Assert.That(_manager.PollAnyGamepadButtonPressed(), Is.Null);
     }
 
-    // ── GetHeldSliderDir (keyboard path only — Gamepad/Steam are static globals) ─
+    // ── GetHeldSliderDir ──────────────────────────────────────────────────────────
 
     [Test]
     public void GetHeldSliderDir_NoInput_ReturnsBothFalse()
@@ -423,6 +423,48 @@ internal class InputManagerTests
         _manager.OnKeyUp(SDL.Keycode.Left);
         var (left, _) = _manager.GetHeldSliderDir(_config);
         Assert.That(left, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamSourceWithoutHeldDirectionCapability_ReturnsFalse()
+    {
+        // The default SetUp's _mockSteam is a plain IInputSource (no IHeldDirectionSource) —
+        // confirms the `is` check degrades safely rather than throwing.
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamHeldLeft_ReturnsLeftTrue()
+    {
+        var steam = Substitute.For<IInputSource, IHeldDirectionSource>();
+        steam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((true, false));
+
+        var manager = new InputManager(
+            _keyboard, _mockGamepadSource, steam,
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+
+        var (left, right) = manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.True);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamHeldRight_ReturnsRightTrue()
+    {
+        var steam = Substitute.For<IInputSource, IHeldDirectionSource>();
+        steam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((false, true));
+
+        var manager = new InputManager(
+            _keyboard, _mockGamepadSource, steam,
+            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+
+        var (left, right) = manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.True);
     }
 
     // ── PollAnyControllerButton ──────────────────────────────────────────────────

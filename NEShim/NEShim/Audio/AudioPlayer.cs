@@ -14,7 +14,7 @@ namespace NEShim.Audio;
 /// that can be swapped at runtime without stopping the audio device.
 /// When paused, Read() fills with silence.
 /// </summary>
-internal sealed class AudioPlayer : IDisposable
+internal sealed class AudioPlayer : IAudioSink
 {
     private const int SampleRate      = 44100;
     private const int ChannelCount    = 2;

@@ -33,7 +33,7 @@ internal sealed class EmulationThread
     private readonly IEmulationCore     _core;
     private readonly AppConfig          _config;
     private readonly IInputReader       _input;
-    private readonly AudioPlayer        _audio;
+    private readonly IAudioSink         _audio;
     private readonly ISaveManager       _saveStates;
     private readonly InGameMenu         _menu;
     private readonly Action<Action>          _marshalToUiThread;
@@ -60,7 +60,7 @@ internal sealed class EmulationThread
         IEmulationCore      host,
         AppConfig           config,
         IInputReader        input,
-        AudioPlayer         audio,
+        IAudioSink          audio,
         FrameBuffer         frameBuffer,
         Action<Action>          marshalToUiThread,
         IMenuInputTarget    menuInput,

@@ -7,6 +7,7 @@ internal sealed partial class InGameMenu
     private sealed class KeyboardBindingsHandler : ScreenHandler
     {
         public KeyboardBindingsHandler(InGameMenu menu) : base(menu) { }
+        public override bool   ShowsControllerDiagram => true;
         public override string Title => Menu.RebindingAction != null
             ? string.Format(Menu._localization.PressKeyTitle,
                 Menu._bindingActions.First(b => b.ConfigKey == Menu.RebindingAction).Label.ToUpper())

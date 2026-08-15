@@ -788,6 +788,29 @@ internal class MainMenuScreenTests
         Assert.That(screen.SelectedIndex, Is.EqualTo(0));
     }
 
+    // ---- Screen-category flags ----
+
+    [Test]
+    public void ShowsControllerDiagram_OnKeyboardBindingsScreen_IsTrue()
+    {
+        using var screen = CreateScreen();
+        screen.HandleKey(SDL.Keycode.Down);   // Settings
+        screen.HandleKey(SDL.Keycode.Return);
+        screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
+        screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
+        screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
+        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyboardBindings));
+
+        Assert.That(screen.ShowsControllerDiagram, Is.True);
+    }
+
+    [Test]
+    public void ShowsControllerDiagram_OnMainScreen_IsFalse()
+    {
+        using var screen = CreateScreen();
+        Assert.That(screen.ShowsControllerDiagram, Is.False);
+    }
+
     // ---- Key binding uniqueness ----
 
     [Test]

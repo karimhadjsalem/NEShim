@@ -14,7 +14,7 @@ namespace NEShim.GameLoop;
 internal sealed class FramePipeline
 {
     private readonly IEmulationCore _core;
-    private readonly AudioPlayer _audio;
+    private readonly IAudioSink _audio;
     private readonly IAchievementProcessor _achievements;
     private readonly IRenderCoordinator _render;
     private readonly ISaveManager _saveStates;
@@ -29,7 +29,7 @@ internal sealed class FramePipeline
 
     public FramePipeline(
         IEmulationCore core,
-        AudioPlayer audio,
+        IAudioSink audio,
         IAchievementProcessor achievements,
         IRenderCoordinator render,
         ISaveManager saveStates)

@@ -14,5 +14,8 @@ internal sealed partial class MainMenuScreen
         public virtual  IntPtr            GetItemIcon(int index)     => IntPtr.Zero;
         public virtual  IntPtr            GetItemValueIcon(int index) => IntPtr.Zero;
         public virtual  SliderItemData?   GetSliderData(int index)   => null;
+
+        /// <summary>True for binding screens wide enough to show the NES controller diagram column.</summary>
+        public virtual  bool              ShowsControllerDiagram   => false;
     }
 }

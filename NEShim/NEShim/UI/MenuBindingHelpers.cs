@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
+using NEShim.Rendering;
 
 namespace NEShim.UI;
 
@@ -108,4 +110,86 @@ internal static class MenuBindingHelpers
     /// </summary>
     public static string LocalizeGamepadButton(string? identifier, LocalizationData localization)
         => NEShim.Input.GamepadButtonLocalizer.Localize(identifier, localization);
+
+    // ── Localized display names ─────────────────────────────────────────────────
+    // Shared by InGameMenuHandlers/ and MainMenuHandlers/ — previously each directory hand-wrote
+    // its own copy of every one of these switches (independently, per handler), so a filter/mode
+    // display name could silently drift between the two menus. One copy each, here.
+
+    public static string VideoFilterDisplayName(VideoFilterMode mode, LocalizationData localization) => mode switch
+    {
+        VideoFilterMode.Bilinear      => localization.VideoFilterSmooth,
+        VideoFilterMode.PixelPerfect  => localization.VideoFilterPixelPerfect,
+        VideoFilterMode.CrtScanlines  => localization.VideoFilterCrtScanlines,
+        VideoFilterMode.CrtPhosphor   => localization.VideoFilterCrtPhosphor,
+        VideoFilterMode.NtscComposite => localization.VideoFilterNtscComposite,
+        VideoFilterMode.CrtScreen     => localization.VideoFilterCrtScreen,
+        VideoFilterMode.Xbr           => localization.VideoFilterXbr,
+        _                             => mode.ToString(),
+    };
+
+    /// <summary>The Video Overlay cycle item's display name — <c>null</c> means "no overlay".</summary>
+    public static string VideoOverlayDisplayName(VideoFilterMode? mode, LocalizationData localization) => mode switch
+    {
+        null                         => localization.VideoColorFilterNone,
+        VideoFilterMode.CrtScanlines => localization.VideoFilterCrtScanlines,
+        VideoFilterMode.CrtPhosphor  => localization.VideoFilterCrtPhosphor,
+        VideoFilterMode.CrtScreen    => localization.VideoFilterCrtScreen,
+        _                            => mode.ToString()!,
+    };
+
+    public static string VideoMotionEffectDisplayName(VideoMotionEffectMode mode, LocalizationData localization) => mode switch
+    {
+        VideoMotionEffectMode.None                 => localization.VideoMotionEffectNone,
+        VideoMotionEffectMode.CrtJitter             => localization.VideoMotionEffectCrtJitter,
+        VideoMotionEffectMode.ScanlineBob           => localization.VideoMotionEffectScanlineBob,
+        VideoMotionEffectMode.MagneticDistortion    => localization.VideoMotionEffectMagneticDistortion,
+        VideoMotionEffectMode.PhosphorPersistence   => localization.VideoMotionEffectPhosphorPersistence,
+        _                                           => mode.ToString(),
+    };
+
+    public static string VideoColorFilterDisplayName(VideoColorFilterMode mode, LocalizationData localization) => mode switch
+    {
+        VideoColorFilterMode.None               => localization.VideoColorFilterNone,
+        VideoColorFilterMode.Warm               => localization.VideoColorFilterWarm,
+        VideoColorFilterMode.Greyscale          => localization.VideoColorFilterGreyscale,
+        VideoColorFilterMode.NesColorCorrection => localization.VideoColorFilterNesColors,
+        VideoColorFilterMode.Cool               => localization.VideoColorFilterCool,
+        VideoColorFilterMode.PhosphorAmber      => localization.VideoColorFilterPhosphorAmber,
+        VideoColorFilterMode.PhosphorGreen      => localization.VideoColorFilterPhosphorGreen,
+        _                                       => mode.ToString(),
+    };
+
+    public static string OverscanDisplayName(OverscanMode mode, LocalizationData localization) => mode switch
+    {
+        OverscanMode.Overscan  => localization.OverscanOverscan,
+        OverscanMode.Normal    => localization.OverscanNormal,
+        OverscanMode.Underscan => localization.OverscanUnderscan,
+        _                      => mode.ToString(),
+    };
+
+    public static string AudioFilterDisplayName(AudioFilterMode mode, LocalizationData localization) => mode switch
+    {
+        AudioFilterMode.Default       => localization.AudioFilterDefault,
+        AudioFilterMode.Warm          => localization.AudioFilterWarm,
+        AudioFilterMode.PseudoStereo  => localization.AudioFilterPseudoStereo,
+        AudioFilterMode.WarmStereo    => localization.AudioFilterWarmStereo,
+        AudioFilterMode.Compression   => localization.AudioFilterCompression,
+        AudioFilterMode.BassBoost     => localization.AudioFilterBassBoost,
+        AudioFilterMode.Saturation    => localization.AudioFilterSaturation,
+        AudioFilterMode.DmcStabilizer => localization.AudioFilterDmcStabilizer,
+        _                             => mode.ToString(),
+    };
+
+    /// <summary>The active preset label shown on the Video screen — <paramref name="presetName"/>
+    /// is <c>AppConfig.VideoPreset</c> ("None", "NoFilters", "LivingRoom", etc.).</summary>
+    public static string VideoPresetDisplayName(string presetName, LocalizationData localization) => presetName switch
+    {
+        "NoFilters"  => localization.VideoPresetNoFilters,
+        "LivingRoom" => localization.VideoPresetLivingRoom,
+        "Arcade"     => localization.VideoPresetArcade,
+        "Sharp"      => localization.VideoPresetSharp,
+        "Phosphor"   => localization.VideoPresetPhosphor,
+        _            => localization.VideoPresetNoPreset,
+    };
 }

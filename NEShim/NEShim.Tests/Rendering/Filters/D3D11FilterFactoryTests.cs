@@ -15,10 +15,17 @@ internal class D3D11FilterFactoryTests
     }
 
     [Test]
-    public void Create_UnsupportedMode_FallsBackToPixelPerfect()
+    public void Create_NearestNeighbour_FallsBackToPixelPerfect()
     {
         var filter = D3D11FilterFactory.Create(VideoFilterMode.NearestNeighbour);
         Assert.That(filter, Is.InstanceOf<PixelPerfectD3D11Filter>());
+    }
+
+    [Test]
+    public void Create_UnmappedMode_Throws()
+    {
+        Assert.That(() => D3D11FilterFactory.Create((VideoFilterMode)999),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]

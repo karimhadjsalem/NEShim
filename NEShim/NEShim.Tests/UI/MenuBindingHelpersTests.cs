@@ -1,5 +1,7 @@
+using NEShim.Audio;
 using NEShim.Config;
 using NEShim.Localization;
+using NEShim.Rendering;
 using NEShim.UI;
 
 namespace NEShim.Tests.UI;
@@ -220,5 +222,114 @@ internal class MenuBindingHelpersTests
     {
         var loc = new LocalizationData();
         Assert.That(MenuBindingHelpers.LocalizeGamepadButton("SomeFutureButton", loc), Is.EqualTo("SomeFutureButton"));
+    }
+
+    // ── Localized display names ─────────────────────────────────────────────────
+    // These are the single shared source of truth consulted by both InGameMenuHandlers/ and
+    // MainMenuHandlers/ — the exhaustive TestCase coverage here is what previously had to be
+    // duplicated (or, in practice, wasn't) across every handler pair.
+
+    [TestCase(VideoFilterMode.Bilinear,      nameof(LocalizationData.VideoFilterSmooth))]
+    [TestCase(VideoFilterMode.PixelPerfect,  nameof(LocalizationData.VideoFilterPixelPerfect))]
+    [TestCase(VideoFilterMode.CrtScanlines,  nameof(LocalizationData.VideoFilterCrtScanlines))]
+    [TestCase(VideoFilterMode.CrtPhosphor,   nameof(LocalizationData.VideoFilterCrtPhosphor))]
+    [TestCase(VideoFilterMode.NtscComposite, nameof(LocalizationData.VideoFilterNtscComposite))]
+    [TestCase(VideoFilterMode.CrtScreen,     nameof(LocalizationData.VideoFilterCrtScreen))]
+    [TestCase(VideoFilterMode.Xbr,           nameof(LocalizationData.VideoFilterXbr))]
+    public void VideoFilterDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(VideoFilterMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.VideoFilterDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void VideoFilterDisplayName_UnmappedMode_FallsBackToModeName()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.VideoFilterDisplayName(VideoFilterMode.NearestNeighbour, loc),
+            Is.EqualTo(VideoFilterMode.NearestNeighbour.ToString()));
+    }
+
+    [Test]
+    public void VideoOverlayDisplayName_Null_ReturnsNoneLabel()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.VideoOverlayDisplayName(null, loc), Is.EqualTo(loc.VideoColorFilterNone));
+    }
+
+    [TestCase(VideoFilterMode.CrtScanlines, nameof(LocalizationData.VideoFilterCrtScanlines))]
+    [TestCase(VideoFilterMode.CrtPhosphor,  nameof(LocalizationData.VideoFilterCrtPhosphor))]
+    [TestCase(VideoFilterMode.CrtScreen,    nameof(LocalizationData.VideoFilterCrtScreen))]
+    public void VideoOverlayDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(VideoFilterMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.VideoOverlayDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [TestCase(VideoMotionEffectMode.None,                nameof(LocalizationData.VideoMotionEffectNone))]
+    [TestCase(VideoMotionEffectMode.CrtJitter,           nameof(LocalizationData.VideoMotionEffectCrtJitter))]
+    [TestCase(VideoMotionEffectMode.ScanlineBob,         nameof(LocalizationData.VideoMotionEffectScanlineBob))]
+    [TestCase(VideoMotionEffectMode.MagneticDistortion,  nameof(LocalizationData.VideoMotionEffectMagneticDistortion))]
+    [TestCase(VideoMotionEffectMode.PhosphorPersistence, nameof(LocalizationData.VideoMotionEffectPhosphorPersistence))]
+    public void VideoMotionEffectDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(VideoMotionEffectMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.VideoMotionEffectDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [TestCase(VideoColorFilterMode.None,               nameof(LocalizationData.VideoColorFilterNone))]
+    [TestCase(VideoColorFilterMode.Warm,               nameof(LocalizationData.VideoColorFilterWarm))]
+    [TestCase(VideoColorFilterMode.Greyscale,          nameof(LocalizationData.VideoColorFilterGreyscale))]
+    [TestCase(VideoColorFilterMode.NesColorCorrection, nameof(LocalizationData.VideoColorFilterNesColors))]
+    [TestCase(VideoColorFilterMode.Cool,               nameof(LocalizationData.VideoColorFilterCool))]
+    [TestCase(VideoColorFilterMode.PhosphorAmber,      nameof(LocalizationData.VideoColorFilterPhosphorAmber))]
+    [TestCase(VideoColorFilterMode.PhosphorGreen,      nameof(LocalizationData.VideoColorFilterPhosphorGreen))]
+    public void VideoColorFilterDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(VideoColorFilterMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.VideoColorFilterDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [TestCase(OverscanMode.Overscan,  nameof(LocalizationData.OverscanOverscan))]
+    [TestCase(OverscanMode.Normal,    nameof(LocalizationData.OverscanNormal))]
+    [TestCase(OverscanMode.Underscan, nameof(LocalizationData.OverscanUnderscan))]
+    public void OverscanDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(OverscanMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.OverscanDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [TestCase(AudioFilterMode.Default,       nameof(LocalizationData.AudioFilterDefault))]
+    [TestCase(AudioFilterMode.Warm,          nameof(LocalizationData.AudioFilterWarm))]
+    [TestCase(AudioFilterMode.PseudoStereo,  nameof(LocalizationData.AudioFilterPseudoStereo))]
+    [TestCase(AudioFilterMode.WarmStereo,    nameof(LocalizationData.AudioFilterWarmStereo))]
+    [TestCase(AudioFilterMode.Compression,   nameof(LocalizationData.AudioFilterCompression))]
+    [TestCase(AudioFilterMode.BassBoost,     nameof(LocalizationData.AudioFilterBassBoost))]
+    [TestCase(AudioFilterMode.Saturation,    nameof(LocalizationData.AudioFilterSaturation))]
+    [TestCase(AudioFilterMode.DmcStabilizer, nameof(LocalizationData.AudioFilterDmcStabilizer))]
+    public void AudioFilterDisplayName_KnownMode_ReturnsMatchingLocalizationProperty(AudioFilterMode mode, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.AudioFilterDisplayName(mode, loc), Is.EqualTo(expected));
+    }
+
+    [TestCase("NoFilters",  nameof(LocalizationData.VideoPresetNoFilters))]
+    [TestCase("LivingRoom", nameof(LocalizationData.VideoPresetLivingRoom))]
+    [TestCase("Arcade",     nameof(LocalizationData.VideoPresetArcade))]
+    [TestCase("Sharp",      nameof(LocalizationData.VideoPresetSharp))]
+    [TestCase("Phosphor",   nameof(LocalizationData.VideoPresetPhosphor))]
+    [TestCase("None",       nameof(LocalizationData.VideoPresetNoPreset))]
+    [TestCase("SomeFuturePreset", nameof(LocalizationData.VideoPresetNoPreset))]
+    public void VideoPresetDisplayName_KnownAndUnknownNames_ReturnMatchingLocalizationProperty(string presetName, string propertyName)
+    {
+        var loc = new LocalizationData();
+        var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
+        Assert.That(MenuBindingHelpers.VideoPresetDisplayName(presetName, loc), Is.EqualTo(expected));
     }
 }

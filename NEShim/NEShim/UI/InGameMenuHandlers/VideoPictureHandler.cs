@@ -28,7 +28,7 @@ internal sealed partial class InGameMenu
             var currentColor = VideoColorFilterModeParser.Parse(Menu._config.VideoColorFilter);
             return
             [
-                $"{Menu._localization.VideoColorPresetLabel}: {ColorDisplayName(currentColor)}",
+                $"{Menu._localization.VideoColorPresetLabel}: {MenuBindingHelpers.VideoColorFilterDisplayName(currentColor, Menu._localization)}",
                 Menu._localization.VideoBrightnessLabel,
                 Menu._localization.VideoContrastLabel,
                 Menu._localization.VideoSaturationLabel,
@@ -70,17 +70,5 @@ internal sealed partial class InGameMenu
         }
 
         private static string FormatPct(int value) => value == 0 ? "0" : value.ToString("+0;-0");
-
-        private string ColorDisplayName(VideoColorFilterMode mode) => mode switch
-        {
-            VideoColorFilterMode.None               => Menu._localization.VideoColorFilterNone,
-            VideoColorFilterMode.Warm               => Menu._localization.VideoColorFilterWarm,
-            VideoColorFilterMode.Greyscale          => Menu._localization.VideoColorFilterGreyscale,
-            VideoColorFilterMode.NesColorCorrection => Menu._localization.VideoColorFilterNesColors,
-            VideoColorFilterMode.Cool               => Menu._localization.VideoColorFilterCool,
-            VideoColorFilterMode.PhosphorAmber      => Menu._localization.VideoColorFilterPhosphorAmber,
-            VideoColorFilterMode.PhosphorGreen      => Menu._localization.VideoColorFilterPhosphorGreen,
-            _                                       => mode.ToString(),
-        };
     }
 }

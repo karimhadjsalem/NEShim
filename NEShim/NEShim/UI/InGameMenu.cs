@@ -162,16 +162,16 @@ internal sealed partial class InGameMenu
             [Screen.Language]          = new LanguageHandler(this),
             [Screen.ConfirmLoad]            = new ConfirmHandler(this,
                 _localization.InGameLoadTitle,   _localization.InGameConfirmYesLoad,
-                () => { _saveStates.LoadFromActiveSlot(); Close(); }),
+                () => { _saveStates.LoadFromActiveSlot(); Close(); }, isWarningStyle: false),
             [Screen.ConfirmMainMenu]        = new ConfirmHandler(this,
                 _localization.InGameReturnTitle, _localization.InGameConfirmYesReturn,
-                () => { Close(); _onReturnToMainMenu(); }),
+                () => { Close(); _onReturnToMainMenu(); }, isWarningStyle: true),
             [Screen.ConfirmExit]            = new ConfirmHandler(this,
                 _localization.InGameExitTitle,   _localization.InGameConfirmYesExit,
-                () => { Close(); _onExitToDesktop(); }),
+                () => { Close(); _onExitToDesktop(); }, isWarningStyle: true),
             [Screen.ConfirmChangeGame]      = new ConfirmHandler(this,
                 _localization.InGameChangeGameTitle, _localization.InGameConfirmYesChangeGame,
-                () => { Close(); _onChangeGame(); }),
+                () => { Close(); _onChangeGame(); }, isWarningStyle: false),
             [Screen.ControllerDisconnected] = new ControllerDisconnectedHandler(this),
         };
 
@@ -500,6 +500,12 @@ internal sealed partial class InGameMenu
     public SliderItemData? GetCurrentSliderData(int index) =>
         _handlers.TryGetValue(Current, out var handler) ? handler.GetSliderData(index) : null;
 
+    public bool IsConfirmStyle =>
+        _handlers.TryGetValue(Current, out var handler) && handler.IsConfirmStyle;
+
+    public bool ShowsControllerDiagram =>
+        _handlers.TryGetValue(Current, out var handler) && handler.ShowsControllerDiagram;
+
     public void UpdateLocalization(LocalizationData data)
     {
         _localization          = data;
@@ -545,18 +551,4 @@ internal sealed partial class InGameMenu
         return _glyphResolver.Resolve(
             _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization).Glyph;
     }
-
-    private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
-    {
-        AudioFilterMode.Default       => _localization.AudioFilterDefault,
-        AudioFilterMode.Warm          => _localization.AudioFilterWarm,
-        AudioFilterMode.PseudoStereo  => _localization.AudioFilterPseudoStereo,
-        AudioFilterMode.WarmStereo    => _localization.AudioFilterWarmStereo,
-        AudioFilterMode.Compression   => _localization.AudioFilterCompression,
-        AudioFilterMode.BassBoost     => _localization.AudioFilterBassBoost,
-        AudioFilterMode.Saturation    => _localization.AudioFilterSaturation,
-        AudioFilterMode.DmcStabilizer => _localization.AudioFilterDmcStabilizer,
-        _                             => mode.ToString(),
-    };
-
 }

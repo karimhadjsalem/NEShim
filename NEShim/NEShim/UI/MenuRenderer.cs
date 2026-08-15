@@ -69,13 +69,12 @@ internal static class MenuRenderer
 
         var    items        = menu.GetCurrentItems();
         string title        = menu.GetTitle();
-        bool   isConfirm    = menu.Current == InGameMenu.Screen.ConfirmMainMenu
-                           || menu.Current == InGameMenu.Screen.ConfirmExit;
+        bool   isConfirm    = menu.IsConfirmStyle;
         int    warningRowH  = isConfirm ? ItemH : 0;
         int    openMenuIdx  = menu.Current == InGameMenu.Screen.GamepadBindings
                               ? menu.OpenMenuBindingIndex : -1;
         bool   hasSeparator = openMenuIdx >= 0;
-        bool   showCtrl     = ShouldShowController(bounds, menu.Current);
+        bool   showCtrl     = ShouldShowController(bounds, menu);
 
         var (panelX, panelY, panelW, panelH, listW) = PanelMetrics(bounds, items.Length, warningRowH, hasSeparator, showCtrl);
         var panelFRect = new SDL.FRect { X = panelX, Y = panelY, W = panelW, H = panelH };
@@ -215,10 +214,8 @@ internal static class MenuRenderer
             menu.Localization.FontFamily, 11f * MenuScale.Scale, bold: false, italic: true);
     }
 
-    private static bool ShouldShowController(SDL.Rect bounds, InGameMenu.Screen screen) =>
-        bounds.W >= MinWidthForCtrl
-        && (screen == InGameMenu.Screen.KeyboardBindings
-            || screen == InGameMenu.Screen.GamepadBindings);
+    private static bool ShouldShowController(SDL.Rect bounds, InGameMenu menu) =>
+        bounds.W >= MinWidthForCtrl && menu.ShowsControllerDiagram;
 
     private static (int panelX, int panelY, int panelW, int panelH, int listW) PanelMetrics(
         SDL.Rect bounds, int itemCount, int warningRowH, bool hasSeparator, bool showCtrl)

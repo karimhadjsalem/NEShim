@@ -8,6 +8,7 @@ internal sealed partial class InGameMenu
     private sealed class GamepadBindingsHandler : ScreenHandler
     {
         public GamepadBindingsHandler(InGameMenu menu) : base(menu) { }
+        public override bool   ShowsControllerDiagram => true;
         public override string Title => Menu.GamepadRebindingAction != null
             ? string.Format(Menu._localization.PressButtonTitle,
                 Menu._gamepadBindingActions.First(b => b.ConfigKey == Menu.GamepadRebindingAction).Label.ToUpper())

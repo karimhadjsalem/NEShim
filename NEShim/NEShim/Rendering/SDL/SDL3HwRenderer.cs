@@ -242,6 +242,10 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
     // SdlGpuPipeline draw needs — see the fields' own doc comment for why one static quad works
     // for every consumer. The vertex buffer is populated once via a throwaway transfer buffer
     // (destroyed immediately after) since its content never changes afterward.
+    // {pos.xy, uv.xy} per vertex, 16 bytes/vertex, 6 vertices (2 triangles) — the size of every
+    // full-quad GPU buffer this class uploads (shared quad + filter-source quad alike).
+    private const uint QuadVertexBufferSizeBytes = 6 * 4 * sizeof(float);
+
     private unsafe void InitializeCustomPipelineInfrastructure()
     {
         _gpuVertexShader = SdlGpuPipeline.LoadVertexShader(_gpuDevice);
@@ -255,8 +259,20 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _linearSampler  = CreateSampler(linear: true);
         SyncFinalStageOutputTexture();
 
-        // {pos.xy, uv.xy} per vertex, 16 bytes/vertex, 6 vertices (2 triangles) — a full
-        // -1,1..1,-1 clip-space quad with 0,0..1,1 UV. Matches Passthrough.vs.hlsl's VSInput.
+        if (!CreateSharedQuadVertexBuffer()) return;
+
+        CreateFilterSourceBuffers();
+        CreateNesGpuUploadPath();
+        CreatePassthroughColorGradePipeline();
+    }
+
+    // Creates and uploads the static full-quad vertex buffer shared by every custom-pipeline draw
+    // that doesn't need per-frame positioning (see UpdateFilterSourceQuad's doc comment for the
+    // one draw that does). Returns false only for the two failures that leave nothing left to draw
+    // with — a failed one-time upload (mapping) is logged nowhere in the original code either and
+    // does not abort the rest of initialization, so that non-fatal case is preserved as-is here.
+    private unsafe bool CreateSharedQuadVertexBuffer()
+    {
         Span<float> quad = stackalloc float[]
         {
             -1f,  1f, 0f, 0f,
@@ -266,14 +282,14 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
              1f, -1f, 1f, 1f,
             -1f, -1f, 0f, 1f,
         };
-        uint quadBytes = (uint)(quad.Length * sizeof(float));
+        uint quadBytes = QuadVertexBufferSizeBytes;
 
         var vbCreateInfo = new SDL.GPUBufferCreateInfo { Usage = SDL.GPUBufferUsageFlags.Vertex, Size = quadBytes, Props = 0 };
         _quadVertexBuffer = SDL.CreateGPUBuffer(_gpuDevice, in vbCreateInfo);
         if (_quadVertexBuffer == IntPtr.Zero)
         {
             Logger.Log($"[SDL3HwRenderer] CreateGPUBuffer (quad) failed: {SDL.GetError()}");
-            return;
+            return false;
         }
 
         var transferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = quadBytes, Props = 0 };
@@ -281,7 +297,7 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         if (transferBuffer == IntPtr.Zero)
         {
             Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (quad) failed: {SDL.GetError()}");
-            return;
+            return false;
         }
 
         IntPtr mapped = SDL.MapGPUTransferBuffer(_gpuDevice, transferBuffer, false);
@@ -303,17 +319,29 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
             }
         }
         SDL.ReleaseGPUTransferBuffer(_gpuDevice, transferBuffer);
+        return true;
+    }
 
-        var filterVbInfo = new SDL.GPUBufferCreateInfo { Usage = SDL.GPUBufferUsageFlags.Vertex, Size = quadBytes, Props = 0 };
+    // Per-frame-rewritable quad buffer used by UpdateFilterSourceQuad — see that method's doc
+    // comment. Failure here (like the NES upload path below) is logged but non-fatal: the affected
+    // custom-pipeline stage simply doesn't draw, the rest of initialization still proceeds.
+    private void CreateFilterSourceBuffers()
+    {
+        var filterVbInfo = new SDL.GPUBufferCreateInfo { Usage = SDL.GPUBufferUsageFlags.Vertex, Size = QuadVertexBufferSizeBytes, Props = 0 };
         _filterSourceVertexBuffer = SDL.CreateGPUBuffer(_gpuDevice, in filterVbInfo);
         if (_filterSourceVertexBuffer == IntPtr.Zero)
             Logger.Log($"[SDL3HwRenderer] CreateGPUBuffer (filter source quad) failed: {SDL.GetError()}");
 
-        var filterTransferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = quadBytes, Props = 0 };
+        var filterTransferInfo = new SDL.GPUTransferBufferCreateInfo { Usage = SDL.GPUTransferBufferUsage.Upload, Size = QuadVertexBufferSizeBytes, Props = 0 };
         _filterSourceTransferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in filterTransferInfo);
         if (_filterSourceTransferBuffer == IntPtr.Zero)
             Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (filter source quad) failed: {SDL.GetError()}");
+    }
 
+    // GPU-side NES source texture + its upload transfer buffer, sized once at NES resolution
+    // (never resized — the NES frame size is fixed for the process lifetime).
+    private void CreateNesGpuUploadPath()
+    {
         var nesTexInfo = new SDL.GPUTextureCreateInfo
         {
             Type              = SDL.GPUTextureType.TextureType2D,
@@ -335,10 +363,13 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _nesUploadTransferBuffer = SDL.CreateGPUTransferBuffer(_gpuDevice, in nesTransferInfo);
         if (_nesUploadTransferBuffer == IntPtr.Zero)
             Logger.Log($"[SDL3HwRenderer] CreateGPUTransferBuffer (NES source) failed: {SDL.GetError()}");
+    }
 
-        // See _passthroughColorGradePipeline's field doc comment. NumFragmentSamplers/
-        // NumFragmentUniformBuffers match Passthrough.ps.hlsl's declared bindings (1 combined
-        // image sampler, 1 uniform buffer) via ISdlFilter's interface defaults.
+    // See _passthroughColorGradePipeline's field doc comment. NumFragmentSamplers/
+    // NumFragmentUniformBuffers match Passthrough.ps.hlsl's declared bindings (1 combined
+    // image sampler, 1 uniform buffer) via ISdlFilter's interface defaults.
+    private void CreatePassthroughColorGradePipeline()
+    {
         _passthroughColorGradePipeline = new SdlGpuPipeline(
             _gpuDevice, _gpuVertexShader, _gpuColorTargetFormat,
             "NEShim.Rendering.Shaders.Vulkan.Passthrough.ps.spv",
@@ -723,8 +754,9 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         IntPtr overlayTarget = (hasMeShader || hasPhosphor) ? _motionEffectTexture : motionTarget;
         IntPtr filterTarget  = hasOverlay ? _overlayFilterTexture : overlayTarget;
 
-        bool filterAppliesColorMode  = !hasOverlay && !hasMeShader;
-        bool overlayAppliesColorMode = hasOverlay  && !hasMeShader;
+        var colorStage = RenderPassPlanner.ColorApplyingStage(hasOverlay, hasMeShader);
+        bool filterAppliesColorMode  = colorStage == RenderStage.Filter;
+        bool overlayAppliesColorMode = colorStage == RenderStage.Overlay;
 
         RunFilterPass(src, nominalDest, filterTarget, filterAppliesColorMode);
 

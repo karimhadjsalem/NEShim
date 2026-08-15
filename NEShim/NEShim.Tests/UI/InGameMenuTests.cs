@@ -229,6 +229,52 @@ internal class InGameMenuTests
         Assert.That(menu.SelectedItem, Is.EqualTo(1)); // default is "No"
     }
 
+    [TestCase(4, InGameMenu.Screen.ConfirmLoad,     false)] // "Yes, load game" isn't a discard warning
+    [TestCase(6, InGameMenu.Screen.ConfirmMainMenu, true)]
+    [TestCase(7, InGameMenu.Screen.ConfirmExit,     true)]
+    public void IsConfirmStyle_MatchesWarningVsNonWarningConfirmScreens(int downPresses, InGameMenu.Screen expectedScreen, bool expectedIsConfirmStyle)
+    {
+        _saves.SlotExists(0).Returns(true);
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < downPresses; i++) menu.HandleKey(SDL.Keycode.Down);
+        menu.HandleKey(SDL.Keycode.Return);
+
+        Assert.That(menu.Current, Is.EqualTo(expectedScreen));
+        Assert.That(menu.IsConfirmStyle, Is.EqualTo(expectedIsConfirmStyle));
+    }
+
+    [Test]
+    public void IsConfirmStyle_OnRootScreen_IsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open();
+        Assert.That(menu.IsConfirmStyle, Is.False);
+    }
+
+    [Test]
+    public void ShowsControllerDiagram_OnKeyboardBindingsScreen_IsTrue()
+    {
+        var menu = CreateMenu();
+        menu.Open();
+        for (int i = 0; i < 4; i++) menu.HandleKey(SDL.Keycode.Down); // Settings (skipping disabled Load Game)
+        menu.HandleKey(SDL.Keycode.Return);
+        menu.HandleKey(SDL.Keycode.Down);   // skip Video
+        menu.HandleKey(SDL.Keycode.Down);   // skip Sound
+        menu.HandleKey(SDL.Keycode.Return); // Keyboard Controls
+        Assert.That(menu.Current, Is.EqualTo(InGameMenu.Screen.KeyboardBindings));
+
+        Assert.That(menu.ShowsControllerDiagram, Is.True);
+    }
+
+    [Test]
+    public void ShowsControllerDiagram_OnRootScreen_IsFalse()
+    {
+        var menu = CreateMenu();
+        menu.Open();
+        Assert.That(menu.ShowsControllerDiagram, Is.False);
+    }
+
     [Test]
     public void ConfirmMainMenu_Yes_ClosesMenuAndInvokesCallback()
     {

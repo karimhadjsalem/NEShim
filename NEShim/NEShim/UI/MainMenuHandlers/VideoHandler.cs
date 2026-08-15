@@ -25,8 +25,8 @@ internal sealed partial class MainMenuScreen
             string windowItem   = Menu._config.WindowMode == "Fullscreen"
                 ? Menu._localization.VideoWindowFullscreen
                 : Menu._localization.VideoWindowWindowed;
-            string filterItem   = $"{Menu._localization.VideoFilterLabel}: {FilterDisplayName(currentFilter)}";
-            string overscanItem = $"{Menu._localization.OverscanLabel}: {OverscanDisplayName(currentOverscan)}";
+            string filterItem   = $"{Menu._localization.VideoFilterLabel}: {MenuBindingHelpers.VideoFilterDisplayName(currentFilter, Menu._localization)}";
+            string overscanItem = $"{Menu._localization.OverscanLabel}: {MenuBindingHelpers.OverscanDisplayName(currentOverscan, Menu._localization)}";
             string fpsItem      = Menu._config.ShowFps ? Menu._localization.VideoFpsOn : Menu._localization.VideoFpsOff;
 
             if (!NEShim.Platform.PlatformDetector.SupportsAdvancedVideoFeatures)
@@ -34,10 +34,10 @@ internal sealed partial class MainMenuScreen
 
             var overlayMode   = VideoFilterModeParser.ParseOverlay(Menu._config.VideoFilterOverlay);
             var currentMotion = VideoMotionEffectModeParser.Parse(Menu._config.VideoMotionEffect);
-            string overlayItem  = $"{Menu._localization.VideoOverlayLabel}: {OverlayDisplayName(overlayMode)}";
-            string motionItem   = $"{Menu._localization.VideoMotionEffectLabel}: {MotionDisplayName(currentMotion)}";
+            string overlayItem  = $"{Menu._localization.VideoOverlayLabel}: {MenuBindingHelpers.VideoOverlayDisplayName(overlayMode, Menu._localization)}";
+            string motionItem   = $"{Menu._localization.VideoMotionEffectLabel}: {MenuBindingHelpers.VideoMotionEffectDisplayName(currentMotion, Menu._localization)}";
             string pictureItem  = Menu._localization.VideoPictureLabel;
-            string presetsItem  = $"{Menu._localization.VideoPresetsLabel}: {ActivePresetDisplayName()}";
+            string presetsItem  = $"{Menu._localization.VideoPresetsLabel}: {MenuBindingHelpers.VideoPresetDisplayName(Menu._config.VideoPreset, Menu._localization)}";
             return [presetsItem, windowItem, filterItem, overlayItem, motionItem, pictureItem, overscanItem, fpsItem, Menu._localization.Back];
         }
 
@@ -107,56 +107,5 @@ internal sealed partial class MainMenuScreen
             }
         }
 
-        private string ActivePresetDisplayName()
-        {
-            return Menu._config.VideoPreset switch
-            {
-                "NoFilters"  => Menu._localization.VideoPresetNoFilters,
-                "LivingRoom" => Menu._localization.VideoPresetLivingRoom,
-                "Arcade"     => Menu._localization.VideoPresetArcade,
-                "Sharp"      => Menu._localization.VideoPresetSharp,
-                "Phosphor"   => Menu._localization.VideoPresetPhosphor,
-                _            => Menu._localization.VideoPresetNoPreset,
-            };
-        }
-
-        private string FilterDisplayName(VideoFilterMode mode) => mode switch
-        {
-            VideoFilterMode.Bilinear      => Menu._localization.VideoFilterSmooth,
-            VideoFilterMode.PixelPerfect  => Menu._localization.VideoFilterPixelPerfect,
-            VideoFilterMode.CrtScanlines  => Menu._localization.VideoFilterCrtScanlines,
-            VideoFilterMode.CrtPhosphor   => Menu._localization.VideoFilterCrtPhosphor,
-            VideoFilterMode.NtscComposite => Menu._localization.VideoFilterNtscComposite,
-            VideoFilterMode.CrtScreen     => Menu._localization.VideoFilterCrtScreen,
-            VideoFilterMode.Xbr           => Menu._localization.VideoFilterXbr,
-            _                             => mode.ToString(),
-        };
-
-        private string OverlayDisplayName(VideoFilterMode? mode) => mode switch
-        {
-            null                         => Menu._localization.VideoColorFilterNone,
-            VideoFilterMode.CrtScanlines => Menu._localization.VideoFilterCrtScanlines,
-            VideoFilterMode.CrtPhosphor  => Menu._localization.VideoFilterCrtPhosphor,
-            VideoFilterMode.CrtScreen    => Menu._localization.VideoFilterCrtScreen,
-            _                            => mode.ToString()!,
-        };
-
-        private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
-        {
-            VideoMotionEffectMode.None                 => Menu._localization.VideoMotionEffectNone,
-            VideoMotionEffectMode.CrtJitter            => Menu._localization.VideoMotionEffectCrtJitter,
-            VideoMotionEffectMode.ScanlineBob          => Menu._localization.VideoMotionEffectScanlineBob,
-            VideoMotionEffectMode.MagneticDistortion   => Menu._localization.VideoMotionEffectMagneticDistortion,
-            VideoMotionEffectMode.PhosphorPersistence  => Menu._localization.VideoMotionEffectPhosphorPersistence,
-            _                                          => mode.ToString(),
-        };
-
-        private string OverscanDisplayName(OverscanMode mode) => mode switch
-        {
-            OverscanMode.Overscan  => Menu._localization.OverscanOverscan,
-            OverscanMode.Normal    => Menu._localization.OverscanNormal,
-            OverscanMode.Underscan => Menu._localization.OverscanUnderscan,
-            _                      => mode.ToString(),
-        };
     }
 }

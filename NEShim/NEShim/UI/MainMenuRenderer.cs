@@ -134,7 +134,7 @@ internal static class MainMenuRenderer
         int  openMenuIdx = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
                            ? menu.OpenMenuBindingIndex : -1;
         bool hasSep      = openMenuIdx >= 0;
-        bool showCtrl    = ShouldShowController(bounds, menu.CurrentScreen);
+        bool showCtrl    = ShouldShowController(bounds, menu);
         int  ctrlAreaW   = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
         int  panelW      = showCtrl ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W) : MenuRenderConstants.ScaledPanelW(SlimPanelW, bounds.W);
         int  listW       = showCtrl ? panelW - ctrlAreaW : panelW;
@@ -418,10 +418,8 @@ internal static class MainMenuRenderer
 
     // ---- Helpers ----
 
-    private static bool ShouldShowController(SDL.Rect bounds, MainMenuScreen.Screen screen) =>
-        bounds.W >= MinWidthForCtrl
-        && (screen == MainMenuScreen.Screen.KeyboardBindings
-            || screen == MainMenuScreen.Screen.GamepadBindings);
+    private static bool ShouldShowController(SDL.Rect bounds, MainMenuScreen menu) =>
+        bounds.W >= MinWidthForCtrl && menu.ShowsControllerDiagram;
 
     private static SDL.FRect ToFRect(SDL.Rect r) => new() { X = r.X, Y = r.Y, W = r.W, H = r.H };
 

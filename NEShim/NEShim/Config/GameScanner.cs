@@ -19,21 +19,25 @@ namespace NEShim.Config;
 /// carried on the manifest for display.
 ///
 /// DLC trust check (see <see cref="AppConfig.GameDlcAppIds"/>/<see cref="AppConfig.GameDlcAppIdsSignature"/>
-/// and <see cref="DlcMapSigner.EmbeddedPublicKeyBase64"/>): three modes, selected by what's
-/// available —
-///   - No trust data at all: each game's own claimed SteamDlcAppId is trusted outright (today's
-///     baseline; correct for a single-deploy build with no DLC-gated games).
-///   - Unsigned gameDlcAppIds map only (no embedded public key compiled in): a soft cross-check
+/// and <see cref="DlcMapSigner.EmbeddedPublicKeyBase64"/>): a real 2-way branch in
+/// <see cref="IsDlcClaimTrusted"/> on whether a public key is compiled in (<c>signingEnabled</c>),
+/// which in turn covers three conceptually-distinct trust levels — the "signing disabled" branch
+/// alone spans two of them, distinguished only by whether <c>trustedDlcAppIds</c> happens to be
+/// null, not by separate code paths:
+///   - No trust data at all (<c>signingEnabled == false</c>, map null): each game's own claimed
+///     SteamDlcAppId is trusted outright (today's baseline; correct for a single-deploy build
+///     with no DLC-gated games).
+///   - Unsigned gameDlcAppIds map (<c>signingEnabled == false</c>, map present): a soft cross-check
 ///     — a gameId listed in the map must match, but a gameId absent from it is still trusted as
 ///     declared by its own config.json. Raises the bar slightly but is not tamper-proof
 ///     (games/multigame.json is just as locally-editable as any per-game config.json).
-///   - Signed map (a public key IS compiled into the binary — see DlcMapSigner.EmbeddedPublicKeyBase64,
-///     deliberately code-only, never config-driven): fails CLOSED, not open, on any problem. A
-///     missing or invalid signature marks every scanned game invalid — never silently falls back
-///     to the unsigned behavior, since a corrupted/missing signature must not be indistinguishable
-///     from "protection intentionally disabled". Once the signature verifies, the map becomes the
-///     sole, complete source of truth: every game must appear in it (bundled games too, with
-///     value 0) with a matching SteamDlcAppId, or it's rejected.
+///   - Signed map (<c>signingEnabled == true</c> — a public key IS compiled into the binary, see
+///     DlcMapSigner.EmbeddedPublicKeyBase64, deliberately code-only, never config-driven): fails
+///     CLOSED, not open, on any problem. A missing or invalid signature marks every scanned game
+///     invalid — never silently falls back to the unsigned behavior, since a corrupted/missing
+///     signature must not be indistinguishable from "protection intentionally disabled". Once the
+///     signature verifies, the map becomes the sole, complete source of truth: every game must
+///     appear in it (bundled games too, with value 0) with a matching SteamDlcAppId, or it's rejected.
 /// </summary>
 internal static class GameScanner
 {

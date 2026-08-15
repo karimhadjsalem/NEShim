@@ -4,7 +4,6 @@ using SDL3;
 using NEShim.Config;
 using NEShim.Input.Mappers;
 using NEShim.Input.Sources;
-using NEShim.Steam;
 
 namespace NEShim.Input;
 
@@ -122,7 +121,9 @@ internal sealed class InputManager : IInputReader
         bool padLeft  = pad.Connected && (pad.DPadLeft  || AnalogStickHelper.StickLeft(pad.ThumbLX,  pad.ThumbLY, dz));
         bool padRight = pad.Connected && (pad.DPadRight || AnalogStickHelper.StickRight(pad.ThumbLX, pad.ThumbLY, dz));
 
-        var (steamLeft, steamRight) = SteamInputManager.GetMenuHeldLeftRight();
+        (bool steamLeft, bool steamRight) = _steamSource is IHeldDirectionSource steamHeld
+            ? steamHeld.GetHeldLeftRight(config)
+            : (false, false);
 
         return (keyLeft || padLeft || steamLeft, keyRight || padRight || steamRight);
     }

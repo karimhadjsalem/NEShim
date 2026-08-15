@@ -23,8 +23,8 @@ internal sealed partial class MainMenuScreen
             {
                 var mode = AllModes[i];
                 items[i] = mode == current
-                    ? $"✓ {MotionDisplayName(mode)}"
-                    : $"  {MotionDisplayName(mode)}";
+                    ? $"✓ {MenuBindingHelpers.VideoMotionEffectDisplayName(mode, Menu._localization)}"
+                    : $"  {MenuBindingHelpers.VideoMotionEffectDisplayName(mode, Menu._localization)}";
             }
             items[BackIndex] = Menu._localization.Back;
             return items;
@@ -41,15 +41,5 @@ internal sealed partial class MainMenuScreen
             }
             Menu.NavigateTo(Screen.Video);
         }
-
-        private string MotionDisplayName(VideoMotionEffectMode mode) => mode switch
-        {
-            VideoMotionEffectMode.None                 => Menu._localization.VideoMotionEffectNone,
-            VideoMotionEffectMode.CrtJitter            => Menu._localization.VideoMotionEffectCrtJitter,
-            VideoMotionEffectMode.ScanlineBob          => Menu._localization.VideoMotionEffectScanlineBob,
-            VideoMotionEffectMode.MagneticDistortion   => Menu._localization.VideoMotionEffectMagneticDistortion,
-            VideoMotionEffectMode.PhosphorPersistence  => Menu._localization.VideoMotionEffectPhosphorPersistence,
-            _                                          => mode.ToString(),
-        };
     }
 }

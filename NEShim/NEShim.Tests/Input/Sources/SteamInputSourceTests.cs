@@ -45,6 +45,14 @@ internal class SteamInputSourceTests
         Assert.That(_source.GetMenuNav(_config).Any, Is.False);
     }
 
+    [Test]
+    public void GetHeldLeftRight_WhenSteamNotAvailable_ReturnsBothFalse()
+    {
+        var (left, right) = _source.GetHeldLeftRight(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
+    }
+
     // ── AnyJustPressed ──────────────────────────────────────────────────────────
 
     [Test]

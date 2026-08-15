@@ -1,9 +1,10 @@
 namespace NEShim.Rendering;
 
 /// <summary>
-/// Provides the D3D11 device and swap chain required by <see cref="D3D11Renderer"/>,
-/// and the Present/Resize heartbeat required by <see cref="GdiRenderer"/> to keep
-/// Steam's GameOverlayRenderer64.dll hook alive.
+/// Provides the D3D11 device and swap chain required by <see cref="D3D11Renderer"/>, and a
+/// Present/Resize heartbeat to keep Steam's GameOverlayRenderer64.dll hook alive on Windows.
+/// Windows: <see cref="SteamOverlayRenderer"/>. Linux: <see cref="NullOverlayRenderer"/>
+/// (Steam's overlay is injected via LD_PRELOAD there instead, so no swap-chain hook is needed).
 /// </summary>
 internal interface IOverlayRenderer : IDisposable
 {

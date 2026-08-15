@@ -14,5 +14,10 @@ internal sealed partial class InGameMenu
         public virtual  IntPtr            GetItemIcon(int index)     => IntPtr.Zero;
         public virtual  IntPtr            GetItemValueIcon(int index) => IntPtr.Zero;
         public virtual  SliderItemData?   GetSliderData(int index)   => null;
+
+        /// <summary>True for confirm/warning-style screens — renderer draws a warning border/title/label.</summary>
+        public virtual  bool              IsConfirmStyle           => false;
+        /// <summary>True for binding screens wide enough to show the NES controller diagram column.</summary>
+        public virtual  bool              ShowsControllerDiagram   => false;
     }
 }

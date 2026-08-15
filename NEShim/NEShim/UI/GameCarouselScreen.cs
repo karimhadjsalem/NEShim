@@ -16,8 +16,8 @@ namespace NEShim.UI;
 ///
 /// Slide (Left/Right) and flip (Up, toggling the description card) transitions are exposed as
 /// progress properties computed from wall-clock elapsed time on every access — the same
-/// convention <c>LogoScreen.CurrentAlpha</c> uses — backed by pure, unit-testable
-/// <see cref="ComputeSlideProgress"/>/<see cref="ComputeFlipProgress"/> functions.
+/// convention <c>LogoScreen.CurrentAlpha</c> uses — both backed by the same pure, unit-testable
+/// <see cref="ComputeProgress"/> function (elapsed/duration, clamped to [0,1]).
 /// </summary>
 internal sealed class GameCarouselScreen : IDisposable
 {
@@ -143,10 +143,10 @@ internal sealed class GameCarouselScreen : IDisposable
 
     public int SlideDirection => SlideProgress >= 1f ? 0 : _slideDirection;
     public int PreviousSelectedIndex => _previousSelectedIndex;
-    public float SlideProgress => ComputeSlideProgress(Environment.TickCount64 - _slideStartTicks, SlideDurationMs);
+    public float SlideProgress => ComputeProgress(Environment.TickCount64 - _slideStartTicks, SlideDurationMs);
 
     public bool DescriptionShown => _descriptionShown;
-    public float FlipProgress => ComputeFlipProgress(Environment.TickCount64 - _flipStartTicks, FlipDurationMs);
+    public float FlipProgress => ComputeProgress(Environment.TickCount64 - _flipStartTicks, FlipDurationMs);
 
     // A single game has nothing to wrap to — Left/Right is a no-op rather than a slide
     // animation that lands back on the same tile.
@@ -237,10 +237,7 @@ internal sealed class GameCarouselScreen : IDisposable
         _flipStartTicks = Environment.TickCount64 - FlipDurationMs;
     }
 
-    internal static float ComputeSlideProgress(long elapsedMs, int durationMs) =>
-        Math.Clamp(durationMs <= 0 ? 1f : (float)elapsedMs / durationMs, 0f, 1f);
-
-    internal static float ComputeFlipProgress(long elapsedMs, int durationMs) =>
+    internal static float ComputeProgress(long elapsedMs, int durationMs) =>
         Math.Clamp(durationMs <= 0 ? 1f : (float)elapsedMs / durationMs, 0f, 1f);
 
     public void Dispose()

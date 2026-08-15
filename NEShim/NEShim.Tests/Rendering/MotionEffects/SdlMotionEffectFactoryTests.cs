@@ -49,10 +49,10 @@ internal class SdlMotionEffectFactoryTests
     }
 
     [Test]
-    public void Create_Unknown_FallsBackToNoneMotionEffect()
+    public void Create_UnmappedMode_Throws()
     {
-        var effect = SdlMotionEffectFactory.Create((VideoMotionEffectMode)999);
-        Assert.That(effect, Is.InstanceOf<NoneMotionEffect>());
+        Assert.That(() => SdlMotionEffectFactory.Create((VideoMotionEffectMode)999),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]
