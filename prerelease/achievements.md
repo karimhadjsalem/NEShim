@@ -213,6 +213,39 @@ The signature is computed over a `|`-delimited canonical string of all trigger f
 
 The `"sig"` field itself is excluded. Changing any trigger field without re-sealing produces a mismatch.
 
+### Verifying signatures with `--validate`
+
+`--validate` checks every signature in a packaged build's `achievements.json` against the same public key the game itself would use at runtime — useful as a pre-upload sanity check, or to confirm a rotated key re-sealed cleanly, without launching the game.
+
+```bash
+# Validate the package in the current directory
+pub-utils --validate
+
+# Validate a specific output directory
+pub-utils --validate path/to/publish/MyGame-win-x64
+
+# Override the public key explicitly instead of reading it from the package
+pub-utils --validate --pub-key MFkwEwYHKo... path/to/package
+```
+
+Public key resolution follows the same precedence the running game uses: an explicit `--pub-key` first, then `AchievementSigner.EmbeddedPublicKeyBase64` if the tool itself was built with one compiled in, then `achievementPublicKey` read from `config.json` in the target directory.
+
+Output:
+
+```
+ROM A1B2C3D4E5F6…  (2 achievement(s))
+  [OK]   ACH_FIRST_WIN
+  [OK]   ACH_SCORE_10000
+
+Result: 2/2 valid — All OK.
+```
+
+A failed signature (edited after sealing, wrong key, or never sealed) reports `[FAIL] <steamId> — missing or invalid signature` for that entry and a non-zero exit code — useful for wiring into a CI release step so a bad seal fails the build instead of shipping silently-disabled achievements.
+
+### GUI alternative: `NEShim.PubUtilsUI`
+
+`NEShim.PubUtilsUI` (Windows only) is a small Windows Forms front end — "Achievement Sealer" — over the same two operations as the CLI: a **Seal** panel (private key file + `achievements.json`, browsable via file pickers) and a **Validate** panel (package directory + optional public key override), each with its own button and a shared output log. It calls the identical `SealingService`/`ValidationService` logic `pub-utils` uses, so results match the command line exactly — use whichever you prefer; there's no behavior difference between them.
+
 ### Key management
 
 #### 1. Generate a keypair

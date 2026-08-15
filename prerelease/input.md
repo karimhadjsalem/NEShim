@@ -32,8 +32,9 @@ Each entry in `inputMappings` maps a NES button name to two source bindings:
 ```
 
 This means:
-- An **Xbox, DualShock, Switch Pro, or Steam Deck controller** detected directly by SDL3 fires through the SDL3 gamepad source. SDL3 normalises all supported controller types to a common button layout — face buttons map to positional names (South/A, East/B, West/X, North/Y), and the D-pad and shoulders are consistent across brands.
-- A **controller routed through Steam Input** (when Steam Input is active and the controller is configured with native action bindings rather than XInput passthrough) fires through the Steam Input source. The Steam Gameplay action set defines the mapping; `ActionToNesButton` in `SteamInputManager` converts action names to NES buttons each frame.
+- An **Xbox, DualShock, Switch Pro, or Steam Deck controller** detected directly by SDL3 fires through the SDL3 gamepad source. SDL3 normalises all supported controller types to a common button layout — face buttons map to positional names (South/A, East/B, West/X, North/Y), and the D-pad and shoulders are consistent across brands. This is the path used for **every** controller in the overwhelming majority of setups, including Steam Deck's built-in controller and a Steam Controller used with its regular buttons — all fully rebindable in-game.
+- A **controller with a physical trackpad or gyro/motion input bound to an action** — rare, and only possible if the player has deliberately assigned one from the Steam overlay configurator — fires through the Steam Input source instead. The Steam Gameplay action set defines the mapping; `ActionToNesButton` in `SteamInputManager` converts action names to NES buttons each frame. See [Native mode: trackpad and gyro only](#native-mode-trackpad-and-gyro-only) below.
+- Independently of which of the above two is active, every gamepad binding row in the settings UI shows a glyph icon matching the player's actual hardware — a DualSense pad shows Square/Cross/Circle/Triangle, an Xbox pad shows its own face-button icons, and so on — rather than a generic Xbox-style label. This is purely a display concern layered on top of the SDL3 identifiers above; it has no effect on how input is read. See [Controller button glyphs](#controller-button-glyphs).
 - A player can use a keyboard and a gamepad simultaneously. Both are always polled.
 
 ---
@@ -144,6 +145,10 @@ When both axes exceed the deadzone at the same time (stick pushed diagonally), b
 
 Menu navigation always uses cardinal mode regardless of this setting — menus are inherently 4-directional.
 
+### D-Pad / analog stick linkage
+
+By default (`gamepadDeadzone`'s neighbor, `gamepadDpadStickInterchangeable: true`), a binding assigned to a D-pad direction also fires from the left analog stick's matching direction, and vice versa — the two are treated as the same physical input regardless of which one a binding actually names. This exists specifically so that rebinding one half of the pair from the **Gamepad Controls** settings screen can't silently orphan the other half: without it, rebinding only `P1 Up`'s D-pad slot would leave the analog stick no longer moving that direction (or vice versa), which is rarely what a player rebinding a single row intends. Left stick only — there is no right-stick equivalent to fold in. A **Settings** screen toggle (`D-Pad / Analog Stick: Linked` / `...: Separate`), present in both the main menu and the in-game pause menu, lets players who genuinely want independent D-pad and analog-stick bindings turn it off.
+
 ---
 
 ## Steam Input
@@ -236,27 +241,45 @@ Each file uses **XInput passthrough** bindings by default: face buttons, D-pad, 
 
 > **Note on Switch Pro button labels.** Steam Input normalises button positions across controllers using a positional mapping. The "A" binding in the VDF file maps to the bottom face button on the physical controller, which is **B** on a Switch Pro. The NES-style labels (A = right face, B = bottom face) are correct for gameplay feel.
 
+### Native mode: trackpad and gyro only
+
+`SteamInputManager.IsUsingNativeActions()` does **not** mean "any Steam controller with action bindings" — it means specifically that **the player has assigned a physical trackpad or gyro/motion input to one of NEShim's Gameplay or Menu actions**, via the Steam overlay configurator. It checks every origin bound to every Gameplay and Menu action (`GetDigitalActionOrigins`) for the substrings `LeftPad`, `RightPad`, `CenterPad`, or `Gyro`.
+
+This is the one case SDL3's flat gamepad model genuinely can't represent — a trackpad click/swipe or a motion sensor has no XInput-style button equivalent. Every other case — regular face buttons, D-pad, shoulders, sticks-as-D-pad, on any controller including Steam Deck's built-in pad or a Steam Controller — returns `false`, and that controller behaves exactly like a plain SDL3 gamepad: full in-game rebinding, no lockout.
+
+In practice this rarely triggers: NEShim's `game_actions_0.vdf` declares every action as a **digital Button action**, and Valve's action-manifest rules only allow a trackpad to drive a digital action in click/touch mode — true continuous gyro aiming can't be bound to any current NES action at all. The default `controller_bindings/*.vdf` presets never bind trackpad or gyro to anything, so out of the box every supported controller — including PS4/PS5/Switch Pro/Steam Controller/Steam Deck — is in the fully-rebindable SDL3 path from first launch.
+
 ### Gamepad bindings screen behaviour
 
-The **Gamepad Controls** settings screen behaves differently depending on the active controller type:
+The **Gamepad Controls** settings screen behaves the same way for virtually every controller — Xbox, PlayStation, Switch Pro, Steam Deck's built-in controller, and a Steam Controller used with its regular buttons:
 
-**SDL3 / XInput passthrough controllers (Xbox, most gamepads)**
-
-`SteamInputManager.IsUsingNativeActions()` returns false — all input flows through the SDL3 gamepad source.
-
-- Each binding row shows the SDL3 button name from `config.json` (e.g. `DPadUp`, `Y`, `Back`).
+- Each binding row shows a **glyph icon** matching the player's actual hardware when one is available (see [Controller button glyphs](#controller-button-glyphs) below), falling back to localized text (e.g. `DPadUp`, `Y`, `Back`) when no glyph can be resolved.
 - All rows are selectable and editable.
 - To rebind: select a row, press the desired physical button. The binding is saved immediately.
 - Start is reserved by default — pressing it during rebind shows a toast and cancels the operation. When `overrideStartBindingProtection` is enabled, Start binds normally and only Escape cancels.
 
-**Native Steam controllers (PS4, PS5, Switch Pro, Steam Controller with full action bindings)**
+**Native mode (trackpad/gyro bound — rare)**
 
-`SteamInputManager.IsUsingNativeActions()` returns true — the Gameplay action set has real digital action bindings.
+When `SteamInputManager.IsUsingNativeActions()` is true (see above):
 
-- Each binding row shows the physical button label from Steam (e.g. "Cross Button", "Triangle Button"), queried live via `GetDigitalActionOrigins` + `GetStringForActionOrigin`. Labels reflect the player's current Steam controller configurator layout.
-- All binding rows are shown **read-only** (greyed out). In-game rebinding is not possible for native Steam controllers.
-- To remap: open the Steam overlay (Shift+Tab) → Controller Settings, and adjust bindings there. The change is reflected live in the binding labels on next visit to this screen.
+- Each binding row shows the physical button label from Steam (e.g. "Cross Button", "Left Pad Click"), queried live via `GetDigitalActionOrigins` + `GetStringForActionOrigin`. This is a text label from Steam, not a glyph icon, and reflects the player's current Steam controller configurator layout.
+- All binding rows are shown **read-only** (greyed out). In-game rebinding is not possible while a trackpad/gyro binding is active.
+- To remap: open the Steam overlay (Shift+Tab) → Controller Settings, and adjust bindings there. The change is reflected live in the binding labels on next visit to this screen. Removing the trackpad/gyro binding (back to regular buttons only) returns the controller to the normal, fully-rebindable behaviour above.
 - The **Back** row remains active so the player can exit the screen.
+
+### Controller button glyphs
+
+Every binding row's value column shows the physical button glyph for the player's actual connected hardware — a DualSense pad shows Square/Cross/Circle/Triangle, an Xbox pad shows its own face-button icons, a Switch Pro pad shows Nintendo-style icons — regardless of controller brand, and independently of whether that controller is in native mode or the normal SDL3 path.
+
+Resolution is a three-tier fallback chain, tried in order for each bound identifier (e.g. `"A"`, `"DPadUp"`):
+
+1. **Steam Input glyph** — translates the SDL-style identifier to an `EXboxOrigin`, then calls `ISteamInput::GetActionOriginFromXboxOrigin` to find the equivalent origin on the player's actual connected controller, then `GetGlyphPNGForActionOrigin` to fetch Valve's own icon for it. This works for any SDL-recognised controller Steam has glyph art for, and — critically — requires **no VDF/action-manifest binding** on the identifier being looked up. It answers "what does this physical input look like on this hardware," which is a separate question from "is this input routed through the Steam action-set layer," so it applies equally whether the controller is in native mode or the normal SDL3 path.
+2. **Bundled per-brand glyph** — used only when Steam Input has no answer (typically: Steam isn't running at all, a dev/local-testing case since the shipped game always relaunches itself through Steam). Reads the controller type via SDL3 and loads a matching icon from a small set of glyphs embedded in the binary, covering Xbox, PlayStation, and Switch Pro / Joy-Con families.
+3. **Localized text** — the existing SDL3 button name, localized (e.g. `DPadUp` → the current language's translated label). Always produces a result, so the chain never fails to show something.
+
+Resolved glyphs are cached per bound identifier and invalidated automatically when a controller connects or disconnects, or when the language changes — nothing is re-resolved every frame.
+
+**Publisher note:** the bundled per-brand glyphs (tier 2 above) that ship with NEShim are simple placeholder icons, not licensed Xbox/PlayStation/Switch artwork. Replace them with your own licensed or original glyph set before a commercial release if you expect players to regularly run the game with Steam unavailable — with Steam running (the normal case for a Steam release), tier 1's Valve-supplied glyphs are used instead and this doesn't apply.
 
 ---
 
@@ -306,6 +329,10 @@ Menu navigation combines SDL3 gamepad and Steam Input (edge-triggered):
 | B (East) button or Back button | Go back |
 
 Keyboard navigation uses the arrow keys (Up/Down for cursor movement, Left/Right for volume), Enter/Space/Z to confirm, and Escape to go back.
+
+### Held-repeat on sliders
+
+Holding Left or Right on a slider row — Volume, any of the 3 Audio EQ bands, or any of the 4 Picture Adjustment sliders (Brightness/Contrast/Saturation/Hue) — auto-repeats instead of requiring repeated individual presses, on keyboard, SDL3 gamepad, and Steam Input alike. Timing: a 400 ms initial delay before the first repeat, then repeats every 80 ms (~12 Hz); after 1 second of continuous hold, the rate accelerates to every 30 ms (~33 Hz) for fast large-range adjustment. Releasing the direction (or switching to the other direction) resets the timer. This only applies while paused in a menu — it has no effect on gameplay input.
 
 ---
 

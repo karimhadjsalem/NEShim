@@ -168,10 +168,11 @@ Three implementation models exist:
 
 ## Video Presets
 
-Four built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux), including the Video Overlay and Screen Glow components — every preset setting takes effect identically on both rendering paths.
+Five built-in presets each apply a coordinated combination of filter settings — Video Filter, Video Overlay, Color Effect, Motion Effect, Overscan, and picture adjustments — in a single selection. Available on both D3D11 (Windows) and SDL_GPU/Vulkan (Linux), including the Video Overlay and Screen Glow components — every preset setting takes effect identically on both rendering paths.
 
 | Preset | `videoPreset` value | Video Filter | Video Overlay | Color Effect | Motion Effect |
 |---|---|---|---|---|---|
+| No Filters | `"NoFilters"` | Pixel Perfect | None | None | None |
 | Living Room | `"LivingRoom"` | CRT Screen | CRT Scanlines | NES Colors | CRT Jitter |
 | Arcade Monitor | `"Arcade"` | CRT Phosphor | None | Cool | CRT Jitter |
 | Sharp | `"Sharp"` | Sharp Pixel | None | NES Colors | None |
@@ -179,7 +180,12 @@ Four built-in presets each apply a coordinated combination of filter settings �
 
 All presets use Normal overscan and neutral picture adjustments (0 brightness, 0 contrast, 0 saturation, 0 hue).
 
-The active preset name is shown inline on the Video settings screen next to the Presets entry. Selecting "None" from the Presets sub-menu clears the preset without changing any filter settings. **Changing any individual setting after applying a preset automatically resets `videoPreset` to `"None"`** — the preset name is a label, not a constraint; manual changes take full effect immediately.
+The active preset name is shown inline on the Video settings screen next to the Presets entry. The Presets sub-menu itself lists these five plus a sixth entry, **"No Preset"** (`videoPreset: "None"`) — the item at the top of the list. These two are easy to confuse and behave differently:
+
+- **"No Preset"** just clears the tracked preset label without touching any filter setting — whatever Video Filter/Overlay/Color/Motion/Picture values are currently active stay exactly as they are.
+- **"No Filters"** is a real preset like the other four — it actively resets every video setting to the engine's neutral defaults (Pixel Perfect, no overlay, no color effect, no motion effect, Normal overscan, 0/0/0/0 picture adjustments).
+
+**Changing any individual setting after applying a preset automatically resets `videoPreset` to `"None"`** ("No Preset") — the preset name is a label, not a constraint; manual changes take full effect immediately.
 
 **Default value:** `"None"`
 

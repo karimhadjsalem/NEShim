@@ -173,13 +173,21 @@ The aspect ratio is constant across resolutions for a given configuration — on
 
 **Gamepad button names** for SDL3 are: `A`, `B`, `X`, `Y`, `Start`, `Back`, `LeftShoulder`, `RightShoulder`, `LeftThumb`, `RightThumb`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`. **`Start` is reserved by default** — it always opens/closes the pause menu and cannot be bound to a NES button. Set `overrideStartBindingProtection: true` to allow rebinding it.
 
-When a **Steam Input controller** is connected, the `gamepadButton` fields in this map are ignored for that controller. Input comes from the Steam Input action set instead. See [Input system — Steam Input](input.md#steam-input).
+The `gamepadButton` fields in this map apply to virtually every controller, including PS4/PS5/Switch Pro/Steam Controller/Steam Deck connected through Steam — Steam is only consulted to show the correct button glyph for the player's hardware, not to override which button does what. These fields are ignored only in the rare case where the player has assigned a physical trackpad or gyro input to an action from the Steam overlay configurator; that controller then reads input from the Steam Input action set instead. See [Input system — Steam Input](input.md#steam-input).
 
 ### Gamepad deadzone
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `gamepadDeadzone` | integer | `8000` | Analog stick deadzone threshold for SDL3 gamepad (raw axis value, ±32767 max). Increase if the character drifts without input. |
+
+### D-Pad / analog stick linkage
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `gamepadDpadStickInterchangeable` | boolean | `true` | When `true`, a binding assigned to a D-pad direction also fires from the left analog stick's matching direction, and vice versa — regardless of which of the two identifiers (`DPadUp`/`AnalogUp`, etc.) the binding actually names. Left stick only; there is no right-stick equivalent. |
+
+Without this, rebinding just the D-pad half of a direction (or just the analog-stick half) via the in-game Gamepad Controls screen would silently orphan the other half — the player would lose analog-stick movement after rebinding only the D-pad, or vice versa. With it on (the default), both always move together. Exposed as a toggle on the **Settings** screen (`D-Pad / Analog Stick: Linked` / `...: Separate`) in both the main menu and the in-game pause menu.
 
 ### Hotkey mappings
 
@@ -215,6 +223,8 @@ When a **Steam Input controller** is connected, the `gamepadButton` fields in th
 
 This is separate from `inputMappings` — hotkeys are edge-triggered system actions; input mappings are held-down NES button presses.
 
+**In multi-game mode**, the default map also includes `"ToggleWindowCarousel": "Y"` — gamepad Y toggles fullscreen/windowed, but only while the game carousel is showing. It's a deliberately separate action name from `hotkeyMappings`'s `"ToggleWindow"` (F11), not a gamepad alias for it: Y is also the default gamepad button for the NES `P1 Start` input, so sharing one action name would flip the window mode every time a player pressed Start during gameplay. F11 remains the only fullscreen toggle once a game is loaded (main menu, in-game menu, gameplay); `ToggleWindowCarousel` never fires there. See the [Multi-Game Mode guide](multi-game.md) for the carousel's other controls.
+
 ---
 
 ## Developer / diagnostic settings
@@ -229,6 +239,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | `achievementPublicKey` | string | `""` | ECDSA-P256 public key (SubjectPublicKeyInfo DER format, base64-encoded) used to verify achievement signatures at runtime. Used when no key is embedded in the binary at build time (`AchievementSigner.EmbeddedPublicKeyBase64`). When both are absent, no achievements fire. Set to the public half printed by `pub-utils --gen-keypair`. See [Achievement system — Key management](achievements.md#key-management). |
 | `language` | string | `"Auto"` | Active menu language. Accepts any Steam language code: `"english"`, `"french"`, `"german"`, `"spanish"`, `"latam"`, `"japanese"`, `"korean"`, `"russian"`, `"schinese"`, `"portuguese"`, or `"Auto"`. When `"Auto"`, the language is resolved at startup in order: Steam game language → OS UI culture (`CultureInfo.CurrentUICulture`) → English. **Any explicit value overrides Steam** — even when Steam is running, an explicit language setting wins. This field is written automatically to `user.json` when the user picks a language in **Settings → Language**; set it manually to pre-configure the language for a game build. See [Localization](localization.md). |
 | `overrideStartBindingProtection` | boolean | `false` | When `true`, the Start button is no longer reserved as the system menu trigger and can be rebound to a NES button via the gamepad rebind screen. The menu remains accessible via Escape and the `gamepadHotkeyMappings["OpenMenu"]` button (Left Bumper by default). An additional **Open Menu** rebind entry appears in the gamepad bindings screen, visually separated from NES button bindings under a "SYSTEM" section label, so the player can reassign that hotkey as well. |
+| `forceRenderer` | string | `"auto"` | **Inert — retained only for forward-compatibility with older publisher `config.json` files.** Previously selected between the D3D11 and GDI+ rendering paths; GDI+ was removed. The value is still read (so old config files don't fail to parse) but has no effect: D3D11 is always attempted first on Windows, with the SDL_GPU/Vulkan renderer as the only fallback on both platforms. |
 
 ### Steam Deck / Proton
 

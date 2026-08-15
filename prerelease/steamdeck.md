@@ -89,7 +89,7 @@ The native Linux build has no differences from Windows by design. If running via
 | Behavior | Notes |
 |---|---|
 | Steam overlay | Functions correctly. Steam's `GameOverlayRenderer64.dll` hooks `IDXGISwapChain::Present` and composites the overlay into the swap chain. |
-| Gamepad | The Steam Deck controller is detected via SDL3 gamepad API. Steam Input takes priority for menu navigation when native actions are configured. |
+| Gamepad | The Steam Deck controller is detected via SDL3 gamepad API and is fully rebindable in-game by default. Steam Input only takes over (with in-game rebinding locked) if the player has assigned a trackpad or gyro input to an action from the Steam overlay configurator — see [Native mode: trackpad and gyro only](input.md#native-mode-trackpad-and-gyro-only). Binding rows show Valve's own glyph icons for the Deck's controls via Steam Input's glyph lookup. |
 | Timer precision | The SDL idle loop is less precise under Wine/Proton than on Linux. Main menu rendering uses a pre-scaled background cache so each frame completes in under 1 ms; `SteamManager.Tick()` from the idle loop drives presents at ~60 Hz while paused. |
 | Audio | SDL3 audio output (`SDL.OpenAudioDeviceStream`) works correctly under Wine via PulseAudio or PipeWire. |
 | Performance testing | Always use the published build (`local-publish.ps1`) for framerate testing. Debug and framework-dependent builds show artificially poor framerates under Wine that are not representative of the release. |

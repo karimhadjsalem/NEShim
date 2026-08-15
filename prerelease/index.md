@@ -23,7 +23,7 @@ NEShim is a full-featured NES emulator built on BizHawk's cycle-accurate core, w
 | [Publishing guide](publishing.md) | Step-by-step checklist for packaging a game for Steam release |
 | [Multi-Game Mode](multi-game.md) | An alternate, additive publish path: one binary hosting N games, each bundled in a single deploy or sold as separate Steam DLC, selected through a front-end filmstrip carousel with per-game box art and descriptions |
 | [Architecture](architecture.md) | Internals: thread model, subsystem design, patterns, how to extend |
-| [Input system](input.md) | Keyboard remapping, XInput, Steam Input, hotkeys, and the VDF file |
+| [Input system](input.md) | Keyboard remapping, XInput, Steam Input, hotkeys, the VDF file, and per-controller-brand button glyphs |
 | [Localization](localization.md) | Language files, Steam language detection, CJK font fallback |
 | [Steam Deck](steamdeck.md) | Automatic adjustments (menu scale, audio default), input latency fix, publishing requirements, known differences from Windows |
 
