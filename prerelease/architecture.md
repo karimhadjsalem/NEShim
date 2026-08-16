@@ -40,7 +40,7 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Audio` | `AudioPlayer` (SDL3 audio stream bridge — `SDL.OpenAudioDeviceStream` + callback, implements `IAudioSink`), `IAudioSink` (the interface `FramePipeline`/`EmulationThread`/`NEShimApp` depend on instead of the concrete player, mockable in unit tests), 8 `IAudioProcessor` implementations, `AudioEqProcessor`, `MainMenuMusic` |
 | `NEShim.Input` | `InputManager`, `InputSnapshot`; `SDL3GamepadDevice`, `SDL3GamepadSource`, `SDL3GamepadMapper`; `SteamInputSource`, `SteamInputMapper`; `KeyboardInputSource`, `KeyboardMapper`; **gamepad button glyph resolution** — `IGamepadGlyphResolver` (facade, injected into the menus), `ChainedGamepadGlyphResolver` (Chain of Responsibility over ordered `IGamepadGlyphSource` strategies: `SteamInputGlyphSource`, `SdlBundledGlyphSource`, `TextGlyphSource`), `CachingGamepadGlyphResolver` (Decorator — caches + invalidates on controller connect/disconnect and language change), `GamepadGlyphResolverFactory` (wires the chain at startup); see [Input — Controller button glyphs](input.md#controller-button-glyphs) |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
-| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), SteamDeck detection (`IsSteamDeck`), `IsD3D11Active` / `IsSdlGpuRendererActive` / `SupportsAdvancedVideoFeatures` (all set once at startup by `RendererFactory`), `ConfigureVideoDriverForSteamOverlay()` (Linux: sets `SDL_VIDEODRIVER=x11` before `SDL_Init`), `BeginHighResolutionTiming`/`EndHighResolutionTiming`; `SDL3WindowHost` — SDL3 window lifecycle, event loop, marshal queue; `MenuScale` — font/layout scale factor |
+| `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), SteamDeck detection (`IsSteamDeck`), `IsD3D11Active` / `IsSdlGpuRendererActive` / `SupportsAdvancedVideoFeatures` (all set once at startup by `RendererFactory`), `BeginHighResolutionTiming`/`EndHighResolutionTiming`; `SDL3WindowHost` — SDL3 window lifecycle, event loop, marshal queue; `SDL3WindowBuilder` — isolates `SDL3WindowHost`'s platform-conditional `SDL_Init`/`SDL_CreateWindow` bootstrapping, including `ConfigureVideoDriverForSteamOverlay()` (Linux: forces the X11 backend before `SDL_Init` via `SDL_SetHintWithPriority(..., Override)` — see [`SDL_VIDEO_DRIVER` requirement](#linux-sdl_gpu--ld_preload-path) for why env vars alone aren't sufficient); `MenuScale` — font/layout scale factor |
 | `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines (both implement `IMenuHost` explicitly — see [Per-screen handler pattern](#per-screen-handler-pattern)); shared `Screen` enum; `IScreenHandler`/`SharedScreenHandler`/the ~11 handlers under `SharedMenuHandlers/`; `MenuBindingHelpers` (shared binding-table, display-name, and gamepad label/glyph statics); `MenuRenderer` + `MainMenuRenderer` (stateless `Draw(SDL3PaintContext, SDL.Rect, state)` entry points, each delegating per-row/per-element drawing to `UI/Controls/`); `UI.Controls` — `ItemRowControl`/`IconRowControl`/`SliderControl`/`ControllerDiagramControl`/`PanelFrameControl` (shared presentational components — see [Composable rendering components](#composable-rendering-components-uicontrols)); `IMenuInputTarget` (gamepad dispatch interface implemented by `NEShimApp`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, main-thread tick; `SteamInputManager` — action sets, and the `IsUsingNativeActions()` trackpad/gyro-origin check that gates the native gamepad-binding-screen path; `SteamInputGlyphManager` — thin wrapper around `GetActionOriginFromXboxOrigin`/`GetGlyphPNGForActionOrigin`, consumed by `SteamInputGlyphSource` |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
@@ -54,7 +54,7 @@ Program.cs
   ├─ PlatformDetector.BeginHighResolutionTiming()
   ├─ SteamAPI.RestartAppIfNecessary(appId)   — exits if not launched via Steam
   └─ new SDL3WindowHost("NEShim", 1024, 672)
-       └─ PlatformDetector.ConfigureVideoDriverForSteamOverlay()  [Linux only: SDL_VIDEODRIVER=x11]
+       └─ SDL3WindowBuilder.ConfigureVideoDriverForSteamOverlay()  [Linux only: forces X11 backend]
        └─ SDL.Init(Video | Events | Audio | Gamepad)
        └─ SDL.CreateWindow(...)
   └─ new NEShimApp(sdlHost).Run()
@@ -268,6 +268,8 @@ The active processor can be swapped at runtime via `AudioPlayer.SetProcessor()`.
 
 Looping is handled by seeking the decoded audio source back to position 0 when it is exhausted. Volume changes are applied by calling `SDL.SetAudioStreamGain` on the stream.
 
+`Pause()`/`Resume()` (used by the Steam overlay toggle — see [Audio during overlay](#audio-during-overlay)) are distinct from `FadeIn()`/`FadeOut()` (used by menu/gameplay transitions): a second flag, `_isMenuContextActive`, tracks which screen is logically active independent of the SDL device's own paused state, so `Resume()` can't be tricked into reviving menu music that `FadeOut()` intentionally silenced for gameplay.
+
 ---
 
 ## Steam overlay
@@ -284,7 +286,15 @@ The swap chain uses `SwapEffect.FlipDiscard` (required for DXVK on Proton — se
 
 On Linux, Steam injects its overlay via `LD_PRELOAD` (`steamoverlayvulkanlayer.so`), which hooks `vkQueuePresentKHR`. No D3D device or swap chain is needed. `NullOverlayRenderer` is the `IOverlayRenderer` implementation on Linux — it is a no-op that satisfies the interface without doing anything.
 
-**`SDL_VIDEODRIVER=x11` requirement:** Steam's Vulkan overlay layer requires an XCB or Xlib window surface — it does not support the Wayland EGL surface SDL3 would otherwise create. `PlatformDetector.ConfigureVideoDriverForSteamOverlay()` sets `SDL_VIDEODRIVER=x11` before `SDL.Init()` on Linux, forcing SDL3 to use the X11 backend (which creates an Xlib surface compatible with the overlay layer). This is a Linux-only code path guarded by a runtime `OperatingSystem.IsLinux()` check. If Steam is not running, the environment variable has no effect.
+**`SDL_VIDEO_DRIVER` requirement:** Steam's Vulkan overlay layer requires an XCB or Xlib window surface — it does not support the Wayland EGL surface SDL3 would otherwise create. `SDL3WindowBuilder.ConfigureVideoDriverForSteamOverlay()` forces SDL3 onto the X11 backend on Linux before `SDL.Init()` (which creates an Xlib surface compatible with the overlay layer). This lives on `SDL3WindowBuilder` rather than `PlatformDetector` — it's SDL-hint configuration tightly coupled to `SDL_Init` ordering with exactly one caller (`SDL3WindowBuilder.Build()`), not general platform detection, and `SDL3WindowBuilder` already exists specifically to own platform-conditional SDL bootstrap steps. This is a Linux-only code path guarded by a runtime `OperatingSystem.IsLinux()` check.
+
+It forces the driver three ways, in order of decreasing certainty:
+
+1. `SDL.SetHintWithPriority(SDL.Hints.VideoDriver, "x11", SDL.HintPriority.Override)` — the mechanism that actually matters. `Override` priority beats any pre-existing hint or environment variable regardless of how it got there, and this is the only one of the three confirmed to reliably take effect (see below).
+2. `SDL_VIDEO_DRIVER` environment variable — the real SDL3 hint name. SDL3 renamed SDL2's `SDL_VIDEODRIVER` and does not read the old name as a fallback ([libsdl-org/SDL#11115](https://github.com/libsdl-org/SDL/issues/11115)).
+3. Legacy `SDL_VIDEODRIVER`, kept for insurance.
+
+Setting only the environment variables (#2/#3) is a real, reproduced bug, not just a theoretical gap: it looked like it worked under WSL2/WSLg, whose minimal Wayland compositor doesn't advertise the `fifo-v1`/`commit-timing-v1` protocols SDL3 checks for its own Wayland-preference default — so SDL3's own fallback happened to land on X11 anyway, independent of the hint. It silently failed on Steam Deck Desktop Mode's full KDE Plasma Wayland session, which does support those protocols, so SDL3 picked Wayland instead — breaking the overlay hook with no error, even with the environment variables independently confirmed set correctly at the exact moment `SDL_Init` ran (reproduced August 2026). Adding the `SetHintWithPriority(..., Override)` call fixed it; SDL's own startup log (verbose priority) then shows `Detected XWayland` → `SDL chose video backend 'x11'`.
 
 ### Gamescope callback timing
 
@@ -296,7 +306,9 @@ The fix: `SteamManager.RunCallbacksAfterPresent()` is called immediately after `
 
 ### Audio during overlay
 
-`SetPauseReason(Overlay, true)` mutes `AudioPlayer` (the NES APU SDL3 audio stream) and blocks the emulation loop. However, `MainMenuMusic` has its own independent SDL3 audio stream that `AudioPlayer` does not control. When the overlay opens on the main menu screen, `MainMenuMusic.Pause()` must be called separately; `MainMenuMusic.Resume()` is called when the overlay closes. This is wired in `NEShimApp`'s overlay callback alongside the `SetPauseReason` call.
+`SetPauseReason(Overlay, true)` mutes `AudioPlayer` (the NES APU SDL3 audio stream) and blocks the emulation loop. However, `MainMenuMusic` has its own independent SDL3 audio stream that `AudioPlayer` does not control. `NEShimApp`'s overlay callback calls `MainMenuMusic.Pause()` unconditionally when the overlay opens and `MainMenuMusic.Resume()` unconditionally when it closes, alongside the `SetPauseReason` call — it does not know or care which screen is currently active.
+
+`MainMenuMusic` protects its own correctness instead: gameplay starting (`NewGameChosen`/`ResumeChosen`) calls `FadeOut()`, not `Stop()`, leaving the underlying SDL audio device paused (not disposed) so `ReturnToMainMenu()` can `FadeIn()` it again later. That paused state is indistinguishable from an overlay-induced `Pause()` by the device flag alone, so `Resume()` also checks a second, independent flag — `_isMenuContextActive`, set `true` by `FadeIn()`/on construction and `false` by `FadeOut()` — and no-ops unless the main menu is actually the current screen. Without that second flag, closing the overlay mid-gameplay would revive the faded-out menu track on top of live gameplay audio (reproduced and fixed August 2026).
 
 ### Initialisation order
 
