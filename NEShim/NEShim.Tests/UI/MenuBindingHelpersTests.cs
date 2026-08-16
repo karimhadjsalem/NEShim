@@ -1,8 +1,10 @@
 using NEShim.Audio;
 using NEShim.Config;
+using NEShim.Input;
 using NEShim.Localization;
 using NEShim.Rendering;
 using NEShim.UI;
+using NSubstitute;
 
 namespace NEShim.Tests.UI;
 
@@ -331,5 +333,108 @@ internal class MenuBindingHelpersTests
         var loc = new LocalizationData();
         var expected = (string)typeof(LocalizationData).GetProperty(propertyName)!.GetValue(loc)!;
         Assert.That(MenuBindingHelpers.VideoPresetDisplayName(presetName, loc), Is.EqualTo(expected));
+    }
+
+    // ── KeyboardLabel / GetGamepadLabel / GetGamepadGlyph ────────────────────────
+    // Extracted from InGameMenu/MainMenuScreen during the shared-handler refactor — previously
+    // only exercised indirectly through full menu navigation. Steam is always unavailable in the
+    // test process (see SteamInputManagerTests.cs's own doc comment), so IsUsingNativeActions()
+    // is always false here — these tests exercise the SDL/keyboard path, which is also the only
+    // path reachable without a live Steam session.
+
+    [Test]
+    public void KeyboardLabel_BoundKey_ReturnsKeyName()
+    {
+        var loc = new LocalizationData();
+        _config.InputMappings["P1 A"] = new InputBinding("Z", null);
+        Assert.That(MenuBindingHelpers.KeyboardLabel("P1 A", _config, loc), Is.EqualTo("Z"));
+    }
+
+    [Test]
+    public void KeyboardLabel_UnboundAction_ReturnsBindNone()
+    {
+        // AppConfig's default InputMappings already binds every real "P1 ..." action —
+        // use an action name that genuinely isn't in the map.
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.KeyboardLabel("P1 NotARealAction", _config, loc), Is.EqualTo(loc.BindNone));
+    }
+
+    [Test]
+    public void KeyboardLabel_ActionPresentButNoKey_ReturnsBindNone()
+    {
+        var loc = new LocalizationData();
+        _config.InputMappings["P1 A"] = new InputBinding(null, "A");
+        Assert.That(MenuBindingHelpers.KeyboardLabel("P1 A", _config, loc), Is.EqualTo(loc.BindNone));
+    }
+
+    [Test]
+    public void GetGamepadLabel_OpenMenu_UsesGamepadHotkeyMapping()
+    {
+        var loc = new LocalizationData();
+        _config.GamepadHotkeyMappings["OpenMenu"] = "RightShoulder";
+        Assert.That(MenuBindingHelpers.GetGamepadLabel("OpenMenu", _config, loc), Is.EqualTo(loc.GamepadButtonRightShoulder));
+    }
+
+    [Test]
+    public void GetGamepadLabel_OpenMenu_NoMappingConfigured_DefaultsToLeftShoulder()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.GetGamepadLabel("OpenMenu", _config, loc), Is.EqualTo(loc.GamepadButtonLeftShoulder));
+    }
+
+    [Test]
+    public void GetGamepadLabel_BoundButton_ReturnsLocalizedButtonName()
+    {
+        var loc = new LocalizationData();
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+        Assert.That(MenuBindingHelpers.GetGamepadLabel("P1 Up", _config, loc), Is.EqualTo(loc.GamepadDpadUp));
+    }
+
+    [Test]
+    public void GetGamepadLabel_UnboundAction_ReturnsBindNone()
+    {
+        var loc = new LocalizationData();
+        Assert.That(MenuBindingHelpers.GetGamepadLabel("P1 NotARealAction", _config, loc), Is.EqualTo(loc.BindNone));
+    }
+
+    [Test]
+    public void GetGamepadGlyph_OpenMenu_ResolvesConfiguredHotkeyIdentifier()
+    {
+        var loc = new LocalizationData();
+        var resolver = Substitute.For<IGamepadGlyphResolver>();
+        var expected = new GlyphResult(new IntPtr(123), "");
+        resolver.Resolve("RightShoulder", loc).Returns(expected);
+        _config.GamepadHotkeyMappings["OpenMenu"] = "RightShoulder";
+
+        var glyph = MenuBindingHelpers.GetGamepadGlyph("OpenMenu", _config, loc, resolver);
+
+        Assert.That(glyph, Is.EqualTo(expected.Glyph));
+    }
+
+    [Test]
+    public void GetGamepadGlyph_BoundButton_ResolvesConfiguredIdentifier()
+    {
+        var loc = new LocalizationData();
+        var resolver = Substitute.For<IGamepadGlyphResolver>();
+        var expected = new GlyphResult(new IntPtr(456), "");
+        resolver.Resolve("DPadUp", loc).Returns(expected);
+        _config.InputMappings["P1 Up"] = new InputBinding(null, "DPadUp");
+
+        var glyph = MenuBindingHelpers.GetGamepadGlyph("P1 Up", _config, loc, resolver);
+
+        Assert.That(glyph, Is.EqualTo(expected.Glyph));
+        resolver.Received(1).Resolve("DPadUp", loc);
+    }
+
+    [Test]
+    public void GetGamepadGlyph_UnboundAction_ResolvesNullIdentifier()
+    {
+        var loc = new LocalizationData();
+        var resolver = Substitute.For<IGamepadGlyphResolver>();
+        resolver.Resolve(null, loc).Returns(new GlyphResult(IntPtr.Zero, loc.BindNone));
+
+        MenuBindingHelpers.GetGamepadGlyph("P1 NotARealAction", _config, loc, resolver);
+
+        resolver.Received(1).Resolve(null, loc);
     }
 }

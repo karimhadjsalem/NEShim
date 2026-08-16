@@ -4,7 +4,6 @@ using NEShim.Config;
 using NEShim.Input;
 using NEShim.Localization;
 using NEShim.Saves;
-using NEShim.Steam;
 
 namespace NEShim.UI;
 
@@ -14,7 +13,7 @@ namespace NEShim.UI;
 /// Per-screen title, items, enabled state, and activation logic live in nested
 /// ScreenHandler classes — one per Screen enum value.
 /// </summary>
-internal sealed partial class InGameMenu
+internal sealed partial class InGameMenu : IMenuHost
 {
     private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
@@ -39,7 +38,7 @@ internal sealed partial class InGameMenu
 
     private (string Label, string ConfigKey)[]          _bindingActions;
     private (string Label, string ConfigKey)[]          _gamepadBindingActions;
-    private IReadOnlyDictionary<Screen, ScreenHandler>  _handlers;
+    private IReadOnlyDictionary<Screen, IScreenHandler> _handlers;
 
     // ---- Public state ----
 
@@ -143,8 +142,40 @@ internal sealed partial class InGameMenu
         _handlers              = BuildHandlers();
     }
 
-    private IReadOnlyDictionary<Screen, ScreenHandler> BuildHandlers() =>
-        new Dictionary<Screen, ScreenHandler>
+    // ---- IMenuHost (explicit — for SharedScreenHandler-derived handlers only; the rest of this
+    // class's own code keeps using the private/internal members directly, unaffected) ----
+
+    AppConfig         IMenuHost.Config       => _config;
+    LocalizationData  IMenuHost.Localization => _localization;
+    Screen            IMenuHost.RootScreen   => Screen.Root;
+
+    (string Label, string ConfigKey)[] IMenuHost.BindingActions        => _bindingActions;
+    (string Label, string ConfigKey)[] IMenuHost.GamepadBindingActions => _gamepadBindingActions;
+
+    string? IMenuHost.RebindingAction        { get => RebindingAction;        set => RebindingAction = value; }
+    string? IMenuHost.GamepadRebindingAction { get => GamepadRebindingAction; set => GamepadRebindingAction = value; }
+
+    void   IMenuHost.NavigateTo(Screen screen)               => NavigateTo(screen);
+    void   IMenuHost.ClearPreset()                           => ClearPreset();
+    void   IMenuHost.ApplyPreset(Rendering.VideoPreset preset) => ApplyPreset(preset);
+    void   IMenuHost.ResetPicture()                          => ResetPicture();
+    void   IMenuHost.ResetEq()                                => ResetEq();
+    string IMenuHost.GetGamepadLabel(string configKey)        => GetGamepadLabel(configKey);
+    IntPtr IMenuHost.GetGamepadGlyph(string configKey)         => GetGamepadGlyph(configKey);
+    string IMenuHost.KeyboardLabel(string configKey)           => KeyboardLabel(configKey);
+
+    Action<bool>                            IMenuHost.OnWindowModeToggle         => _onWindowModeToggle;
+    Action                                  IMenuHost.OnConfigSaved              => _onConfigSaved;
+    Action<AudioFilterMode>                 IMenuHost.OnFilterChanged            => _onFilterChanged;
+    Action<Rendering.VideoFilterMode>       IMenuHost.OnVideoFilterChanged       => _onVideoFilterChanged;
+    Action<Rendering.VideoFilterMode?>      IMenuHost.OnVideoFilterOverlayChanged => _onVideoFilterOverlayChanged;
+    Action<Rendering.VideoColorFilterMode>  IMenuHost.OnVideoColorFilterChanged  => _onVideoColorFilterChanged;
+    Action<Rendering.VideoMotionEffectMode> IMenuHost.OnVideoMotionEffectChanged => _onVideoMotionEffectChanged;
+    Action<Rendering.OverscanMode>          IMenuHost.OnOverscanModeChanged      => _onOverscanModeChanged;
+    Action<string>                          IMenuHost.OnLanguageChanged          => _onLanguageChanged;
+
+    private IReadOnlyDictionary<Screen, IScreenHandler> BuildHandlers() =>
+        new Dictionary<Screen, IScreenHandler>
         {
             [Screen.Root]                   = new RootHandler(this),
             [Screen.SaveSlotSelect]         = new SaveSlotSelectHandler(this),
@@ -517,38 +548,11 @@ internal sealed partial class InGameMenu
     // ---- Rendering label helpers (used by binding handlers) ----
 
     private string KeyboardLabel(string configKey)
-        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? _localization.BindNone : _localization.BindNone;
+        => MenuBindingHelpers.KeyboardLabel(configKey, _config, _localization);
 
     private string GetGamepadLabel(string configKey)
-    {
-        if (configKey == "OpenMenu")
-            return MenuBindingHelpers.LocalizeGamepadButton(
-                _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), _localization);
+        => MenuBindingHelpers.GetGamepadLabel(configKey, _config, _localization);
 
-        if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
-            return SteamInputManager.GetNativeLabel(actionName);
-
-        return MenuBindingHelpers.LocalizeGamepadButton(
-            _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization);
-    }
-
-    /// <summary>
-    /// Glyph for the binding row's value column — see <see cref="GetGamepadLabel"/> for the
-    /// parallel text-label logic. Native Steam Input mode (genuine trackpad/gyro usage) shows
-    /// text only, matching its existing display; the glyph chain only applies to the SDL path.
-    /// </summary>
     private IntPtr GetGamepadGlyph(string configKey)
-    {
-        if (configKey == "OpenMenu")
-            return _glyphResolver.Resolve(
-                _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), _localization).Glyph;
-
-        if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.ContainsKey(configKey))
-            return IntPtr.Zero;
-
-        return _glyphResolver.Resolve(
-            _config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, _localization).Glyph;
-    }
+        => MenuBindingHelpers.GetGamepadGlyph(configKey, _config, _localization, _glyphResolver);
 }

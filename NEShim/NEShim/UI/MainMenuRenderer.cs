@@ -89,7 +89,7 @@ internal static class MainMenuRenderer
     {
         DrawBackground(ctx, bounds, menu);
 
-        if (menu.CurrentScreen == MainMenuScreen.Screen.Main)
+        if (menu.CurrentScreen == Screen.Main)
             DrawMainPanel(ctx, bounds, menu);
         else
             DrawSubPanel(ctx, bounds, menu);
@@ -107,7 +107,7 @@ internal static class MainMenuRenderer
             ctx.FillRect(ToFRect(bounds), BgFallback);
         }
 
-        var dimColor = menu.CurrentScreen == MainMenuScreen.Screen.Main ? OverlayDim : SubDim;
+        var dimColor = menu.CurrentScreen == Screen.Main ? OverlayDim : SubDim;
         ctx.FillRect(ToFRect(bounds), dimColor);
     }
 
@@ -131,7 +131,7 @@ internal static class MainMenuRenderer
         }
 
         var  items       = menu.GetCurrentItems();
-        int  openMenuIdx = menu.CurrentScreen == MainMenuScreen.Screen.GamepadBindings
+        int  openMenuIdx = menu.CurrentScreen == Screen.GamepadBindings
                            ? menu.OpenMenuBindingIndex : -1;
         bool hasSep      = openMenuIdx >= 0;
         bool showCtrl    = ShouldShowController(bounds, menu);
@@ -372,8 +372,13 @@ internal static class MainMenuRenderer
                 ctx.FillRect(geo.BarRect with { W = fillW }, BarFill);
         }
 
+        // Near (left) rather than Far (right): ValueRect's far edge is always pinned to the row's
+        // own right edge regardless of its width (see ComputeSliderGeometry — barW absorbs
+        // whatever's left after subtracting it), so right-aligning here glued the visible digits
+        // to the panel's right edge — far from the bar they describe. Left-aligning puts them
+        // immediately after it.
         ctx.DrawText(data.ValueText, geo.ValueRect,
-            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Far, TextVAlign.Center);
+            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
     }
 
     /// <summary>

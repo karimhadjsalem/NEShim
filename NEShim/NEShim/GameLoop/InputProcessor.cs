@@ -108,7 +108,7 @@ internal sealed class InputProcessor
         _justDismissedDisconnectScreen = false;
         if (!isMainMenuActive
             && _menu.IsOpen
-            && _menu.Current == InGameMenu.Screen.ControllerDisconnected
+            && _menu.Current == Screen.ControllerDisconnected
             && _input.IsAnyInputJustPressed())
         {
             Logger.Log("[Emulation] Input received — dismissing disconnect screen.");

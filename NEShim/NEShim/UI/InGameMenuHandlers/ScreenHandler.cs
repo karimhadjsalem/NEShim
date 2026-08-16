@@ -2,7 +2,7 @@ namespace NEShim.UI;
 
 internal sealed partial class InGameMenu
 {
-    private abstract class ScreenHandler
+    private abstract class ScreenHandler : IScreenHandler
     {
         protected InGameMenu Menu { get; }
         protected ScreenHandler(InGameMenu menu) => Menu = menu;

@@ -260,7 +260,7 @@ internal sealed class EmulationThread
         if (_menu.IsOpen) return;
 
         Logger.Log("[Emulation] Controller disconnected — opening disconnect screen.");
-        _menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        _menu.Open(Screen.ControllerDisconnected);
     }
 
     private void HandleMenuToggle()
@@ -269,7 +269,7 @@ internal sealed class EmulationThread
         // If the disconnect overlay was dismissed this frame by user input, suppress
         // the simultaneous toggle so pressing Esc/Start doesn't immediately open the menu.
         if (_inputProcessor.JustDismissedDisconnectScreen) return;
-        if (_menu.IsOpen && _menu.Current == InGameMenu.Screen.ControllerDisconnected) return;
+        if (_menu.IsOpen && _menu.Current == Screen.ControllerDisconnected) return;
 
         if (_menu.IsOpen)
         {

@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using NEShim.Audio;
 using NEShim.Config;
+using NEShim.Input;
 using NEShim.Localization;
 using NEShim.Rendering;
+using NEShim.Steam;
 
 namespace NEShim.UI;
 
@@ -110,6 +112,44 @@ internal static class MenuBindingHelpers
     /// </summary>
     public static string LocalizeGamepadButton(string? identifier, LocalizationData localization)
         => NEShim.Input.GamepadButtonLocalizer.Localize(identifier, localization);
+
+    // ── Binding row labels/glyphs ────────────────────────────────────────────────
+    // Shared by InGameMenu and MainMenuScreen — previously each menu hand-wrote its own copy
+    // (byte-identical) of all three of these.
+
+    public static string KeyboardLabel(string configKey, AppConfig config, LocalizationData localization)
+        => config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? localization.BindNone : localization.BindNone;
+
+    public static string GetGamepadLabel(string configKey, AppConfig config, LocalizationData localization)
+    {
+        if (configKey == "OpenMenu")
+            return LocalizeGamepadButton(
+                config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), localization);
+
+        if (SteamInputManager.IsUsingNativeActions()
+            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
+            return SteamInputManager.GetNativeLabel(actionName);
+
+        return LocalizeGamepadButton(
+            config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, localization);
+    }
+
+    /// <summary>Glyph for the binding row's value column — see <see cref="GetGamepadLabel"/> for the
+    /// parallel text-label logic. Native Steam Input mode (genuine trackpad/gyro usage) shows text
+    /// only, matching its existing display; the glyph chain only applies to the SDL path.</summary>
+    public static IntPtr GetGamepadGlyph(string configKey, AppConfig config, LocalizationData localization, IGamepadGlyphResolver glyphResolver)
+    {
+        if (configKey == "OpenMenu")
+            return glyphResolver.Resolve(
+                config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), localization).Glyph;
+
+        if (SteamInputManager.IsUsingNativeActions()
+            && SteamInputManager.NesButtonToAction.ContainsKey(configKey))
+            return IntPtr.Zero;
+
+        return glyphResolver.Resolve(
+            config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, localization).Glyph;
+    }
 
     // ── Localized display names ─────────────────────────────────────────────────
     // Shared by InGameMenuHandlers/ and MainMenuHandlers/ — previously each directory hand-wrote

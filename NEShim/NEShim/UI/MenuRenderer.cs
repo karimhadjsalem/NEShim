@@ -61,7 +61,7 @@ internal static class MenuRenderer
     {
         ctx.FillRect(ToFRect(bounds), OverlayColor);
 
-        if (menu.Current == InGameMenu.Screen.ControllerDisconnected)
+        if (menu.Current == Screen.ControllerDisconnected)
         {
             DrawDisconnectScreen(ctx, bounds, menu);
             return;
@@ -71,7 +71,7 @@ internal static class MenuRenderer
         string title        = menu.GetTitle();
         bool   isConfirm    = menu.IsConfirmStyle;
         int    warningRowH  = isConfirm ? ItemH : 0;
-        int    openMenuIdx  = menu.Current == InGameMenu.Screen.GamepadBindings
+        int    openMenuIdx  = menu.Current == Screen.GamepadBindings
                               ? menu.OpenMenuBindingIndex : -1;
         bool   hasSeparator = openMenuIdx >= 0;
         bool   showCtrl     = ShouldShowController(bounds, menu);
@@ -348,9 +348,13 @@ internal static class MenuRenderer
                 ctx.FillRect(new SDL.FRect { X = barX, Y = barY, W = fillW, H = barH }, BarFill);
         }
 
+        // Near (left) rather than Far (right): the value rect's far edge is always pinned to the
+        // row's own right edge regardless of its width (barW absorbs whatever's left after
+        // subtracting it), so right-aligning here glued the visible digits to the panel's right
+        // edge — far from the bar they describe. Left-aligning puts them immediately after it.
         float valueX = barX + Math.Max(0f, barW) + barGap;
         ctx.DrawText(data.ValueText, new SDL.FRect { X = valueX, Y = itemRect.Y, W = valueW, H = itemRect.H },
-            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Far, TextVAlign.Center);
+            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
     }
 
     // Measures all slider labels on the current screen and returns the column width wide enough

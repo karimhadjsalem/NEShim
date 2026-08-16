@@ -108,11 +108,11 @@ internal class MainMenuScreenTests
         // Navigate away from Main
         screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return); // enter Settings (Down skips disabled Resume → lands on Settings)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
 
         screen.Show();
 
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
         Assert.That(screen.IsVisible,     Is.True);
     }
 
@@ -166,7 +166,7 @@ internal class MainMenuScreenTests
         screen.ExitChosen += () => fired = true;
         screen.HandleKey(SDL.Keycode.Escape);
         Assert.That(fired, Is.False);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
     }
 
     [Test]
@@ -175,10 +175,10 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);   // skip to Settings (index 2)
         screen.HandleKey(SDL.Keycode.Return); // enter Settings
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
 
         screen.HandleKey(SDL.Keycode.Escape);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
     }
 
     // ---- Events ----
@@ -202,7 +202,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);   // SelectedIndex → 1 (Resume, now enabled)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.ResumeSlots));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.ResumeSlots));
     }
 
     [Test]
@@ -211,7 +211,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);   // skip to Settings
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     // ---- Settings: Window Mode single toggle ----
@@ -244,7 +244,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -341,7 +341,7 @@ internal class MainMenuScreenTests
         OpenSoundScreen(screen);
         for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // Back is at index 4
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     // ---- Audio Filter sub-screen ----
@@ -361,7 +361,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioFilterScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.AudioFilter));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.AudioFilter));
     }
 
     [Test]
@@ -401,7 +401,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down);   // index 1 = Warm
         screen.HandleKey(SDL.Keycode.Return); // select Warm
         Assert.That(_config.AudioFilter, Is.EqualTo("Warm"));
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -425,7 +425,7 @@ internal class MainMenuScreenTests
         OpenAudioFilterScreen(screen);
         for (int i = 0; i < 7; i++) screen.HandleKey(SDL.Keycode.Down); // Back is at index 7
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -434,7 +434,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenAudioFilterScreen(screen);
         screen.HandleKey(SDL.Keycode.Escape);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -443,7 +443,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenSoundScreen(screen);
         screen.HandleKey(SDL.Keycode.Escape);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     // ---- Localization: audio filter display names and BindNone ----
@@ -559,7 +559,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     [Test]
@@ -597,7 +597,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Down);   // ← Back (index 4 in GDI mode)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     [Test]
@@ -608,9 +608,9 @@ internal class MainMenuScreenTests
         OpenVideoScreen(screen);
         screen.HandleKey(SDL.Keycode.Down);   // Video Filter (index 1)
         screen.HandleKey(SDL.Keycode.Return); // → VideoFilter sub-menu
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.VideoFilter));
         screen.HandleKey(SDL.Keycode.Return); // select first filter (index 0)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
         Assert.That(received, Is.Not.Null);
     }
 
@@ -629,7 +629,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoFilter));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.VideoFilter));
     }
 
     [Test]
@@ -688,7 +688,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenVideoFilterSubMenu(screen);
         screen.HandleKey(SDL.Keycode.Return); // select any filter
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     [Test]
@@ -699,7 +699,7 @@ internal class MainMenuScreenTests
         var itemCount = screen.GetCurrentItems().Length;
         for (int i = 0; i < itemCount - 1; i++) screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return); // Back
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     // ---- VideoFilter: overlay conflict (D3D11 mode) ----
@@ -799,7 +799,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
         screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
         screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyboardBindings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.KeyboardBindings));
 
         Assert.That(screen.ShowsControllerDiagram, Is.True);
     }
@@ -822,7 +822,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down);   // skip Video (index 0)
         screen.HandleKey(SDL.Keycode.Down);   // skip Sound (index 1)
         screen.HandleKey(SDL.Keycode.Return); // Keyboard Controls (index 2)
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.KeyboardBindings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.KeyboardBindings));
 
         screen.HandleKey(SDL.Keycode.Down);   // P1 Down (index 1)
         screen.HandleKey(SDL.Keycode.Return); // start rebind
@@ -886,10 +886,10 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);    // Settings
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
 
         screen.HandleGamepadNav(new MenuNavInput { Back = true });
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
     }
 
     [Test]
@@ -1139,13 +1139,13 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         screen.HandleKey(SDL.Keycode.Down);    // Resume
         screen.HandleKey(SDL.Keycode.Return);  // → ResumeSlots
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.ResumeSlots));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.ResumeSlots));
 
         // Last item in the list is "← Back"
         string[] items = screen.GetCurrentItems();
         for (int i = 0; i < items.Length - 1; i++) screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
     }
 
     [Test]
@@ -1198,7 +1198,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down);    // skip Keyboard Controls (index 2)
         screen.HandleKey(SDL.Keycode.Down);    // Gamepad Controls (index 3)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.GamepadBindings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.GamepadBindings));
     }
 
     [Test]
@@ -1240,7 +1240,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);
         for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down); // navigate to Back (index 8)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     [Test]
@@ -1330,7 +1330,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);
 
         Assert.That(_config.GamepadDpadStickInterchangeable, Is.EqualTo(!initial));
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     [Test]
@@ -1368,7 +1368,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);
         for (int i = 0; i < 6; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 6)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Main));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Main));
     }
 
     // ---- KeyboardBindings Back ----
@@ -1384,7 +1384,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);  // KeyboardBindings (index 2)
         for (int i = 0; i < 8; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 8)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     // ---- Volume at boundaries ----
@@ -1645,7 +1645,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPictureScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoPicture));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.VideoPicture));
     }
 
     [Test]
@@ -1831,7 +1831,7 @@ internal class MainMenuScreenTests
         OpenVideoPictureScreen(screen);
         for (int i = 0; i < 6; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 6)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     // ---- VideoFilter D3D11: Xbr filter ----
@@ -1862,7 +1862,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.AudioEq));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.AudioEq));
     }
 
     [Test]
@@ -1948,7 +1948,7 @@ internal class MainMenuScreenTests
         OpenAudioEqScreen(screen);
         for (int i = 0; i < 4; i++) screen.HandleKey(SDL.Keycode.Down); // to Back (index 4)
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -1957,7 +1957,7 @@ internal class MainMenuScreenTests
         using var screen = CreateScreen();
         OpenAudioEqScreen(screen);
         screen.HandleKey(SDL.Keycode.Escape);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Sound));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Sound));
     }
 
     [Test]
@@ -1993,7 +1993,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenLanguageScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Language));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Language));
     }
 
     [Test]
@@ -2062,7 +2062,7 @@ internal class MainMenuScreenTests
         int backIndex = screen.GetCurrentItems().Length - 1;
         for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Settings));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Settings));
     }
 
     // ---- VideoMotionEffect sub-screen (D3D11 only) ----
@@ -2079,7 +2079,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoMotionEffectScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoMotionEffect));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.VideoMotionEffect));
     }
 
     [Test]
@@ -2108,7 +2108,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Down); // CrtJitter (index 1)
         screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoMotionEffect, Is.EqualTo("CrtJitter"));
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     [Test]
@@ -2134,7 +2134,7 @@ internal class MainMenuScreenTests
         int backIndex = screen.GetCurrentItems().Length - 1;
         for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     // ---- VideoPresets sub-screen (D3D11 only) ----
@@ -2151,7 +2151,7 @@ internal class MainMenuScreenTests
     {
         using var screen = CreateScreen();
         OpenVideoPresetsScreen(screen);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.VideoPresets));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.VideoPresets));
     }
 
     [Test]
@@ -2189,7 +2189,7 @@ internal class MainMenuScreenTests
         screen.HandleKey(SDL.Keycode.Return);
         Assert.That(_config.VideoPreset, Is.EqualTo("LivingRoom"));
         Assert.That(_config.VideoFilter, Is.EqualTo("CrtScreen"));
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     [Test]
@@ -2221,7 +2221,7 @@ internal class MainMenuScreenTests
         int backIndex = screen.GetCurrentItems().Length - 1;
         for (int i = 0; i < backIndex; i++) screen.HandleKey(SDL.Keycode.Down);
         screen.HandleKey(SDL.Keycode.Return);
-        Assert.That(screen.CurrentScreen, Is.EqualTo(MainMenuScreen.Screen.Video));
+        Assert.That(screen.CurrentScreen, Is.EqualTo(Screen.Video));
     }
 
     // ---- Main handler GetItems / GetTitle (exercises MainHandler.GetItems body) ----

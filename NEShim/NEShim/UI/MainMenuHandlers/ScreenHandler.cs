@@ -2,7 +2,7 @@ namespace NEShim.UI;
 
 internal sealed partial class MainMenuScreen
 {
-    private abstract class ScreenHandler
+    private abstract class ScreenHandler : IScreenHandler
     {
         protected MainMenuScreen Menu { get; }
         protected ScreenHandler(MainMenuScreen menu) => Menu = menu;
@@ -15,6 +15,9 @@ internal sealed partial class MainMenuScreen
         public virtual  IntPtr            GetItemValueIcon(int index) => IntPtr.Zero;
         public virtual  SliderItemData?   GetSliderData(int index)   => null;
 
+        /// <summary>Always false — MainMenuScreen has no confirm-style screens. Present only to
+        /// satisfy IScreenHandler, shared with InGameMenu's ScreenHandler (which does use it).</summary>
+        public virtual  bool              IsConfirmStyle           => false;
         /// <summary>True for binding screens wide enough to show the NES controller diagram column.</summary>
         public virtual  bool              ShowsControllerDiagram   => false;
     }

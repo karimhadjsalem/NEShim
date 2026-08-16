@@ -80,7 +80,7 @@ internal class InputProcessorTests
     public void TryDismissDisconnectScreen_WhenMainMenuActive_ReturnsFalse()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        menu.Open(Screen.ControllerDisconnected);
         _input.IsAnyInputJustPressed().Returns(true);
         var processor = CreateProcessor(menu);
 
@@ -108,7 +108,7 @@ internal class InputProcessorTests
     public void TryDismissDisconnectScreen_WhenNoInput_ReturnsFalse()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        menu.Open(Screen.ControllerDisconnected);
         _input.IsAnyInputJustPressed().Returns(false);
         var processor = CreateProcessor(menu);
 
@@ -122,7 +122,7 @@ internal class InputProcessorTests
     public void TryDismissDisconnectScreen_WhenInputReceived_ClosesMenuAndReturnsTrue()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        menu.Open(Screen.ControllerDisconnected);
         _input.IsAnyInputJustPressed().Returns(true);
         var processor = CreateProcessor(menu);
 
@@ -137,7 +137,7 @@ internal class InputProcessorTests
     public void TryDismissDisconnectScreen_FlagResetOnNextCall()
     {
         var menu = CreateMenu();
-        menu.Open(InGameMenu.Screen.ControllerDisconnected);
+        menu.Open(Screen.ControllerDisconnected);
         _input.IsAnyInputJustPressed().Returns(true);
         var processor = CreateProcessor(menu);
 
