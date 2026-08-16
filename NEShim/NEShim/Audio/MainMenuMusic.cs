@@ -32,6 +32,12 @@ internal sealed class MainMenuMusic : IDisposable
     private volatile bool          _stopStreaming;
     private volatile int           _streamPosition;
     private bool                   _isPlaying;
+    // True while the main menu is the active screen (set by FadeIn, cleared by FadeOut).
+    // Distinct from _isPlaying: gameplay leaves the device paused via FadeOut so it can be
+    // faded back in on ReturnToMainMenu, but that must not be confused with a Pause() issued
+    // for the Steam overlay — Resume() checks this so an overlay closing mid-gameplay can't
+    // revive menu music on top of live gameplay audio.
+    private bool                   _isMenuContextActive;
     private System.Timers.Timer?   _fadeTimer;
     private volatile bool          _disposed;
 
@@ -85,6 +91,7 @@ internal sealed class MainMenuMusic : IDisposable
             {
                 SDL.ResumeAudioStreamDevice(_audioStream);
                 _isPlaying = true;
+                _isMenuContextActive = true;
                 StartFadeIn();
             }
         }
@@ -104,6 +111,7 @@ internal sealed class MainMenuMusic : IDisposable
     public void FadeIn()
     {
         if (_disposed || _audioStream == IntPtr.Zero) return;
+        _isMenuContextActive = true;
 
         if (!_isPlaying)
         {
@@ -125,6 +133,7 @@ internal sealed class MainMenuMusic : IDisposable
     public void FadeOut(Action? onComplete = null)
     {
         if (_disposed) return;
+        _isMenuContextActive = false;
         _onFadeOutComplete = onComplete;
         _volumeStep = -FadeOutStep;
         _fadeTimer?.Start();
@@ -147,11 +156,13 @@ internal sealed class MainMenuMusic : IDisposable
 
     /// <summary>
     /// Resumes playback from where <see cref="Pause"/> left off and fades back in.
-    /// Does nothing if the output was not paused.
+    /// Does nothing if the output was not paused, or if <see cref="FadeOut"/> has since
+    /// taken the main menu out of context (e.g. gameplay started while paused).
     /// </summary>
     public void Resume()
     {
         if (_disposed || _audioStream == IntPtr.Zero) return;
+        if (!_isMenuContextActive) return;
         if (!_isPlaying)
         {
             SDL.ResumeAudioStreamDevice(_audioStream);
