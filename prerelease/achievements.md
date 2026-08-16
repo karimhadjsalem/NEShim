@@ -20,6 +20,7 @@ NEShim supports Steam achievements without requiring recompilation or ROM modifi
 4. `AchievementManager` is constructed with the verified definitions and a reference to the NES memory domain.
 5. Once per frame (after `RunFrame()` completes), `AchievementManager.Tick()` reads each watched address and evaluates the trigger condition.
 6. When a condition matches and `StatsReady` is true (always true for a game launched through Steam — the Steam client pre-loads stats before the process starts), `SteamManager.UnlockAchievement()` is called. The achievement fires at most once per session — a `HashSet` tracks which ones have already fired.
+7. `UnlockAchievement()` calls `SteamUserStats.SetAchievement()` then `StoreStats()` — the pair Steamworks requires to both persist the unlock and trigger the Steam Game Overlay's own notification popup. NEShim also calls `IFrameRenderer.ShowAchievementNotification()`, but on the primary render path (D3D11 on Windows, or SDL_GPU on Linux once its X11-backed swap chain is active — see [Achievement notifications](architecture.md#achievement-notifications)) that's a no-op, since Steam's own popup already covers it.
 
 **The signature check prevents casual text-file editing** from unlocking achievements. A player who edits `achievements.json` directly will invalidate the signature and the modified entry will never fire. See [Signing and sealing](#signing-and-sealing).
 

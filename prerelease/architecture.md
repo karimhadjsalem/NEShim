@@ -310,6 +310,17 @@ The fix: `SteamManager.RunCallbacksAfterPresent()` is called immediately after `
 
 `MainMenuMusic` protects its own correctness instead: gameplay starting (`NewGameChosen`/`ResumeChosen`) calls `FadeOut()`, not `Stop()`, leaving the underlying SDL audio device paused (not disposed) so `ReturnToMainMenu()` can `FadeIn()` it again later. That paused state is indistinguishable from an overlay-induced `Pause()` by the device flag alone, so `Resume()` also checks a second, independent flag — `_isMenuContextActive`, set `true` by `FadeIn()`/on construction and `false` by `FadeOut()` — and no-ops unless the main menu is actually the current screen. Without that second flag, closing the overlay mid-gameplay would revive the faded-out menu track on top of live gameplay audio (reproduced and fixed August 2026).
 
+### Achievement notifications
+
+`SteamManager.UnlockAchievement()` calls `SetAchievement()` then `StoreStats()` — per Steamworks docs, `StoreStats()` is what triggers the Steam Game Overlay's own achievement-unlocked popup, but only once the overlay is actively hooked into the process (same hook this whole page is about — see [`SDL_VIDEO_DRIVER` requirement](#linux-sdl_gpu--ld_preload-path)). `NEShimApp` also calls `IFrameRenderer.ShowAchievementNotification(name)` unconditionally alongside the unlock, mirroring the unconditional `Pause()`/`Resume()` pattern above.
+
+Each renderer decides independently whether that call should actually draw anything:
+
+- **`D3D11Renderer.ShowAchievementNotification`** is a pure no-op. Windows' overlay hook (`GameOverlayRenderer64.dll` on `IDXGISwapChain::Present`) has no equivalent driver-selection failure mode to hedge against, so Steam's own popup is always the only notification.
+- **`SDL3HwRenderer.ShowAchievementNotification`** only draws the custom toast banner (`ShowToast`, reusing the same mechanism as save-slot messages) when `PlatformDetector.IsX11VideoDriverActive` is `false`. Achievements only exist within a Steam session, so once the overlay hook is reliable (x11 driver active) a custom banner is pure duplication of Steam's own popup — the fallback exists only for the case Steam's popup genuinely can't render, i.e. SDL fell back off the x11 driver onto Wayland. `IsX11VideoDriverActive` is a live query (`SDL.GetCurrentVideoDriver() == "x11"`), not cached like `IsWine`/`IsSteamDeck`, since the driver isn't known until after `SDL_Init` — see its own doc comment.
+
+Before this was made conditional (August 2026), `SDL3HwRenderer` drew the custom banner unconditionally as a blanket hedge against the overlay hook's reliability on Linux — reasonable before the `SDL_VIDEO_DRIVER` fix above existed, but redundant with Steam's own popup once that fix made the hook reliable.
+
 ### Initialisation order
 
 `SteamOverlayRenderer.Initialize(Handle, Width, Height)` must be called **after** `SetWindowMode()` so the swap chain is created at the window's final dimensions — `Handle` is retrieved from `SDL3WindowHost.Handle`. `D3D11Renderer` is constructed immediately after `SteamOverlayRenderer.Initialize()`. An SDL `SDL_EVENT_WINDOW_RESIZED` handler calls `D3D11Renderer.Resize()` (which calls `ResizeBuffers` internally) to keep the swap chain and viewport in sync with the window.
