@@ -1082,7 +1082,19 @@ internal sealed class SDL3HwRenderer : IFrameRenderer
         _overlayDirty = true;
     }
 
-    public void ShowAchievementNotification(string name) => ShowToast(name);
+    // Steam's own overlay notification (SetAchievement + StoreStats) only renders when its
+    // Vulkan layer can hook the swap chain, which requires the x11 driver. Achievements only
+    // exist within Steam, so once that hook is reliable the custom banner is pure duplication —
+    // it stays as a fallback only for the case Steam's popup can't render at all (x11 driver
+    // selection failed and SDL fell back to Wayland). D3D11Renderer.ShowAchievementNotification
+    // has no equivalent check — it's a straight no-op, since its overlay hook (Windows'
+    // GameOverlayRenderer64.dll on IDXGISwapChain::Present) has no analogous driver-selection
+    // failure mode to hedge against.
+    public void ShowAchievementNotification(string name)
+    {
+        if (!PlatformDetector.IsX11VideoDriverActive)
+            ShowToast(name);
+    }
 
     public void SetPictureAdjust(int brightness, int contrast, int saturation, int hue)
     {

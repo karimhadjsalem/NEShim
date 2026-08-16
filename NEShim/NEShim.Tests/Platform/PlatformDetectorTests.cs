@@ -116,6 +116,18 @@ internal class PlatformDetectorTests
         Assert.That(PlatformDetector.SupportsAdvancedVideoFeatures, Is.True);
     }
 
+    // ---- IsX11VideoDriverActive ----
+
+    [Test]
+    public void IsX11VideoDriverActive_ReturnsBoolean()
+    {
+        // Cannot assert a specific value in a portable test — SDL_Init hasn't necessarily run
+        // in this process, and the active driver is genuinely environment-dependent even when
+        // it has. Just verify the query itself is safe (SDL_GetCurrentVideoDriver returning
+        // null pre-SDL_Init must not throw on comparison).
+        Assert.That(() => _ = PlatformDetector.IsX11VideoDriverActive, Throws.Nothing);
+    }
+
     // ---- High-resolution timing ----
 
     [Test]

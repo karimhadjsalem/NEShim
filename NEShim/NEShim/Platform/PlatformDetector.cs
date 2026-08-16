@@ -1,5 +1,6 @@
 using BizHawk.Common;
 using System.Runtime.InteropServices;
+using SDL3;
 
 namespace NEShim.Platform;
 
@@ -51,6 +52,19 @@ internal static class PlatformDetector
     /// D3D11-unavailable fallback) supports the same feature set as D3D11.
     /// </summary>
     internal static bool SupportsAdvancedVideoFeatures => IsD3D11Active || IsSdlGpuRendererActive;
+
+    /// <summary>
+    /// True when SDL's active video driver is <c>x11</c> — the only driver Steam's Vulkan
+    /// overlay layer can hook (see <see cref="SDL3WindowBuilder.ConfigureVideoDriverForSteamOverlay"/>).
+    /// Live query, not cached like <see cref="IsWine"/>/<see cref="IsSteamDeck"/>: SDL must
+    /// already be initialised for <c>SDL_GetCurrentVideoDriver</c> to return a meaningful value,
+    /// which isn't guaranteed at static-class-initialisation time. Used to decide whether a
+    /// custom achievement-toast fallback is still needed on <c>SDL3HwRenderer</c> — Steam's own
+    /// overlay notification only renders when this is true, so the fallback only matters when
+    /// it's false (never on D3D11, which always runs through an XCB/Xlib-compatible swap chain
+    /// on Windows and doesn't use this check at all).
+    /// </summary>
+    internal static bool IsX11VideoDriverActive => SDL.GetCurrentVideoDriver() == "x11";
 
     /// <summary>
     /// Raises the Windows multimedia timer resolution to 1 ms so that Thread.Sleep and

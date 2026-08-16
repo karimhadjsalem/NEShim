@@ -383,10 +383,10 @@ internal sealed class D3D11Renderer : IFrameRenderer
         _overlayDirty = true;
     }
 
-    // No-op in D3D11 mode — Steam's overlay shows its own achievement notification
-    // when SetAchievement + StoreStats are called. SDL3HwRenderer shows a custom toast
-    // banner instead (see its ShowAchievementNotification), for platforms/fallback paths
-    // where the Steam overlay isn't available.
+    // No-op in D3D11 mode — Steam's overlay shows its own achievement notification when
+    // SetAchievement + StoreStats are called. SDL3HwRenderer's ShowAchievementNotification
+    // has an equivalent fallback, but only fires it when Steam's own popup can't render
+    // (SDL fell back off the x11 driver) — see its own doc comment for why.
     public void ShowAchievementNotification(string name) { }
 
     /// <summary>
