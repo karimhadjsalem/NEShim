@@ -600,7 +600,12 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             _emulationThread?.SetPauseReason(EmulationThread.PauseReasons.Overlay, overlayActive);
             if (overlayActive)
                 _mainMenuMusic?.Pause();
-            else
+            // Gameplay leaves _mainMenuMusic paused too (FadeOut on NewGame/Resume, not Stop —
+            // so ReturnToMainMenu can fade it back in later). Resume() only checks its own
+            // paused flag, so an unconditional Resume() here would revive faded-out menu music
+            // over live gameplay audio on overlay close. Only resume if the main menu is
+            // actually the active screen right now.
+            else if (_emulationThread?.ActivePauseReasons.HasFlag(EmulationThread.PauseReasons.MainMenu) == true)
                 _mainMenuMusic?.Resume();
         });
         if (PlatformDetector.IsWine)
