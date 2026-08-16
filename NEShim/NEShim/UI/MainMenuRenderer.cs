@@ -1,5 +1,6 @@
 using NEShim.Platform;
 using NEShim.Rendering;
+using NEShim.UI.Controls;
 using SDL3;
 
 namespace NEShim.UI;
@@ -8,6 +9,9 @@ namespace NEShim.UI;
 /// Stateless renderer for the pre-game main menu and all its sub-screens.
 /// Main screen: background image + panel anchored per <c>MainMenuScreen.MenuPosition</c>.
 /// Sub-screens (Settings, Video, Sound, etc.): centred panel over dimmed background.
+/// Per-row/per-element drawing (item rows, sliders, the controller diagram, panel chrome) is
+/// delegated to the shared, independently-testable components in NEShim.UI.Controls — this
+/// class owns only the main-menu-specific panel layout/orchestration around them.
 /// </summary>
 internal static class MainMenuRenderer
 {
@@ -21,13 +25,7 @@ internal static class MainMenuRenderer
     private static readonly SDL.Color ItemOn      = new() { R = 255, G = 255, B = 255, A = 255 };
     private static readonly SDL.Color ItemDim     = new() { R = 160, G = 160, B = 160, A = 110 };
     private static readonly SDL.Color SelectedBg  = new() { R =  50, G = 105, B = 190, A = 210 };
-    private static readonly SDL.Color AccentBar   = new() { R = 160, G = 200, B = 255, A = 255 };
-    private static readonly SDL.Color BarFill     = new() { R =  80, G = 140, B = 240, A = 255 };
-    private static readonly SDL.Color BarEmpty    = new() { R =  35, G =  35, B =  55, A = 220 };
     private static readonly SDL.Color AmberColor  = new() { R = 255, G = 220, B = 140, A = 255 };
-
-    // Left indent that every item text observes, selected or not (keeps text column stable).
-    private const float ItemTextIndent = 13f;
 
     // Main-menu items are 4px taller than in-game menu items (42 vs 38) — the main menu
     // is a full-screen overlay with more visual breathing room.
@@ -154,8 +152,7 @@ internal static class MainMenuRenderer
         int panelY = (bounds.H - panelH) / 2;
         var panelFRect = new SDL.FRect { X = panelX, Y = panelY, W = panelW, H = panelH };
 
-        ctx.FillRect(panelFRect, PanelColor);
-        ctx.DrawRect(panelFRect, BorderColor, 2f);
+        PanelFrameControl.Draw(ctx, panelFRect, PanelColor, BorderColor);
 
         string hint = menu.IsGamepadRebinding
             ? (menu.OverrideStartBindingProtection
@@ -179,8 +176,7 @@ internal static class MainMenuRenderer
         bool hasSep = openMenuIdx >= 0;
         var panelFRect = ToFRect(panel);
 
-        ctx.FillRect(panelFRect, PanelColor);
-        ctx.DrawRect(panelFRect, BorderColor, 2f);
+        PanelFrameControl.Draw(ctx, panelFRect, PanelColor, BorderColor);
 
         var titleRect = new SDL.FRect { X = panel.X + Pad, Y = panel.Y + TitleYOffset, W = panel.W - Pad * 2, H = TitleRectH };
         ctx.DrawText(title, titleRect, titleColor, menu.Localization.FontFamily, 14f * MenuScale.Scale, bold: true);
@@ -200,10 +196,13 @@ internal static class MainMenuRenderer
                 new SDL.Color { R = 255, G = 255, B = 255, A = 50 });
 
             var ctrlArea = new SDL.FRect { X = panel.X + listW + 6, Y = contentTop, W = panel.W - listW - 10, H = contentBottom - contentTop };
-            DrawControllerSprite(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily);
+            ControllerDiagramControl.Draw(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily, MenuScale.Scale);
         }
 
-        float sliderLabelColumnW = ComputeSliderLabelColumnW(ctx, menu, items.Length, MenuScale.Scale);
+        var sliderItems = new SliderItemData?[items.Length];
+        for (int i = 0; i < items.Length; i++)
+            sliderItems[i] = menu.GetCurrentSliderData(i);
+        float sliderLabelColumnW = SliderControl.ComputeLabelColumnW(ctx, sliderItems, menu.Localization.FontFamily, MenuScale.Scale);
         for (int i = 0; i < items.Length; i++)
         {
             if (hasSep && i == openMenuIdx)
@@ -232,193 +231,34 @@ internal static class MainMenuRenderer
             };
 
             var             textColor  = isOpenMenu ? AmberColor : (enabled ? ItemOn : ItemDim);
-            SliderItemData? sliderData = menu.GetCurrentSliderData(i);
+            SliderItemData? sliderData = sliderItems[i];
             IntPtr          icon       = menu.GetCurrentItemIcon(i);
             IntPtr          valueIcon  = menu.GetCurrentItemValueIcon(i);
 
             if (sliderData.HasValue)
             {
                 if (selected && enabled) ctx.FillRect(ToFRect(itemRect), SelectedBg);
-                DrawSliderItem(ctx, sliderData.Value, itemRect, textColor, menu.Localization.FontFamily, selected && enabled, sliderLabelColumnW);
+                SliderControl.Draw(ctx, sliderData.Value, itemRect, textColor, menu.Localization.FontFamily, selected && enabled, sliderLabelColumnW, MenuScale.Scale);
             }
             else if (icon != IntPtr.Zero)
             {
                 if (selected && enabled) ctx.FillRect(ToFRect(itemRect), SelectedBg);
-                DrawItemWithIcon(ctx, icon, items[i], selected && enabled, enabled,
-                                 itemRect, textColor, menu.Localization.FontFamily);
+                IconRowControl.Draw(ctx, icon, items[i], selected && enabled, itemRect, textColor, menu.Localization.FontFamily, MenuScale.Scale);
             }
             else if (selected && enabled)
             {
                 ctx.FillRect(ToFRect(itemRect), SelectedBg);
-                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: true, selected: true, valueIcon);
+                ItemRowControl.Draw(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: true, selected: true, valueIcon, MenuScale.Scale);
             }
             else if (enabled)
             {
-                DrawItemRow(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: false, selected: false, valueIcon);
+                ItemRowControl.Draw(ctx, items[i], itemRect, textColor, menu.Localization.FontFamily, bold: false, selected: false, valueIcon, MenuScale.Scale);
             }
             else
             {
-                DrawItemRow(ctx, items[i], itemRect, ItemDim, menu.Localization.FontFamily, bold: false, selected: false, valueIcon);
+                ItemRowControl.Draw(ctx, items[i], itemRect, ItemDim, menu.Localization.FontFamily, bold: false, selected: false, valueIcon, MenuScale.Scale);
             }
         }
-    }
-
-    private const float ControllerAspect = 2.43f;
-
-    private static void DrawControllerSprite(SDL3PaintContext ctx, SDL.FRect area, string? activeButton, string label, string fontFamily)
-    {
-        float ctrlW = area.W;
-        float ctrlH = ctrlW / ControllerAspect;
-        if (ctrlH > area.H) { ctrlH = area.H; ctrlW = ctrlH * ControllerAspect; }
-        float ox = area.X + (area.W - ctrlW) * 0.5f;
-        float oy = area.Y + (area.H - ctrlH) * 0.5f;
-        var ctrlRect = new SDL.Rect { X = (int)ox, Y = (int)oy, W = (int)ctrlW, H = (int)ctrlH };
-        ctx.BlitSurface(ControllerSprites.Base, null, ctrlRect);
-        ControllerSprites.DrawHighlight(ctx, ctrlRect, activeButton);
-
-        float labelGap = oy - area.Y;
-        if (labelGap >= 12f)
-        {
-            float fontSize = Math.Min(14f, labelGap * 0.75f) * MenuScale.Scale;
-            var labelRect  = new SDL.FRect { X = area.X, Y = area.Y, W = area.W, H = labelGap };
-            ctx.DrawText(label, labelRect,
-                new SDL.Color { R = 200, G = 210, B = 230, A = 180 },
-                fontFamily, fontSize, bold: true);
-        }
-    }
-
-    private const int IconW   = 20;
-    private const int IconH   = 14;
-    private const int IconGap = 4;
-
-    // Gamepad glyph box (Kenney's input-prompts art, 64x64 source) — deliberately square and
-    // separate from IconW/IconH above, which sizes the unrelated language-flag icons (naturally
-    // wider than tall). Reusing IconW/IconH here would stretch a square glyph into a 20x14 box,
-    // squashing it vertically; blitting into a square box instead preserves the source aspect
-    // ratio without needing any letterbox/pillarbox math (BlitSurface always stretches to fill
-    // its destination rect — see SDL3PaintContext.cs).
-    private const int GlyphSize = 18;
-
-    private static void DrawItemWithIcon(
-        SDL3PaintContext ctx, IntPtr icon, string text, bool selected, bool enabled,
-        SDL.Rect itemRect, SDL.Color textColor, string fontFamily)
-    {
-        int iconW = S(IconW);
-        int iconH = S(IconH);
-        int iconX = itemRect.X + S(2);
-        int iconY = itemRect.Y + (itemRect.H - iconH) / 2;
-        ctx.BlitSurface(icon, null, new SDL.Rect { X = iconX, Y = iconY, W = iconW, H = iconH });
-
-        int textOffsetX = S(IconW + IconGap);
-        var textRect    = new SDL.FRect { X = itemRect.X + textOffsetX, Y = itemRect.Y, W = itemRect.W - textOffsetX, H = itemRect.H };
-        ctx.DrawText(text, textRect, enabled ? textColor : ItemDim,
-            fontFamily, 12f * MenuScale.Scale, selected, TextHAlign.Near, TextVAlign.Center);
-    }
-
-    private static void DrawItemRow(SDL3PaintContext ctx, string text, SDL.Rect itemRect,
-        SDL.Color color, string fontFamily, bool bold, bool selected, IntPtr valueIcon = default)
-    {
-        if (selected)
-        {
-            var bar = new SDL.FRect { X = itemRect.X + 4f, Y = itemRect.Y + 5f, W = 3f, H = itemRect.H - 10f };
-            ctx.FillRect(bar, AccentBar);
-        }
-
-        float tabStop = S(120);
-        if (valueIcon != IntPtr.Zero)
-        {
-            var (leftPart, _) = SDL3PaintContext.SplitTabText(text);
-            var leftRect = new SDL.FRect { X = itemRect.X + ItemTextIndent, Y = itemRect.Y, W = tabStop, H = itemRect.H };
-            ctx.DrawText(leftPart, leftRect, color, fontFamily, 12f * MenuScale.Scale, bold, TextHAlign.Near, TextVAlign.Center);
-
-            int glyphW = S(GlyphSize), glyphH = S(GlyphSize);
-            int glyphX = (int)(itemRect.X + ItemTextIndent + tabStop);
-            int glyphY = itemRect.Y + (itemRect.H - glyphH) / 2;
-            ctx.BlitSurface(valueIcon, null, new SDL.Rect { X = glyphX, Y = glyphY, W = glyphW, H = glyphH });
-            return;
-        }
-
-        var textFRect = new SDL.FRect
-        {
-            X = itemRect.X + ItemTextIndent,
-            Y = itemRect.Y,
-            W = itemRect.W - ItemTextIndent,
-            H = itemRect.H,
-        };
-        ctx.DrawText(text, textFRect, color, fontFamily, 12f * MenuScale.Scale, bold,
-            TextHAlign.Near, TextVAlign.Center, tabStop: tabStop);
-    }
-
-    private static void DrawSliderItem(SDL3PaintContext ctx, SliderItemData data, SDL.Rect itemRect,
-        SDL.Color textColor, string fontFamily, bool selected, float labelColumnW)
-    {
-        if (selected)
-        {
-            var accentLine = new SDL.FRect { X = itemRect.X + 4f, Y = itemRect.Y + 5f, W = 3f, H = itemRect.H - 10f };
-            ctx.FillRect(accentLine, AccentBar);
-        }
-
-        float scale = MenuScale.Scale;
-        var   geo   = ComputeSliderGeometry(itemRect, labelColumnW, scale);
-
-        ctx.DrawText(data.Label, geo.LabelRect,
-            textColor, fontFamily, 12f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
-
-        if (geo.BarRect.W > 0)
-        {
-            ctx.FillRect(geo.BarRect, BarEmpty);
-            float fillW = Math.Clamp(data.Fill01, 0f, 1f) * geo.BarRect.W;
-            if (fillW > 0)
-                ctx.FillRect(geo.BarRect with { W = fillW }, BarFill);
-        }
-
-        // Near (left) rather than Far (right): ValueRect's far edge is always pinned to the row's
-        // own right edge regardless of its width (see ComputeSliderGeometry — barW absorbs
-        // whatever's left after subtracting it), so right-aligning here glued the visible digits
-        // to the panel's right edge — far from the bar they describe. Left-aligning puts them
-        // immediately after it.
-        ctx.DrawText(data.ValueText, geo.ValueRect,
-            textColor, fontFamily, 11f * scale, bold: false, TextHAlign.Near, TextVAlign.Center);
-    }
-
-    /// <summary>
-    /// Pure geometry for one slider row, unit-tested independent of drawing (which needs a real
-    /// <c>SDL3PaintContext</c>) — mirrors the ComputeDisplayRect/ComputeCoverSrcFRect convention
-    /// used elsewhere for extracting testable layout math out of stateless renderers.
-    /// </summary>
-    internal static SliderGeometry ComputeSliderGeometry(SDL.Rect itemRect, float labelColumnW, float scale)
-    {
-        float contentX = itemRect.X + ItemTextIndent;
-        float contentW = itemRect.W - ItemTextIndent;
-        float labelW   = labelColumnW;
-        float valueW   =  48f * scale;
-        float valuePad =   5f * scale; // keeps the value number from hugging the panel's right edge
-        float barGap   =   6f * scale;
-        float barH     =   8f * scale;
-        float barX     = contentX + labelW + barGap;
-        float barW     = contentW - labelW - barGap * 2f - valueW - valuePad;
-        float barY     = itemRect.Y + (itemRect.H - barH) * 0.5f;
-        float valueX   = barX + Math.Max(0f, barW) + barGap;
-
-        return new SliderGeometry(
-            LabelRect: new SDL.FRect { X = contentX, Y = itemRect.Y, W = labelW, H = itemRect.H },
-            BarRect:   new SDL.FRect { X = barX, Y = barY, W = barW, H = barH },
-            ValueRect: new SDL.FRect { X = valueX, Y = itemRect.Y, W = valueW, H = itemRect.H });
-    }
-
-    private static float ComputeSliderLabelColumnW(SDL3PaintContext ctx, MainMenuScreen menu, int itemCount, float scale)
-    {
-        float maxLabelW = 0f;
-        for (int i = 0; i < itemCount; i++)
-        {
-            var slider = menu.GetCurrentSliderData(i);
-            if (!slider.HasValue) continue;
-            var (w, _) = ctx.MeasureText(slider.Value.Label, menu.Localization.FontFamily, 12f * scale, bold: false);
-            maxLabelW = Math.Max(maxLabelW, w);
-        }
-        const float MinColumnW   = 80f;
-        const float LabelPadding = 10f;
-        return Math.Max(MinColumnW * scale, maxLabelW + LabelPadding * scale);
     }
 
     // ---- Helpers ----
