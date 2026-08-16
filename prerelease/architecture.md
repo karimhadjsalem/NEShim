@@ -37,11 +37,11 @@ This page describes the internal design of NEShim for contributors and anyone ex
 | `NEShim.Emulation` | `EmulatorHost` — owns the `NES` instance, exposes its services; adapters and stubs |
 | `NEShim.GameLoop` | `EmulationThread` — timing, hotkeys, pause logic, per-frame orchestration |
 | `NEShim.Rendering` | `IFrameRenderer` strategy (Windows: `D3D11Renderer` primary / `SDL3HwRenderer` fallback; Linux: `SDL3HwRenderer` via SDL_GPU/Vulkan), `IMenuSceneProvider` pull interface, `SDL3PaintContext` (cross-platform paint surface — wraps an SDL_Surface for menu/HUD rendering), `SDL3FontCache` (SDL3_ttf font lifecycle; keyed by family+size; dispose-tracked), `SdlSurfaceLoader` (cross-platform image loader using SDL3_image), `IOverlayRenderer` (Windows: `SteamOverlayRenderer`; Linux: `NullOverlayRenderer`), `OverlayRenderer` (stateless static helpers — `DrawFps(SDL3PaintContext, rect, fps)` and `DrawToast(SDL3PaintContext, rect, text)` — called by both renderers), `FrameBuffer` (double-buffer), `SteamOverlayRenderer` (Windows: D3D11 device + swap chain bound to SDL HWND); **D3D11 subsystems** (`Rendering/Filters/Dx11/`): `ID3D11Filter` + 7 implementations, `D3D11FilterFactory`; **SDL subsystems** (`Rendering/Filters/SDL/`, `Rendering/MotionEffects/SDL/`, `Rendering/SDL/`): `ISdlFilter` (mirrors `ID3D11Filter` for SPIR-V; exposes `PixelShaderResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`, `WriteUniformData`), `SdlGpuRenderState` (wraps one SDL_GPUShader + SDL_GPURenderState pair; `Apply(Span<float>)` uploads uniforms; `Clear()` restores default pipeline; created per active filter, disposed on filter change), `SdlFilterFactory` (maps `VideoFilterMode` → `ISdlFilter`), `ISdlMotionEffect` (extends `IMotionEffect`; adds `SpvResourceName`, `NumFragmentSamplers`, `NumFragmentUniformBuffers`), `SdlMotionEffectFactory` (maps `VideoMotionEffectMode` → `IMotionEffect`, same mapping as the D3D11-path `MotionEffectFactory` — `SDL3HwRenderer` detects `NeedsTemporalBuffer` on the returned effect to route `PhosphorPersistence` through blend compositing instead of a shader); **shared** (`Filters/`, `MotionEffects/`): `IMotionEffect`, `MotionEffectFactory` (D3D11 path), `VideoFilterMode`, `VideoColorFilterMode`, `VideoMotionEffectMode` |
-| `NEShim.Audio` | `AudioPlayer` (SDL3 audio stream bridge — `SDL.OpenAudioDeviceStream` + callback), 8 `IAudioProcessor` implementations, `AudioEqProcessor`, `MainMenuMusic` |
+| `NEShim.Audio` | `AudioPlayer` (SDL3 audio stream bridge — `SDL.OpenAudioDeviceStream` + callback, implements `IAudioSink`), `IAudioSink` (the interface `FramePipeline`/`EmulationThread`/`NEShimApp` depend on instead of the concrete player, mockable in unit tests), 8 `IAudioProcessor` implementations, `AudioEqProcessor`, `MainMenuMusic` |
 | `NEShim.Input` | `InputManager`, `InputSnapshot`; `SDL3GamepadDevice`, `SDL3GamepadSource`, `SDL3GamepadMapper`; `SteamInputSource`, `SteamInputMapper`; `KeyboardInputSource`, `KeyboardMapper`; **gamepad button glyph resolution** — `IGamepadGlyphResolver` (facade, injected into the menus), `ChainedGamepadGlyphResolver` (Chain of Responsibility over ordered `IGamepadGlyphSource` strategies: `SteamInputGlyphSource`, `SdlBundledGlyphSource`, `TextGlyphSource`), `CachingGamepadGlyphResolver` (Decorator — caches + invalidates on controller connect/disconnect and language change), `GamepadGlyphResolverFactory` (wires the chain at startup); see [Input — Controller button glyphs](input.md#controller-button-glyphs) |
 | `NEShim.Saves` | `SaveStateManager` (8 slots + auto), `SaveRamManager` |
 | `NEShim.Platform` | `PlatformDetector` — Wine/Proton detection (`IsWine`), SteamDeck detection (`IsSteamDeck`), `IsD3D11Active` / `IsSdlGpuRendererActive` / `SupportsAdvancedVideoFeatures` (all set once at startup by `RendererFactory`), `ConfigureVideoDriverForSteamOverlay()` (Linux: sets `SDL_VIDEODRIVER=x11` before `SDL_Init`), `BeginHighResolutionTiming`/`EndHighResolutionTiming`; `SDL3WindowHost` — SDL3 window lifecycle, event loop, marshal queue; `MenuScale` — font/layout scale factor |
-| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines; `MenuRenderer` + `MainMenuRenderer` (stateless `Draw(SDL3PaintContext, SDL.Rect, state)` entry points); `IMenuInputTarget` (gamepad dispatch interface implemented by `NEShimApp`) |
+| `NEShim.UI` | `InGameMenu` + `MainMenuScreen` state machines (both implement `IMenuHost` explicitly — see [Per-screen handler pattern](#per-screen-handler-pattern)); shared `Screen` enum; `IScreenHandler`/`SharedScreenHandler`/the ~11 handlers under `SharedMenuHandlers/`; `MenuBindingHelpers` (shared binding-table, display-name, and gamepad label/glyph statics); `MenuRenderer` + `MainMenuRenderer` (stateless `Draw(SDL3PaintContext, SDL.Rect, state)` entry points, each delegating per-row/per-element drawing to `UI/Controls/`); `UI.Controls` — `ItemRowControl`/`IconRowControl`/`SliderControl`/`ControllerDiagramControl`/`PanelFrameControl` (shared presentational components — see [Composable rendering components](#composable-rendering-components-uicontrols)); `IMenuInputTarget` (gamepad dispatch interface implemented by `NEShimApp`) |
 | `NEShim.Steam` | `SteamManager` — init, overlay callbacks, main-thread tick; `SteamInputManager` — action sets, and the `IsUsingNativeActions()` trackpad/gyro-origin check that gates the native gamepad-binding-screen path; `SteamInputGlyphManager` — thin wrapper around `GetActionOriginFromXboxOrigin`/`GetGlyphPNGForActionOrigin`, consumed by `SteamInputGlyphSource` |
 | `NEShim.Achievements` | `AchievementManager` — per-frame memory watcher; `AchievementConfigLoader` |
 
@@ -173,19 +173,41 @@ Both menus follow the same two-class pattern:
 | Class | Responsibility |
 |---|---|
 | `InGameMenu` | Owns state (`Current`, `SelectedItem`, `IsOpen`). Handles all input (keyboard, gamepad). Drives transitions. Fires events. |
-| `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(SDL3PaintContext, SDL.Rect, InGameMenu)`. Creates and disposes all SDL3 resources within the call. |
+| `MenuRenderer` | Stateless, `internal static`. Single entry point `Draw(SDL3PaintContext, SDL.Rect, InGameMenu)`. Owns only in-game-specific panel layout (panel sizing, disconnect screen, rebind-prompt placement); per-row/per-element drawing is delegated to `UI/Controls/` (below). Creates and disposes all SDL3 resources within the call. |
 | `MainMenuScreen` | Same as `InGameMenu` but for the pre-game menu. |
-| `MainMenuRenderer` | Same as `MenuRenderer` for the pre-game menu. |
+| `MainMenuRenderer` | Same as `MenuRenderer` for the pre-game menu — owns main-vs-sub-panel dispatch and its own rebind-prompt shape (a separate popup panel, unlike the in-game menu's inline prompt), delegating row drawing the same way. |
 
-**Rule:** Never put rendering logic inside a state machine. Never put state mutation inside a renderer. This separation makes both independently testable — the state machines are tested without a graphics context; the renderers are not tested (they are pure SDL3 drawing).
+**Rule:** Never put rendering logic inside a state machine. Never put state mutation inside a renderer. This separation makes both independently testable — the state machines are tested without a graphics context; the renderers themselves are not tested (they are pure SDL3 drawing), but the pure layout math they delegate to (see below) is.
+
+### Composable rendering components (`UI/Controls/`)
+
+`MenuRenderer` and `MainMenuRenderer` draw the same kinds of elements — a text item row, a slider row, the NES controller diagram, a panel's background/border — but historically each renderer implemented its own private copy. Two of those copies (the controller diagram, the plain item row) had drifted to be byte-identical between the files; the color constants feeding them had drifted the other way — `SelectedBg` (the selected-row highlight) held slightly different RGB values in each renderer, almost certainly unintentional copy-paste drift rather than a deliberate design choice.
+
+`UI/Controls/` factors the shared drawing into presentational components, each an `internal static` class with only two responsibilities:
+
+- **`Draw(SDL3PaintContext ctx, ...)`** — the actual SDL3 drawing call, taking plain data (rect, color, text, scale) rather than a menu-type reference. Untested directly, per the renderer-testing rule above.
+- **`ComputeLayout`/`ComputeGeometry`** (where the component has real geometry math) — a pure function returning a small `readonly record struct` (`ItemRowLayout`, `IconRowLayout`, `ControllerDiagramLayout`, `SliderGeometry`), unit-tested in `NEShim.Tests/UI/Controls/` independent of any SDL3 context.
+
+| Component | Replaces | Notes |
+|---|---|---|
+| `ItemRowControl` | `DrawItemRow` (byte-identical in both original files) | Plain-text row: label, optional right-hand value glyph, optional selection accent bar. |
+| `IconRowControl` | `DrawItemWithIcon` | Used only by the Language screen's flag rows. Has no internal enabled/disabled branch — both original copies had one, but it was dead code: the rows it draws for are always enabled by design, so callers now resolve the final text color once, before calling, matching every other row type. |
+| `SliderControl` | `DrawSliderItem` + `ComputeSliderGeometry` | Previously only `MainMenuRenderer` extracted its geometry for testing; `MenuRenderer`'s equivalent was inline with no coverage. Unifying here gives the in-game menu the same test coverage for the first time. |
+| `ControllerDiagramControl` | `DrawControllerSprite` (byte-identical in both original files) | Aspect-fit NES controller sprite + active-button highlight + optional label. |
+| `PanelFrameControl` | Repeated `FillRect`+`DrawRect` pairs | Panel background/border chrome, used by every panel type in both renderers (main list, disconnect screen, rebind prompt). |
+
+Each renderer's own `Draw`/`DrawPanel` plays the container role — reading menu state, resolving colors and enabled/selected flags, computing panel-level layout — then hands off to these components for the actual row/element drawing. Panel-level sizing constants (item height, header height, etc.) deliberately stay in each renderer rather than being lifted into `Controls/`: the two menus' differing item heights (38px in-game vs 42px main menu) are an intentional visual-density difference, not duplication to eliminate.
 
 ### Per-screen handler pattern
 
-Each menu uses a **per-screen handler** internally (nested private classes implementing an abstract `ScreenHandler` base). Each handler owns exactly one screen's title, item list, enabled-state logic, and activation logic. The state machine dispatches to the current screen's handler via a `Dictionary<Screen, ScreenHandler>` built at construction time.
+Each menu uses a **per-screen handler** internally. Each handler owns exactly one screen's title, item list, enabled-state logic, and activation logic. The state machine dispatches to the current screen's handler via a `Dictionary<Screen, IScreenHandler>` built at construction time. `Screen` is a single enum shared by both menus (not one per menu) — `InGameMenu` and `MainMenuScreen` each populate the dictionary with only the members they use, so an enum value meaningless to one menu (e.g. `ConfirmExit` for `MainMenuScreen`) is simply never looked up there.
 
-This means adding a new screen requires only: add an enum value, add a handler class, add one entry to `BuildHandlers()`. There are no parallel switch statements to keep in sync.
+Two handler shapes coexist behind the common `IScreenHandler` interface:
 
-Handlers are nested private classes and therefore have full access to all private fields and methods of their enclosing menu class.
+- **Menu-specific handlers** — screens whose logic genuinely differs between the two menus (`RootHandler`/`MainHandler`, `ConfirmHandler`, `SoundHandler`, `SaveSlotSelectHandler`, `ResumeSlotsHandler`, `ControllerDisconnectedHandler`) stay nested private classes inside their owning menu, deriving from that menu's own abstract `ScreenHandler` base. Nested classes have full access to all private fields and methods of their enclosing menu — used for things like `_saveStates`, `Close()`, or menu-specific events that aren't part of the shared contract below.
+- **Shared handlers** — the ~11 screens whose logic is identical in both menus (Video, Video Filter, Motion Effect, Picture, Presets, Audio Filter, Audio EQ, Gamepad Bindings, Keyboard Bindings, Language, Settings) live once, in `UI/SharedMenuHandlers/`, deriving from `SharedScreenHandler` instead — typed against a small `IMenuHost` interface (config, localization, navigation, the handful of config-change callbacks these screens actually call, the binding-action tables, and the gamepad label/glyph lookups) rather than either concrete menu class. Both `InGameMenu` and `MainMenuScreen` implement `IMenuHost` **explicitly** (`AppConfig IMenuHost.Config => _config;`), which keeps its members reachable only through an `IMenuHost`-typed reference — the rest of each menu's own code is completely unaffected and keeps referencing its private fields directly.
+
+Adding a new screen whose logic differs between the two menus: add the enum value, add a nested handler class, add one `BuildHandlers()` entry (per menu). Adding a new screen with identical logic in both menus: add the enum value, add one `SharedScreenHandler`-derived class in `UI/SharedMenuHandlers/`, add one `BuildHandlers()` entry in *each* menu (both construct the same shared class). Either way, there are no parallel switch statements to keep in sync beyond that one dictionary entry per menu.
 
 ---
 
@@ -446,7 +468,7 @@ NES pixel buffer (int[256×240], ARGB)
                             alpha-blended over NES frame
 ```
 
-**Cascading-target pipeline (`DrawNesFrame`):** mirrors D3D11's up-to-four-pass model with the same four optional stages, in the same fixed order — structural filter (always runs) → overlay → motion-effect shader / phosphor accumulation → picture adjust → backbuffer. Each stage's output target is selected by looking ahead at which later stages are active (`hasOverlay` / `hasMeShader` / `hasPhosphor` / `hasPa`): render into the next active stage's dedicated intermediate texture, or straight to the backbuffer if nothing later is active. Colour grading is applied by whichever of {filter, overlay, motion-effect shader} is the *last* colour-aware stage in the chain — phosphor accumulation and picture adjust are colour-blind post-processes with no `colorMode` input of their own, so they never apply it. The filter (and overlay, if active) pass writes `colorMode=0` whenever a later colour-aware stage will apply the real value, exactly mirroring D3D11's `colorModeOverride: 0f` convention.
+**Cascading-target pipeline (`DrawNesFrame`):** mirrors D3D11's up-to-four-pass model with the same four optional stages, in the same fixed order — structural filter (always runs) → overlay → motion-effect shader / phosphor accumulation → picture adjust → backbuffer. Each stage's output target is selected by looking ahead at which later stages are active (`hasOverlay` / `hasMeShader` / `hasPhosphor` / `hasPa`): render into the next active stage's dedicated intermediate texture, or straight to the backbuffer if nothing later is active. Colour grading is applied by whichever of {filter, overlay, motion-effect shader} is the *last* colour-aware stage in the chain — phosphor accumulation and picture adjust are colour-blind post-processes with no `colorMode` input of their own, so they never apply it. The filter (and overlay, if active) pass writes `colorMode=0` whenever a later colour-aware stage will apply the real value, exactly mirroring D3D11's `colorModeOverride: 0f` convention. This "which stage applies colour" decision is computed by one shared pure function, `RenderPassPlanner.ColorApplyingStage(hasOverlay, hasMotionEffectShader)` (`Rendering/RenderPassPlanner.cs`) — both renderers call it once per frame instead of independently re-deriving the same rule (D3D11 previously expressed it as nested branch structure, SDL as explicit booleans), closing off the class of bug that previously required extracting `FilterUniformWriter` for the same reason (see its own doc comment).
 
 **Filter abstraction layer (`ISdlFilter` / `SdlFilterFactory` / `SdlGpuRenderState`):**
 
@@ -621,6 +643,47 @@ Color effects are cbuffer values consumed inside `ColorGrade.hlsli` — not sepa
 2. Add the corresponding branch to `ApplyColorGrade()` in `NEShim/Rendering/Shaders/Dx11/ColorGrade.hlsli`.
 3. Recompile all DXBC shaders that include `ColorGrade.hlsli` (`fxc.exe`) and all SPIR-V shaders that include it (`dxc.exe -spirv`). Commit the updated `.cso` and `.spv` files.
 4. No menu or renderer changes are needed — the Color Effect sub-menu reads `VideoColorFilterModeParser.AllModes` dynamically, and the renderer always passes `(float)_activeColorMode` into the uniform buffer.
+
+---
+
+## Adding a new menu screen
+
+Every menu screen is built from three independent layers: **data** (what the screen shows — a handler), **render** (how a whole panel is assembled from that data), and **controls** (how one row/element is actually drawn). Almost every new screen only ever touches the first layer — the other two are already generic, by design (see [State machines and renderers](#state-machines-and-renderers) and [Composable rendering components](#composable-rendering-components-uicontrols) above for the underlying pattern descriptions).
+
+### 1. Data — the screen's handler
+
+Decide whether the screen's logic is identical in both menus or genuinely different (see [Per-screen handler pattern](#per-screen-handler-pattern)):
+
+- **Identical in both menus** (the common case): add one class to `UI/SharedMenuHandlers/` deriving from `SharedScreenHandler`, constructed against `IMenuHost` rather than either concrete menu class.
+- **Different per menu**: add a nested private handler class inside each menu (`InGameMenu`/`MainMenuScreen`), deriving from that menu's own `ScreenHandler` base.
+
+Either way:
+
+1. Add a value to the shared `Screen` enum (`UI/Screen.cs`).
+2. Implement `IScreenHandler`: `Title`, `ItemCount`, `GetItems()`, `IsItemEnabled(int)`, `Activate(int)`.
+3. Only if a row should render as something other than plain text, override the matching virtual on `ScreenHandler` — all three default to "none," so a screen that doesn't need them needs no override:
+   - `GetSliderData(int) => SliderItemData?` — a fill-bar row (volume, brightness, etc.).
+   - `GetItemIcon(int) => IntPtr` — a left-hand icon row (used today only by the Language screen's flags).
+   - `GetItemValueIcon(int) => IntPtr` — a right-hand value glyph in place of trailing text (used today by gamepad binding rows).
+4. Register the handler in `BuildHandlers()` — once per menu (`new XHandler(this)` in both `InGameMenu.BuildHandlers()` and `MainMenuScreen.BuildHandlers()`) if shared, once total if menu-specific.
+
+### 2. Render — usually nothing to do
+
+`MenuRenderer.Draw` and `MainMenuRenderer.DrawPanel` already loop over `GetCurrentItems()` and dispatch each row purely from what the handler returned in step 1 — slider data routes to `SliderControl`, an icon to `IconRowControl`, everything else to `ItemRowControl`. **A screen using only the three row shapes above needs zero renderer changes** — it appears automatically on both menus the moment its handler is registered.
+
+Renderer changes are only needed when a screen needs a **different panel shape** than "title + item list" — e.g. the disconnect screen or the rebind prompt, each drawn as its own dedicated panel directly inside `Draw`/`DrawSubPanel`, outside the generic item loop. This is genuine menu-specific orchestration and is deliberately not unified between the two renderers — write it directly in whichever renderer(s) need it.
+
+### 3. Controls — only if you need a new row shape
+
+If none of `ItemRowControl` / `IconRowControl` / `SliderControl` fit the new row (e.g. a two-line row, a progress ring, a color swatch), add a new component to `UI/Controls/`:
+
+1. `UI/Controls/XLayout.cs` — a `readonly record struct` for its computed geometry, if it has real layout math worth isolating.
+2. `UI/Controls/XControl.cs` — `internal static class` with a pure `ComputeLayout(...)` and an SDL-dependent `Draw(SDL3PaintContext, ...)`, following `ItemRowControl`/`SliderControl` as the template. `Draw` takes only plain data (props) — never a menu-type reference — so it composes into either renderer, or a future one, unchanged.
+3. Add a matching virtual to `ScreenHandler`, e.g. `GetXData(int) => XItemData?`, mirroring `GetSliderData`.
+4. Add one dispatch branch to **both** `MenuRenderer` and `MainMenuRenderer`'s per-item loop: `if (xData.HasValue) XControl.Draw(...)`.
+5. Unit-test `ComputeLayout` in `NEShim.Tests/UI/Controls/XControlTests.cs` — no SDL context required, per the renderer-testing rule.
+
+> **Row content vs. row shape.** Any screen expressible as text + slider + icon rows — the overwhelming majority — is pure data: implement the handler (step 1) and stop. Only a genuinely new visual row shape touches `UI/Controls/` and both renderers' dispatch (step 3).
 
 ---
 
