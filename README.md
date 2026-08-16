@@ -40,12 +40,13 @@ https://karimhadjsalem.github.io/NEShim/
 
 - **Steam achievements** — memory-watch triggers configurable per ROM hash; no recompilation required to add or change achievements for different games
 - **Steam overlay & input** — overlay pause, Steam Controller support via Steam Input action sets
-- **Save states** — 8 named slots plus automatic on-exit save; slot selection via hotkeys or in-game menu
+- **Save states** — 8 named slots; auto-save fires on three triggers (opening the in-game menu, every ~5 minutes during gameplay, and on graceful exit) so Steam Cloud always has something recent to sync; slot selection via hotkeys or in-game menu
 - **Battery RAM persistence** — save RAM written to disk on exit and restored on load
 - **Configurable front end** — main menu with custom background image (static or animated GIF), sidebar art, and looping MP3 music
 - **Audio** — volume control; eight audio filters (Default NES chain, Warm, Pseudo Stereo, Warm Stereo, Compression, Bass Boost, Saturation, Pop Filter); and a **3-band EQ** (Bass/Mid/Treble, ±12 dB per band) that stacks after the active filter
 - **Graphics** — platform-adaptive rendering: D3D11 on Windows (with SDL_GPU/Vulkan fallback), SDL_GPU/Vulkan on Linux. D3D11 and SDL_GPU both support seven structural filters (Pixel Perfect, Smooth, CRT Scanlines, CRT Phosphor, CRT Screen, NTSC Composite, Sharp Pixel), six color effects, four motion effects (CRT Jitter, Scanline Bob, Magnetic Distortion, Screen Glow), a **Video Overlay** second-filter slot, **picture adjustments** (brightness, contrast, saturation, hue), and four built-in **Video Presets** — all independently stackable; see [Filters](#filters) below
-- **Input** — keyboard remapping and SDL3 gamepad support (XInput, DualShock, Switch Pro, Steam Deck controller) with configurable dead zone; auto-pause on controller disconnect
+- **Input** — keyboard remapping and SDL3 gamepad support (XInput, DualShock, Switch Pro, Steam Deck controller) with configurable dead zone; auto-pause on controller disconnect; binding rows show the player's actual hardware glyphs (DualSense/Xbox/Switch Pro icons) via Steam Input glyph lookup, not a generic icon set
+- **Hotkeys** — keyboard: `Escape` pause menu, `F5`/`F9` save/load the active slot, `F1`–`F8` select a slot, `F11` fullscreen toggle; gamepad: `LeftShoulder` (or Start) opens the pause menu. Fully remappable via `config.json`
 - **Localization** — in-game Language screen lets users pick a language at any time; each language is listed in its own native script with a flag icon. Auto mode resolves language from Steam first, then falls back to the OS UI culture (`CultureInfo.CurrentUICulture`), then English. An explicit selection overrides Steam for subsequent launches. Ten built-in languages (English, Français, Deutsch, Español, Español (Latinoamérica), 日本語, 한국어, Русский, 中文（简体）, Português); add custom languages by dropping a `lang/<code>.json` file alongside the exe
 - **Steam Deck / Linux** — runs natively on Linux x64 (SDL_GPU/Vulkan path) and on Steam Deck natively or via Proton with no configuration changes required; automatically recovers from a lost GPU/Vulkan device (e.g. after a suspend/resume cycle) instead of crashing or requiring a relaunch
 - **Window title** — set per-game via `config.json`; no rebuild needed
@@ -81,6 +82,7 @@ Everything else — save paths, audio settings, input mappings, menu artwork —
 - Set the exe icon via `<ApplicationIcon>` in the csproj
 - Generate a signing keypair with `pub-utils --gen-keypair` and configure the public key
 - Seal your `achievements.json` with `pub-utils --key-file private_key.txt achievements.json`
+- If you expect players to regularly run the game with Steam unavailable, replace the bundled controller-glyph placeholders with your own licensed or original artwork — the shipped Xbox/PlayStation/Switch-style icons are simple placeholders, not licensed art (with Steam running, the normal case, Valve's own glyphs are used instead and this doesn't apply)
 
 Full configuration reference and a step-by-step publishing guide are on the project site.
 
