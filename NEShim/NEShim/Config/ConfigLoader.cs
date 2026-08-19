@@ -22,6 +22,11 @@ public static class ConfigLoader
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    // Single source of truth for InputMappings' default entries — read once from a fresh
+    // AppConfig() rather than duplicating the literal binding table here. Used by
+    // BackfillMissingInputMappingDefaults below.
+    private static readonly Dictionary<string, InputBinding> _defaultInputMappings = new AppConfig().InputMappings;
+
     private static string PublisherConfigPath =>
         Path.Combine(AppContext.BaseDirectory, "config.json");
 
@@ -188,6 +193,33 @@ public static class ConfigLoader
             && !config.GamepadHotkeyMappings.ContainsKey("ToggleWindowCarousel"))
         {
             config.GamepadHotkeyMappings["ToggleWindowCarousel"] = "Y";
+        }
+
+        BackfillMissingInputMappingDefaults(config);
+    }
+
+    /// <summary>
+    /// InputMappings is overlaid from config.json/user.json as a whole-dictionary replace, exactly
+    /// like GamepadHotkeyMappings above — deserializing a JSON "inputMappings" object replaces the
+    /// entire C#-initialized dictionary rather than merging into it, even when the JSON only
+    /// defines a subset of keys. Any config.json or user.json saved before the P2-P4 multiplayer
+    /// defaults existed (i.e. every file saved by a pre-multiplayer NEShim build) therefore
+    /// permanently carries only the original "P1 …" keys once loaded — turning on <c>PlayerCount</c>
+    /// on an existing install left every extra player's gamepad bindings silently blank instead of
+    /// falling back to AppConfig's defaults, since those defaults never survive the JSON round trip.
+    /// Backfills any default entry missing from the dictionary after either overlay, so upgrading
+    /// an existing single-player install to local multiplayer picks up sensible starting bindings
+    /// for players 2-4 the same way a genuinely fresh install does.
+    /// </summary>
+    private static void BackfillMissingInputMappingDefaults(AppConfig config)
+    {
+        foreach (var (key, defaultBinding) in _defaultInputMappings)
+        {
+            if (config.InputMappings.ContainsKey(key)) continue;
+            config.InputMappings[key] = new InputBinding(defaultBinding.Key, defaultBinding.GamepadButton)
+            {
+                GamepadButton2 = defaultBinding.GamepadButton2,
+            };
         }
     }
 }

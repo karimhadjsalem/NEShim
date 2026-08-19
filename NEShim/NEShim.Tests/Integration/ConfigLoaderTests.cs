@@ -306,6 +306,81 @@ internal class ConfigLoaderTests
         Assert.That(loaded.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("X"));
     }
 
+    // ---- InputMappings backfill (pre-multiplayer config.json/user.json upgrade) ----
+    // Regression coverage: a config.json/user.json saved by a pre-multiplayer NEShim build only
+    // ever had "P1 …" InputMappings keys. Deserializing "inputMappings" replaces the whole
+    // dictionary rather than merging into AppConfig's C#-initialized defaults (same mechanism as
+    // GamepadHotkeyMappings above), so turning on PlayerCount on an existing install left every
+    // extra player's gamepad bindings silently blank until BackfillMissingInputMappingDefaults
+    // was added.
+
+    [Test]
+    public void LoadFrom_PreMultiplayerConfigJson_BackfillsPlayer2ThroughPlayer4GamepadDefaults()
+    {
+        // Simulates a config.json saved before the P2-P4 defaults existed — only "P1 …" keys.
+        File.WriteAllText(_configPath, """
+            {"inputMappings":{
+              "P1 Up":     {"key":"W",      "gamepadButton":"DPadUp"},
+              "P1 Down":   {"key":"S",      "gamepadButton":"DPadDown"},
+              "P1 Left":   {"key":"A",      "gamepadButton":"DPadLeft"},
+              "P1 Right":  {"key":"D",      "gamepadButton":"DPadRight"},
+              "P1 A":      {"key":"Period", "gamepadButton":"A"},
+              "P1 B":      {"key":"Comma",  "gamepadButton":"B"},
+              "P1 Start":  {"key":"Return", "gamepadButton":"Y"},
+              "P1 Select": {"key":"RShift", "gamepadButton":"Back"}
+            }}
+            """);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        for (int player = 2; player <= 4; player++)
+        {
+            Assert.That(loaded.InputMappings[$"P{player} Up"].GamepadButton, Is.EqualTo("DPadUp"),
+                $"P{player} Up should have been backfilled with the default gamepad binding");
+            Assert.That(loaded.InputMappings[$"P{player} Up"].Key, Is.Null,
+                $"P{player} Up should not gain a default keyboard binding");
+        }
+    }
+
+    [Test]
+    public void LoadFrom_PreMultiplayerConfigJson_PreservesExistingPlayer1Bindings()
+    {
+        // A publisher's own customized P1 binding must survive the backfill untouched.
+        File.WriteAllText(_configPath, """{"inputMappings":{"P1 Up":{"key":"I","gamepadButton":"DPadUp"}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.InputMappings["P1 Up"].Key, Is.EqualTo("I"));
+    }
+
+    [Test]
+    public void LoadFrom_ExistingCustomPlayer2Binding_NotOverwrittenByBackfill()
+    {
+        File.WriteAllText(_configPath, """{"inputMappings":{"P2 Up":{"gamepadButton":"X"}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.InputMappings["P2 Up"].GamepadButton, Is.EqualTo("X"));
+    }
+
+    [Test]
+    public void Load_PreMultiplayerUserJson_BackfillsPlayer2GamepadDefaultAfterOverlay()
+    {
+        // config.json is a fresh, fully-defaulted publisher file, but user.json was bootstrapped
+        // before multiplayer existed and only carries "P1 …" keys — UserConfig.ApplyTo's
+        // whole-dictionary replace would otherwise wipe the backfill LoadFrom already applied to
+        // the in-memory config, which is exactly why the backfill also runs post-overlay.
+        ConfigLoader.SaveTo(new AppConfig(), _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"inputMappings":{"P1 Up":{"key":"W","gamepadButton":"DPadUp"}}}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.InputMappings["P2 Up"].GamepadButton, Is.EqualTo("DPadUp"));
+        File.Delete(userPath);
+    }
+
     // ---- Two-file layering ----
 
     [Test]
