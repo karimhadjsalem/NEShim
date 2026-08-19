@@ -25,6 +25,15 @@ internal sealed class LocalizationData
     public string DpadStickInterchangeableOn  { get; init; } = "D-Pad / Analog Stick: Linked";
     public string DpadStickInterchangeableOff { get; init; } = "D-Pad / Analog Stick: Separate";
 
+    // ---- Player Controls screen (multiplayer, PlayerCount > 1 only) ----
+    // Missing from a lang/<language>.json simply falls back to these English defaults (see
+    // LocalizationLoader) — no translation file updates are required for this feature to ship.
+    public string SettingsPlayerControls { get; init; } = "Player Controls";
+    public string PlayerControlsTitle    { get; init; } = "PLAYER CONTROLS";
+    /// <summary>Format string for a 1-based player number, mirroring <see cref="SlotLabel"/>'s
+    /// "Slot {0}" convention.</summary>
+    public string PlayerLabel            { get; init; } = "Player {0}";
+
     // ---- Language screen ----
     public string LanguageTitle { get; init; } = "LANGUAGE";
     public string LanguageAuto  { get; init; } = "Auto";

@@ -20,5 +20,8 @@ internal sealed partial class MainMenuScreen
         public virtual  bool              IsConfirmStyle           => false;
         /// <summary>True for binding screens wide enough to show the NES controller diagram column.</summary>
         public virtual  bool              ShowsControllerDiagram   => false;
+        public virtual  string?           GetActiveNesButton(int selectedItem) => null;
+        public virtual  int               SeparatorIndex           => -1;
+        public virtual  string?           SeparatorLabel           => null;
     }
 }

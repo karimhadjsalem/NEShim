@@ -32,7 +32,10 @@ internal interface IInputReader
     // ── Binding UI ─────────────────────────────────────────────────────────────
 
     bool    IsAnyInputJustPressed();
-    string? PollAnyGamepadButtonPressed();
+
+    /// <param name="player">1-based player whose gamepad to poll — see
+    /// <see cref="InputManager.PollAnyGamepadButtonPressed"/>.</param>
+    string? PollAnyGamepadButtonPressed(int player = 1);
 
     /// <summary>
     /// Returns true on the first frame any controller button or axis is pressed.
@@ -47,7 +50,9 @@ internal interface IInputReader
     /// held when rebinding mode opens are not immediately detected as a new binding press.
     /// Call once on the frame rebinding mode is entered.
     /// </summary>
-    void FlushBindingEdges();
+    /// <param name="player">1-based player whose gamepad to seed — see
+    /// <see cref="InputManager.FlushBindingEdges"/>.</param>
+    void FlushBindingEdges(int player = 1);
 
     // ── IoC events — fired on the emulation thread ─────────────────────────────
     // Handlers that touch WinForms/UI state must marshal via BeginInvoke.

@@ -58,13 +58,15 @@ internal sealed class BizHawkEmulationCore : IEmulationCore, IDisposable
             NotInDatabase = true,
         };
 
+        var (nesLeftPort, nesRightPort) = NesPortSelector.ForPlayerCount(_config.PlayerCount);
+
         var settings     = new NES.NESSettings();
         var syncSettings = new NES.NESSyncSettings
         {
             Controls = new NESControlSettings
             {
-                NesLeftPort  = "ControllerNES",
-                NesRightPort = "UnpluggedNES",
+                NesLeftPort  = nesLeftPort,
+                NesRightPort = nesRightPort,
             },
             RegionOverride = _config.Region.ToUpperInvariant() switch
             {
@@ -77,6 +79,7 @@ internal sealed class BizHawkEmulationCore : IEmulationCore, IDisposable
 
         Logger.Log($"[Emulator] Loading ROM: {gameName} ({rom.Length:N0} bytes)");
         Logger.Log($"[Emulator] Region config: '{_config.Region}' → override={syncSettings.RegionOverride}");
+        Logger.Log($"[Emulator] PlayerCount={_config.PlayerCount} → NesLeftPort={nesLeftPort}, NesRightPort={nesRightPort}");
 
         var nes = new NES(coreComm, gameInfo, rom, settings, syncSettings);
 

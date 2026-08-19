@@ -140,4 +140,43 @@ internal class SDL3GamepadMapperTests
         _mapper.Map(new HashSet<string> { "A" }, _config, builder);
         Assert.That(builder.Contains("P1 A"), Is.True);
     }
+
+    // ── Per-player scoping ──────────────────────────────────────────────────────
+    // Required, not cosmetic: two different physical gamepads report the same raw identifiers
+    // (e.g. both press "DPadUp"), so a player-2 mapper must never satisfy a "P1 ..." binding.
+
+    [Test]
+    public void Player2Mapper_IgnoresPlayer1ConfigEntries()
+    {
+        var player2Mapper = new SDL3GamepadMapper(player: 2);
+        var builder = NewBuilder();
+        player2Mapper.Map(new HashSet<string> { "DPadUp" }, _config, builder);
+
+        Assert.That(builder.Contains("P1 Up"), Is.False);
+        Assert.That(builder.Contains("P2 Up"), Is.True);
+    }
+
+    [Test]
+    public void Player1Mapper_IgnoresPlayer2ConfigEntries()
+    {
+        var builder = NewBuilder();
+        _mapper.Map(new HashSet<string> { "DPadUp" }, _config, builder);
+
+        Assert.That(builder.Contains("P1 Up"), Is.True);
+        Assert.That(builder.Contains("P2 Up"), Is.False);
+    }
+
+    [Test]
+    public void TwoPlayersWithSameRawIdentifier_EachOnlyMapsOwnButton()
+    {
+        var player2Mapper = new SDL3GamepadMapper(player: 2);
+        var builder = NewBuilder();
+
+        // Both players' physical gamepads happen to report "A" simultaneously.
+        _mapper.Map(new HashSet<string> { "A" }, _config, builder);
+        player2Mapper.Map(new HashSet<string> { "A" }, _config, builder);
+
+        Assert.That(builder.Contains("P1 A"), Is.True);
+        Assert.That(builder.Contains("P2 A"), Is.True);
+    }
 }

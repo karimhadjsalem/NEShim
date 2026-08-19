@@ -23,12 +23,18 @@ internal sealed class SdlBundledGlyphSource : IGamepadGlyphSource
     private static readonly Assembly Assembly = typeof(SdlBundledGlyphSource).Assembly;
 
     private readonly IGamepadDevice _gamepadDevice;
+    private readonly uint _playerIndex;
 
-    internal SdlBundledGlyphSource(IGamepadDevice gamepadDevice) => _gamepadDevice = gamepadDevice;
+    /// <param name="playerIndex">0-based gamepad slot this source reads the brand from (player 1 = 0, ...).</param>
+    internal SdlBundledGlyphSource(IGamepadDevice gamepadDevice, uint playerIndex = 0)
+    {
+        _gamepadDevice = gamepadDevice;
+        _playerIndex   = playerIndex;
+    }
 
     public GlyphResult? TryResolve(string identifier, LocalizationData localization)
     {
-        string? brand = BrandFor(_gamepadDevice.GetGamepadType());
+        string? brand = BrandFor(_gamepadDevice.GetGamepadType(_playerIndex));
         if (brand is null) return null;
 
         IntPtr surface = Load(brand, identifier);

@@ -11,12 +11,17 @@ namespace NEShim.Input;
 /// </summary>
 internal static class GamepadGlyphResolverFactory
 {
-    internal static CachingGamepadGlyphResolver Create(IGamepadDevice gamepadDevice)
+    /// <param name="playerIndex">0-based player slot (player 1 = 0, ...) this resolver serves.
+    /// Each player gets its own resolver instance with its own cache (see
+    /// <see cref="CachingGamepadGlyphResolver"/>'s doc comment) so a different-brand gamepad for
+    /// one player can never be shadowed by another player's cached glyph for the same raw
+    /// identifier string.</param>
+    internal static CachingGamepadGlyphResolver Create(IGamepadDevice gamepadDevice, int playerIndex = 0)
     {
         var chain = new ChainedGamepadGlyphResolver(new IGamepadGlyphSource[]
         {
-            new SteamInputGlyphSource(),
-            new SdlBundledGlyphSource(gamepadDevice),
+            new SteamInputGlyphSource(playerIndex),
+            new SdlBundledGlyphSource(gamepadDevice, (uint)playerIndex),
             new TextGlyphSource(),
         });
         return new CachingGamepadGlyphResolver(chain);

@@ -24,4 +24,7 @@ internal abstract class SharedScreenHandler : IScreenHandler
     public virtual SliderItemData? GetSliderData(int index)    => null;
     public virtual bool            IsConfirmStyle              => false;
     public virtual bool            ShowsControllerDiagram      => false;
+    public virtual string?         GetActiveNesButton(int selectedItem) => null;
+    public virtual int             SeparatorIndex              => -1;
+    public virtual string?         SeparatorLabel              => null;
 }

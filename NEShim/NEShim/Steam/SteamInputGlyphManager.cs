@@ -6,7 +6,7 @@ namespace NEShim.Steam;
 /// Thin wrapper around the ISteamInput glyph-lookup calls — kept separate from
 /// <see cref="SteamInputManager"/>, whose own doc comment scopes it explicitly to action-set
 /// polling. Glyph lookup is a distinct responsibility that happens to reuse
-/// <see cref="SteamInputManager.FirstControllerHandle"/>.
+/// <see cref="SteamInputManager.ControllerHandle"/>.
 ///
 /// Deliberately does NOT require the game_actions VDF / action-set system: GetActionOriginFromXboxOrigin
 /// translates a raw Xbox-style button directly to the origin representing that same physical
@@ -17,14 +17,15 @@ internal static class SteamInputGlyphManager
 {
     /// <summary>
     /// Returns a local filesystem path to the PNG glyph for <paramref name="xboxOrigin"/> on the
-    /// first connected controller, or null when Steam Input is unavailable, no controller is
-    /// connected, or the origin/glyph can't be resolved.
+    /// connected controller at <paramref name="controllerIndex"/> (0-based, player 1 = 0), or
+    /// null when Steam Input is unavailable, no controller is connected at that index, or the
+    /// origin/glyph can't be resolved.
     /// </summary>
-    internal static string? GetGlyphPath(EXboxOrigin xboxOrigin)
+    internal static string? GetGlyphPath(EXboxOrigin xboxOrigin, int controllerIndex = 0)
     {
         if (!SteamManager.IsAvailable || !SteamInputManager.IsAvailable) return null;
 
-        var handle = SteamInputManager.FirstControllerHandle;
+        var handle = SteamInputManager.ControllerHandle(controllerIndex);
         if (handle == default) return null;
 
         try

@@ -71,7 +71,12 @@ internal static class MenuRenderer
         int    warningRowH  = isConfirm ? ItemH : 0;
         int    openMenuIdx  = menu.Current == Screen.GamepadBindings
                               ? menu.OpenMenuBindingIndex : -1;
-        bool   hasSeparator = openMenuIdx >= 0;
+        // Generic handler-driven divider (e.g. PlayerSelectHandler's gamepad/keyboard grouping) —
+        // mutually exclusive with the OpenMenu row's own divider, which stays driven separately
+        // by OpenMenuBindingIndex/menu.Localization.SystemSectionLabel below.
+        int    sepIdx       = openMenuIdx >= 0 ? openMenuIdx : menu.GetCurrentSeparatorIndex();
+        string? sepLabel    = openMenuIdx >= 0 ? menu.Localization.SystemSectionLabel : menu.GetCurrentSeparatorLabel();
+        bool   hasSeparator = sepIdx >= 0;
         bool   showCtrl     = ShouldShowController(bounds, menu);
 
         var (panelX, panelY, panelW, panelH, listW) = PanelMetrics(bounds, items.Length, warningRowH, hasSeparator, showCtrl);
@@ -112,7 +117,9 @@ internal static class MenuRenderer
                 new SDL.Color { R = 255, G = 255, B = 255, A = 50 });
 
             var ctrlArea = new SDL.FRect { X = panelX + listW + 6, Y = contentTop, W = panelW - listW - 10, H = contentBottom - contentTop };
-            ControllerDiagramControl.Draw(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily, MenuScale.Scale);
+            string ctrlLabel = MenuBindingHelpers.ControllerDiagramLabel(
+                menu.Localization, MenuBindingHelpers.PlayerForBindingScreen(menu.Current));
+            ControllerDiagramControl.Draw(ctx, ctrlArea, menu.ActiveNesButton, ctrlLabel, menu.Localization.FontFamily, MenuScale.Scale);
         }
 
         // Rebind prompt (left portion)
@@ -137,19 +144,22 @@ internal static class MenuRenderer
         float sliderLabelColumnW = SliderControl.ComputeLabelColumnW(ctx, sliderItems, menu.Localization.FontFamily, MenuScale.Scale);
         for (int i = 0; i < items.Length; i++)
         {
-            if (hasSeparator && i == openMenuIdx)
+            if (hasSeparator && i == sepIdx)
             {
                 int sepLineY = panelY + ItemsStartY + warningRowH + i * ItemH + 2;
                 ctx.DrawLine(panelX + PanelPad, sepLineY, panelX + listW - PanelPad, sepLineY,
                     new SDL.Color { R = 255, G = 255, B = 255, A = 70 });
-                var sepRect = new SDL.FRect { X = panelX + PanelPad, Y = sepLineY + 3, W = listW - PanelPad * 2, H = S(12) };
-                ctx.DrawText(menu.Localization.SystemSectionLabel, sepRect,
-                    new SDL.Color { R = 180, G = 180, B = 180, A = 140 },
-                    menu.Localization.FontFamily, 8f * MenuScale.Scale, bold: false,
-                    TextHAlign.Near, TextVAlign.Top);
+                if (sepLabel != null)
+                {
+                    var sepRect = new SDL.FRect { X = panelX + PanelPad, Y = sepLineY + 3, W = listW - PanelPad * 2, H = S(12) };
+                    ctx.DrawText(sepLabel, sepRect,
+                        new SDL.Color { R = 180, G = 180, B = 180, A = 140 },
+                        menu.Localization.FontFamily, 8f * MenuScale.Scale, bold: false,
+                        TextHAlign.Near, TextVAlign.Top);
+                }
             }
 
-            int extraY = hasSeparator && i >= openMenuIdx ? SeparatorH : 0;
+            int extraY = hasSeparator && i >= sepIdx ? SeparatorH : 0;
             var itemRect = new SDL.Rect
             {
                 X = panelX + 6,

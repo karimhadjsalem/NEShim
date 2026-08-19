@@ -75,4 +75,77 @@ internal class SettingsHandlerTests
         _handler.Activate(6);
         _host.Received(1).NavigateTo(Screen.Main);
     }
+
+    // ── PlayerCount > 1: "Keyboard Controls"/"Gamepad Controls" rows replaced by a single
+    // "Player Controls" row (player 1 is listed there too — see PlayerSelectHandler — so showing
+    // player 1's bindings both here and in that submenu would be redundant) ────────────────────
+
+    [Test]
+    public void ItemCount_PlayerCountAboveOne_IsSix()
+    {
+        _config.PlayerCount = 2;
+        Assert.That(_handler.ItemCount, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void GetItems_PlayerCountAboveOne_DoesNotIncludeKeyboardOrGamepadRows()
+    {
+        _config.PlayerCount = 2;
+        var items = _handler.GetItems();
+        Assert.That(items, Does.Not.Contain(_localization.SettingsKeyboard));
+        Assert.That(items, Does.Not.Contain(_localization.SettingsGamepad));
+    }
+
+    [Test]
+    public void GetItems_PlayerCountAboveOne_IncludesPlayerControlsAtIndex2()
+    {
+        _config.PlayerCount = 2;
+        Assert.That(_handler.GetItems()[2], Is.EqualTo(_localization.SettingsPlayerControls));
+    }
+
+    [Test]
+    public void Activate_PlayerCountAboveOne_Index2_NavigatesToPlayerSelect()
+    {
+        _config.PlayerCount = 2;
+        _handler.Activate(2);
+        _host.Received(1).NavigateTo(Screen.PlayerSelect);
+    }
+
+    [TestCase(2)] [TestCase(3)]
+    public void Activate_PlayerCountAboveOne_NeverNavigatesToPlayer1BindingsDirectly(int index)
+    {
+        // With PlayerCount > 1, indices 2/3 belong to "Player Controls"/D-pad-stick toggle, not
+        // to KeyboardBindings/GamepadBindings — those are only reachable via Player Controls now.
+        _config.PlayerCount = 2;
+        _handler.Activate(index);
+        _host.DidNotReceive().NavigateTo(Screen.KeyboardBindings);
+        _host.DidNotReceive().NavigateTo(Screen.GamepadBindings);
+    }
+
+    [Test]
+    public void Activate_PlayerCountAboveOne_ShiftedIndices_StillNavigateCorrectly()
+    {
+        _config.PlayerCount = 2;
+        _host.RootScreen.Returns(Screen.Main);
+
+        _handler.Activate(3); // D-pad/stick toggle, was index 4 when PlayerCount==1
+        Assert.That(_config.GamepadDpadStickInterchangeable, Is.False);
+
+        _handler.Activate(4); // Language, was index 5
+        _host.Received(1).NavigateTo(Screen.Language);
+
+        _handler.Activate(5); // Back, was index 6
+        _host.Received(1).NavigateTo(Screen.Main);
+    }
+
+    [Test]
+    public void Activate_PlayerCountAboveOne_VideoAndSoundRows_Unaffected()
+    {
+        _config.PlayerCount = 3;
+        _handler.Activate(0);
+        _host.Received(1).NavigateTo(Screen.Video);
+
+        _handler.Activate(1);
+        _host.Received(1).NavigateTo(Screen.Sound);
+    }
 }

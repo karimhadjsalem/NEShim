@@ -131,15 +131,19 @@ internal sealed class InputProcessor
 
         if (isWaiting)
         {
+            // The rebind must read the physical device belonging to the player being rebound,
+            // not always player 1's — parsed from the active menu's GamepadRebindingAction key.
+            int player = _menuInput.WaitingForGamepadButtonPlayer;
+
             // Entering binding mode: seed _prevBindingPad so the button used to confirm the
             // slot selection (A) is already "seen" and won't fire as the new binding.
             if (!_prevIsWaitingForGamepadButton)
-                _input.FlushBindingEdges();
+                _input.FlushBindingEdges(player);
 
             // Rebind is always XInput-only. Native Steam controllers remap via
             // Steam's controller configurator; their binding rows are read-only
             // in the menu when IsUsingNativeActions() is true.
-            string? btn = _input.PollAnyGamepadButtonPressed();
+            string? btn = _input.PollAnyGamepadButtonPressed(player);
             if (btn != null)
                 _marshalToUiThread(() => _menuInput.HandleGamepadButtonPress(btn));
         }

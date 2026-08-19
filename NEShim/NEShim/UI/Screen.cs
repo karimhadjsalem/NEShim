@@ -20,6 +20,13 @@ public enum Screen
     Settings, KeyboardBindings, GamepadBindings,
     Video, Sound, AudioFilter, AudioEq, VideoFilter, VideoMotionEffect, VideoPicture, VideoPresets, Language,
 
+    // ---- Multiplayer binding screens (players 2-4; player 1 keeps using KeyboardBindings/
+    // GamepadBindings above, unchanged). Reachable only when AppConfig.PlayerCount allows it —
+    // see PlayerSelectHandler/SettingsHandler. ----
+    PlayerSelect,
+    GamepadBindingsP2, GamepadBindingsP3, GamepadBindingsP4,
+    KeyboardBindingsP2, KeyboardBindingsP3, KeyboardBindingsP4,
+
     // ---- InGameMenu only ----
     SaveSlotSelect, ConfirmLoad, ConfirmMainMenu, ConfirmExit, ConfirmChangeGame, ControllerDisconnected,
 }

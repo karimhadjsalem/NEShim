@@ -24,6 +24,10 @@ internal class InputProcessorTests
     {
         _input     = Substitute.For<IInputReader>();
         _menuInput = Substitute.For<IMenuInputTarget>();
+        // Default to player 1 so existing arg-less _input.PollAnyGamepadButtonPressed()/
+        // FlushBindingEdges() stubs and assertions below (which resolve to the player=1 default
+        // overload) match what InputProcessor actually calls.
+        _menuInput.WaitingForGamepadButtonPlayer.Returns(1);
         _saves     = Substitute.For<ISaveManager>();
         _saves.SlotCount.Returns(8);
         _config    = new AppConfig();
@@ -201,6 +205,20 @@ internal class InputProcessorTests
         processor.PollPausedMenuInput(_config);
 
         _menuInput.DidNotReceive().HandleGamepadButtonPress(Arg.Any<string>());
+    }
+
+    [Test]
+    public void PollPausedMenuInput_WhenWaitingForPlayer2_PollsPlayer2NotPlayer1()
+    {
+        _menuInput.IsWaitingForGamepadButton.Returns(true);
+        _menuInput.WaitingForGamepadButtonPlayer.Returns(2);
+        _input.PollAnyGamepadButtonPressed(2).Returns("B");
+        var processor = CreateProcessor(CreateMenu());
+
+        processor.PollPausedMenuInput(_config);
+
+        _menuInput.Received(1).HandleGamepadButtonPress("B");
+        _input.DidNotReceive().PollAnyGamepadButtonPressed(1);
     }
 
     [Test]

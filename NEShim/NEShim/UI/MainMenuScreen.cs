@@ -18,7 +18,9 @@ namespace NEShim.UI;
 internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
 {
     private IReadOnlyDictionary<Screen, IScreenHandler> _handlers;
-    private (string Label, string ConfigKey)[]          _bindingActions;
+    // Player 1's gamepad table only — kept solely so OpenMenuBindingIndex can locate the OpenMenu
+    // row for rendering (see its doc comment). GamepadBindingsHandler/KeyboardBindingsHandler
+    // build their own per-player tables locally instead of reading this field, for every player.
     private (string Label, string ConfigKey)[]          _gamepadBindingActions;
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
@@ -50,25 +52,11 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
         {
             string? rebinding = RebindingAction ?? GamepadRebindingAction;
             if (rebinding != null)
-                return IsNesButtonKey(rebinding) ? rebinding : null;
+                return MenuBindingHelpers.IsNesButtonKey(rebinding) ? rebinding : null;
 
-            if (CurrentScreen == Screen.KeyboardBindings)
-            {
-                var key = _bindingActions[SelectedIndex].ConfigKey;
-                return IsNesButtonKey(key) ? key : null;
-            }
-            if (CurrentScreen == Screen.GamepadBindings)
-            {
-                var key = _gamepadBindingActions[SelectedIndex].ConfigKey;
-                return IsNesButtonKey(key) ? key : null;
-            }
-            return null;
+            return _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetActiveNesButton(SelectedIndex) : null;
         }
     }
-
-    private static bool IsNesButtonKey(string key) =>
-        key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
-             or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
 
     public string MenuPosition => _config.MainMenuPosition;
 
@@ -81,7 +69,9 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
     private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
     private          LocalizationData _localization;
-    private readonly IGamepadGlyphResolver _glyphResolver;
+    // One resolver per player (index 0 = player 1, ...) — see InGameMenu's identical field for
+    // the full rationale.
+    private readonly IReadOnlyList<IGamepadGlyphResolver> _glyphResolvers;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
@@ -126,13 +116,13 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
         Action<int, int, int>                  onAudioEqChanged,
         IntPtr           bgImage = default,
         Action<IntPtr>?  onSurfaceDisposing = null,
-        IGamepadGlyphResolver? glyphResolver = null)
+        IReadOnlyList<IGamepadGlyphResolver>? glyphResolvers = null)
     {
         _onSurfaceDisposing        = onSurfaceDisposing;
         _saveStates                = saveStates;
         _config                    = config;
         _localization              = localization;
-        _glyphResolver             = glyphResolver ?? NullGamepadGlyphResolver.Instance;
+        _glyphResolvers             = glyphResolvers ?? new IGamepadGlyphResolver[] { NullGamepadGlyphResolver.Instance };
         _onWindowModeToggle        = onWindowModeToggle;
         _onConfigSaved             = onConfigSaved;
         _onVolumeChanged           = onVolumeChanged;
@@ -147,8 +137,7 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
         _onPictureAdjustChanged    = onPictureAdjustChanged;
         _onAudioEqChanged          = onAudioEqChanged;
 
-        _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
-        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config);
         _handlers              = BuildHandlers();
 
         if (bgImage != default)
@@ -169,9 +158,6 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
     AppConfig         IMenuHost.Config       => _config;
     LocalizationData  IMenuHost.Localization => _localization;
     Screen            IMenuHost.RootScreen   => Screen.Main;
-
-    (string Label, string ConfigKey)[] IMenuHost.BindingActions        => _bindingActions;
-    (string Label, string ConfigKey)[] IMenuHost.GamepadBindingActions => _gamepadBindingActions;
 
     string? IMenuHost.RebindingAction        { get => RebindingAction;        set => RebindingAction = value; }
     string? IMenuHost.GamepadRebindingAction { get => GamepadRebindingAction; set => GamepadRebindingAction = value; }
@@ -203,6 +189,13 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
             [Screen.Settings]         = new SettingsHandler(this),
             [Screen.KeyboardBindings] = new KeyboardBindingsHandler(this),
             [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
+            [Screen.PlayerSelect]           = new PlayerSelectHandler(this),
+            [Screen.GamepadBindingsP2]      = new GamepadBindingsHandler(this, player: 2),
+            [Screen.GamepadBindingsP3]      = new GamepadBindingsHandler(this, player: 3),
+            [Screen.GamepadBindingsP4]      = new GamepadBindingsHandler(this, player: 4),
+            [Screen.KeyboardBindingsP2]     = new KeyboardBindingsHandler(this, player: 2),
+            [Screen.KeyboardBindingsP3]     = new KeyboardBindingsHandler(this, player: 3),
+            [Screen.KeyboardBindingsP4]     = new KeyboardBindingsHandler(this, player: 4),
             [Screen.Video]             = new VideoHandler(this),
             [Screen.Sound]             = new SoundHandler(this),
             [Screen.AudioFilter]       = new AudioFilterHandler(this),
@@ -490,12 +483,18 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
 
     private int ItemCount() => _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.ItemCount : 0;
 
-    private static Screen ParentScreen(Screen screen) => screen switch
+    // Instance method, not static — see InGameMenu.ParentScreen's identical doc comment for why
+    // KeyboardBindings/GamepadBindings' parent depends on PlayerCount.
+    private Screen ParentScreen(Screen screen) => screen switch
     {
         Screen.ResumeSlots      => Screen.Main,
         Screen.Settings         => Screen.Main,
-        Screen.KeyboardBindings => Screen.Settings,
-        Screen.GamepadBindings  => Screen.Settings,
+        Screen.KeyboardBindings or Screen.GamepadBindings
+            => _config.PlayerCount > 1 ? Screen.PlayerSelect : Screen.Settings,
+        Screen.PlayerSelect     => Screen.Settings,
+        Screen.GamepadBindingsP2 or Screen.GamepadBindingsP3 or Screen.GamepadBindingsP4
+            or Screen.KeyboardBindingsP2 or Screen.KeyboardBindingsP3 or Screen.KeyboardBindingsP4
+            => Screen.PlayerSelect,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
@@ -557,11 +556,16 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
     public bool ShowsControllerDiagram =>
         _handlers.TryGetValue(CurrentScreen, out var handler) && handler.ShowsControllerDiagram;
 
+    public int GetCurrentSeparatorIndex() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.SeparatorIndex : -1;
+
+    public string? GetCurrentSeparatorLabel() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.SeparatorLabel : null;
+
     public void UpdateLocalization(LocalizationData data)
     {
         _localization          = data;
-        _bindingActions        = MenuBindingHelpers.BuildBindingActions(data);
-        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config, _bindingActions);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config);
         _handlers              = BuildHandlers();
     }
 
@@ -574,7 +578,11 @@ internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
         => MenuBindingHelpers.GetGamepadLabel(configKey, _config, _localization);
 
     private IntPtr GetGamepadGlyph(string configKey)
-        => MenuBindingHelpers.GetGamepadGlyph(configKey, _config, _localization, _glyphResolver);
+    {
+        int player = MenuBindingHelpers.PlayerFromConfigKey(configKey);
+        int index  = Math.Clamp(player - 1, 0, _glyphResolvers.Count - 1);
+        return MenuBindingHelpers.GetGamepadGlyph(configKey, _config, _localization, _glyphResolvers[index]);
+    }
 
     // Returns a pre-scaled SDL surface at bounds dimensions, rebuilding only when the bounds change.
     // The caller must not destroy the returned surface — it is owned by this instance.

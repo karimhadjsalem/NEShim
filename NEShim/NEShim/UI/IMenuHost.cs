@@ -24,8 +24,6 @@ internal interface IMenuHost
     /// <see cref="MainMenuScreen"/>.</summary>
     Screen RootScreen { get; }
 
-    (string Label, string ConfigKey)[] BindingActions { get; }
-    (string Label, string ConfigKey)[] GamepadBindingActions { get; }
     string? RebindingAction { get; set; }
     string? GamepadRebindingAction { get; set; }
 

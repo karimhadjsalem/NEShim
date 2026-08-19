@@ -19,6 +19,12 @@ internal static class ControllerSprites
     {
         if (activeButton is null) return;
 
+        // The diagram is one generic NES controller shape shared by every player's binding
+        // screen — highlight position depends only on which button (Up/Down/.../Select), not
+        // which player, so strip the "P{n} " prefix (e.g. "P2 Up" -> "Up") before matching.
+        int space = activeButton.IndexOf(' ');
+        string buttonSuffix = space >= 0 ? activeButton[(space + 1)..] : activeButton;
+
         float aw = ctrlRect.W, ah = ctrlRect.H;
         float ox = ctrlRect.X, oy = ctrlRect.Y;
 
@@ -36,30 +42,30 @@ internal static class ControllerSprites
         float bcx  = ox + 0.722f * aw, bcy = oy + 0.636f * ah;
         float acx  = ox + 0.862f * aw, acy = oy + 0.636f * ah;
 
-        switch (activeButton)
+        switch (buttonSuffix)
         {
-            case "P1 Up":
+            case "Up":
                 ctx.FillRect(new SDL.FRect { X = dcx - halfT - pad, Y = dcy - armL - pad, W = armT + 2f * pad, H = armL - halfT + 2f * pad }, HighlightColor);
                 break;
-            case "P1 Down":
+            case "Down":
                 ctx.FillRect(new SDL.FRect { X = dcx - halfT - pad, Y = dcy + halfT - pad, W = armT + 2f * pad, H = armL - halfT + 2f * pad }, HighlightColor);
                 break;
-            case "P1 Left":
+            case "Left":
                 ctx.FillRect(new SDL.FRect { X = dcx - armL - pad, Y = dcy - halfT - pad, W = armL - halfT + 2f * pad, H = armT + 2f * pad }, HighlightColor);
                 break;
-            case "P1 Right":
+            case "Right":
                 ctx.FillRect(new SDL.FRect { X = dcx + halfT - pad, Y = dcy - halfT - pad, W = armL - halfT + 2f * pad, H = armT + 2f * pad }, HighlightColor);
                 break;
-            case "P1 Select":
+            case "Select":
                 ctx.FillRect(new SDL.FRect { X = selCx - pillW * 0.5f - pad, Y = pillY - pillH * 0.33f, W = pillW + 2f * pad, H = pillH + 2f * pad }, HighlightColor);
                 break;
-            case "P1 Start":
+            case "Start":
                 ctx.FillRect(new SDL.FRect { X = staCx - pillW * 0.5f - pad, Y = pillY - pillH * 0.33f, W = pillW + 2f * pad, H = pillH + 2f * pad }, HighlightColor);
                 break;
-            case "P1 B":
+            case "B":
                 ctx.FillEllipse(bcx, bcy, btnR + pad, btnR + pad, HighlightColor);
                 break;
-            case "P1 A":
+            case "A":
                 ctx.FillEllipse(acx, acy, btnR + pad, btnR + pad, HighlightColor);
                 break;
         }

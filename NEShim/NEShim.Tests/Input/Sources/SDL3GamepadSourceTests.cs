@@ -452,4 +452,20 @@ internal class SDL3GamepadSourceTests
         connected = false;
         Assert.That(source.AnyJustPressed(), Is.False);
     }
+
+    // ── Player index threading ──────────────────────────────────────────────────
+
+    [Test]
+    public void Player2Source_QueriesDeviceAtSlot1NotSlot0()
+    {
+        var device = Substitute.For<IGamepadDevice>();
+        device.GetState(0).Returns(NotConnected());
+        device.GetState(1).Returns(Connected(a: true));
+
+        var source = new SDL3GamepadSource(device, playerIndex: 1);
+        var ids = source.GetActiveIdentifiers(_config);
+
+        Assert.That(ids, Contains.Item("A"));
+        device.DidNotReceive().GetState(0);
+    }
 }

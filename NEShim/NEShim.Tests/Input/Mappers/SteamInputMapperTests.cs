@@ -86,4 +86,18 @@ internal class SteamInputMapperTests
         _mapper.Map(new HashSet<string> { "Up" }, _config, builder);
         Assert.That(builder.Contains("P1 Up"), Is.False);
     }
+
+    // ── Per-player translation ───────────────────────────────────────────────────
+
+    [Test]
+    public void Player2Mapper_TranslatesToPlayer2ConfigKeys()
+    {
+        var player2Mapper = new SteamInputMapper(player: 2);
+        var builder = NewBuilder();
+        player2Mapper.Map(new HashSet<string> { "up", "a_button" }, _config, builder);
+
+        Assert.That(builder.Contains("P2 Up"), Is.True);
+        Assert.That(builder.Contains("P2 A"),  Is.True);
+        Assert.That(builder.Contains("P1 Up"), Is.False);
+    }
 }

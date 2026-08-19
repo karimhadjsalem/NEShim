@@ -25,7 +25,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     private IEmulationCore?   _host;
     private IInputReader?     _input;
     private IGamepadDevice?   _gamepadDevice;
-    private CachingGamepadGlyphResolver? _glyphResolver;
+    // One resolver per active player (index 0 = player 1, ...) — see
+    // GamepadGlyphResolverFactory's doc comment for why each player needs its own instance.
+    private IReadOnlyList<CachingGamepadGlyphResolver>? _glyphResolvers;
     private IAudioSink?       _audio;
     private MainMenuMusic?    _mainMenuMusic;
     private ISaveManager?     _saves;
@@ -534,18 +536,46 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
 
     private void InitializeInput()
     {
+        // _input/_gamepadDevice/_glyphResolvers are engine-level singletons that survive a
+        // multi-game carousel game switch (see CLAUDE.md's Multi-Game Mode section) — built once
+        // per process, not once per game. A single game's own AppConfig.PlayerCount can't size
+        // this fan-out in multi-game mode (different games in the same library can have
+        // different PlayerCount values), so multi-game mode always builds the full 4-player
+        // fan-out; the BizHawk controller-port wiring (NesPortSelector, re-applied on every
+        // per-game ROM load via BizHawkEmulationCore.LoadRom) is what actually limits how many of
+        // those players' inputs reach a given game's emulated hardware. Single-game mode has one
+        // AppConfig for the process lifetime, so sizing exactly to its PlayerCount is both correct
+        // and avoids constructing unused per-player sources for the common (non-multiplayer) case.
+        int playerCount = MultiGameMode.IsActive ? 4 : _config!.PlayerCount;
+
         _gamepadDevice = new SDL3GamepadDevice();
-        _glyphResolver = GamepadGlyphResolverFactory.Create(_gamepadDevice);
+
+        var gamepadSources  = new Input.Sources.SDL3GamepadSource[playerCount];
+        var gamepadMappers  = new Input.Mappers.SDL3GamepadMapper[playerCount];
+        var steamSources    = new Input.Sources.SteamInputSource[playerCount];
+        var steamMappers    = new Input.Mappers.SteamInputMapper[playerCount];
+        var glyphResolvers  = new CachingGamepadGlyphResolver[playerCount];
+        for (int i = 0; i < playerCount; i++)
+        {
+            int player = i + 1;
+            gamepadSources[i] = new Input.Sources.SDL3GamepadSource(_gamepadDevice, (uint)i);
+            gamepadMappers[i] = new Input.Mappers.SDL3GamepadMapper(player);
+            steamSources[i]   = new Input.Sources.SteamInputSource(i);
+            steamMappers[i]   = new Input.Mappers.SteamInputMapper(player);
+            glyphResolvers[i] = GamepadGlyphResolverFactory.Create(_gamepadDevice, i);
+        }
+        _glyphResolvers = glyphResolvers;
+
         _input = new InputManager(
             new Input.Sources.KeyboardInputSource(),
-            new Input.Sources.SDL3GamepadSource(_gamepadDevice),
-            new Input.Sources.SteamInputSource(),
+            gamepadSources,
+            steamSources,
             new Input.Mappers.KeyboardMapper(),
-            new Input.Mappers.SDL3GamepadMapper(),
-            new Input.Mappers.SteamInputMapper(),
+            gamepadMappers,
+            steamMappers,
             _gamepadDevice);
-        _input.GamepadConnected    += () => _glyphResolver?.InvalidateCache();
-        _input.GamepadDisconnected += () => _glyphResolver?.InvalidateCache();
+        _input.GamepadConnected    += () => { foreach (var r in glyphResolvers) r.InvalidateCache(); };
+        _input.GamepadDisconnected += () => { foreach (var r in glyphResolvers) r.InvalidateCache(); };
         _sdlHost.KeyDown += key => _input.OnKeyDown(key);
         _sdlHost.KeyUp   += key => _input.OnKeyUp(key);
         _sdlHost.KeyDown += OnKeyDown;
@@ -704,7 +734,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onLanguageChanged:           callbacks.OnLanguageChanged,
             onPictureAdjustChanged:      callbacks.OnPictureAdjustChanged,
             onAudioEqChanged:            callbacks.OnAudioEqChanged,
-            glyphResolver: _glyphResolver!,
+            glyphResolvers: _glyphResolvers!,
             onSurfaceDisposing: surface => _renderer?.InvalidateSurfaceTexture(surface));
 
         _preloadedMenuBackground = IntPtr.Zero;
@@ -774,7 +804,7 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
             onLanguageChanged:           callbacks.OnLanguageChanged,
             onPictureAdjustChanged:      callbacks.OnPictureAdjustChanged,
             onAudioEqChanged:            callbacks.OnAudioEqChanged,
-            glyphResolver: _glyphResolver!);
+            glyphResolvers: _glyphResolvers!);
 
         _menu.Opened += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
         _menu.Closed += () => _marshalToMainThread(() => _renderer?.MarkOverlayDirty());
@@ -861,7 +891,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         // The text tier's result is localization-dependent, unlike the glyph tiers — a cached
         // text-only GlyphResult would otherwise keep showing the old language until the next
         // gamepad connect/disconnect edge.
-        _glyphResolver?.InvalidateCache();
+        if (_glyphResolvers is not null)
+            foreach (var resolver in _glyphResolvers)
+                resolver.InvalidateCache();
         _renderer?.MarkOverlayDirty();
     }
 
@@ -964,6 +996,17 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
     bool UI.IMenuInputTarget.IsWaitingForGamepadButton
         => _mainMenuScreen?.IsGamepadRebinding == true || _menu?.IsGamepadRebinding == true;
 
+    int UI.IMenuInputTarget.WaitingForGamepadButtonPlayer
+    {
+        get
+        {
+            string? rebindingAction = _mainMenuScreen?.IsGamepadRebinding == true ? _mainMenuScreen.GamepadRebindingAction
+                : _menu?.IsGamepadRebinding == true ? _menu.GamepadRebindingAction
+                : null;
+            return UI.MenuBindingHelpers.PlayerFromConfigKey(rebindingAction);
+        }
+    }
+
     void UI.IMenuInputTarget.HandleGamepadNav(Input.MenuNavInput nav)
     {
         if (_carousel is not null)          _carousel.HandleGamepadNav(nav);
@@ -1029,7 +1072,9 @@ internal sealed class NEShimApp : Rendering.IMenuSceneProvider, UI.IMenuInputTar
         _mainMenuScreen?.Dispose();
         FlagImageLoader.Dispose();
         ControllerSprites.Dispose();
-        _glyphResolver?.Dispose();
+        if (_glyphResolvers is not null)
+            foreach (var resolver in _glyphResolvers)
+                resolver.Dispose();
         _gamepadDevice?.Dispose();
         _audio?.Dispose();
         _host?.Dispose();

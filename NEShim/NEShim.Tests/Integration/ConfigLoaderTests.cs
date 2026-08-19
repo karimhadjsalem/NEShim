@@ -508,6 +508,51 @@ internal class ConfigLoaderTests
         Assert.That(loaded.Language, Is.EqualTo("french"));
     }
 
+    // ---- PlayerCount clamping ----
+
+    [TestCase(0, 1)]
+    [TestCase(-5, 1)]
+    [TestCase(5, 4)]
+    [TestCase(100, 4)]
+    public void LoadFrom_PlayerCountOutOfRange_ClampsToValidRange(int rawValue, int expected)
+    {
+        File.WriteAllText(_configPath, $$"""{"playerCount":{{rawValue}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(expected));
+    }
+
+    [TestCase(2)] [TestCase(3)] [TestCase(4)]
+    public void LoadFrom_PlayerCountInRange_IsUnchanged(int value)
+    {
+        var original = new AppConfig { PlayerCount = value };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(value));
+    }
+
+    [Test]
+    public void Load_HandEditedUserJsonPlayerCount_CannotOverridePublisherValue()
+    {
+        // PlayerCount is publisher-only — UserConfig has no PlayerCount property at all, so even
+        // a hand-edited user.json containing "playerCount" must have zero effect. Also confirms
+        // the clamp re-applies harmlessly on the user-overlay path (a no-op safety net, not
+        // redundant work — see MigrateDeprecatedFields's doc comment).
+        var publisher = new AppConfig { WindowTitle = "TestGame", PlayerCount = 3 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"playerCount":99}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(3));
+        File.Delete(userPath);
+    }
+
     // ---- TryParseFrom ----
 
     [Test]

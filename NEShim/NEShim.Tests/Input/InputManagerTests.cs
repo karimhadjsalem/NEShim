@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using SDL3;
 using NSubstitute;
@@ -36,8 +36,8 @@ internal class InputManagerTests
         _stubDevice.GetState(Arg.Any<uint>()).Returns(default(GamepadState));
 
         _manager = new InputManager(
-            _keyboard, _mockGamepadSource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(),
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() },
             _stubDevice);
 
         _config = new AppConfig();
@@ -105,8 +105,8 @@ internal class InputManagerTests
     {
         var mockXMapper = Substitute.For<IInputMapper>();
         var manager = new InputManager(
-            _keyboard, _mockGamepadSource, _mockSteam,
-            new KeyboardMapper(), mockXMapper, new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new[] { mockXMapper }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         _mockGamepadSource.IsAvailable.Returns(true);
 
@@ -123,8 +123,8 @@ internal class InputManagerTests
     {
         var mockXMapper = Substitute.For<IInputMapper>();
         var manager = new InputManager(
-            _keyboard, _mockGamepadSource, _mockSteam,
-            new KeyboardMapper(), mockXMapper, new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new[] { mockXMapper }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         // _mockGamepadSource.IsAvailable defaults to false
         manager.PollSnapshot(_config);
@@ -371,8 +371,8 @@ internal class InputManagerTests
         ((IMenuNavSource)steam).GetMenuNav(Arg.Any<AppConfig>()).Returns(new MenuNavInput { Down = true });
 
         var manager = new InputManager(
-            _keyboard, xInput, steam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { xInput }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         var nav = manager.PollMenuNav(_config);
 
@@ -443,8 +443,8 @@ internal class InputManagerTests
         ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((true, false));
 
         var manager = new InputManager(
-            _keyboard, _mockGamepadSource, steam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { _mockGamepadSource }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         var (left, right) = manager.GetHeldSliderDir(_config);
         Assert.That(left,  Is.True);
@@ -459,8 +459,8 @@ internal class InputManagerTests
         ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((false, true));
 
         var manager = new InputManager(
-            _keyboard, _mockGamepadSource, steam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { _mockGamepadSource }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         var (left, right) = manager.GetHeldSliderDir(_config);
         Assert.That(left,  Is.False);
@@ -484,8 +484,8 @@ internal class InputManagerTests
         ((IAnyButtonSource)anySource).AnyJustPressed().Returns(true);
 
         var manager = new InputManager(
-            _keyboard, anySource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { anySource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         Assert.That(manager.PollAnyControllerButton(), Is.True);
     }
@@ -498,8 +498,8 @@ internal class InputManagerTests
         ((IAnyButtonSource)anySource).AnyJustPressed().Returns(false);
 
         var manager = new InputManager(
-            _keyboard, anySource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { anySource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         Assert.That(manager.PollAnyControllerButton(), Is.False);
     }
@@ -520,8 +520,8 @@ internal class InputManagerTests
         bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
 
         var manager = new InputManager(
-            _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         manager.FlushBindingEdges();
 
@@ -538,8 +538,8 @@ internal class InputManagerTests
         ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns("B");
 
         var manager = new InputManager(
-            _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         Assert.That(manager.PollAnyGamepadButtonPressed(), Is.EqualTo("B"));
     }
@@ -552,9 +552,53 @@ internal class InputManagerTests
         ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns((string?)null);
 
         var manager = new InputManager(
-            _keyboard, bindingSource, _mockSteam,
-            new KeyboardMapper(), new SDL3GamepadMapper(), new SteamInputMapper(), _stubDevice);
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
 
         Assert.That(manager.PollAnyGamepadButtonPressed(), Is.Null);
+    }
+
+    // ── Per-player binding-capture routing ────────────────────────────────────────
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_Player2_DelegatesToPlayer2SourceNotPlayer1()
+    {
+        var p1 = Substitute.For<IInputSource, IBindingSource>();
+        p1.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)p1).PollAnyButtonPressed().Returns("A");
+
+        var p2 = Substitute.For<IInputSource, IBindingSource>();
+        p2.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)p2).PollAnyButtonPressed().Returns("B");
+
+        var manager = new InputManager(
+            _keyboard, new[] { p1, p2 }, new[] { _mockSteam },
+            new KeyboardMapper(),
+            new IInputMapper[] { new SDL3GamepadMapper(1), new SDL3GamepadMapper(2) },
+            new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(player: 2), Is.EqualTo("B"));
+        ((IBindingSource)p1).DidNotReceive().PollAnyButtonPressed();
+    }
+
+    [Test]
+    public void FlushBindingEdges_Player2_CallsFlushEdgesOnPlayer2SourceOnly()
+    {
+        var p1 = Substitute.For<IInputSource, IBindingSource>();
+        p1.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var p2 = Substitute.For<IInputSource, IBindingSource>();
+        p2.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var manager = new InputManager(
+            _keyboard, new[] { p1, p2 }, new[] { _mockSteam },
+            new KeyboardMapper(),
+            new IInputMapper[] { new SDL3GamepadMapper(1), new SDL3GamepadMapper(2) },
+            new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        manager.FlushBindingEdges(player: 2);
+
+        ((IBindingSource)p2).Received(1).FlushEdges();
+        ((IBindingSource)p1).DidNotReceive().FlushEdges();
     }
 }

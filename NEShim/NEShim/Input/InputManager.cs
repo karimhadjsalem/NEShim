@@ -11,22 +11,32 @@ namespace NEShim.Input;
 /// Coordinates input sources and mappers to produce per-frame InputSnapshot values.
 /// Fires IoC events for hotkey edges, menu-toggle, and controller disconnect so callers
 /// (EmulationThread, NEShimApp) register handlers once rather than polling each frame.
+///
+/// Gamepad/Steam sources+mappers are per-player lists (one entry per active player, sized by
+/// AppConfig.PlayerCount, built by NEShimApp's composition root) so PollSnapshot fans out
+/// gameplay button identifiers across every configured player without any per-player special
+/// casing in the polling loop itself (OCP: adding a player means adding a list entry, not a new
+/// branch here). Hotkeys, menu navigation, the "any button" wake gesture, and the disconnect-
+/// screen trigger are deliberately NOT fanned out — they stay wired to index 0 (player 1) only,
+/// exactly matching this class's pre-multiplayer behavior, since these are session-level/system
+/// concerns rather than per-player gameplay concerns.
 /// </summary>
 internal sealed class InputManager : IInputReader
 {
     private readonly KeyboardInputSource _keyboardSource;
-    private readonly IInputSource        _gamepadSource;
-    private readonly IInputSource        _steamSource;
     private readonly IInputMapper        _keyboardMapper;
-    private readonly IInputMapper        _gamepadMapper;
-    private readonly IInputMapper        _steamMapper;
     private readonly IGamepadDevice      _gamepadDevice;
+
+    private readonly IReadOnlyList<IInputSource> _gamepadSources;
+    private readonly IReadOnlyList<IInputMapper> _gamepadMappers;
+    private readonly IReadOnlyList<IInputSource> _steamSources;
+    private readonly IReadOnlyList<IInputMapper> _steamMappers;
 
     // Edge detection for hotkeys
     private readonly HashSet<SDL.Keycode> _prevHotkeyKeys = new();
     private GamepadState _prevHotkeyPad;
 
-    // Controller disconnect tracking
+    // Controller disconnect tracking — player 1 only, see class doc comment.
     private bool _wasControllerConnected;
     private bool _prevLoggedGamepad;
     private bool _prevLoggedSteam;
@@ -41,20 +51,20 @@ internal sealed class InputManager : IInputReader
     // ── Constructor ────────────────────────────────────────────────────────────
 
     internal InputManager(
-        KeyboardInputSource keyboardSource,
-        IInputSource        gamepadSource,
-        IInputSource        steamSource,
-        IInputMapper        keyboardMapper,
-        IInputMapper        gamepadMapper,
-        IInputMapper        steamMapper,
-        IGamepadDevice      gamepadDevice)
+        KeyboardInputSource         keyboardSource,
+        IReadOnlyList<IInputSource> gamepadSources,
+        IReadOnlyList<IInputSource> steamSources,
+        IInputMapper                keyboardMapper,
+        IReadOnlyList<IInputMapper> gamepadMappers,
+        IReadOnlyList<IInputMapper> steamMappers,
+        IGamepadDevice              gamepadDevice)
     {
         _keyboardSource = keyboardSource;
-        _gamepadSource  = gamepadSource;
-        _steamSource    = steamSource;
+        _gamepadSources = gamepadSources;
+        _steamSources   = steamSources;
         _keyboardMapper = keyboardMapper;
-        _gamepadMapper  = gamepadMapper;
-        _steamMapper    = steamMapper;
+        _gamepadMappers = gamepadMappers;
+        _steamMappers   = steamMappers;
         _gamepadDevice  = gamepadDevice;
     }
 
@@ -69,28 +79,37 @@ internal sealed class InputManager : IInputReader
     {
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        var steamIds = _steamSource.GetActiveIdentifiers(config);
-        if (_steamSource.IsAvailable)
-            _steamMapper.Map(steamIds, config, builder);
+        for (int i = 0; i < _steamSources.Count; i++)
+        {
+            var ids = _steamSources[i].GetActiveIdentifiers(config);
+            if (_steamSources[i].IsAvailable)
+                _steamMappers[i].Map(ids, config, builder);
+        }
 
-        var gamepadIds = _gamepadSource.GetActiveIdentifiers(config);
-        if (_gamepadSource.IsAvailable)
-            _gamepadMapper.Map(gamepadIds, config, builder);
+        for (int i = 0; i < _gamepadSources.Count; i++)
+        {
+            var ids = _gamepadSources[i].GetActiveIdentifiers(config);
+            if (_gamepadSources[i].IsAvailable)
+                _gamepadMappers[i].Map(ids, config, builder);
+        }
 
         _keyboardMapper.Map(_keyboardSource.GetActiveIdentifiers(config), config, builder);
 
-        bool controllerNow = _gamepadSource.IsAvailable || _steamSource.IsAvailable;
+        // Player-1-only, matching this class's pre-multiplayer disconnect-screen behavior — see
+        // class doc comment.
+        bool gamepadNow = _gamepadSources[0].IsAvailable;
+        bool steamNow   = _steamSources[0].IsAvailable;
+
+        bool controllerNow = gamepadNow || steamNow;
         if (_wasControllerConnected && !controllerNow)
             GamepadDisconnected?.Invoke();
         else if (!_wasControllerConnected && controllerNow)
             GamepadConnected?.Invoke();
         _wasControllerConnected = controllerNow;
 
-        bool gamepadNow = _gamepadSource.IsAvailable;
-        bool steamNow   = _steamSource.IsAvailable;
         if (gamepadNow != _prevLoggedGamepad || steamNow != _prevLoggedSteam)
         {
-            Logger.Log($"[Input] Source: Gamepad={gamepadNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
+            Logger.Log($"[Input] Source (P1): Gamepad={gamepadNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
             _prevLoggedGamepad = gamepadNow;
             _prevLoggedSteam   = steamNow;
         }
@@ -102,10 +121,10 @@ internal sealed class InputManager : IInputReader
     {
         var result = default(MenuNavInput);
 
-        if (_gamepadSource is IMenuNavSource gamepadNav)
+        if (_gamepadSources[0] is IMenuNavSource gamepadNav)
             result = MenuNavInput.Union(result, gamepadNav.GetMenuNav(config));
 
-        if (_steamSource is IMenuNavSource steamNav)
+        if (_steamSources[0] is IMenuNavSource steamNav)
             result = MenuNavInput.Union(result, steamNav.GetMenuNav(config));
 
         return result;
@@ -121,7 +140,7 @@ internal sealed class InputManager : IInputReader
         bool padLeft  = pad.Connected && (pad.DPadLeft  || AnalogStickHelper.StickLeft(pad.ThumbLX,  pad.ThumbLY, dz));
         bool padRight = pad.Connected && (pad.DPadRight || AnalogStickHelper.StickRight(pad.ThumbLX, pad.ThumbLY, dz));
 
-        (bool steamLeft, bool steamRight) = _steamSource is IHeldDirectionSource steamHeld
+        (bool steamLeft, bool steamRight) = _steamSources[0] is IHeldDirectionSource steamHeld
             ? steamHeld.GetHeldLeftRight(config)
             : (false, false);
 
@@ -131,6 +150,7 @@ internal sealed class InputManager : IInputReader
     /// <summary>
     /// Detects edge transitions for all configured hotkeys and fires events.
     /// Call once per frame on the emulation thread, after PollSnapshot.
+    /// Player 1's gamepad only — see class doc comment.
     /// </summary>
     public void AdvanceHotkeyState(AppConfig config)
     {
@@ -195,19 +215,27 @@ internal sealed class InputManager : IInputReader
     public bool PollAnyControllerButton()
     {
         bool any = false;
-        if (_gamepadSource is IAnyButtonSource ga) any |= ga.AnyJustPressed();
-        if (_steamSource   is IAnyButtonSource sa) any |= sa.AnyJustPressed();
+        if (_gamepadSources[0] is IAnyButtonSource ga) any |= ga.AnyJustPressed();
+        if (_steamSources[0]   is IAnyButtonSource sa) any |= sa.AnyJustPressed();
         return any;
     }
 
-    public void FlushBindingEdges()
+    /// <param name="player">1-based player whose gamepad binding-capture state to seed.
+    /// Defaults to player 1. Clamped to the configured player range.</param>
+    public void FlushBindingEdges(int player = 1)
     {
-        if (_gamepadSource is IBindingSource b) b.FlushEdges();
+        if (_gamepadSources[GamepadIndexFor(player)] is IBindingSource b) b.FlushEdges();
     }
 
-    public string? PollAnyGamepadButtonPressed()
+    /// <param name="player">1-based player whose gamepad to poll for a newly-pressed
+    /// button/axis — the rebinding UI must read the physical device belonging to the player
+    /// being rebound, not always player 1's. Defaults to player 1. Clamped to the configured
+    /// player range.</param>
+    public string? PollAnyGamepadButtonPressed(int player = 1)
     {
-        if (_gamepadSource is IBindingSource b) return b.PollAnyButtonPressed();
+        if (_gamepadSources[GamepadIndexFor(player)] is IBindingSource b) return b.PollAnyButtonPressed();
         return null;
     }
+
+    private int GamepadIndexFor(int player) => Math.Clamp(player - 1, 0, _gamepadSources.Count - 1);
 }

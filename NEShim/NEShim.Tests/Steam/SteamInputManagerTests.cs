@@ -86,33 +86,28 @@ internal class SteamInputManagerTests
         Assert.That(SteamInputManager.GetNativeLabel("mystery_action"), Is.EqualTo("mystery_action"));
     }
 
-    // ---- ActionToNesButton table ----
+    // ---- NesButtonFor / ActionFor: player-parameterized action <-> NES button translation
+    // (replaces the old fixed P1-only ActionToNesButton/NesButtonToAction dictionaries) ----
 
-    [Test]
-    public void ActionToNesButton_ContainsEightEntries()
+    [TestCase("up",       1, "P1 Up")]
+    [TestCase("down",     1, "P1 Down")]
+    [TestCase("left",     1, "P1 Left")]
+    [TestCase("right",    1, "P1 Right")]
+    [TestCase("a_button", 1, "P1 A")]
+    [TestCase("b_button", 1, "P1 B")]
+    [TestCase("start",    1, "P1 Start")]
+    [TestCase("select",   1, "P1 Select")]
+    [TestCase("up",       2, "P2 Up")]
+    [TestCase("select",   4, "P4 Select")]
+    public void NesButtonFor_CorrectMapping(string action, int player, string expected)
     {
-        Assert.That(SteamInputManager.ActionToNesButton, Has.Count.EqualTo(8));
+        Assert.That(SteamInputManager.NesButtonFor(action, player), Is.EqualTo(expected));
     }
 
-    [TestCase("up",       "P1 Up")]
-    [TestCase("down",     "P1 Down")]
-    [TestCase("left",     "P1 Left")]
-    [TestCase("right",    "P1 Right")]
-    [TestCase("a_button", "P1 A")]
-    [TestCase("b_button", "P1 B")]
-    [TestCase("start",    "P1 Start")]
-    [TestCase("select",   "P1 Select")]
-    public void ActionToNesButton_CorrectMapping(string action, string nesButton)
-    {
-        Assert.That(SteamInputManager.ActionToNesButton[action], Is.EqualTo(nesButton));
-    }
-
-    // ---- NesButtonToAction table ----
-
     [Test]
-    public void NesButtonToAction_ContainsEightEntries()
+    public void NesButtonFor_UnknownAction_ReturnsNull()
     {
-        Assert.That(SteamInputManager.NesButtonToAction, Has.Count.EqualTo(8));
+        Assert.That(SteamInputManager.NesButtonFor("mystery_action", 1), Is.Null);
     }
 
     [TestCase("P1 Up",     "up")]
@@ -123,16 +118,30 @@ internal class SteamInputManagerTests
     [TestCase("P1 B",      "b_button")]
     [TestCase("P1 Start",  "start")]
     [TestCase("P1 Select", "select")]
-    public void NesButtonToAction_CorrectMapping(string nesButton, string action)
+    [TestCase("P2 Up",     "up")]
+    [TestCase("P4 Select", "select")]
+    public void ActionFor_CorrectMapping(string nesButton, string expected)
     {
-        Assert.That(SteamInputManager.NesButtonToAction[nesButton], Is.EqualTo(action));
+        Assert.That(SteamInputManager.ActionFor(nesButton), Is.EqualTo(expected));
     }
 
     [Test]
-    public void ActionAndNesButton_Tables_AreSymmetric()
+    public void ActionFor_UnrecognizedSuffix_ReturnsNull()
     {
-        foreach (var (action, nesButton) in SteamInputManager.ActionToNesButton)
-            Assert.That(SteamInputManager.NesButtonToAction[nesButton], Is.EqualTo(action));
+        Assert.That(SteamInputManager.ActionFor("P1 NotAButton"), Is.Null);
+    }
+
+    [Test]
+    public void ActionFor_NoSpace_ReturnsNull()
+    {
+        Assert.That(SteamInputManager.ActionFor("OpenMenu"), Is.Null);
+    }
+
+    [TestCase("up", "down", "left", "right", "a_button", "b_button", "start", "select")]
+    public void NesButtonForThenActionFor_RoundTrips(params string[] actions)
+    {
+        foreach (var action in actions)
+            Assert.That(SteamInputManager.ActionFor(SteamInputManager.NesButtonFor(action, 3)!), Is.EqualTo(action));
     }
 
     // ---- AnyMenuActionActive / GetMenuHeldLeftRight ----

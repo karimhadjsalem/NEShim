@@ -155,6 +155,12 @@ public static class ConfigLoader
 
     private static void MigrateDeprecatedFields(AppConfig config)
     {
+        // Publisher-only, never present in user.json — clamping here (called after both the
+        // publisher-JSON parse and any user-JSON overlay) is a no-op safety net on the user path,
+        // not redundant work, and guarantees a hand-edited user.json can never smuggle an
+        // out-of-range value in.
+        config.PlayerCount = Math.Clamp(config.PlayerCount, 1, 4);
+
         if (config.SoundScrubberEnabled && config.AudioFilter == "Default")
             config.AudioFilter = "Warm";
 

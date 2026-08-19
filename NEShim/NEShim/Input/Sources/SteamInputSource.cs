@@ -20,10 +20,16 @@ namespace NEShim.Input.Sources;
 /// </summary>
 internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButtonSource, IHeldDirectionSource
 {
+    private readonly int _controllerIndex;
+
     private bool   _lastAvailable;
     private bool   _prevNative;
     private string _lastLoggedActions = "";
     private bool   _prevAnyActive;
+
+    /// <param name="controllerIndex">0-based Steam Input controller slot this source reads from
+    /// (player 1 = 0, player 2 = 1, ...).</param>
+    internal SteamInputSource(int controllerIndex = 0) => _controllerIndex = controllerIndex;
 
     public bool IsAvailable => _lastAvailable;
 
@@ -36,10 +42,10 @@ internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButto
         }
 
         // GetActiveActions refreshes _controllerBuf — must come before IsUsingNativeActions.
-        var actions = Steam.SteamInputManager.GetActiveActions();
+        var actions = Steam.SteamInputManager.GetActiveActions(_controllerIndex);
 
         bool native = Steam.SteamInputManager.HasConnectedController
-                   && Steam.SteamInputManager.IsUsingNativeActions();
+                   && Steam.SteamInputManager.IsUsingNativeActions(_controllerIndex);
         _lastAvailable = native;
 
         if (native != _prevNative)
@@ -73,18 +79,18 @@ internal sealed class SteamInputSource : IInputSource, IMenuNavSource, IAnyButto
     }
 
     public MenuNavInput GetMenuNav(AppConfig config)
-        => Steam.SteamInputManager.GetMenuNav();
+        => Steam.SteamInputManager.GetMenuNav(_controllerIndex);
 
     // ── IHeldDirectionSource ───────────────────────────────────────────────────
 
     public (bool Left, bool Right) GetHeldLeftRight(AppConfig config)
-        => Steam.SteamInputManager.GetMenuHeldLeftRight();
+        => Steam.SteamInputManager.GetMenuHeldLeftRight(_controllerIndex);
 
     // ── IAnyButtonSource ───────────────────────────────────────────────────────
 
     public bool AnyJustPressed()
     {
-        bool anyNow = Steam.SteamInputManager.AnyMenuActionActive();
+        bool anyNow = Steam.SteamInputManager.AnyMenuActionActive(_controllerIndex);
         bool result = anyNow && !_prevAnyActive;
         _prevAnyActive = anyNow;
         return result;

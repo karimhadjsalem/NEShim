@@ -131,7 +131,11 @@ internal static class MainMenuRenderer
         var  items       = menu.GetCurrentItems();
         int  openMenuIdx = menu.CurrentScreen == Screen.GamepadBindings
                            ? menu.OpenMenuBindingIndex : -1;
-        bool hasSep      = openMenuIdx >= 0;
+        // Generic handler-driven divider (e.g. PlayerSelectHandler's gamepad/keyboard grouping),
+        // mutually exclusive with the OpenMenu row's own divider — see DrawPanel below, which
+        // re-derives the same fallback for the actual line/label draw.
+        int  sepIdx      = openMenuIdx >= 0 ? openMenuIdx : menu.GetCurrentSeparatorIndex();
+        bool hasSep      = sepIdx >= 0;
         bool showCtrl    = ShouldShowController(bounds, menu);
         int  ctrlAreaW   = MenuRenderConstants.ScaledPanelW(ControllerAreaW, bounds.W);
         int  panelW      = showCtrl ? MenuRenderConstants.ScaledPanelW(FullPanelW, bounds.W) : MenuRenderConstants.ScaledPanelW(SlimPanelW, bounds.W);
@@ -173,7 +177,9 @@ internal static class MainMenuRenderer
                                   string[] items, MainMenuScreen menu, int openMenuIdx,
                                   bool showCtrl, int listW)
     {
-        bool hasSep = openMenuIdx >= 0;
+        int  sepIdx   = openMenuIdx >= 0 ? openMenuIdx : menu.GetCurrentSeparatorIndex();
+        string? sepLabel = openMenuIdx >= 0 ? menu.Localization.SystemSectionLabel : menu.GetCurrentSeparatorLabel();
+        bool hasSep = sepIdx >= 0;
         var panelFRect = ToFRect(panel);
 
         PanelFrameControl.Draw(ctx, panelFRect, PanelColor, BorderColor);
@@ -196,7 +202,9 @@ internal static class MainMenuRenderer
                 new SDL.Color { R = 255, G = 255, B = 255, A = 50 });
 
             var ctrlArea = new SDL.FRect { X = panel.X + listW + 6, Y = contentTop, W = panel.W - listW - 10, H = contentBottom - contentTop };
-            ControllerDiagramControl.Draw(ctx, ctrlArea, menu.ActiveNesButton, menu.Localization.NesControllerLabel, menu.Localization.FontFamily, MenuScale.Scale);
+            string ctrlLabel = MenuBindingHelpers.ControllerDiagramLabel(
+                menu.Localization, MenuBindingHelpers.PlayerForBindingScreen(menu.CurrentScreen));
+            ControllerDiagramControl.Draw(ctx, ctrlArea, menu.ActiveNesButton, ctrlLabel, menu.Localization.FontFamily, MenuScale.Scale);
         }
 
         var sliderItems = new SliderItemData?[items.Length];
@@ -205,19 +213,22 @@ internal static class MainMenuRenderer
         float sliderLabelColumnW = SliderControl.ComputeLabelColumnW(ctx, sliderItems, menu.Localization.FontFamily, MenuScale.Scale);
         for (int i = 0; i < items.Length; i++)
         {
-            if (hasSep && i == openMenuIdx)
+            if (hasSep && i == sepIdx)
             {
                 int sepLineY = panel.Y + ItemListStartY + i * ItemH + 2;
                 ctx.DrawLine(panel.X + Pad, sepLineY, panel.X + listW - Pad, sepLineY,
                     new SDL.Color { R = 255, G = 255, B = 255, A = 60 });
-                var sepRect = new SDL.FRect { X = panel.X + Pad, Y = sepLineY + 3, W = listW - Pad * 2, H = SeparatorLabelH };
-                ctx.DrawText(menu.Localization.SystemSectionLabel, sepRect,
-                    new SDL.Color { R = 160, G = 160, B = 160, A = 130 },
-                    menu.Localization.FontFamily, 8f * MenuScale.Scale, bold: false,
-                    TextHAlign.Near, TextVAlign.Top);
+                if (sepLabel != null)
+                {
+                    var sepRect = new SDL.FRect { X = panel.X + Pad, Y = sepLineY + 3, W = listW - Pad * 2, H = SeparatorLabelH };
+                    ctx.DrawText(sepLabel, sepRect,
+                        new SDL.Color { R = 160, G = 160, B = 160, A = 130 },
+                        menu.Localization.FontFamily, 8f * MenuScale.Scale, bold: false,
+                        TextHAlign.Near, TextVAlign.Top);
+                }
             }
 
-            int extraY      = hasSep && i >= openMenuIdx ? SeparatorH : 0;
+            int extraY      = hasSep && i >= sepIdx ? SeparatorH : 0;
             bool enabled    = menu.IsItemEnabled(i);
             bool selected   = i == menu.SelectedIndex;
             bool isOpenMenu = openMenuIdx >= 0 && i == openMenuIdx;

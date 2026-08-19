@@ -32,6 +32,7 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
     private const long MenuNavDebounceMs = 50;
 
     private readonly IGamepadDevice _device;
+    private readonly uint _playerIndex;
     private readonly MenuNavEdgeDetector _menuNavDetector = new(MenuNavDebounceMs);
 
     private GamepadState _lastState;
@@ -46,16 +47,19 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
     private short _lastLoggedLY;
     private bool  _lastHadAnalog;
 
-    internal SDL3GamepadSource(IGamepadDevice device)
+    /// <param name="device">Shared multi-slot gamepad registry — see <see cref="SDL3GamepadDevice"/>.</param>
+    /// <param name="playerIndex">0-based slot this source reads from (player 1 = 0, player 2 = 1, ...).</param>
+    internal SDL3GamepadSource(IGamepadDevice device, uint playerIndex = 0)
     {
-        _device = device;
+        _device      = device;
+        _playerIndex = playerIndex;
     }
 
     public bool IsAvailable => _lastState.Connected;
 
     public IReadOnlySet<string> GetActiveIdentifiers(AppConfig config)
     {
-        _lastState = _device.GetState(0);
+        _lastState = _device.GetState(_playerIndex);
 
         if (!_lastState.Connected)
             return new HashSet<string>();
@@ -137,7 +141,7 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
 
     public MenuNavInput GetMenuNav(AppConfig config)
     {
-        var curr = _device.GetState(0);
+        var curr = _device.GetState(_playerIndex);
 
         if (!curr.Connected)
         {
@@ -161,13 +165,13 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
 
     public void FlushEdges()
     {
-        var state = _device.GetState(0);
+        var state = _device.GetState(_playerIndex);
         _prevBindingState = state.Connected ? state : default;
     }
 
     public string? PollAnyButtonPressed()
     {
-        var curr = _device.GetState(0);
+        var curr = _device.GetState(_playerIndex);
         var prev = _prevBindingState;
 
         if (!curr.Connected) { _prevBindingState = default; return null; }
@@ -211,7 +215,7 @@ internal sealed class SDL3GamepadSource : IInputSource, IMenuNavSource, IBinding
 
     public bool AnyJustPressed()
     {
-        var curr = _device.GetState(0);
+        var curr = _device.GetState(_playerIndex);
         var prev = _prevAnyState;
 
         if (!curr.Connected) { _prevAnyState = default; return false; }

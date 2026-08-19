@@ -17,36 +17,42 @@ namespace NEShim.Steam;
 /// </summary>
 internal static class SteamInputManager
 {
-    // -- VDF action ↔ NES button constant tables --
-    // Fixed by game_actions_<appid>.vdf; not user-configurable.
+    // -- VDF action name ↔ NES button suffix constant table --
+    // Fixed by game_actions_<appid>.vdf; not user-configurable. Player-agnostic — the same 8
+    // action names are activated per-player by switching which controller handle is polled
+    // (see ControllerHandle), not by defining separate per-player VDF actions.
 
-    /// <summary>Maps VDF action names to NES button names for input polling.</summary>
-    public static readonly IReadOnlyDictionary<string, string> ActionToNesButton =
+    private static readonly IReadOnlyDictionary<string, string> ActionSuffixes =
         new Dictionary<string, string>
         {
-            ["up"]       = "P1 Up",
-            ["down"]     = "P1 Down",
-            ["left"]     = "P1 Left",
-            ["right"]    = "P1 Right",
-            ["a_button"] = "P1 A",
-            ["b_button"] = "P1 B",
-            ["start"]    = "P1 Start",
-            ["select"]   = "P1 Select",
+            ["up"]       = "Up",
+            ["down"]     = "Down",
+            ["left"]     = "Left",
+            ["right"]    = "Right",
+            ["a_button"] = "A",
+            ["b_button"] = "B",
+            ["start"]    = "Start",
+            ["select"]   = "Select",
         };
 
-    /// <summary>Reverse of ActionToNesButton — used for label lookups in the binding menu.</summary>
-    public static readonly IReadOnlyDictionary<string, string> NesButtonToAction =
-        new Dictionary<string, string>
-        {
-            ["P1 Up"]     = "up",
-            ["P1 Down"]   = "down",
-            ["P1 Left"]   = "left",
-            ["P1 Right"]  = "right",
-            ["P1 A"]      = "a_button",
-            ["P1 B"]      = "b_button",
-            ["P1 Start"]  = "start",
-            ["P1 Select"] = "select",
-        };
+    private static readonly IReadOnlyDictionary<string, string> SuffixToAction =
+        ActionSuffixes.ToDictionary(kv => kv.Value, kv => kv.Key);
+
+    /// <summary>Translates a VDF action name to the NES button config key for the given player (1-based).</summary>
+    internal static string? NesButtonFor(string actionName, int player) =>
+        ActionSuffixes.TryGetValue(actionName, out var suffix) ? $"P{player} {suffix}" : null;
+
+    /// <summary>
+    /// Reverse of <see cref="NesButtonFor"/> — used for label/glyph lookups in the binding menu.
+    /// Parses the button suffix off any "P{n} &lt;Suffix&gt;" config key, player-agnostic.
+    /// </summary>
+    internal static string? ActionFor(string nesButtonConfigKey)
+    {
+        int space = nesButtonConfigKey.IndexOf(' ');
+        if (space < 0) return null;
+        string suffix = nesButtonConfigKey[(space + 1)..];
+        return SuffixToAction.TryGetValue(suffix, out var action) ? action : null;
+    }
 
     // -- Controller handle buffer (reused to avoid allocation) --
     private static readonly InputHandle_t[] _controllerBuf =
@@ -60,12 +66,6 @@ internal static class SteamInputManager
     public static bool HasConnectedController => IsAvailable && _connectedCount > 0;
 
     /// <summary>
-    /// True when the connected controller uses native Steam digital action bindings
-    /// (e.g. PS4/PS5/Switch Pro with a full action-binding VDF). False when the VDF
-    /// uses XInput passthrough, in which case Gameplay action handles have no origins
-    /// and all input flows through XInput instead.
-    /// </summary>
-    /// <summary>
     /// True only when the player has actually assigned a trackpad or gyro input to one of
     /// NEShim's gameplay/menu actions — not merely because a Steam-managed controller is
     /// connected. A Steam Controller or Steam Deck used with ordinary face buttons/d-pad
@@ -74,10 +74,14 @@ internal static class SteamInputManager
     /// motion-sensor input bound to an NES action), so it's the only case that still needs
     /// native action-set polling + the rebind lockout.
     /// </summary>
-    public static bool IsUsingNativeActions()
+    public static bool IsUsingNativeActions(int controllerIndex = 0)
     {
-        if (!IsAvailable || _connectedCount == 0) return false;
-        return AnyBoundOriginIsTouchpadOrGyro(_controllerBuf[0]);
+        // Deliberately does NOT call RefreshControllers — relies on a same-frame GetActiveActions
+        // call having already refreshed _controllerBuf/_connectedCount (see SteamInputSource's
+        // "critical call order" doc comment). Reading the cached snapshot here, rather than
+        // triggering its own refresh, preserves that existing contract unchanged.
+        var h = ControllerHandleCached(controllerIndex);
+        return h != default && AnyBoundOriginIsTouchpadOrGyro(h);
     }
 
     private static bool AnyBoundOriginIsTouchpadOrGyro(InputHandle_t h)
@@ -119,20 +123,27 @@ internal static class SteamInputManager
             || originName.Contains("CenterPad") || originName.Contains("Gyro");
 
     /// <summary>
-    /// The first connected Steam Input controller handle, for glyph lookups
-    /// (<see cref="Input.Sources.SteamInputGlyphSource"/> via <see cref="SteamInputGlyphManager"/>).
-    /// Reuses the same P1-only enumeration every other method in this class already relies on,
-    /// rather than introducing a second controller-enumeration path via GetControllerForGamepadIndex.
-    /// Returns default when no controller is connected.
+    /// The connected Steam Input controller handle at <paramref name="controllerIndex"/>
+    /// (0-based, player 1 = 0), for glyph lookups (<see cref="Input.Sources.SteamInputGlyphSource"/>
+    /// via <see cref="SteamInputGlyphManager"/>). Returns default when no controller is
+    /// connected at that index.
     /// </summary>
-    internal static InputHandle_t FirstControllerHandle
+    internal static InputHandle_t ControllerHandle(int controllerIndex) =>
+        ControllerHandleRefreshing(controllerIndex);
+
+    /// <summary>Refreshes _controllerBuf/_connectedCount, then reads the given slot.</summary>
+    private static InputHandle_t ControllerHandleRefreshing(int controllerIndex)
     {
-        get
-        {
-            if (!IsAvailable) return default;
-            RefreshControllers();
-            return _connectedCount > 0 ? _controllerBuf[0] : default;
-        }
+        if (!IsAvailable) return default;
+        int count = RefreshControllers();
+        return controllerIndex < count ? _controllerBuf[controllerIndex] : default;
+    }
+
+    /// <summary>Reads the given slot against the last-refreshed snapshot, without refreshing.</summary>
+    private static InputHandle_t ControllerHandleCached(int controllerIndex)
+    {
+        if (!IsAvailable) return default;
+        return controllerIndex < _connectedCount ? _controllerBuf[controllerIndex] : default;
     }
 
     // -- Action set handles --
@@ -233,18 +244,16 @@ internal static class SteamInputManager
     // ---- Gameplay input ----
 
     /// <summary>
-    /// Returns active VDF action names for the first connected Steam controller.
-    /// Returns an empty set when Steam Input is unavailable or no controller is connected.
-    /// Intended to be resolved via SteamInputManager.ActionToNesButton in InputManager.PollSnapshot().
+    /// Returns active VDF action names for the connected Steam controller at
+    /// <paramref name="controllerIndex"/> (0-based, player 1 = 0). Returns an empty set when
+    /// Steam Input is unavailable or no controller is connected at that index. Intended to be
+    /// resolved to a per-player NES button name via <see cref="NesButtonFor"/>.
     /// </summary>
-    public static ImmutableHashSet<string> GetActiveActions()
+    public static ImmutableHashSet<string> GetActiveActions(int controllerIndex = 0)
     {
-        if (!IsAvailable) return ImmutableHashSet<string>.Empty;
+        var h = ControllerHandleRefreshing(controllerIndex);
+        if (h == default) return ImmutableHashSet<string>.Empty;
 
-        int count = RefreshControllers();
-        if (count == 0) return ImmutableHashSet<string>.Empty;
-
-        var h = _controllerBuf[0];
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
         if (Digital(h, _hUp))     builder.Add("up");
@@ -260,13 +269,14 @@ internal static class SteamInputManager
     }
 
     /// <summary>
-    /// Returns the native controller button label for the given VDF action name.
+    /// Returns the native controller button label for the given VDF action name, read from the
+    /// controller at <paramref name="controllerIndex"/> (0-based, player 1 = 0).
     /// Queries Steam's GetDigitalActionOrigins + GetStringForActionOrigin to get the
     /// localised physical button name (e.g. "A Button", "Cross Button").
     /// Falls back to a human-readable formatting of the action name when Steam is
-    /// unavailable, no controller is connected, or no origin is configured.
+    /// unavailable, no controller is connected at that index, or no origin is configured.
     /// </summary>
-    public static string GetNativeLabel(string actionName)
+    public static string GetNativeLabel(string actionName, int controllerIndex = 0)
     {
         string formatted = actionName switch
         {
@@ -281,11 +291,9 @@ internal static class SteamInputManager
             _          => actionName,
         };
 
-        if (!IsAvailable) return formatted;
-        int count = RefreshControllers();
-        if (count == 0) return formatted;
+        var h = ControllerHandleRefreshing(controllerIndex);
+        if (h == default) return formatted;
 
-        var h = _controllerBuf[0];
         var handle = actionName switch
         {
             "up"       => _hUp,
@@ -311,22 +319,23 @@ internal static class SteamInputManager
     // ---- Menu navigation input ----
 
     /// <summary>
-    /// Returns edge-triggered menu navigation from the first connected Steam controller.
-    /// Returns a zeroed struct when Steam Input is unavailable or no controller is connected.
+    /// Returns edge-triggered menu navigation from the connected Steam controller at
+    /// <paramref name="controllerIndex"/> (0-based, player 1 = 0). Returns a zeroed struct when
+    /// Steam Input is unavailable or no controller is connected at that index. Only ever called
+    /// with the default (player 1) — menu navigation is intentionally player-1-only, mirroring
+    /// SDL3GamepadSource's own instance-per-player design (every method reads its own player's
+    /// slot, even the ones InputManager only ever calls on the player-1 instance).
     /// Intended to be OR-ed with XInput menu nav in InputManager.PollMenuNav().
     /// </summary>
-    public static MenuNavInput GetMenuNav()
+    public static MenuNavInput GetMenuNav(int controllerIndex = 0)
     {
-        if (!IsAvailable) return default;
-
-        int count = RefreshControllers();
-        if (count == 0)
+        var h = ControllerHandleRefreshing(controllerIndex);
+        if (h == default)
         {
             MenuNavDetector.Reset();
             return default;
         }
 
-        var h = _controllerBuf[0];
         bool up      = Digital(h, _hMenuUp);
         bool down    = Digital(h, _hMenuDown);
         bool left    = Digital(h, _hMenuLeft);
@@ -338,31 +347,29 @@ internal static class SteamInputManager
     }
 
     /// <summary>
-    /// Returns true if any menu-set button is currently held on the first connected controller.
-    /// Raw state only — no edge detection. Used by <see cref="NEShim.Input.Sources.SteamInputSource"/>
-    /// to implement <see cref="NEShim.Input.IAnyButtonSource"/> with its own edge state.
+    /// Returns true if any menu-set button is currently held on the connected controller at
+    /// <paramref name="controllerIndex"/> (0-based, player 1 = 0). Raw state only — no edge
+    /// detection. Used by <see cref="NEShim.Input.Sources.SteamInputSource"/> to implement
+    /// <see cref="NEShim.Input.IAnyButtonSource"/> with its own edge state.
     /// </summary>
-    public static bool AnyMenuActionActive()
+    public static bool AnyMenuActionActive(int controllerIndex = 0)
     {
-        if (!IsAvailable) return false;
-        int count = RefreshControllers();
-        if (count == 0) return false;
-        var h = _controllerBuf[0];
+        var h = ControllerHandleRefreshing(controllerIndex);
+        if (h == default) return false;
         return Digital(h, _hMenuUp)    || Digital(h, _hMenuDown)  ||
                Digital(h, _hMenuLeft)  || Digital(h, _hMenuRight) ||
                Digital(h, _hMenuConfirm) || Digital(h, _hMenuBack);
     }
 
     /// <summary>
-    /// Returns raw (non-edge-triggered) held state for menu left/right on the first connected controller.
+    /// Returns raw (non-edge-triggered) held state for menu left/right on the connected
+    /// controller at <paramref name="controllerIndex"/> (0-based, player 1 = 0).
     /// Used by <see cref="NEShim.Input.InputManager"/> to implement held-slider repeat.
     /// </summary>
-    public static (bool Left, bool Right) GetMenuHeldLeftRight()
+    public static (bool Left, bool Right) GetMenuHeldLeftRight(int controllerIndex = 0)
     {
-        if (!IsAvailable) return default;
-        int count = RefreshControllers();
-        if (count == 0) return default;
-        var h = _controllerBuf[0];
+        var h = ControllerHandleRefreshing(controllerIndex);
+        if (h == default) return default;
         return (Digital(h, _hMenuLeft), Digital(h, _hMenuRight));
     }
 

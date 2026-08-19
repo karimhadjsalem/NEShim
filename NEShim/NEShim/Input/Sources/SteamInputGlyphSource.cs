@@ -13,12 +13,17 @@ namespace NEShim.Input.Sources;
 /// </summary>
 internal sealed class SteamInputGlyphSource : IGamepadGlyphSource
 {
+    private readonly int _controllerIndex;
+
+    /// <param name="controllerIndex">0-based Steam Input controller slot (player 1 = 0, ...).</param>
+    internal SteamInputGlyphSource(int controllerIndex = 0) => _controllerIndex = controllerIndex;
+
     public GlyphResult? TryResolve(string identifier, LocalizationData localization)
     {
         if (!XboxOriginMap.Map.TryGetValue(identifier, out var xboxOrigin))
             return null;
 
-        string? path = SteamInputGlyphManager.GetGlyphPath(xboxOrigin);
+        string? path = SteamInputGlyphManager.GetGlyphPath(xboxOrigin, _controllerIndex);
         if (path is null) return null;
 
         IntPtr surface = SdlSurfaceLoader.LoadFromFile(path);

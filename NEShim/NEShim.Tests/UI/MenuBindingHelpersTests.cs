@@ -437,4 +437,94 @@ internal class MenuBindingHelpersTests
 
         resolver.Received(1).Resolve(null, loc);
     }
+
+    // ── PlayerFromConfigKey ──────────────────────────────────────────────────────
+
+    [TestCase("P1 Up", 1)]
+    [TestCase("P2 Down", 2)]
+    [TestCase("P3 A", 3)]
+    [TestCase("P4 Select", 4)]
+    [TestCase("OpenMenu", 1)]
+    [TestCase("", 1)]
+    [TestCase(null, 1)]
+    public void PlayerFromConfigKey_ParsesLeadingPlayerToken(string? configKey, int expected)
+    {
+        Assert.That(MenuBindingHelpers.PlayerFromConfigKey(configKey), Is.EqualTo(expected));
+    }
+
+    // ── IsNesButtonKey ───────────────────────────────────────────────────────────
+
+    [TestCase("P1 Up", true)]
+    [TestCase("P2 Select", true)]
+    [TestCase("P4 A", true)]
+    [TestCase("", false)]
+    [TestCase("OpenMenu", false)]
+    [TestCase("P1 NotAButton", false)]
+    public void IsNesButtonKey_ClassifiesCorrectly(string key, bool expected)
+    {
+        Assert.That(MenuBindingHelpers.IsNesButtonKey(key), Is.EqualTo(expected));
+    }
+
+    // ── BuildBindingActions / BuildGamepadBindingActions: player parameterization ──
+
+    [Test]
+    public void BuildBindingActions_Player2_UsesPlayer2ConfigKeys()
+    {
+        var loc = new LocalizationData();
+        var actions = MenuBindingHelpers.BuildBindingActions(loc, player: 2);
+
+        Assert.That(actions[0].ConfigKey, Is.EqualTo("P2 Up"));
+        Assert.That(actions[7].ConfigKey, Is.EqualTo("P2 Select"));
+        Assert.That(actions[8].ConfigKey, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void BuildGamepadBindingActions_Player2_NeverAppendsOpenMenuRow()
+    {
+        var loc = new LocalizationData();
+        _config.OverrideStartBindingProtection = true;
+
+        var actions = MenuBindingHelpers.BuildGamepadBindingActions(loc, _config, player: 2);
+
+        Assert.That(actions.Select(a => a.ConfigKey), Has.None.EqualTo("OpenMenu"));
+    }
+
+    [Test]
+    public void BuildGamepadBindingActions_Player1_OverrideEnabled_AppendsOpenMenuRow()
+    {
+        var loc = new LocalizationData();
+        _config.OverrideStartBindingProtection = true;
+
+        var actions = MenuBindingHelpers.BuildGamepadBindingActions(loc, _config, player: 1);
+
+        Assert.That(actions.Select(a => a.ConfigKey), Has.One.EqualTo("OpenMenu"));
+    }
+
+    // ── SetGamepadBinding: cross-player isolation ───────────────────────────────
+
+    [Test]
+    public void SetGamepadBinding_DoesNotClearSameButtonFromDifferentPlayer()
+    {
+        // P1 Up's default GamepadButton is "DPadUp" — different players have different physical
+        // gamepads, so rebinding P2 Down to the raw identifier "DPadUp" is not a real
+        // duplicate-binding conflict for P1 and must survive untouched. (P2 Up, which shares the
+        // same default button as P2 Down's own player, correctly DOES get cleared — see the
+        // "within same player" test below.)
+        MenuBindingHelpers.SetGamepadBinding(_config, "P2 Down", "DPadUp");
+
+        Assert.That(_config.InputMappings["P1 Up"].GamepadButton, Is.EqualTo("DPadUp"));
+        Assert.That(_config.InputMappings["P2 Down"].GamepadButton, Is.EqualTo("DPadUp"));
+    }
+
+    [Test]
+    public void SetGamepadBinding_StillClearsSameButtonWithinSamePlayer()
+    {
+        // P2 Up's default GamepadButton is "DPadUp" — rebinding another P2 action (Down) to that
+        // same raw identifier is a genuine same-player duplicate and must clear it from P2 Up.
+        Assert.That(_config.InputMappings["P2 Up"].GamepadButton, Is.EqualTo("DPadUp"));
+
+        MenuBindingHelpers.SetGamepadBinding(_config, "P2 Down", "DPadUp");
+
+        Assert.That(_config.InputMappings["P2 Up"].GamepadButton, Is.Null);
+    }
 }

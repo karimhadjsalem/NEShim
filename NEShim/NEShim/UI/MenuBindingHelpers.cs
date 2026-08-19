@@ -18,39 +18,93 @@ internal static class MenuBindingHelpers
         new() { "AnalogUp", "AnalogDown", "AnalogLeft", "AnalogRight" };
 
     /// <summary>
-    /// Returns the standard NES-button binding action table, localised via
-    /// <paramref name="localization"/>. The last entry has an empty ConfigKey and
-    /// represents the Back row.
+    /// Parses the 1-based player number off the leading "P{n} " token of a binding config key
+    /// (e.g. "P2 Up" → 2). Keys with no player prefix ("OpenMenu", "", or null) default to
+    /// player 1, matching the P1-only scope of hotkeys/menu-nav/glyph-cache-invalidation
+    /// elsewhere in the input stack. Used to route a binding row's glyph lookup and gamepad
+    /// rebind-capture to the correct player's device without threading a separate player
+    /// parameter through every call site — the config key already carries that information.
     /// </summary>
-    public static (string Label, string ConfigKey)[] BuildBindingActions(LocalizationData localization) =>
+    public static int PlayerFromConfigKey(string? configKey)
+    {
+        if (configKey != null && configKey.Length >= 2 && configKey[0] == 'P' && char.IsDigit(configKey[1]))
+            return configKey[1] - '0';
+        return 1;
+    }
+
+    /// <summary>1-based player a binding Screen belongs to (defaults to 1 for every non-binding
+    /// screen too, harmlessly — callers only consult this while <c>ShowsControllerDiagram</c> is
+    /// true, which is only ever true for the binding screens listed here).</summary>
+    public static int PlayerForBindingScreen(Screen screen) => screen switch
+    {
+        Screen.GamepadBindingsP2 or Screen.KeyboardBindingsP2 => 2,
+        Screen.GamepadBindingsP3 or Screen.KeyboardBindingsP3 => 3,
+        Screen.GamepadBindingsP4 or Screen.KeyboardBindingsP4 => 4,
+        _ => 1,
+    };
+
+    /// <summary>The controller-diagram column's header label — "NES Controller" for player 1
+    /// (unchanged), "Player {n} NES Controller" for players 2-4 so the diagram is unambiguous
+    /// about whose bindings/physical gamepad it reflects.</summary>
+    public static string ControllerDiagramLabel(LocalizationData localization, int player) =>
+        player == 1
+            ? localization.NesControllerLabel
+            : $"{string.Format(localization.PlayerLabel, player)} {localization.NesControllerLabel}";
+
+    private static readonly string[] NesButtonSuffixes =
+        { "Up", "Down", "Left", "Right", "A", "B", "Start", "Select" };
+
+    /// <summary>
+    /// True when <paramref name="key"/> is a real per-player NES button config key
+    /// ("P{n} &lt;Suffix&gt;", any player 1-9) rather than a placeholder row ("", "OpenMenu") or
+    /// an unrelated config key. Player-agnostic generalization of what used to be a literal
+    /// 8-way "P1 Up" or "P1 Down" or ... switch, needed once binding screens exist for more than
+    /// one player.
+    /// </summary>
+    public static bool IsNesButtonKey(string key)
+    {
+        int space = key.IndexOf(' ');
+        if (space < 2 || key[0] != 'P' || !char.IsDigit(key[1])) return false;
+        return Array.IndexOf(NesButtonSuffixes, key[(space + 1)..]) >= 0;
+    }
+
+    /// <summary>
+    /// Returns the standard NES-button binding action table for <paramref name="player"/>
+    /// (1-based, defaults to player 1), localised via <paramref name="localization"/>. The last
+    /// entry has an empty ConfigKey and represents the Back row.
+    /// </summary>
+    public static (string Label, string ConfigKey)[] BuildBindingActions(LocalizationData localization, int player = 1) =>
         new (string, string)[]
         {
-            (localization.BindUp,     "P1 Up"),
-            (localization.BindDown,   "P1 Down"),
-            (localization.BindLeft,   "P1 Left"),
-            (localization.BindRight,  "P1 Right"),
-            (localization.BindA,      "P1 A"),
-            (localization.BindB,      "P1 B"),
-            (localization.BindStart,  "P1 Start"),
-            (localization.BindSelect, "P1 Select"),
+            (localization.BindUp,     $"P{player} Up"),
+            (localization.BindDown,   $"P{player} Down"),
+            (localization.BindLeft,   $"P{player} Left"),
+            (localization.BindRight,  $"P{player} Right"),
+            (localization.BindA,      $"P{player} A"),
+            (localization.BindB,      $"P{player} B"),
+            (localization.BindStart,  $"P{player} Start"),
+            (localization.BindSelect, $"P{player} Select"),
             (localization.Back,       ""),
         };
 
     /// <summary>
-    /// Returns the gamepad binding table. When <c>OverrideStartBindingProtection</c> is
-    /// enabled the table appends an OpenMenu row before the final Back row.
+    /// Returns the gamepad binding table for <paramref name="player"/> (1-based, defaults to
+    /// player 1). When <paramref name="player"/> is 1 and <c>OverrideStartBindingProtection</c>
+    /// is enabled, the table appends an OpenMenu row before the final Back row — OpenMenu is
+    /// deliberately never offered on a non-player-1 screen: it is a session-level hotkey that
+    /// only ever reads player 1's gamepad (see <c>InputManager</c>'s hotkey-scope doc comment),
+    /// so showing it on another player's screen would be misleading.
     /// </summary>
     public static (string Label, string ConfigKey)[] BuildGamepadBindingActions(
-        LocalizationData localization,
-        AppConfig config,
-        (string Label, string ConfigKey)[] bindingActions)
+        LocalizationData localization, AppConfig config, int player = 1)
     {
-        return config.OverrideStartBindingProtection
-            ? bindingActions[..^1]
+        var baseRows = BuildBindingActions(localization, player);
+        return player == 1 && config.OverrideStartBindingProtection
+            ? baseRows[..^1]
                 .Append((localization.BindOpenMenu, "OpenMenu"))
                 .Append((localization.Back, ""))
                 .ToArray()
-            : bindingActions;
+            : baseRows;
     }
 
     /// <summary>
@@ -74,18 +128,25 @@ internal static class MenuBindingHelpers
 
     /// <summary>
     /// Assigns <paramref name="buttonName"/> to <paramref name="action"/> in
-    /// <paramref name="config"/> and clears the same button from any other action
-    /// to prevent duplicate gamepad bindings.
+    /// <paramref name="config"/> and clears the same button from any other action <em>belonging
+    /// to the same player</em> to prevent duplicate gamepad bindings. Scoped to <paramref
+    /// name="action"/>'s own "P{n} " prefix — required, not cosmetic: different players have
+    /// different physical gamepads, so the same raw identifier string (e.g. "DPadUp") legitimately
+    /// binds the same NES direction for two different players at once; clearing across players
+    /// would silently wipe another player's identical default binding.
     /// </summary>
     public static void SetGamepadBinding(AppConfig config, string action, string buttonName)
     {
+        int    space  = action.IndexOf(' ');
+        string prefix = space > 0 ? action[..(space + 1)] : "";
+
         foreach (var kvp in config.InputMappings)
         {
-            if (kvp.Key != action)
-            {
-                if (kvp.Value.GamepadButton  == buttonName) kvp.Value.GamepadButton  = null;
-                if (kvp.Value.GamepadButton2 == buttonName) kvp.Value.GamepadButton2 = null;
-            }
+            if (kvp.Key == action) continue;
+            if (prefix.Length > 0 && !kvp.Key.StartsWith(prefix, StringComparison.Ordinal)) continue;
+
+            if (kvp.Value.GamepadButton  == buttonName) kvp.Value.GamepadButton  = null;
+            if (kvp.Value.GamepadButton2 == buttonName) kvp.Value.GamepadButton2 = null;
         }
 
         if (config.InputMappings.TryGetValue(action, out var binding))
@@ -126,9 +187,11 @@ internal static class MenuBindingHelpers
             return LocalizeGamepadButton(
                 config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), localization);
 
-        if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
-            return SteamInputManager.GetNativeLabel(actionName);
+        int player          = PlayerFromConfigKey(configKey);
+        int controllerIndex = player - 1;
+        if (SteamInputManager.IsUsingNativeActions(controllerIndex)
+            && SteamInputManager.ActionFor(configKey) is { } actionName)
+            return SteamInputManager.GetNativeLabel(actionName, controllerIndex);
 
         return LocalizeGamepadButton(
             config.InputMappings.TryGetValue(configKey, out var b) ? b.GamepadButton : null, localization);
@@ -143,8 +206,9 @@ internal static class MenuBindingHelpers
             return glyphResolver.Resolve(
                 config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder"), localization).Glyph;
 
-        if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.ContainsKey(configKey))
+        int player          = PlayerFromConfigKey(configKey);
+        int controllerIndex = player - 1;
+        if (SteamInputManager.IsUsingNativeActions(controllerIndex) && SteamInputManager.ActionFor(configKey) != null)
             return IntPtr.Zero;
 
         return glyphResolver.Resolve(

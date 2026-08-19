@@ -157,6 +157,24 @@ public sealed class AppConfig
 
     // ── Input ─────────────────────────────────────────────────────────────────
 
+    // Number of local players (1-4), publisher-only — never overridable via user.json.
+    // Clamped to [1,4] at load time (see ConfigLoader). Drives NES controller-port wiring
+    // (NesPortSelector.ForPlayerCount) and which "Player N" gamepad/keyboard binding menu
+    // entries appear. Default 1 keeps every currently-shipped game byte-identical to today's
+    // single-player behavior unless a publisher explicitly opts in.
+    //
+    // Treat this as fixed once a game has shipped, exactly like the ROM itself: NEShim's save
+    // states are a positional binary stream, not a keyed format, so changing the controller-port
+    // wiring underneath an already-shipped game desyncs the read of any existing save state
+    // (caught/logged as a load failure, not a crash — but the save is effectively lost).
+    //
+    // Multiplayer is gamepad-first out of the box: the default InputMappings below only seed
+    // gamepad bindings for P2-P4, not keyboard ones — a single shared keyboard can't serve up to
+    // 4 simultaneous players without a publisher-chosen, non-conflicting key layout, and guessing
+    // one risks silently colliding with P1's own default keys. Publishers wanting local
+    // keyboard-based co-op must hand-author P2-P4 Key bindings in config.json.
+    public int PlayerCount { get; set; } = 1;
+
     public int GamepadDeadzone { get; set; } = 8000;
 
     // When true, a binding assigned to a D-pad direction also fires from the left analog
@@ -170,6 +188,12 @@ public sealed class AppConfig
     // Persists the last-used save slot index (0–7) across sessions.
     public int ActiveSlot { get; set; } = 0;
 
+    // P2-P4 entries deliberately have Key = null (no default keyboard binding) — see the
+    // PlayerCount doc comment above for why. Their GamepadButton/GamepadButton2 identifiers
+    // reuse the same raw SDL identifiers as P1 ("DPadUp", "A", ...): each player is expected to
+    // have their own distinct physical gamepad, and SDL3GamepadMapper scopes matching to only
+    // that player's "P{n} " config keys, so identical raw identifiers across players never
+    // collide the way identical keyboard keys would.
     public Dictionary<string, InputBinding> InputMappings { get; set; } = new()
     {
         ["P1 Up"]     = new InputBinding("W",         "DPadUp")    { GamepadButton2 = "AnalogUp" },
@@ -180,6 +204,33 @@ public sealed class AppConfig
         ["P1 B"]      = new InputBinding("Comma",  "B"),
         ["P1 Start"]  = new InputBinding("Return", "Y"),
         ["P1 Select"] = new InputBinding("RShift",  "Back"),
+
+        ["P2 Up"]     = new InputBinding(null, "DPadUp")    { GamepadButton2 = "AnalogUp" },
+        ["P2 Down"]   = new InputBinding(null, "DPadDown")  { GamepadButton2 = "AnalogDown" },
+        ["P2 Left"]   = new InputBinding(null, "DPadLeft")  { GamepadButton2 = "AnalogLeft" },
+        ["P2 Right"]  = new InputBinding(null, "DPadRight") { GamepadButton2 = "AnalogRight" },
+        ["P2 A"]      = new InputBinding(null, "A"),
+        ["P2 B"]      = new InputBinding(null, "B"),
+        ["P2 Start"]  = new InputBinding(null, "Y"),
+        ["P2 Select"] = new InputBinding(null, "Back"),
+
+        ["P3 Up"]     = new InputBinding(null, "DPadUp")    { GamepadButton2 = "AnalogUp" },
+        ["P3 Down"]   = new InputBinding(null, "DPadDown")  { GamepadButton2 = "AnalogDown" },
+        ["P3 Left"]   = new InputBinding(null, "DPadLeft")  { GamepadButton2 = "AnalogLeft" },
+        ["P3 Right"]  = new InputBinding(null, "DPadRight") { GamepadButton2 = "AnalogRight" },
+        ["P3 A"]      = new InputBinding(null, "A"),
+        ["P3 B"]      = new InputBinding(null, "B"),
+        ["P3 Start"]  = new InputBinding(null, "Y"),
+        ["P3 Select"] = new InputBinding(null, "Back"),
+
+        ["P4 Up"]     = new InputBinding(null, "DPadUp")    { GamepadButton2 = "AnalogUp" },
+        ["P4 Down"]   = new InputBinding(null, "DPadDown")  { GamepadButton2 = "AnalogDown" },
+        ["P4 Left"]   = new InputBinding(null, "DPadLeft")  { GamepadButton2 = "AnalogLeft" },
+        ["P4 Right"]  = new InputBinding(null, "DPadRight") { GamepadButton2 = "AnalogRight" },
+        ["P4 A"]      = new InputBinding(null, "A"),
+        ["P4 B"]      = new InputBinding(null, "B"),
+        ["P4 Start"]  = new InputBinding(null, "Y"),
+        ["P4 Select"] = new InputBinding(null, "Back"),
     };
 
     /// <summary>Maps hotkey action names to XInput gamepad button names (see XInputHelper.GetButton).</summary>
@@ -251,6 +302,14 @@ public sealed class AppConfig
     // rebound to a NES button. Menu remains accessible via Escape and the
     // configured OpenMenu gamepad hotkey.
     public bool OverrideStartBindingProtection { get; set; } = false;
+
+    // When true (default), the Settings -> Player Controls submenu (see PlayerCount above) shows
+    // keyboard-binding entries only for player 1, hiding them for players 2-4 — a shared keyboard
+    // rarely serves more than one local player, so most publishers only want the gamepad rows for
+    // extra players visible there. Set false to show every player's keyboard-binding entry too.
+    // Only in force when PlayerCount > 1: with PlayerCount == 1 there is no "beyond player 1" to
+    // hide, and the Player Controls submenu itself doesn't exist.
+    public bool HideKeyboardControlsForExtraPlayers { get; set; } = true;
 
     // When true, skips the logo splash screen shown at startup.
     public bool NoLogo { get; set; } = false;
