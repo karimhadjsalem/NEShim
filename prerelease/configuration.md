@@ -192,6 +192,8 @@ With `playerCount` above 1, `inputMappings` accepts `"P2 …"`–`"P4 …"` keys
 
 Gamepad bindings for players 2–4 ship with sensible defaults (mirroring player 1's D-pad/face-button layout); **keyboard bindings do not** — a single shared keyboard can't serve up to 4 simultaneous players without a layout you choose deliberately, so `key` is left unset for every player beyond 1 out of the box. Hand-author `P2`/`P3`/`P4` `key` entries in `config.json` if you want local keyboard co-op.
 
+**Enabling multiplayer on an already-shipped `config.json`.** If your `inputMappings` block was saved by a NEShim build from before local multiplayer existed, it only contains `"P1 …"` keys — turning `playerCount` up doesn't require you to hand-add the `"P2 …"`–`"P4 …"` defaults yourself. NEShim backfills any missing default entry automatically at load time, so raising `playerCount` on an existing install picks up the same starting gamepad bindings a brand-new install would get. Any `"P{n} …"` key you've already customized yourself is left untouched — only genuinely missing keys are filled in.
+
 ### Gamepad deadzone
 
 | Field | Type | Default | Description |
