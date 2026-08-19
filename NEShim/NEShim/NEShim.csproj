@@ -2,18 +2,71 @@
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net9.0-windows</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <WarningsAsErrors>CS8600;CS8602;CS8603;CS8604;CS8618;CS8625</WarningsAsErrors>
-        <UseWindowsForms>true</UseWindowsForms>
+        <UseWindowsForms>false</UseWindowsForms>
         <ImplicitUsings>enable</ImplicitUsings>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <ApplicationIcon>icon.ico</ApplicationIcon>
     </PropertyGroup>
 
+    <!-- Target-platform detection for the conditions below. Deliberately keyed on
+         $(RuntimeIdentifier) rather than $(OS): $(OS) reflects the BUILD MACHINE's OS, not the
+         publish target, so `dotnet publish -r linux-x64` run on a Windows machine (exactly what
+         local-publish.ps1 does) would otherwise still evaluate '$(OS)' == 'Windows_NT' as true —
+         silently compiling the D3D11/Windows renderer into a "linux-x64" output and omitting the
+         Linux SDL3 native bundles (SDL3-CS.Linux/.TTF/.Image) entirely, producing a build that
+         can't start on Linux at all. Falls back to the host OS only for a framework-dependent
+         build/run with no explicit -r (RuntimeIdentifier empty), where building for the local
+         machine is the only sensible default. -->
+    <PropertyGroup>
+        <_TargetsWindows Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier.StartsWith('win'))</_TargetsWindows>
+        <_TargetsWindows Condition="'$(RuntimeIdentifier)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</_TargetsWindows>
+    </PropertyGroup>
+
+    <!-- Windows-only files: D3D11 renderer, Steam overlay, and their factory implementations.
+         Each factory has a platform-neutral sibling (.cs) compiled on non-Windows instead. -->
+    <ItemGroup Condition="'$(_TargetsWindows)' != 'true'">
+        <Compile Remove="Rendering\Dx11\D3D11Renderer.cs" />
+        <Compile Remove="Rendering\Dx11\SteamOverlayRenderer.cs" />
+        <Compile Remove="Rendering\Dx11\OverlayRendererFactory.Windows.cs" />
+        <Compile Remove="Rendering\Dx11\RendererFactory.Windows.cs" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(_TargetsWindows)' == 'true'">
+        <Compile Remove="Rendering\OverlayRendererFactory.cs" />
+        <Compile Remove="Rendering\RendererFactory.cs" />
+    </ItemGroup>
+
+    <!-- SDL3-CS (managed P/Invoke bindings) must be pinned to the EXACT same version as every
+         native SDL3-CS.<Platform> package below, not left floating ("3.*"). A floating managed
+         package resolves independently of a pinned native one, so the two can silently drift:
+         this happened for real (Steam Deck + WSL2, July 2026) — SDL3-CS floated to 3.4.12.6
+         while SDL3-CS.Linux stayed pinned at 3.4.12, six patch releases behind. Two of those
+         patches (3.4.12.2, 3.4.12.3) changed renderer P/Invoke signatures upstream
+         (SDL_SetRenderViewport, SDL_RenderTextureAffine); calling the newer managed surface
+         against the older native binary corrupted memory on the SDL_CreateGPURenderer path,
+         crashing inside unrelated SDL-internal code (SDL_RemoveWindowRenderer) rather than
+         failing cleanly. 3.4.12.6 is also unlisted for SDL3-CS.Linux specifically (a broken/
+         retracted native build), so the fix pins everything down to 3.4.12.1 — the newest
+         version confirmed listed and available for SDL3-CS, SDL3-CS.Windows, SDL3-CS.Linux, and
+         SDL3-CS.MacOS alike. When upgrading SDL3-CS, bump every platform variant together in the
+         same change and confirm each one is actually listed on NuGet, rather than trusting "3.*"
+         to keep them in sync. -->
     <ItemGroup>
-        <PackageReference Include="NAudio" Version="2.2.1" />
-        <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+        <PackageReference Include="SDL3-CS" Version="3.4.12.1" />
+        <PackageReference Include="SDL3-CS.MacOS" Version="3.4.12.1" />
+        <PackageReference Include="SDL3-CS.MacOS.Image" Version="3.4.4.5" />
+        <!-- Windows: SDL3 native DLL bundles -->
+        <PackageReference Include="SDL3-CS.Windows" Version="3.4.12.1" Condition="'$(_TargetsWindows)' == 'true'" />
+        <PackageReference Include="SDL3-CS.Windows.TTF" Version="3.*" Condition="'$(_TargetsWindows)' == 'true'" />
+        <PackageReference Include="SDL3-CS.Windows.Image" Version="3.*" Condition="'$(_TargetsWindows)' == 'true'" />
+        <!-- Linux: SDL3 native .so bundles -->
+        <PackageReference Include="SDL3-CS.Linux" Version="3.4.12.1" Condition="'$(_TargetsWindows)' != 'true'" />
+        <PackageReference Include="SDL3-CS.Linux.TTF" Version="3.*" Condition="'$(_TargetsWindows)' != 'true'" />
+        <PackageReference Include="SDL3-CS.Linux.Image" Version="3.4.4.5" Condition="'$(_TargetsWindows)' != 'true'" />
+        <!-- D3D11 renderer (Windows-only) -->
+        <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" Condition="'$(_TargetsWindows)' == 'true'" />
         <Reference Include="Steamworks.NET">
             <HintPath>lib\Steamworks.NET.dll</HintPath>
         </Reference>
@@ -21,41 +74,322 @@
 
     <ItemGroup>
         <ProjectReference Include="..\BizHawk\BizHawk.csproj" />
-        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
+        <ProjectReference Include="..\NEShim.Signing\NEShim.Signing.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <EmbeddedResource Include="icon.ico" />
-        <EmbeddedResource Include="logos\neshim-logo-splash.png" />
-        <EmbeddedResource Include="assets\flags\english.png">
-            <LogicalName>NEShim.assets.flags.english.png</LogicalName>
+        <EmbeddedResource Include="Assets\logos\neshim-logo-splash.png">
+            <LogicalName>NEShim.Assets.logos.neshim-logo-splash.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\french.png">
-            <LogicalName>NEShim.assets.flags.french.png</LogicalName>
+        <EmbeddedResource Include="Assets\controllers\controller_none.png">
+            <LogicalName>NEShim.Assets.controllers.controller_none.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\german.png">
-            <LogicalName>NEShim.assets.flags.german.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\english.png">
+            <LogicalName>NEShim.Assets.flags.english.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\spanish.png">
-            <LogicalName>NEShim.assets.flags.spanish.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\french.png">
+            <LogicalName>NEShim.Assets.flags.french.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\latam.png">
-            <LogicalName>NEShim.assets.flags.latam.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\german.png">
+            <LogicalName>NEShim.Assets.flags.german.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\japanese.png">
-            <LogicalName>NEShim.assets.flags.japanese.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\spanish.png">
+            <LogicalName>NEShim.Assets.flags.spanish.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\korean.png">
-            <LogicalName>NEShim.assets.flags.korean.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\latam.png">
+            <LogicalName>NEShim.Assets.flags.latam.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\russian.png">
-            <LogicalName>NEShim.assets.flags.russian.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\japanese.png">
+            <LogicalName>NEShim.Assets.flags.japanese.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\schinese.png">
-            <LogicalName>NEShim.assets.flags.schinese.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\korean.png">
+            <LogicalName>NEShim.Assets.flags.korean.png</LogicalName>
         </EmbeddedResource>
-        <EmbeddedResource Include="assets\flags\portuguese.png">
-            <LogicalName>NEShim.assets.flags.portuguese.png</LogicalName>
+        <EmbeddedResource Include="Assets\flags\russian.png">
+            <LogicalName>NEShim.Assets.flags.russian.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\schinese.png">
+            <LogicalName>NEShim.Assets.flags.schinese.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\flags\portuguese.png">
+            <LogicalName>NEShim.Assets.flags.portuguese.png</LogicalName>
+        </EmbeddedResource>
+        <!-- Gamepad binding-row glyphs — Kenney's "Input Prompts" pack (CC0, see
+             THIRD-PARTY-NOTICES.md). One folder per brand family, 18 identifiers each matching
+             Input.XboxOriginMap, consumed by Input.Sources.SdlBundledGlyphSource.
+             switchjoyconpair reuses switchpro's art for every identifier except the D-pad
+             directions, which use Kenney's paired-Joycon 4-round-face-button icons instead of a
+             real cross-shaped D-pad (Joy-Cons don't have one) — see SdlBundledGlyphSource.cs. -->
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\xbox\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.xbox.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\playstation\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.playstation.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchpro\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchpro.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\steamdeck\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.steamdeck.AnalogRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\A.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.A.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\B.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.B.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\X.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.X.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Y.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Y.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\LeftShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.LeftShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\RightShoulder.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.RightShoulder.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\LeftThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.LeftThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\RightThumb.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.RightThumb.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Start.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Start.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\Back.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.Back.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\DPadRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.DPadRight.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogUp.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogUp.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogDown.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogDown.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogLeft.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogLeft.png</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets\gamepad_glyphs\switchjoyconpair\AnalogRight.png">
+            <LogicalName>NEShim.Assets.gamepad_glyphs.switchjoyconpair.AnalogRight.png</LogicalName>
         </EmbeddedResource>
     </ItemGroup>
 
@@ -63,68 +397,126 @@
          The SDK wildcard patterns pick up all files in subdirectories and can cause
          duplicate EmbeddedResource items that strip LogicalName during deduplication. -->
     <ItemGroup>
-        <EmbeddedResource Remove="Rendering\Shaders\**\*" />
-        <None Remove="Rendering\Shaders\**\*" />
+        <EmbeddedResource Remove="Rendering\Shaders\Dx11\**\*" />
+        <None Remove="Rendering\Shaders\Dx11\**\*" />
         <!-- HLSL sources: visible in the solution but not compiled into the assembly -->
-        <None Include="Rendering\Shaders\Passthrough.vs.hlsl" />
-        <None Include="Rendering\Shaders\Passthrough.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtScanlines.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtPhosphor.ps.hlsl" />
-        <None Include="Rendering\Shaders\NtscComposite.ps.hlsl" />
-        <None Include="Rendering\Shaders\Jinc2.ps.hlsl" />
-        <None Include="Rendering\Shaders\CrtScreen.ps.hlsl" />
-        <None Include="Rendering\Shaders\MagneticDistortion.ps.hlsl" />
-        <None Include="Rendering\Shaders\Xbr.ps.hlsl" />
-        <None Include="Rendering\Shaders\PhosphorPersistence.ps.hlsl" />
-        <None Include="Rendering\Shaders\PictureAdjust.ps.hlsl" />
-        <None Include="Rendering\Shaders\ColorGrade.hlsli" />
+        <None Include="Rendering\Shaders\Dx11\Passthrough.vs.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Passthrough.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtScanlines.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtPhosphor.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Jinc2.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\CrtScreen.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\MagneticDistortion.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\Xbr.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\PhosphorPersistence.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\PictureAdjust.ps.hlsl" />
+        <None Include="Rendering\Shaders\Dx11\ColorGrade.hlsli" />
         <!-- Compiled shader bytecode — produced by CompileShaders target below.
              DXVK on Proton translates this DXBC bytecode to SPIR-V on first launch
              and caches it in ~/.local/share/Steam/steamapps/shadercache/<appid>/.
              No runtime fxc dependency; compilation happens at build time only. -->
-        <EmbeddedResource Include="Rendering\Shaders\Passthrough.vs.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Passthrough.vs.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Passthrough.vs.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Passthrough.vs.cso</LogicalName>
         </EmbeddedResource>
         <!-- WithCulture=false prevents MSBuild from treating ".ps" as the Pashto
              culture code and splitting this into a satellite assembly. -->
-        <EmbeddedResource Include="Rendering\Shaders\Passthrough.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Passthrough.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Passthrough.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Passthrough.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtScanlines.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtScanlines.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtScanlines.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtScanlines.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtPhosphor.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtPhosphor.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtPhosphor.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtPhosphor.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\NtscComposite.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.NtscComposite.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\NtscComposite.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.NtscComposite.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Jinc2.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Jinc2.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Jinc2.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Jinc2.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\CrtScreen.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.CrtScreen.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\CrtScreen.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.CrtScreen.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\MagneticDistortion.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.MagneticDistortion.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\MagneticDistortion.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.MagneticDistortion.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\Xbr.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.Xbr.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\Xbr.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.Xbr.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\PhosphorPersistence.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.PhosphorPersistence.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\PhosphorPersistence.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.PhosphorPersistence.ps.cso</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
-        <EmbeddedResource Include="Rendering\Shaders\PictureAdjust.ps.cso">
-            <LogicalName>NEShim.Rendering.Shaders.PictureAdjust.ps.cso</LogicalName>
+        <EmbeddedResource Include="Rendering\Shaders\Dx11\PictureAdjust.ps.cso">
+            <LogicalName>NEShim.Rendering.Shaders.Dx11.PictureAdjust.ps.cso</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <!-- SPIR-V bytecode for SDL_GPU path (Vulkan/Linux, Metal/macOS).
+             Compiled from Shaders/Gpu/*.hlsl by the CompileSpirvShaders target below
+             using the standalone DXC from the Microsoft.Direct3D.DXC NuGet package.
+             Pre-compiled .spv files are checked in so builds work without DXC available. -->
+        <None Include="Rendering\Shaders\Vulkan\Passthrough.vs.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Passthrough.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtScanlines.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtPhosphor.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\NtscComposite.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\CrtScreen.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Jinc2.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\Xbr.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\MagneticDistortion.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\PhosphorPersistence.ps.hlsl" />
+        <None Include="Rendering\Shaders\Vulkan\PictureAdjust.ps.hlsl" />
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Passthrough.vs.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Passthrough.vs.spv</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Passthrough.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Passthrough.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtScanlines.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtScanlines.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtPhosphor.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtPhosphor.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\NtscComposite.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.NtscComposite.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\CrtScreen.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.CrtScreen.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Jinc2.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Jinc2.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\Xbr.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.Xbr.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\MagneticDistortion.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.MagneticDistortion.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\PhosphorPersistence.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.PhosphorPersistence.ps.spv</LogicalName>
+            <WithCulture>false</WithCulture>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Rendering\Shaders\Vulkan\PictureAdjust.ps.spv">
+            <LogicalName>NEShim.Rendering.Shaders.Vulkan.PictureAdjust.ps.spv</LogicalName>
             <WithCulture>false</WithCulture>
         </EmbeddedResource>
     </ItemGroup>
@@ -135,8 +527,8 @@
          developer with a local Windows SDK modifies the .hlsl sources.
          On CI runners (no Windows SDK installed), the checked-in CSOs are used as-is. -->
     <Target Name="CompileShaders" BeforeTargets="CoreCompile"
-            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\ColorGrade.hlsli"
-            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\NtscComposite.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Jinc2.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\CrtScreen.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\MagneticDistortion.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Xbr.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\PhosphorPersistence.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\PictureAdjust.ps.cso">
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.vs.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Passthrough.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScanlines.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtPhosphor.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\NtscComposite.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Jinc2.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\CrtScreen.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\MagneticDistortion.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\Xbr.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PhosphorPersistence.ps.cso;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\PictureAdjust.ps.cso">
         <PropertyGroup>
             <!-- Try common Windows SDK paths. $(WindowsSDKVersion) has no trailing backslash,
                  so we add one explicitly between the version segment and "x64". -->
@@ -149,7 +541,7 @@
                  the skip-logic below — they'll compile, which is fine. -->
             <_FxcFoundAtKnownPath Condition="'$(_FxcPath)' != ''">true</_FxcFoundAtKnownPath>
             <_FxcPath Condition="'$(_FxcPath)' == ''">fxc.exe</_FxcPath>
-            <_ShaderDir>$(MSBuildProjectDirectory)\Rendering\Shaders</_ShaderDir>
+            <_ShaderDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11</_ShaderDir>
             <!-- Skip recompilation when fxc was not found at a known SDK path AND the
                  pre-compiled CSOs already exist from source control. This keeps CI builds
                  working without a Windows SDK install. If CSOs are missing AND fxc is
@@ -194,6 +586,63 @@
               Condition="'$(_SkipShaderCompile)' != 'true'" />
     </Target>
 
+    <!-- Compile SDL_GPU HLSL shaders to SPIR-V for the Vulkan/Linux and Metal/macOS render paths.
+         Requires dxc.exe from the Microsoft.Direct3D.DXC NuGet package (standalone DXC with SPIR-V
+         codegen enabled — the Windows SDK dxc.exe lacks SPIR-V support).
+         Pre-compiled .spv files are checked in and used when DXC is not found. -->
+    <Target Name="CompileSpirvShaders" BeforeTargets="CoreCompile"
+            Inputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.vs.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScanlines.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtPhosphor.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\NtscComposite.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScreen.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Jinc2.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Xbr.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\MagneticDistortion.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PhosphorPersistence.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PictureAdjust.ps.hlsl;$(MSBuildProjectDirectory)\Rendering\Shaders\Dx11\ColorGrade.hlsli"
+            Outputs="$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.vs.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Passthrough.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScanlines.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtPhosphor.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\NtscComposite.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\CrtScreen.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Jinc2.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\Xbr.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\MagneticDistortion.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PhosphorPersistence.ps.spv;$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan\PictureAdjust.ps.spv">
+        <PropertyGroup>
+            <!-- Prefer the standalone DXC from the Microsoft.Direct3D.DXC NuGet package
+                 (must be restored via "dotnet restore" or by adding it as a PackageReference).
+                 The NuGet package is NOT referenced directly in this project to avoid adding a
+                 runtime dependency — it is a build-time-only tool. Restore it in a side project
+                 or with "dotnet restore" against a packages.lock.json to get the DXC path. -->
+            <_SpirvDxcPath Condition="Exists('$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe')">$(NuGetPackageRoot)microsoft.direct3d.dxc\101.7.2207.25\build\native\bin\x64\dxc.exe</_SpirvDxcPath>
+            <_SpirvDxcFoundAtKnownPath Condition="'$(_SpirvDxcPath)' != ''">true</_SpirvDxcFoundAtKnownPath>
+            <_SpirvGpuDir>$(MSBuildProjectDirectory)\Rendering\Shaders\Vulkan</_SpirvGpuDir>
+            <!-- Skip recompilation when DXC is not available and pre-compiled SPVs already exist. -->
+            <_SkipSpirvCompile Condition="'$(_SpirvDxcFoundAtKnownPath)' != 'true' And Exists('$(_SpirvGpuDir)\Passthrough.ps.spv') And Exists('$(_SpirvGpuDir)\CrtScanlines.ps.spv')">true</_SkipSpirvCompile>
+        </PropertyGroup>
+        <Message Text="[CompileSpirvShaders] DXC with SPIR-V support not found — using pre-compiled SPVs from source control."
+                 Condition="'$(_SkipSpirvCompile)' == 'true'"
+                 Importance="High" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T vs_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Passthrough.vs.spv&quot; &quot;$(_SpirvGpuDir)\Passthrough.vs.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Passthrough.ps.spv&quot; &quot;$(_SpirvGpuDir)\Passthrough.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtScanlines.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtScanlines.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtPhosphor.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtPhosphor.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\NtscComposite.ps.spv&quot; &quot;$(_SpirvGpuDir)\NtscComposite.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\CrtScreen.ps.spv&quot; &quot;$(_SpirvGpuDir)\CrtScreen.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Jinc2.ps.spv&quot; &quot;$(_SpirvGpuDir)\Jinc2.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\Xbr.ps.spv&quot; &quot;$(_SpirvGpuDir)\Xbr.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\MagneticDistortion.ps.spv&quot; &quot;$(_SpirvGpuDir)\MagneticDistortion.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\PhosphorPersistence.ps.spv&quot; &quot;$(_SpirvGpuDir)\PhosphorPersistence.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+        <Exec Command="&quot;$(_SpirvDxcPath)&quot; /nologo -spirv -T ps_6_0 -E main -Fo &quot;$(_SpirvGpuDir)\PictureAdjust.ps.spv&quot; &quot;$(_SpirvGpuDir)\PictureAdjust.ps.hlsl&quot;"
+              CustomErrorRegularExpression="error X"
+              Condition="'$(_SkipSpirvCompile)' != 'true'" />
+    </Target>
+
     <ItemGroup>
         <Content Include="steam_appid.txt">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -206,6 +655,13 @@
         </Content>
         <Content Include="lang\*.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <!-- Several compiled dependencies are MIT-licensed, which requires the copyright/
+             permission notice to accompany distributed copies of the software - this file was
+             previously repo-only and never actually shipped in any publish/release output. -->
+        <Content Include="..\..\THIRD-PARTY-NOTICES.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>THIRD-PARTY-NOTICES.md</Link>
         </Content>
     </ItemGroup>
 

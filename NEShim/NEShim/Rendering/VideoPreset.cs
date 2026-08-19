@@ -14,6 +14,18 @@ internal sealed record VideoPreset(
 
 internal static class VideoPresetRegistry
 {
+    // Resets every video setting to its engine default: sharp integer scaling, no overlay,
+    // no color grade, no motion effect. Distinct from "No Preset" (VideoPreset == "None"),
+    // which leaves whatever settings are currently active untouched.
+    public static readonly VideoPreset NoFilters = new(
+        Name:        "NoFilters",
+        Filter:      VideoFilterMode.PixelPerfect,
+        Overlay:     null,
+        ColorFilter: VideoColorFilterMode.None,
+        MotionEffect: VideoMotionEffectMode.None,
+        Overscan:    OverscanMode.Normal,
+        Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
+
     public static readonly VideoPreset LivingRoom = new(
         Name:        "LivingRoom",
         Filter:      VideoFilterMode.CrtScreen,
@@ -50,5 +62,5 @@ internal static class VideoPresetRegistry
         Overscan:    OverscanMode.Normal,
         Brightness: 0, Contrast: 0, Saturation: 0, Hue: 0);
 
-    public static readonly VideoPreset[] All = [LivingRoom, Arcade, Sharp, Phosphor];
+    public static readonly VideoPreset[] All = [NoFilters, LivingRoom, Arcade, Sharp, Phosphor];
 }

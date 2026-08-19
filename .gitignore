@@ -4,9 +4,12 @@
 /ref
 game.nes
 /publish
+/NEShim/NEShim/games/
 NEShim/NEShim.sln.DotSettings.user
 /.claude
 /TestResults*
 /NEShim/TestResults
 /CoverageReport
 /CoverageResults
+**/coverage.cobertura.xml
+/manual-test-carousel

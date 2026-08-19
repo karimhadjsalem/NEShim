@@ -1,4 +1,5 @@
 using NEShim.Achievements;
+using NEShim.Emulation;
 using NUnit.Framework;
 
 namespace NEShim.Tests.Achievements;
@@ -6,9 +7,9 @@ namespace NEShim.Tests.Achievements;
 [TestFixture]
 public class AchievementEvaluatorTests
 {
-    // A dead-simple IMemoryReader backed by a byte array. Avoids mocking overhead
+    // A dead-simple IMemoryDomain backed by a byte array. Avoids mocking overhead
     // for pure value-computation tests.
-    private sealed class ArrayMemoryReader : IMemoryReader
+    private sealed class ArrayMemoryReader : IMemoryDomain
     {
         private readonly byte[] _bytes;
         private readonly int _baseAddress;

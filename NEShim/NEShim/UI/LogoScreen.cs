@@ -1,4 +1,4 @@
-using System.Drawing;
+using SDL3;
 
 namespace NEShim.UI;
 
@@ -13,10 +13,23 @@ internal sealed class LogoScreen : IDisposable
     private static readonly float TotalSeconds = FadeInSeconds + HoldSeconds + FadeOutSeconds;
 
     private DateTime? _startTime;
+    private readonly Action<IntPtr>? _onSurfaceDisposing;
 
-    public Bitmap Image { get; }
+    public IntPtr Image { get; }
 
-    public LogoScreen(Bitmap image) => Image = image;
+    /// <param name="onSurfaceDisposing">
+    /// Called with <see cref="Image"/> right before it's destroyed (see <see cref="Dispose"/>) —
+    /// the owner must forward this to <c>IFrameRenderer.InvalidateSurfaceTexture</c> so the
+    /// overlay paint context's cached GPU texture for this surface is evicted too, before a
+    /// later, unrelated surface can be allocated at the same (recycled) address and silently
+    /// inherit this texture's stale pixel data. Optional so tests that never touch SDL rendering
+    /// can omit it.
+    /// </param>
+    public LogoScreen(IntPtr image, Action<IntPtr>? onSurfaceDisposing = null)
+    {
+        Image = image;
+        _onSurfaceDisposing = onSurfaceDisposing;
+    }
 
     private float ElapsedSeconds
     {
@@ -39,5 +52,12 @@ internal sealed class LogoScreen : IDisposable
         return fadeElapsed >= fadeOut ? 0f : 1f - fadeElapsed / fadeOut;
     }
 
-    public void Dispose() => Image.Dispose();
+    public void Dispose()
+    {
+        if (Image != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(Image);
+            SDL.DestroySurface(Image);
+        }
+    }
 }

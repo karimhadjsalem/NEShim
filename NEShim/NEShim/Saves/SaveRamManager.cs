@@ -1,5 +1,5 @@
 using System.IO;
-using BizHawk.Emulation.Common;
+using NEShim.Emulation;
 
 namespace NEShim.Saves;
 
@@ -8,13 +8,13 @@ namespace NEShim.Saves;
 /// </summary>
 internal sealed class SaveRamManager
 {
-    private readonly ISaveRam _saveRam;
+    private readonly IEmulationCore _core;
     private readonly string _path;
 
-    public SaveRamManager(ISaveRam saveRam, string sramPath)
+    public SaveRamManager(IEmulationCore core, string sramPath)
     {
-        _saveRam = saveRam;
-        _path    = sramPath;
+        _core = core;
+        _path = sramPath;
     }
 
     /// <summary>Loads save RAM from disk into the emulator on startup.</summary>
@@ -29,7 +29,7 @@ internal sealed class SaveRamManager
         try
         {
             byte[] data = File.ReadAllBytes(_path);
-            _saveRam.StoreSaveRam(data);
+            _core.SetSaveRam(data);
             Logger.Log($"[SaveRAM] Loaded {data.Length:N0} bytes ← {_path}");
         }
         catch (Exception ex)
@@ -41,16 +41,16 @@ internal sealed class SaveRamManager
     /// <summary>Writes save RAM to disk on shutdown (only if modified).</summary>
     public void SaveToDisk()
     {
-        if (!_saveRam.SaveRamModified)
+        if (!_core.SaveRamModified)
         {
             Logger.Log("[SaveRAM] Not modified — skipping write.");
             return;
         }
 
-        byte[]? data = _saveRam.CloneSaveRam();
+        byte[]? data = _core.GetSaveRam();
         if (data is null || data.Length == 0)
         {
-            Logger.Log("[SaveRAM] CloneSaveRam returned empty — skipping write.");
+            Logger.Log("[SaveRAM] GetSaveRam returned empty — skipping write.");
             return;
         }
 

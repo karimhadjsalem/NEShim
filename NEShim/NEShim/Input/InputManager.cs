@@ -1,293 +1,241 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Config;
+using NEShim.Input.Mappers;
+using NEShim.Input.Sources;
 
 namespace NEShim.Input;
 
 /// <summary>
-/// Maintains keyboard state (updated on UI thread) and polls XInput (on emulation thread).
-/// PollSnapshot() combines both into an InputSnapshot.
+/// Coordinates input sources and mappers to produce per-frame InputSnapshot values.
+/// Fires IoC events for hotkey edges, menu-toggle, and controller disconnect so callers
+/// (EmulationThread, NEShimApp) register handlers once rather than polling each frame.
+///
+/// Gamepad/Steam sources+mappers are per-player lists (one entry per active player, sized by
+/// AppConfig.PlayerCount, built by NEShimApp's composition root) so PollSnapshot fans out
+/// gameplay button identifiers across every configured player without any per-player special
+/// casing in the polling loop itself (OCP: adding a player means adding a list entry, not a new
+/// branch here). Hotkeys, menu navigation, the "any button" wake gesture, and the disconnect-
+/// screen trigger are deliberately NOT fanned out — they stay wired to index 0 (player 1) only,
+/// exactly matching this class's pre-multiplayer behavior, since these are session-level/system
+/// concerns rather than per-player gameplay concerns.
 /// </summary>
 internal sealed class InputManager : IInputReader
 {
-    private readonly HashSet<Keys> _pressedKeys = new();
-    private readonly object _keyLock = new();
+    private readonly KeyboardInputSource _keyboardSource;
+    private readonly IInputMapper        _keyboardMapper;
+    private readonly IGamepadDevice      _gamepadDevice;
 
-    // Edge detection for keyboard hotkeys — tracks previous frame's key state
-    private readonly HashSet<Keys> _prevHotkeyKeys = new();
-    private readonly HashSet<Keys> _currHotkeyKeys = new();
+    private readonly IReadOnlyList<IInputSource> _gamepadSources;
+    private readonly IReadOnlyList<IInputMapper> _gamepadMappers;
+    private readonly IReadOnlyList<IInputSource> _steamSources;
+    private readonly IReadOnlyList<IInputMapper> _steamMappers;
 
-    // Edge detection for gamepad hotkeys — updated once per frame in AdvanceHotkeyState
-    private XInputHelper.GamepadState _prevHotkeyPad;
+    // Edge detection for hotkeys
+    private readonly HashSet<SDL.Keycode> _prevHotkeyKeys = new();
+    private GamepadState _prevHotkeyPad;
 
-    // Edge detection for gamepad menu navigation — updated each PollMenuNav call
-    private XInputHelper.GamepadState _prevMenuPad;
-
-    // Controller disconnect detection — tracks previous-frame connected state
+    // Controller disconnect tracking — player 1 only, see class doc comment.
     private bool _wasControllerConnected;
-    private bool _controllerJustDisconnected;
+    private bool _prevLoggedGamepad;
+    private bool _prevLoggedSteam;
 
-    public void OnKeyDown(Keys key)
+    // ── IoC events ─────────────────────────────────────────────────────────────
+
+    public event Action<string>? HotkeyFired;
+    public event Action?         MenuToggleRequested;
+    public event Action?         GamepadDisconnected;
+    public event Action?         GamepadConnected;
+
+    // ── Constructor ────────────────────────────────────────────────────────────
+
+    internal InputManager(
+        KeyboardInputSource         keyboardSource,
+        IReadOnlyList<IInputSource> gamepadSources,
+        IReadOnlyList<IInputSource> steamSources,
+        IInputMapper                keyboardMapper,
+        IReadOnlyList<IInputMapper> gamepadMappers,
+        IReadOnlyList<IInputMapper> steamMappers,
+        IGamepadDevice              gamepadDevice)
     {
-        lock (_keyLock) _pressedKeys.Add(key);
+        _keyboardSource = keyboardSource;
+        _gamepadSources = gamepadSources;
+        _steamSources   = steamSources;
+        _keyboardMapper = keyboardMapper;
+        _gamepadMappers = gamepadMappers;
+        _steamMappers   = steamMappers;
+        _gamepadDevice  = gamepadDevice;
     }
 
-    public void OnKeyUp(Keys key)
-    {
-        lock (_keyLock) _pressedKeys.Remove(key);
-    }
+    // ── IInputReader: keyboard forwarding ──────────────────────────────────────
 
-    /// <summary>
-    /// Builds a snapshot of currently pressed NES buttons from keyboard + gamepad.
-    /// Call once per frame from the emulation thread.
-    /// </summary>
+    public void OnKeyDown(SDL.Keycode key) => _keyboardSource.OnKeyDown(key);
+    public void OnKeyUp(SDL.Keycode key)   => _keyboardSource.OnKeyUp(key);
+
+    // ── IInputReader: frame polling ────────────────────────────────────────────
+
     public InputSnapshot PollSnapshot(AppConfig config)
     {
-        HashSet<Keys> keys;
-        lock (_keyLock) keys = new HashSet<Keys>(_pressedKeys);
-
         var builder = ImmutableHashSet.CreateBuilder<string>();
 
-        // Steam Input: apply the fixed VDF action→NES button table.
-        // No config lookup — the mapping is defined by the VDF file, not by the user.
-        var steamActions = NEShim.Steam.SteamInputManager.GetActiveActions();
-        foreach (var (action, nesButton) in NEShim.Steam.SteamInputManager.ActionToNesButton)
-            if (steamActions.Contains(action))
-                builder.Add(nesButton);
-
-        // Keyboard + XInput: from config.InputMappings.
-        var gamepad = XInputHelper.GetState(0);
-
-        bool controllerConnected = gamepad.Connected || NEShim.Steam.SteamInputManager.HasConnectedController;
-        if (_wasControllerConnected && !controllerConnected)
-            _controllerJustDisconnected = true;
-        _wasControllerConnected = controllerConnected;
-        foreach (var (nesButton, binding) in config.InputMappings)
+        for (int i = 0; i < _steamSources.Count; i++)
         {
-            if (binding.Key is not null &&
-                Enum.TryParse<Keys>(binding.Key, out var mappedKey) &&
-                keys.Contains(mappedKey))
-            {
-                builder.Add(nesButton);
-                continue;
-            }
-
-            if (gamepad.Connected &&
-                (binding.GamepadButton != "Start" || config.OverrideStartBindingProtection) &&
-                XInputHelper.GetButton(in gamepad, binding.GamepadButton))
-            {
-                builder.Add(nesButton);
-            }
+            var ids = _steamSources[i].GetActiveIdentifiers(config);
+            if (_steamSources[i].IsAvailable)
+                _steamMappers[i].Map(ids, config, builder);
         }
 
-        // Analog stick → D-pad conversion (Steam handles this via action sets when active).
-        // Cardinal mode (default): dominant-axis helpers ensure only one direction fires when
-        // the stick is pushed diagonally, preventing accidental diagonal NES inputs.
-        // Diagonal mode: raw per-axis threshold — both axes can register simultaneously for
-        // games that use 8-directional movement.
-        if (gamepad.Connected)
+        for (int i = 0; i < _gamepadSources.Count; i++)
         {
-            int dz = config.GamepadDeadzone;
-            int lx = gamepad.ThumbLX;
-            int ly = gamepad.ThumbLY;
-            bool diagonal = config.AnalogStickMode.Equals("Diagonal", StringComparison.OrdinalIgnoreCase);
+            var ids = _gamepadSources[i].GetActiveIdentifiers(config);
+            if (_gamepadSources[i].IsAvailable)
+                _gamepadMappers[i].Map(ids, config, builder);
+        }
 
-            if (diagonal)
-            {
-                if (ly >  dz) builder.Add("P1 Up");
-                if (ly < -dz) builder.Add("P1 Down");
-                if (lx < -dz) builder.Add("P1 Left");
-                if (lx >  dz) builder.Add("P1 Right");
-            }
-            else
-            {
-                if (StickUp(lx, ly, dz))    builder.Add("P1 Up");
-                if (StickDown(lx, ly, dz))  builder.Add("P1 Down");
-                if (StickLeft(lx, ly, dz))  builder.Add("P1 Left");
-                if (StickRight(lx, ly, dz)) builder.Add("P1 Right");
-            }
+        _keyboardMapper.Map(_keyboardSource.GetActiveIdentifiers(config), config, builder);
+
+        // Player-1-only, matching this class's pre-multiplayer disconnect-screen behavior — see
+        // class doc comment.
+        bool gamepadNow = _gamepadSources[0].IsAvailable;
+        bool steamNow   = _steamSources[0].IsAvailable;
+
+        bool controllerNow = gamepadNow || steamNow;
+        if (_wasControllerConnected && !controllerNow)
+            GamepadDisconnected?.Invoke();
+        else if (!_wasControllerConnected && controllerNow)
+            GamepadConnected?.Invoke();
+        _wasControllerConnected = controllerNow;
+
+        if (gamepadNow != _prevLoggedGamepad || steamNow != _prevLoggedSteam)
+        {
+            Logger.Log($"[Input] Source (P1): Gamepad={gamepadNow}, Steam={steamNow} — deadzone={config.GamepadDeadzone}, mode={config.AnalogStickMode}");
+            _prevLoggedGamepad = gamepadNow;
+            _prevLoggedSteam   = steamNow;
         }
 
         return new InputSnapshot(builder.ToImmutable());
     }
 
-    /// <summary>
-    /// Polls gamepad state and returns edge-triggered menu navigation.
-    /// Combines XInput and Steam Input; call once per menu poll interval (≈16ms while paused).
-    /// </summary>
     public MenuNavInput PollMenuNav(AppConfig config)
     {
-        var pad = XInputHelper.GetState(0);
-        var prev = _prevMenuPad;
+        var result = default(MenuNavInput);
 
-        if (pad.Connected)
-            _prevMenuPad = pad;
-        else
-            _prevMenuPad = default;
+        if (_gamepadSources[0] is IMenuNavSource gamepadNav)
+            result = MenuNavInput.Union(result, gamepadNav.GetMenuNav(config));
 
-        int dz = config.GamepadDeadzone;
+        if (_steamSources[0] is IMenuNavSource steamNav)
+            result = MenuNavInput.Union(result, steamNav.GetMenuNav(config));
 
-        // Menu navigation is always 4-directional: apply dominant-axis suppression
-        // unconditionally so a diagonal stick push only fires one direction.
-        bool up      = pad.Connected && (pad.DPadUp    || StickUp(pad.ThumbLX,   pad.ThumbLY,   dz));
-        bool down    = pad.Connected && (pad.DPadDown  || StickDown(pad.ThumbLX,  pad.ThumbLY,  dz));
-        bool left    = pad.Connected && (pad.DPadLeft  || StickLeft(pad.ThumbLX,  pad.ThumbLY,  dz));
-        bool right   = pad.Connected && (pad.DPadRight || StickRight(pad.ThumbLX, pad.ThumbLY,  dz));
-        bool confirm = pad.Connected && pad.A;
-        bool back    = pad.Connected && (pad.B || pad.Back);
+        return result;
+    }
 
-        bool prevUp      = prev.Connected && (prev.DPadUp    || StickUp(prev.ThumbLX,   prev.ThumbLY,   dz));
-        bool prevDown    = prev.Connected && (prev.DPadDown  || StickDown(prev.ThumbLX,  prev.ThumbLY,  dz));
-        bool prevLeft    = prev.Connected && (prev.DPadLeft  || StickLeft(prev.ThumbLX,  prev.ThumbLY,  dz));
-        bool prevRight   = prev.Connected && (prev.DPadRight || StickRight(prev.ThumbLX, prev.ThumbLY,  dz));
-        bool prevConfirm = prev.Connected && prev.A;
-        bool prevBack    = prev.Connected && (prev.B || prev.Back);
+    public (bool Left, bool Right) GetHeldSliderDir(AppConfig config)
+    {
+        bool keyLeft  = _keyboardSource.IsKeyPressed(SDL.Keycode.Left);
+        bool keyRight = _keyboardSource.IsKeyPressed(SDL.Keycode.Right);
 
-        // OR in Steam Input menu nav (its own edge detection runs inside SteamInputManager)
-        var steam = NEShim.Steam.SteamInputManager.GetMenuNav();
+        var pad   = _gamepadDevice.GetState(0);
+        int dz    = config.GamepadDeadzone;
+        bool padLeft  = pad.Connected && (pad.DPadLeft  || AnalogStickHelper.StickLeft(pad.ThumbLX,  pad.ThumbLY, dz));
+        bool padRight = pad.Connected && (pad.DPadRight || AnalogStickHelper.StickRight(pad.ThumbLX, pad.ThumbLY, dz));
 
-        return new MenuNavInput
+        (bool steamLeft, bool steamRight) = _steamSources[0] is IHeldDirectionSource steamHeld
+            ? steamHeld.GetHeldLeftRight(config)
+            : (false, false);
+
+        return (keyLeft || padLeft || steamLeft, keyRight || padRight || steamRight);
+    }
+
+    /// <summary>
+    /// Detects edge transitions for all configured hotkeys and fires events.
+    /// Call once per frame on the emulation thread, after PollSnapshot.
+    /// Player 1's gamepad only — see class doc comment.
+    /// </summary>
+    public void AdvanceHotkeyState(AppConfig config)
+    {
+        var curr = _keyboardSource.GetPressedKeysCopy();
+        var pad  = _gamepadDevice.GetState(0);
+
+        // Menu toggle — fire at most once even if multiple triggers are active
+        bool menuToggle =
+            (curr.Contains(SDL.Keycode.Escape) && !_prevHotkeyKeys.Contains(SDL.Keycode.Escape))
+            || (!config.OverrideStartBindingProtection
+                && pad.Connected && pad.Start && !_prevHotkeyPad.Start)
+            || (config.GamepadHotkeyMappings.TryGetValue("OpenMenu", out var openBtn)
+                && pad.Connected
+                && pad.GetButton(openBtn)
+                && !_prevHotkeyPad.GetButton(openBtn));
+
+        if (menuToggle)
+            MenuToggleRequested?.Invoke();
+
+        // Keyboard hotkeys
+        foreach (var (action, keyName) in config.HotkeyMappings)
         {
-            Up      = (up      && !prevUp)      || steam.Up,
-            Down    = (down    && !prevDown)    || steam.Down,
-            Left    = (left    && !prevLeft)    || steam.Left,
-            Right   = (right   && !prevRight)   || steam.Right,
-            Confirm = (confirm && !prevConfirm) || steam.Confirm,
-            Back    = (back    && !prevBack)    || steam.Back,
-        };
+            if (!KeycodeParser.TryParse(keyName, out var key)) continue;
+            if (curr.Contains(key) && !_prevHotkeyKeys.Contains(key))
+                HotkeyFired?.Invoke(action);
+        }
+
+        // Non-OpenMenu gamepad hotkeys
+        foreach (var (action, buttonName) in config.GamepadHotkeyMappings)
+        {
+            if (action == "OpenMenu") continue;
+            if (pad.Connected && pad.GetButton(buttonName) && !_prevHotkeyPad.GetButton(buttonName))
+                HotkeyFired?.Invoke(action);
+        }
+
+        // Advance edge state
+        _prevHotkeyKeys.Clear();
+        foreach (var k in curr) _prevHotkeyKeys.Add(k);
+        _prevHotkeyPad = pad;
     }
 
-    /// <summary>
-    /// Returns true if the named gamepad hotkey was just pressed this frame (edge-triggered).
-    /// Uses GamepadHotkeyMappings from config. Call after AdvanceHotkeyState was called
-    /// at the end of the previous frame.
-    /// </summary>
-    /// <summary>
-    /// Returns the name of the first gamepad button that was just pressed this interval,
-    /// or null if no new button press was detected.  Uses the same _prevMenuPad state as
-    /// PollMenuNav — call one or the other per interval, not both.
-    /// </summary>
-    public string? PollAnyGamepadButtonPressed()
-    {
-        var pad  = XInputHelper.GetState(0);
-        var prev = _prevMenuPad;
-
-        if (!pad.Connected) { _prevMenuPad = default; return null; }
-        _prevMenuPad = pad;
-
-        if (pad.A             && !prev.A)             return "A";
-        if (pad.B             && !prev.B)             return "B";
-        if (pad.X             && !prev.X)             return "X";
-        if (pad.Y             && !prev.Y)             return "Y";
-        if (pad.Start         && !prev.Start)         return "Start";
-        if (pad.Back          && !prev.Back)          return "Back";
-        if (pad.LeftShoulder  && !prev.LeftShoulder)  return "LeftShoulder";
-        if (pad.RightShoulder && !prev.RightShoulder) return "RightShoulder";
-        if (pad.LeftThumb     && !prev.LeftThumb)     return "LeftThumb";
-        if (pad.RightThumb    && !prev.RightThumb)    return "RightThumb";
-        if (pad.DPadUp        && !prev.DPadUp)        return "DPadUp";
-        if (pad.DPadDown      && !prev.DPadDown)      return "DPadDown";
-        if (pad.DPadLeft      && !prev.DPadLeft)      return "DPadLeft";
-        if (pad.DPadRight     && !prev.DPadRight)     return "DPadRight";
-
-        return null;
-    }
-
-    /// <summary>
-    /// Returns true if Escape was just pressed this frame (edge-triggered).
-    /// Escape is a reserved system key that always opens/closes the menu regardless of config.
-    /// </summary>
-    public bool IsEscJustPressed()
-    {
-        bool currPressed;
-        lock (_keyLock) currPressed = _pressedKeys.Contains(Keys.Escape);
-        bool wasPressed = _prevHotkeyKeys.Contains(Keys.Escape);
-        if (currPressed) _currHotkeyKeys.Add(Keys.Escape);
-        return currPressed && !wasPressed;
-    }
-
-    /// <summary>
-    /// Returns true if the gamepad Start button was just pressed (edge-triggered).
-    /// Start is a reserved system button that always opens/closes the menu regardless of config.
-    /// </summary>
-    public bool IsGamepadStartJustPressed()
-    {
-        var curr = XInputHelper.GetState(0);
-        return curr.Connected && curr.Start && !_prevHotkeyPad.Start;
-    }
-
-    public bool IsGamepadHotkeyJustPressed(string action, AppConfig config)
-    {
-        if (!config.GamepadHotkeyMappings.TryGetValue(action, out var buttonName)) return false;
-        var curr = XInputHelper.GetState(0);
-        return XInputHelper.GetButton(in curr, buttonName)
-            && !XInputHelper.GetButton(in _prevHotkeyPad, buttonName);
-    }
-
-    /// <summary>
-    /// Returns whether a hotkey was just pressed this frame (edge triggered).
-    /// Maps the config key name to a Keys value and checks for new press.
-    /// </summary>
-    public bool IsHotkeyJustPressed(string action, AppConfig config)
-    {
-        if (!config.HotkeyMappings.TryGetValue(action, out var keyName)) return false;
-        if (!Enum.TryParse<Keys>(keyName, out var key)) return false;
-
-        bool currPressed;
-        lock (_keyLock) currPressed = _pressedKeys.Contains(key);
-
-        bool wasPressed = _prevHotkeyKeys.Contains(key);
-        if (currPressed) _currHotkeyKeys.Add(key);
-
-        return currPressed && !wasPressed;
-    }
-
-    // Cardinal-mode helpers: each direction is only active when its axis is dominant.
-    private static bool StickUp(int lx, int ly, int dz)    => ly >  dz && Math.Abs(ly) >= Math.Abs(lx);
-    private static bool StickDown(int lx, int ly, int dz)  => ly < -dz && Math.Abs(ly) >= Math.Abs(lx);
-    private static bool StickLeft(int lx, int ly, int dz)  => lx < -dz && Math.Abs(lx) >  Math.Abs(ly);
-    private static bool StickRight(int lx, int ly, int dz) => lx >  dz && Math.Abs(lx) >  Math.Abs(ly);
-
-    public bool ConsumeGamepadDisconnect()
-    {
-        if (!_controllerJustDisconnected) return false;
-        _controllerJustDisconnected = false;
-        return true;
-    }
+    // ── IInputReader: binding UI ───────────────────────────────────────────────
 
     public bool IsAnyInputJustPressed()
     {
-        lock (_keyLock)
-        {
-            foreach (var k in _pressedKeys)
-                if (!_prevHotkeyKeys.Contains(k)) return true;
-        }
-        var curr = XInputHelper.GetState(0);
+        var keys = _keyboardSource.GetPressedKeysCopy();
+        foreach (var k in keys)
+            if (!_prevHotkeyKeys.Contains(k)) return true;
+
+        var curr = _gamepadDevice.GetState(0);
         if (!curr.Connected) return false;
         var prev = _prevHotkeyPad;
-        return (curr.A && !prev.A) || (curr.B && !prev.B) || (curr.X && !prev.X) ||
-               (curr.Y && !prev.Y) || (curr.Start && !prev.Start) || (curr.Back && !prev.Back) ||
-               (curr.LeftShoulder && !prev.LeftShoulder) || (curr.RightShoulder && !prev.RightShoulder) ||
-               (curr.LeftThumb && !prev.LeftThumb) || (curr.RightThumb && !prev.RightThumb) ||
-               (curr.DPadUp && !prev.DPadUp) || (curr.DPadDown && !prev.DPadDown) ||
-               (curr.DPadLeft && !prev.DPadLeft) || (curr.DPadRight && !prev.DPadRight);
+        return (curr.A             && !prev.A)             || (curr.B             && !prev.B)             ||
+               (curr.X             && !prev.X)             || (curr.Y             && !prev.Y)             ||
+               (curr.Start         && !prev.Start)         || (curr.Back          && !prev.Back)          ||
+               (curr.LeftShoulder  && !prev.LeftShoulder)  || (curr.RightShoulder && !prev.RightShoulder) ||
+               (curr.LeftThumb     && !prev.LeftThumb)     || (curr.RightThumb    && !prev.RightThumb)    ||
+               (curr.DPadUp        && !prev.DPadUp)        || (curr.DPadDown      && !prev.DPadDown)      ||
+               (curr.DPadLeft      && !prev.DPadLeft)      || (curr.DPadRight     && !prev.DPadRight);
     }
 
-    /// <summary>Called at the end of each frame to advance edge-detection state.</summary>
-    public void AdvanceHotkeyState()
+    public bool PollAnyControllerButton()
     {
-        _prevHotkeyKeys.Clear();
-        foreach (var k in _currHotkeyKeys) _prevHotkeyKeys.Add(k);
-        _currHotkeyKeys.Clear();
-
-        // Populate curr from current physical state
-        lock (_keyLock)
-        {
-            foreach (var k in _pressedKeys) _currHotkeyKeys.Add(k);
-        }
-
-        // Advance gamepad hotkey edge-detection
-        _prevHotkeyPad = XInputHelper.GetState(0);
+        bool any = false;
+        if (_gamepadSources[0] is IAnyButtonSource ga) any |= ga.AnyJustPressed();
+        if (_steamSources[0]   is IAnyButtonSource sa) any |= sa.AnyJustPressed();
+        return any;
     }
+
+    /// <param name="player">1-based player whose gamepad binding-capture state to seed.
+    /// Defaults to player 1. Clamped to the configured player range.</param>
+    public void FlushBindingEdges(int player = 1)
+    {
+        if (_gamepadSources[GamepadIndexFor(player)] is IBindingSource b) b.FlushEdges();
+    }
+
+    /// <param name="player">1-based player whose gamepad to poll for a newly-pressed
+    /// button/axis — the rebinding UI must read the physical device belonging to the player
+    /// being rebound, not always player 1's. Defaults to player 1. Clamped to the configured
+    /// player range.</param>
+    public string? PollAnyGamepadButtonPressed(int player = 1)
+    {
+        if (_gamepadSources[GamepadIndexFor(player)] is IBindingSource b) return b.PollAnyButtonPressed();
+        return null;
+    }
+
+    private int GamepadIndexFor(int player) => Math.Clamp(player - 1, 0, _gamepadSources.Count - 1);
 }

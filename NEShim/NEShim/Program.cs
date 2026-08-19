@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using BizHawk.Common;
+using System.Runtime.InteropServices;
+using NEShim.Platform;
+using SDL3;
 using Steamworks;
 
 namespace NEShim;
@@ -11,40 +13,62 @@ static class Program
     [STAThread]
     static void Main()
     {
-        // Catch unhandled exceptions on both the UI thread and background threads,
-        // write a local crash.log, and show a dialog pointing to it.
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        Application.ThreadException += (_, e) => HandleCrash(e.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             HandleCrash(e.ExceptionObject as Exception);
 
-        // If the app was not launched through Steam, RestartAppIfNecessary()
-        // relaunches it via Steam so the overlay DLL is injected correctly.
-        // Must be called before SteamAPI.Init().
+        // AppDomain.ProcessExit (Logger's own flush hook) only reliably fires on a normal Main
+        // return or Environment.Exit() — an unhandled Ctrl+C (SIGINT) or `kill` (SIGTERM) can
+        // terminate the process before the logger's background writer thread ever drains its
+        // queue, silently truncating neshim.log's last few lines. Flush explicitly on both.
+        TryRegisterFlushOnSignal(PosixSignal.SIGINT);
+        TryRegisterFlushOnSignal(PosixSignal.SIGTERM);
+
         var appIdPath = Path.Combine(AppContext.BaseDirectory, "steam_appid.txt");
         if (File.Exists(appIdPath) &&
             uint.TryParse(File.ReadAllText(appIdPath).Trim(), out uint appId) &&
             appId != 0)
         {
-            if (SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
-                return; // Steam is relaunching us — exit this instance
+            try
+            {
+                if (SteamAPI.RestartAppIfNecessary(new AppId_t(appId)))
+                    return;
+            }
+            catch (DllNotFoundException)
+            {
+                // Steam native library not present on this platform — skip restart check.
+            }
         }
 
-        // Set Windows multimedia timer resolution to 1ms so that Thread.Sleep(1)
-        // actually sleeps ~1ms. Without this, Windows 11's Dynamic Timer Resolution
-        // can make Sleep(1) sleep 15-25ms, breaking the 60Hz emulation loop entirely.
-        Win32Imports.timeBeginPeriod(1);
-
+        PlatformDetector.BeginHighResolutionTiming();
         try
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            using var sdlHost = new SDL3WindowHost("NEShim", 1024, 672);
+            new NEShimApp(sdlHost).Run();
+        }
+        catch (Exception ex)
+        {
+            HandleCrash(ex);
         }
         finally
         {
-            Win32Imports.timeEndPeriod(1);
+            PlatformDetector.EndHighResolutionTiming();
         }
+    }
+
+    // Held for the process lifetime — PosixSignalRegistration.Create's return value must stay
+    // rooted or the GC can collect it and silently unregister the handler.
+    private static PosixSignalRegistration? _sigintRegistration;
+    private static PosixSignalRegistration? _sigtermRegistration;
+
+    private static void TryRegisterFlushOnSignal(PosixSignal signal)
+    {
+        try
+        {
+            var registration = PosixSignalRegistration.Create(signal, _ => Logger.Instance.Dispose());
+            if (signal == PosixSignal.SIGINT) _sigintRegistration  = registration;
+            else                              _sigtermRegistration = registration;
+        }
+        catch (PlatformNotSupportedException) { }
     }
 
     private static void HandleCrash(Exception? ex)
@@ -58,15 +82,14 @@ static class Program
                 $"Time:    {DateTime.UtcNow:O}\n" +
                 $"Version: {version}\n\n" +
                 $"{ex}\n");
-            MessageBox.Show(
+            SDL.ShowSimpleMessageBox(SDL.MessageBoxFlags.Error,
+                "NEShim — Unexpected Error",
                 $"NEShim encountered an unexpected error and must close.\n\n" +
                 $"A crash log has been written to:\n{path}\n\n" +
                 "If you report this issue, please attach the log.",
-                "NEShim — Unexpected Error",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                IntPtr.Zero);
         }
-        catch { /* swallow — already crashing */ }
+        catch { }
         finally { Environment.Exit(1); }
     }
 }

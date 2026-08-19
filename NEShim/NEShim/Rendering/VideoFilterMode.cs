@@ -2,6 +2,10 @@ namespace NEShim.Rendering;
 
 public enum VideoFilterMode
 {
+    /// <summary>Deprecated config alias only — see <see cref="Config.ConfigLoader"/>'s migration
+    /// of the old <c>"NearestNeighbour"</c>/<c>graphicsSmoothingEnabled</c> config values. Never
+    /// reaches the renderer filter factories via normal config load; both factories still map it
+    /// explicitly (to Pixel Perfect) as a defensive fallback for any other caller.</summary>
     NearestNeighbour,
     Bilinear,
     PixelPerfect,
@@ -14,8 +18,7 @@ public enum VideoFilterMode
 
 public static class VideoFilterModeParser
 {
-    // Filters available in each rendering mode. Order defines the menu cycle sequence (most likely used first).
-    public static readonly VideoFilterMode[] GdiSupported   = [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear];
+    // Filters supported by both D3D11 (DXBC) and SDL_GPU (SPIR-V). Order defines the menu cycle sequence.
     public static readonly VideoFilterMode[] D3D11Supported =
         [VideoFilterMode.PixelPerfect, VideoFilterMode.Bilinear, VideoFilterMode.CrtScanlines, VideoFilterMode.CrtPhosphor, VideoFilterMode.CrtScreen, VideoFilterMode.NtscComposite, VideoFilterMode.Xbr];
 

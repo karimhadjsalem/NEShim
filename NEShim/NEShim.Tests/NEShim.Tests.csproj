@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net9.0-windows</TargetFramework>
-        <UseWindowsForms>true</UseWindowsForms>
+        <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
@@ -25,8 +24,17 @@
 
     <ItemGroup>
         <ProjectReference Include="..\NEShim\NEShim.csproj" />
-        <ProjectReference Include="..\NEShim.AchievementSigning\NEShim.AchievementSigning.csproj" />
-        <ProjectReference Include="..\NEShim.SealAchievements\NEShim.SealAchievements.csproj" />
+        <ProjectReference Include="..\NEShim.Signing\NEShim.Signing.csproj" />
+        <ProjectReference Include="..\NEShim.PubUtils\NEShim.PubUtils.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Not transitively visible from the NEShim project reference above (HintPath
+             references don't flow through ProjectReference) — needed directly here because
+             XboxOriginMapTests references XboxOriginMap.Map's EXboxOrigin-typed values. -->
+        <Reference Include="Steamworks.NET">
+            <HintPath>..\NEShim\lib\Steamworks.NET.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>

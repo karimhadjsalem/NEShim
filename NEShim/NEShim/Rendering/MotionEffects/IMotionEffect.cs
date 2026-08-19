@@ -2,8 +2,10 @@ namespace NEShim.Rendering.MotionEffects;
 
 /// <summary>
 /// Strategy interface for per-frame screen-space motion effects applied to the NES frame quad.
-/// Implementations return a clip-space (dx, dy) offset that D3D11Renderer adds to all four
-/// quad corner positions before drawing. A zero offset is a no-op.
+/// Implementations return a clip-space (dx, dy) offset that the active renderer (D3D11Renderer
+/// or SDL3HwRenderer — a CPU quad-offset effect uses the same implementation on both paths, see
+/// CLAUDE.md's "Adding a new motion effect") adds to all four quad corner positions before
+/// drawing. A zero offset is a no-op.
 /// </summary>
 internal interface IMotionEffect
 {
@@ -12,22 +14,25 @@ internal interface IMotionEffect
     /// <summary>
     /// Returns the clip-space offset to apply to the NES frame quad this frame.
     /// <paramref name="frameCount"/> is the monotonically increasing draw-frame counter
-    /// maintained by D3D11Renderer.
+    /// maintained by the active renderer.
     /// </summary>
     (float Dx, float Dy) GetFrameOffset(long frameCount);
 
     /// <summary>
-    /// Called by D3D11Renderer whenever the viewport or letterbox dimensions change so that
-    /// effects that scale with screen size can recalibrate. Default implementation is a no-op.
+    /// Called by the active renderer whenever the viewport or letterbox dimensions change so
+    /// that effects that scale with screen size can recalibrate. Default implementation is a no-op.
     /// </summary>
     void NotifyLayout(int viewportWidth, int viewportHeight, int letterboxHeight) { }
 
     /// <summary>
-    /// Optional embedded resource name of a pixel shader (.cso) to swap in for the NES
-    /// frame quad draw call. When non-null, D3D11Renderer temporarily binds this shader
+    /// D3D11-only: optional embedded resource name of a pixel shader (.cso) to swap in for the
+    /// NES frame quad draw call. When non-null, D3D11Renderer temporarily binds this shader
     /// instead of the structural filter shader and calls <see cref="WriteShaderParams"/>
     /// to populate the constant buffer, restoring the structural shader immediately after.
     /// Null (default) means no shader override — the active structural filter is used.
+    /// The SDL_GPU path has its own separate <c>ISdlMotionEffect</c> interface for
+    /// shader-backed effects instead of using this member (see CLAUDE.md's "Adding a new
+    /// motion effect").
     /// </summary>
     string? PixelShaderResourceName => null;
 

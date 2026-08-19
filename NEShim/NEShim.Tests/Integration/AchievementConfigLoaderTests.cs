@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using NEShim.Achievements;
+using NEShim.Config;
 
 namespace NEShim.Tests.Integration;
 
@@ -268,5 +269,51 @@ internal class AchievementConfigLoaderTests
         Assert.That(loaded.Encoding,   Is.EqualTo("bcd"));
         Assert.That(loaded.Comparison, Is.EqualTo("greaterOrEqual"));
         Assert.That(loaded.Value,      Is.EqualTo(10000));
+    }
+
+    // ---- Multi-game (GameContext) path resolution ----
+
+    [Test]
+    public void Load_WithGameContext_ReadsAchievementsJsonFromGameRoot()
+    {
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot);
+        var ctx = new GameContext(gameRoot, "test-game");
+
+        try
+        {
+            var payload = new Dictionary<string, object>
+            {
+                [RomHash] = new { memoryDomain = "System Bus", achievements = new[] { SealedDef() } }
+            };
+            File.WriteAllText(Path.Combine(gameRoot, "achievements.json"), JsonSerializer.Serialize(payload));
+
+            var result = AchievementConfigLoader.Load(RomHash, TestPublicKeyBase64, ctx);
+
+            Assert.That(result,                    Is.Not.Null);
+            Assert.That(result!.Achievements.Count, Is.EqualTo(1));
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Load_WithGameContext_DoesNotFindFileAtDefaultExeRelativeLocation()
+    {
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot); // deliberately no achievements.json written here
+        var ctx = new GameContext(gameRoot, "empty-game");
+
+        try
+        {
+            var result = AchievementConfigLoader.Load(RomHash, TestPublicKeyBase64, ctx);
+            Assert.That(result, Is.Null);
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+        }
     }
 }

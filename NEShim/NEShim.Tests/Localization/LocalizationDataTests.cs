@@ -361,4 +361,213 @@ internal class LocalizationDataTests
         var data = new LocalizationData();
         Assert.That(data.AudioFilterDmcStabilizer, Is.EqualTo("Pop Filter"));
     }
+
+    // ---- Carousel (multi-game mode only) ----
+
+    [Test]
+    public void DefaultInstance_CarouselNoGamesAvailable_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselNoGamesAvailable, Is.EqualTo("No games available"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselLegendLine1_MentionsBrowseAndSelect()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselLegendLine1, Does.Contain("Browse"));
+        Assert.That(data.CarouselLegendLine1, Does.Contain("Select"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselLegendLine2_MentionsFullscreen()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselLegendLine2, Does.Contain("Fullscreen"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselUnavailable_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselUnavailable, Is.EqualTo("Game Error"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselContactPublisher_MentionsPublisher()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselContactPublisher, Does.Contain("publisher"));
+    }
+
+    [Test]
+    public void DefaultInstance_CarouselNoDescription_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.CarouselNoDescription, Is.EqualTo("No description available."));
+    }
+
+    // ---- Video presets (No Preset / No Filters) ----
+
+    [Test]
+    public void DefaultInstance_VideoPresetNoPreset_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPresetNoPreset, Is.EqualTo("No Preset"));
+    }
+
+    [Test]
+    public void DefaultInstance_VideoPresetNoFilters_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.VideoPresetNoFilters, Is.EqualTo("No Filters"));
+    }
+
+    // ---- Controller-disconnected screen ----
+
+    [Test]
+    public void DefaultInstance_ControllerDisconnectedTitle_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ControllerDisconnectedTitle, Is.EqualTo("Controller Disconnected"));
+    }
+
+    [Test]
+    public void DefaultInstance_ControllerDisconnectedHint_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ControllerDisconnectedHint, Is.EqualTo("Press any button to continue…"));
+    }
+
+    // ---- Hotkey toast messages ----
+
+    [Test]
+    public void DefaultInstance_ToastSavedToSlot_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSavedToSlot, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastLoadedSlot_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastLoadedSlot, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastSlotEmpty_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSlotEmpty, Does.Contain("{0}"));
+    }
+
+    [Test]
+    public void DefaultInstance_ToastSlotSelected_ContainsFormatPlaceholder()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.ToastSlotSelected, Does.Contain("{0}"));
+    }
+
+    // ---- D-Pad / analog-stick interchangeable toggle ----
+
+    [Test]
+    public void DefaultInstance_DpadStickInterchangeableOn_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.DpadStickInterchangeableOn, Is.EqualTo("D-Pad / Analog Stick: Linked"));
+    }
+
+    [Test]
+    public void DefaultInstance_DpadStickInterchangeableOff_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.DpadStickInterchangeableOff, Is.EqualTo("D-Pad / Analog Stick: Separate"));
+    }
+
+    // ---- Gamepad physical-button display labels ----
+
+    [Test]
+    public void DefaultInstance_GamepadButtonLeftShoulder_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonLeftShoulder, Is.EqualTo("Left Shoulder"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonRightShoulder_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonRightShoulder, Is.EqualTo("Right Shoulder"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonLeftThumb_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonLeftThumb, Is.EqualTo("Left Stick Click"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadButtonRightThumb_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadButtonRightThumb, Is.EqualTo("Right Stick Click"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadUp_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadUp, Is.EqualTo("D-Pad Up"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadDown_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadDown, Is.EqualTo("D-Pad Down"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadLeft_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadLeft, Is.EqualTo("D-Pad Left"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadDpadRight_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadDpadRight, Is.EqualTo("D-Pad Right"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogUp_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogUp, Is.EqualTo("Analog Stick Up"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogDown_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogDown, Is.EqualTo("Analog Stick Down"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogLeft_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogLeft, Is.EqualTo("Analog Stick Left"));
+    }
+
+    [Test]
+    public void DefaultInstance_GamepadAnalogRight_IsEnglish()
+    {
+        var data = new LocalizationData();
+        Assert.That(data.GamepadAnalogRight, Is.EqualTo("Analog Stick Right"));
+    }
 }

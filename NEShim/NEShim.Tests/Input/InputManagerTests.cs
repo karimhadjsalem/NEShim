@@ -1,60 +1,82 @@
-using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using SDL3;
+using NSubstitute;
 using NEShim.Config;
 using NEShim.Input;
+using NEShim.Input.Mappers;
+using NEShim.Input.Sources;
 
 namespace NEShim.Tests.Input;
 
 [TestFixture]
 internal class InputManagerTests
 {
-    private InputManager _manager = null!;
-    private AppConfig    _config  = null!;
+    private KeyboardInputSource _keyboard = null!;
+    private IInputSource        _mockGamepadSource = null!;
+    private IInputSource        _mockSteam  = null!;
+    private IGamepadDevice      _stubDevice = null!;
+    private InputManager        _manager    = null!;
+    private AppConfig           _config     = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _manager = new InputManager();
-        _config  = new AppConfig(); // has default hotkey mappings (SaveActiveSlot→F5, etc.)
+        _keyboard = new KeyboardInputSource();
+
+        _mockGamepadSource = Substitute.For<IInputSource>();
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _mockGamepadSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        _mockSteam = Substitute.For<IInputSource>();
+        _mockSteam.IsAvailable.Returns(false);
+        _mockSteam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        _stubDevice = Substitute.For<IGamepadDevice>();
+        _stubDevice.GetState(Arg.Any<uint>()).Returns(default(GamepadState));
+
+        _manager = new InputManager(
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() },
+            _stubDevice);
+
+        _config = new AppConfig();
     }
 
-    // ---- Key state ----
+    [TearDown]
+    public void TearDown() => _stubDevice?.Dispose();
+
+    // ── Keyboard mapping ────────────────────────────────────────────────────────
 
     [Test]
     public void OnKeyDown_ThenOnKeyUp_KeyIsNoLongerTracked()
     {
-        // Verify via PollSnapshot: W maps to P1 Up by default
-        _manager.OnKeyDown(Keys.W);
-        var before = _manager.PollSnapshot(_config);
-        Assert.That(before.IsPressed("P1 Up"), Is.True);
+        _manager.OnKeyDown(SDL.Keycode.W);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.True);
 
-        _manager.OnKeyUp(Keys.W);
-        var after = _manager.PollSnapshot(_config);
-        Assert.That(after.IsPressed("P1 Up"), Is.False);
+        _manager.OnKeyUp(SDL.Keycode.W);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.False);
     }
 
     [Test]
     public void PollSnapshot_MapsKeyToNesButton()
     {
-        // Default: P1 Up → W key
-        _manager.OnKeyDown(Keys.W);
-        var snapshot = _manager.PollSnapshot(_config);
-        Assert.That(snapshot.IsPressed("P1 Up"), Is.True);
+        _manager.OnKeyDown(SDL.Keycode.W);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.True);
     }
 
     [Test]
     public void PollSnapshot_UnpressedKey_ButtonNotInSnapshot()
     {
-        // No key held — P1 Up should not be pressed
-        var snapshot = _manager.PollSnapshot(_config);
-        Assert.That(snapshot.IsPressed("P1 Up"), Is.False);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.False);
     }
 
     [Test]
     public void PollSnapshot_MultipleKeysMapped_AllAppearInSnapshot()
     {
-        _manager.OnKeyDown(Keys.W);          // P1 Up
-        _manager.OnKeyDown(Keys.S);          // P1 Down
-        _manager.OnKeyDown(Keys.Return);     // P1 Start
+        _manager.OnKeyDown(SDL.Keycode.W);
+        _manager.OnKeyDown(SDL.Keycode.S);
+        _manager.OnKeyDown(SDL.Keycode.Return);
 
         var snapshot = _manager.PollSnapshot(_config);
         Assert.That(snapshot.IsPressed("P1 Up"),    Is.True);
@@ -62,121 +84,303 @@ internal class InputManagerTests
         Assert.That(snapshot.IsPressed("P1 Start"), Is.True);
     }
 
-    // ---- Hotkey edge detection ----
-
     [Test]
-    public void IsHotkeyJustPressed_KeyPressedThisFrame_ReturnsTrue()
+    public void PollSnapshot_NullKeyInBinding_DoesNotMapButton()
     {
-        _manager.OnKeyDown(Keys.F5); // SaveActiveSlot → F5
-        bool result = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        Assert.That(result, Is.True);
+        _config.InputMappings["P1 Up"] = new InputBinding(null, null);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.False);
     }
 
     [Test]
-    public void IsHotkeyJustPressed_KeyHeldAcrossFrames_ReturnsFalseOnSecondFrame()
+    public void PollSnapshot_InvalidKeyName_DoesNotMapButton()
     {
-        _manager.OnKeyDown(Keys.F5);
-        _manager.IsHotkeyJustPressed("SaveActiveSlot", _config); // consume first press
-        _manager.AdvanceHotkeyState();
+        _config.InputMappings["P1 Up"] = new InputBinding("NotAValidKey!!!", null);
+        Assert.That(_manager.PollSnapshot(_config).IsPressed("P1 Up"), Is.False);
+    }
 
-        bool secondFrame = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        Assert.That(secondFrame, Is.False);
+    // ── Source orchestration ────────────────────────────────────────────────────
+
+    [Test]
+    public void PollSnapshot_AvailableGamepadSource_SDL3GamepadMapperCalled()
+    {
+        var mockXMapper = Substitute.For<IInputMapper>();
+        var manager = new InputManager(
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new[] { mockXMapper }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+
+        manager.PollSnapshot(_config);
+
+        mockXMapper.Received(1).Map(
+            Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<AppConfig>(),
+            Arg.Any<ImmutableHashSet<string>.Builder>());
     }
 
     [Test]
-    public void IsHotkeyJustPressed_KeyNotDown_ReturnsFalse()
+    public void PollSnapshot_UnavailableGamepadSource_SDL3GamepadMapperNotCalled()
     {
-        bool result = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        Assert.That(result, Is.False);
+        var mockXMapper = Substitute.For<IInputMapper>();
+        var manager = new InputManager(
+            _keyboard, new[] { _mockGamepadSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new[] { mockXMapper }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        // _mockGamepadSource.IsAvailable defaults to false
+        manager.PollSnapshot(_config);
+
+        mockXMapper.DidNotReceive().Map(
+            Arg.Any<IReadOnlySet<string>>(),
+            Arg.Any<AppConfig>(),
+            Arg.Any<ImmutableHashSet<string>.Builder>());
+    }
+
+    // ── GamepadDisconnected event (IoC) ─────────────────────────────────────────
+
+    [Test]
+    public void PollSnapshot_ControllerWasConnectedNowDisconnected_FiresGamepadDisconnected()
+    {
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // wasConnected = true
+
+        bool fired = false;
+        _manager.GamepadDisconnected += () => fired = true;
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _manager.PollSnapshot(_config);
+
+        Assert.That(fired, Is.True);
     }
 
     [Test]
-    public void IsHotkeyJustPressed_UnknownAction_ReturnsFalse()
+    public void PollSnapshot_ControllerNeverConnected_GamepadDisconnectedNotFired()
     {
-        _manager.OnKeyDown(Keys.F5);
-        bool result = _manager.IsHotkeyJustPressed("NonExistentAction", _config);
-        Assert.That(result, Is.False);
-    }
+        bool fired = false;
+        _manager.GamepadDisconnected += () => fired = true;
+        _manager.PollSnapshot(_config); // was never connected
 
-    // ---- IsEscJustPressed (system-reserved OpenMenu key) ----
-
-    [Test]
-    public void IsEscJustPressed_EscPressedThisFrame_ReturnsTrue()
-    {
-        _manager.OnKeyDown(Keys.Escape);
-        Assert.That(_manager.IsEscJustPressed(), Is.True);
+        Assert.That(fired, Is.False);
     }
 
     [Test]
-    public void IsEscJustPressed_EscHeldAcrossFrames_ReturnsFalseOnSecondFrame()
+    public void PollSnapshot_ControllerStillConnected_GamepadDisconnectedNotFired()
     {
-        _manager.OnKeyDown(Keys.Escape);
-        _manager.IsEscJustPressed(); // consume first press
-        _manager.AdvanceHotkeyState();
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config);
 
-        Assert.That(_manager.IsEscJustPressed(), Is.False);
+        bool fired = false;
+        _manager.GamepadDisconnected += () => fired = true;
+        _manager.PollSnapshot(_config); // still connected
+
+        Assert.That(fired, Is.False);
     }
 
     [Test]
-    public void IsEscJustPressed_EscNotDown_ReturnsFalse()
+    public void PollSnapshot_DisconnectThenReconnect_DisconnectedEventFiresOnceOnDisconnectOnly()
     {
-        Assert.That(_manager.IsEscJustPressed(), Is.False);
+        int count = 0;
+        _manager.GamepadDisconnected += () => count++;
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // connected
+
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _manager.PollSnapshot(_config); // disconnected → fires
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // reconnected → GamepadConnected fires instead, not this one
+
+        Assert.That(count, Is.EqualTo(1));
+    }
+
+    // ── GamepadConnected event (IoC) — mirror edge of GamepadDisconnected ───────
+
+    [Test]
+    public void PollSnapshot_ControllerWasDisconnectedNowConnected_FiresGamepadConnected()
+    {
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // never connected → now connected
+
+        Assert.That(fired, Is.True);
     }
 
     [Test]
-    public void IsHotkeyJustPressed_ActionWithBadKeyName_ReturnsFalse()
+    public void PollSnapshot_ControllerStillDisconnected_GamepadConnectedNotFired()
     {
-        var config = new AppConfig();
-        config.HotkeyMappings["TestAction"] = "NotAValidKey!!!";
-        bool result = _manager.IsHotkeyJustPressed("TestAction", config);
-        Assert.That(result, Is.False);
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+        _manager.PollSnapshot(_config); // still disconnected
+
+        Assert.That(fired, Is.False);
     }
 
     [Test]
-    public void AdvanceHotkeyState_AfterKeyUp_SubsequentFrameNotDetected()
+    public void PollSnapshot_ControllerStillConnected_GamepadConnectedNotFiredAgain()
     {
-        _manager.OnKeyDown(Keys.F5);        // SaveActiveSlot → F5
-        _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        _manager.AdvanceHotkeyState();
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // connected — fires once
 
-        _manager.OnKeyUp(Keys.F5);
-        _manager.AdvanceHotkeyState();
+        bool fired = false;
+        _manager.GamepadConnected += () => fired = true;
+        _manager.PollSnapshot(_config); // still connected
 
-        // Key released — should not fire
-        bool result = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        Assert.That(result, Is.False);
+        Assert.That(fired, Is.False);
     }
 
     [Test]
-    public void IsHotkeyJustPressed_DifferentActionsIndependent()
+    public void PollSnapshot_ConnectThenDisconnectThenReconnect_ConnectedEventFiresOnEachConnectEdge()
     {
-        _manager.OnKeyDown(Keys.F5);   // SaveActiveSlot
-        _manager.OnKeyDown(Keys.F9);   // LoadActiveSlot
+        int count = 0;
+        _manager.GamepadConnected += () => count++;
 
-        bool save = _manager.IsHotkeyJustPressed("SaveActiveSlot", _config);
-        bool load = _manager.IsHotkeyJustPressed("LoadActiveSlot", _config);
-        Assert.That(save, Is.True);
-        Assert.That(load, Is.True);
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // connected → fires (1)
+
+        _mockGamepadSource.IsAvailable.Returns(false);
+        _manager.PollSnapshot(_config); // disconnected → no fire
+
+        _mockGamepadSource.IsAvailable.Returns(true);
+        _manager.PollSnapshot(_config); // reconnected → fires (2)
+
+        Assert.That(count, Is.EqualTo(2));
     }
 
-    // ---- PollMenuNav (no gamepad connected) ----
+    // ── HotkeyFired event (IoC) ─────────────────────────────────────────────────
+
+    [Test]
+    public void AdvanceHotkeyState_F5JustPressed_HotkeyFiredSaveActiveSlot()
+    {
+        var fired = new List<string>();
+        _manager.HotkeyFired += action => fired.Add(action);
+
+        _manager.OnKeyDown(SDL.Keycode.F5);
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(fired, Is.EqualTo(new[] { "SaveActiveSlot" }));
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_F5HeldTwoFrames_HotkeyFiredOnce()
+    {
+        int count = 0;
+        _manager.HotkeyFired += _ => count++;
+
+        _manager.OnKeyDown(SDL.Keycode.F5);
+        _manager.AdvanceHotkeyState(_config); // frame 1: edge fires
+        _manager.AdvanceHotkeyState(_config); // frame 2: held, no edge
+
+        Assert.That(count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_F9JustPressed_HotkeyFiredLoadActiveSlot()
+    {
+        var fired = new List<string>();
+        _manager.HotkeyFired += action => fired.Add(action);
+
+        _manager.OnKeyDown(SDL.Keycode.F9);
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(fired, Contains.Item("LoadActiveSlot"));
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_F1JustPressed_HotkeyFiredSelectSlot1()
+    {
+        var fired = new List<string>();
+        _manager.HotkeyFired += action => fired.Add(action);
+
+        _manager.OnKeyDown(SDL.Keycode.F1);
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(fired, Contains.Item("SelectSlot1"));
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_TwoHotkeysInSameFrame_BothEventsFire()
+    {
+        var fired = new List<string>();
+        _manager.HotkeyFired += action => fired.Add(action);
+
+        _manager.OnKeyDown(SDL.Keycode.F1);
+        _manager.OnKeyDown(SDL.Keycode.F5);
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(fired, Contains.Item("SelectSlot1"));
+        Assert.That(fired, Contains.Item("SaveActiveSlot"));
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_NoInput_NoEventsFired()
+    {
+        bool anyFired = false;
+        _manager.HotkeyFired += _ => anyFired = true;
+        _manager.MenuToggleRequested += () => anyFired = true;
+
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(anyFired, Is.False);
+    }
+
+    // ── MenuToggleRequested event (IoC) ─────────────────────────────────────────
+
+    [Test]
+    public void AdvanceHotkeyState_EscJustPressed_MenuToggleRequestedFired()
+    {
+        bool fired = false;
+        _manager.MenuToggleRequested += () => fired = true;
+
+        _manager.OnKeyDown(SDL.Keycode.Escape);
+        _manager.AdvanceHotkeyState(_config);
+
+        Assert.That(fired, Is.True);
+    }
+
+    [Test]
+    public void AdvanceHotkeyState_EscHeld_MenuToggleRequestedFiredOnce()
+    {
+        int count = 0;
+        _manager.MenuToggleRequested += () => count++;
+
+        _manager.OnKeyDown(SDL.Keycode.Escape);
+        _manager.AdvanceHotkeyState(_config); // edge fires
+        _manager.AdvanceHotkeyState(_config); // held, silent
+
+        Assert.That(count, Is.EqualTo(1));
+    }
+
+    // ── Menu nav composition ────────────────────────────────────────────────────
 
     [Test]
     public void PollMenuNav_WhenNoPadConnected_ReturnsAllFalseNav()
     {
-        var nav = _manager.PollMenuNav(_config);
-        Assert.That(nav.Any, Is.False);
+        Assert.That(_manager.PollMenuNav(_config).Any, Is.False);
     }
 
     [Test]
-    public void PollMenuNav_CalledTwice_ReturnsFalseEachTime()
+    public void PollMenuNav_GamepadAndSteam_Unioned()
     {
-        _manager.PollMenuNav(_config);
-        var nav = _manager.PollMenuNav(_config);
-        Assert.That(nav.Any, Is.False);
+        var xInput = Substitute.For<IInputSource, IMenuNavSource>();
+        xInput.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IMenuNavSource)xInput).GetMenuNav(Arg.Any<AppConfig>()).Returns(new MenuNavInput { Up = true });
+
+        var steam = Substitute.For<IInputSource, IMenuNavSource>();
+        steam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IMenuNavSource)steam).GetMenuNav(Arg.Any<AppConfig>()).Returns(new MenuNavInput { Down = true });
+
+        var manager = new InputManager(
+            _keyboard, new[] { xInput }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        var nav = manager.PollMenuNav(_config);
+
+        Assert.That(nav.Up,   Is.True);
+        Assert.That(nav.Down, Is.True);
     }
 
-    // ---- PollAnyGamepadButtonPressed (no gamepad connected) ----
+    // ── Binding UI ──────────────────────────────────────────────────────────────
 
     [Test]
     public void PollAnyGamepadButtonPressed_WhenNoPadConnected_ReturnsNull()
@@ -184,46 +388,217 @@ internal class InputManagerTests
         Assert.That(_manager.PollAnyGamepadButtonPressed(), Is.Null);
     }
 
-    // ---- IsGamepadStartJustPressed (no gamepad connected) ----
+    // ── GetHeldSliderDir ──────────────────────────────────────────────────────────
 
     [Test]
-    public void IsGamepadStartJustPressed_WhenNoPadConnected_ReturnsFalse()
+    public void GetHeldSliderDir_NoInput_ReturnsBothFalse()
     {
-        Assert.That(_manager.IsGamepadStartJustPressed(), Is.False);
-    }
-
-    // ---- IsGamepadHotkeyJustPressed ----
-
-    [Test]
-    public void IsGamepadHotkeyJustPressed_ActionNotInConfig_ReturnsFalse()
-    {
-        bool result = _manager.IsGamepadHotkeyJustPressed("NonExistentAction", _config);
-        Assert.That(result, Is.False);
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
     }
 
     [Test]
-    public void IsGamepadHotkeyJustPressed_ActionFoundButNoPad_ReturnsFalse()
+    public void GetHeldSliderDir_LeftArrowDown_ReturnsLeftTrue()
     {
-        _config.GamepadHotkeyMappings["TestAction"] = "A";
-        bool result = _manager.IsGamepadHotkeyJustPressed("TestAction", _config);
-        Assert.That(result, Is.False);
-    }
-
-    // ---- PollSnapshot edge cases ----
-
-    [Test]
-    public void PollSnapshot_NullKeyInBinding_DoesNotMapButton()
-    {
-        _config.InputMappings["P1 Up"] = new NEShim.Config.InputBinding(null, null);
-        var snapshot = _manager.PollSnapshot(_config);
-        Assert.That(snapshot.IsPressed("P1 Up"), Is.False);
+        _manager.OnKeyDown(SDL.Keycode.Left);
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.True);
+        Assert.That(right, Is.False);
     }
 
     [Test]
-    public void PollSnapshot_InvalidKeyName_DoesNotMapButton()
+    public void GetHeldSliderDir_RightArrowDown_ReturnsRightTrue()
     {
-        _config.InputMappings["P1 Up"] = new NEShim.Config.InputBinding("NotAValidKey!!!", null);
-        var snapshot = _manager.PollSnapshot(_config);
-        Assert.That(snapshot.IsPressed("P1 Up"), Is.False);
+        _manager.OnKeyDown(SDL.Keycode.Right);
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(right, Is.True);
+        Assert.That(left,  Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_AfterKeyUp_ReturnsFalse()
+    {
+        _manager.OnKeyDown(SDL.Keycode.Left);
+        _manager.OnKeyUp(SDL.Keycode.Left);
+        var (left, _) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamSourceWithoutHeldDirectionCapability_ReturnsFalse()
+    {
+        // The default SetUp's _mockSteam is a plain IInputSource (no IHeldDirectionSource) —
+        // confirms the `is` check degrades safely rather than throwing.
+        var (left, right) = _manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamHeldLeft_ReturnsLeftTrue()
+    {
+        var steam = Substitute.For<IInputSource, IHeldDirectionSource>();
+        steam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((true, false));
+
+        var manager = new InputManager(
+            _keyboard, new[] { _mockGamepadSource }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        var (left, right) = manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.True);
+        Assert.That(right, Is.False);
+    }
+
+    [Test]
+    public void GetHeldSliderDir_SteamHeldRight_ReturnsRightTrue()
+    {
+        var steam = Substitute.For<IInputSource, IHeldDirectionSource>();
+        steam.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IHeldDirectionSource)steam).GetHeldLeftRight(Arg.Any<AppConfig>()).Returns((false, true));
+
+        var manager = new InputManager(
+            _keyboard, new[] { _mockGamepadSource }, new[] { steam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        var (left, right) = manager.GetHeldSliderDir(_config);
+        Assert.That(left,  Is.False);
+        Assert.That(right, Is.True);
+    }
+
+    // ── PollAnyControllerButton ──────────────────────────────────────────────────
+
+    [Test]
+    public void PollAnyControllerButton_WhenSourceDoesNotImplementAnyButtonSource_ReturnsFalse()
+    {
+        // _mockGamepadSource is IInputSource only, not IAnyButtonSource
+        Assert.That(_manager.PollAnyControllerButton(), Is.False);
+    }
+
+    [Test]
+    public void PollAnyControllerButton_WithAnyButtonSource_ReturnsTrue_WhenButtonJustPressed()
+    {
+        var anySource = Substitute.For<IInputSource, IAnyButtonSource>();
+        anySource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IAnyButtonSource)anySource).AnyJustPressed().Returns(true);
+
+        var manager = new InputManager(
+            _keyboard, new[] { anySource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyControllerButton(), Is.True);
+    }
+
+    [Test]
+    public void PollAnyControllerButton_WithAnyButtonSource_ReturnsFalse_WhenNoPress()
+    {
+        var anySource = Substitute.For<IInputSource, IAnyButtonSource>();
+        anySource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IAnyButtonSource)anySource).AnyJustPressed().Returns(false);
+
+        var manager = new InputManager(
+            _keyboard, new[] { anySource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyControllerButton(), Is.False);
+    }
+
+    // ── FlushBindingEdges ────────────────────────────────────────────────────────
+
+    [Test]
+    public void FlushBindingEdges_WhenSourceDoesNotImplementIBindingSource_IsNoOp()
+    {
+        // _mockGamepadSource is IInputSource only — FlushBindingEdges must not throw
+        Assert.DoesNotThrow(() => _manager.FlushBindingEdges());
+    }
+
+    [Test]
+    public void FlushBindingEdges_WithBindingSource_CallsFlushEdgesOnce()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var manager = new InputManager(
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        manager.FlushBindingEdges();
+
+        ((IBindingSource)bindingSource).Received(1).FlushEdges();
+    }
+
+    // ── PollAnyGamepadButtonPressed with IBindingSource ──────────────────────────
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_WithBindingSource_DelegatesToPollAnyButtonPressed()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns("B");
+
+        var manager = new InputManager(
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(), Is.EqualTo("B"));
+    }
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_WithBindingSource_WhenNoPress_ReturnsNull()
+    {
+        var bindingSource = Substitute.For<IInputSource, IBindingSource>();
+        bindingSource.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)bindingSource).PollAnyButtonPressed().Returns((string?)null);
+
+        var manager = new InputManager(
+            _keyboard, new[] { bindingSource }, new[] { _mockSteam },
+            new KeyboardMapper(), new IInputMapper[] { new SDL3GamepadMapper() }, new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(), Is.Null);
+    }
+
+    // ── Per-player binding-capture routing ────────────────────────────────────────
+
+    [Test]
+    public void PollAnyGamepadButtonPressed_Player2_DelegatesToPlayer2SourceNotPlayer1()
+    {
+        var p1 = Substitute.For<IInputSource, IBindingSource>();
+        p1.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)p1).PollAnyButtonPressed().Returns("A");
+
+        var p2 = Substitute.For<IInputSource, IBindingSource>();
+        p2.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+        ((IBindingSource)p2).PollAnyButtonPressed().Returns("B");
+
+        var manager = new InputManager(
+            _keyboard, new[] { p1, p2 }, new[] { _mockSteam },
+            new KeyboardMapper(),
+            new IInputMapper[] { new SDL3GamepadMapper(1), new SDL3GamepadMapper(2) },
+            new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        Assert.That(manager.PollAnyGamepadButtonPressed(player: 2), Is.EqualTo("B"));
+        ((IBindingSource)p1).DidNotReceive().PollAnyButtonPressed();
+    }
+
+    [Test]
+    public void FlushBindingEdges_Player2_CallsFlushEdgesOnPlayer2SourceOnly()
+    {
+        var p1 = Substitute.For<IInputSource, IBindingSource>();
+        p1.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var p2 = Substitute.For<IInputSource, IBindingSource>();
+        p2.GetActiveIdentifiers(Arg.Any<AppConfig>()).Returns(new HashSet<string>());
+
+        var manager = new InputManager(
+            _keyboard, new[] { p1, p2 }, new[] { _mockSteam },
+            new KeyboardMapper(),
+            new IInputMapper[] { new SDL3GamepadMapper(1), new SDL3GamepadMapper(2) },
+            new IInputMapper[] { new SteamInputMapper() }, _stubDevice);
+
+        manager.FlushBindingEdges(player: 2);
+
+        ((IBindingSource)p2).Received(1).FlushEdges();
+        ((IBindingSource)p1).DidNotReceive().FlushEdges();
     }
 }

@@ -284,6 +284,103 @@ internal class ConfigLoaderTests
         Assert.That(loaded.OverscanMode, Is.EqualTo("Underscan"));
     }
 
+    [Test]
+    public void LoadFrom_StaleGamepadToggleWindowKey_MigratesToToggleWindowCarousel()
+    {
+        File.WriteAllText(_configPath,
+            """{"gamepadHotkeyMappings":{"OpenMenu":"LeftShoulder","ToggleWindow":"Y"}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.GamepadHotkeyMappings, Does.Not.ContainKey("ToggleWindow"));
+        Assert.That(loaded.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("Y"));
+    }
+
+    [Test]
+    public void LoadFrom_StaleGamepadToggleWindowKey_DoesNotOverrideExistingToggleWindowCarousel()
+    {
+        File.WriteAllText(_configPath,
+            """{"gamepadHotkeyMappings":{"ToggleWindow":"Y","ToggleWindowCarousel":"X"}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+        Assert.That(loaded.GamepadHotkeyMappings, Does.Not.ContainKey("ToggleWindow"));
+        Assert.That(loaded.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("X"));
+    }
+
+    // ---- InputMappings backfill (pre-multiplayer config.json/user.json upgrade) ----
+    // Regression coverage: a config.json/user.json saved by a pre-multiplayer NEShim build only
+    // ever had "P1 …" InputMappings keys. Deserializing "inputMappings" replaces the whole
+    // dictionary rather than merging into AppConfig's C#-initialized defaults (same mechanism as
+    // GamepadHotkeyMappings above), so turning on PlayerCount on an existing install left every
+    // extra player's gamepad bindings silently blank until BackfillMissingInputMappingDefaults
+    // was added.
+
+    [Test]
+    public void LoadFrom_PreMultiplayerConfigJson_BackfillsPlayer2ThroughPlayer4GamepadDefaults()
+    {
+        // Simulates a config.json saved before the P2-P4 defaults existed — only "P1 …" keys.
+        File.WriteAllText(_configPath, """
+            {"inputMappings":{
+              "P1 Up":     {"key":"W",      "gamepadButton":"DPadUp"},
+              "P1 Down":   {"key":"S",      "gamepadButton":"DPadDown"},
+              "P1 Left":   {"key":"A",      "gamepadButton":"DPadLeft"},
+              "P1 Right":  {"key":"D",      "gamepadButton":"DPadRight"},
+              "P1 A":      {"key":"Period", "gamepadButton":"A"},
+              "P1 B":      {"key":"Comma",  "gamepadButton":"B"},
+              "P1 Start":  {"key":"Return", "gamepadButton":"Y"},
+              "P1 Select": {"key":"RShift", "gamepadButton":"Back"}
+            }}
+            """);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        for (int player = 2; player <= 4; player++)
+        {
+            Assert.That(loaded.InputMappings[$"P{player} Up"].GamepadButton, Is.EqualTo("DPadUp"),
+                $"P{player} Up should have been backfilled with the default gamepad binding");
+            Assert.That(loaded.InputMappings[$"P{player} Up"].Key, Is.Null,
+                $"P{player} Up should not gain a default keyboard binding");
+        }
+    }
+
+    [Test]
+    public void LoadFrom_PreMultiplayerConfigJson_PreservesExistingPlayer1Bindings()
+    {
+        // A publisher's own customized P1 binding must survive the backfill untouched.
+        File.WriteAllText(_configPath, """{"inputMappings":{"P1 Up":{"key":"I","gamepadButton":"DPadUp"}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.InputMappings["P1 Up"].Key, Is.EqualTo("I"));
+    }
+
+    [Test]
+    public void LoadFrom_ExistingCustomPlayer2Binding_NotOverwrittenByBackfill()
+    {
+        File.WriteAllText(_configPath, """{"inputMappings":{"P2 Up":{"gamepadButton":"X"}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.InputMappings["P2 Up"].GamepadButton, Is.EqualTo("X"));
+    }
+
+    [Test]
+    public void Load_PreMultiplayerUserJson_BackfillsPlayer2GamepadDefaultAfterOverlay()
+    {
+        // config.json is a fresh, fully-defaulted publisher file, but user.json was bootstrapped
+        // before multiplayer existed and only carries "P1 …" keys — UserConfig.ApplyTo's
+        // whole-dictionary replace would otherwise wipe the backfill LoadFrom already applied to
+        // the in-memory config, which is exactly why the backfill also runs post-overlay.
+        ConfigLoader.SaveTo(new AppConfig(), _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"inputMappings":{"P1 Up":{"key":"W","gamepadButton":"DPadUp"}}}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.InputMappings["P2 Up"].GamepadButton, Is.EqualTo("DPadUp"));
+        File.Delete(userPath);
+    }
+
     // ---- Two-file layering ----
 
     [Test]
@@ -449,6 +546,30 @@ internal class ConfigLoaderTests
     }
 
     [Test]
+    public void SaveUserTo_ThenLoad_RoundTripsWindowMode()
+    {
+        // Exercises the exact mechanism NEShimApp uses to give the multi-game carousel its own
+        // discrete, persisted window-mode preference (MultiGameMode.ShellUserConfigPath):
+        // SaveUserTo on toggle, Load(publisherPath, userPath) on carousel (re-)entry.
+        var publisher = new AppConfig { WindowTitle = "Shell", WindowMode = "Windowed" };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        try
+        {
+            ConfigLoader.SaveUserTo(new AppConfig { WindowMode = "Fullscreen" }, userPath);
+
+            var loaded = ConfigLoader.Load(_configPath, userPath);
+
+            Assert.That(loaded.WindowMode, Is.EqualTo("Fullscreen"));
+        }
+        finally
+        {
+            if (File.Exists(userPath)) File.Delete(userPath);
+        }
+    }
+
+    [Test]
     public void Load_UserLanguage_OverridesPublisherLanguage()
     {
         var publisher = new AppConfig { WindowTitle = "TestGame", Language = "Auto" };
@@ -462,4 +583,169 @@ internal class ConfigLoaderTests
         Assert.That(loaded.Language, Is.EqualTo("french"));
     }
 
+    // ---- PlayerCount clamping ----
+
+    [TestCase(0, 1)]
+    [TestCase(-5, 1)]
+    [TestCase(5, 4)]
+    [TestCase(100, 4)]
+    public void LoadFrom_PlayerCountOutOfRange_ClampsToValidRange(int rawValue, int expected)
+    {
+        File.WriteAllText(_configPath, $$"""{"playerCount":{{rawValue}}}""");
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(expected));
+    }
+
+    [TestCase(2)] [TestCase(3)] [TestCase(4)]
+    public void LoadFrom_PlayerCountInRange_IsUnchanged(int value)
+    {
+        var original = new AppConfig { PlayerCount = value };
+        ConfigLoader.SaveTo(original, _configPath);
+
+        var loaded = ConfigLoader.LoadFrom(_configPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(value));
+    }
+
+    [Test]
+    public void Load_HandEditedUserJsonPlayerCount_CannotOverridePublisherValue()
+    {
+        // PlayerCount is publisher-only — UserConfig has no PlayerCount property at all, so even
+        // a hand-edited user.json containing "playerCount" must have zero effect. Also confirms
+        // the clamp re-applies harmlessly on the user-overlay path (a no-op safety net, not
+        // redundant work — see MigrateDeprecatedFields's doc comment).
+        var publisher = new AppConfig { WindowTitle = "TestGame", PlayerCount = 3 };
+        ConfigLoader.SaveTo(publisher, _configPath);
+
+        string userPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+        File.WriteAllText(userPath, """{"playerCount":99}""");
+
+        var loaded = ConfigLoader.Load(_configPath, userPath);
+
+        Assert.That(loaded.PlayerCount, Is.EqualTo(3));
+        File.Delete(userPath);
+    }
+
+    // ---- TryParseFrom ----
+
+    [Test]
+    public void TryParseFrom_ValidJson_ReturnsTrue()
+    {
+        ConfigLoader.SaveTo(new AppConfig { WindowTitle = "TestGame" }, _configPath);
+
+        bool success = ConfigLoader.TryParseFrom(_configPath, out var config);
+
+        Assert.That(success, Is.True);
+        Assert.That(config.WindowTitle, Is.EqualTo("TestGame"));
+    }
+
+    [Test]
+    public void TryParseFrom_MalformedJson_ReturnsFalse()
+    {
+        File.WriteAllText(_configPath, "this is not json {{{{");
+
+        bool success = ConfigLoader.TryParseFrom(_configPath, out var config);
+
+        Assert.That(success, Is.False);
+        Assert.That(config, Is.Not.Null);
+    }
+
+    // ---- Multi-game (GameContext) isolation ----
+
+    [Test]
+    public void Load_WithGameContext_LoadsPublisherConfigFromGameRoot()
+    {
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot);
+        ConfigLoader.SaveTo(new AppConfig { RomPath = "special-game.nes", WindowTitle = "GameRootTest" },
+            Path.Combine(gameRoot, "config.json"));
+        var ctx = new GameContext(gameRoot, "game-root-test");
+        string userDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", "game-root-test");
+
+        try
+        {
+            var loaded = ConfigLoader.Load(ctx);
+            Assert.That(loaded.RomPath, Is.EqualTo("special-game.nes"));
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+            if (Directory.Exists(userDir)) Directory.Delete(userDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_WithGameContext_WritesToGamesSubfolder_NotWindowTitleFolder()
+    {
+        string gameId = $"test-{Guid.NewGuid():N}";
+        var ctx = new GameContext(Path.GetTempPath(), gameId);
+        var config = new AppConfig { WindowTitle = "TestGame", Volume = 33 };
+
+        string expectedPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", gameId, "user.json");
+        string singleGamePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), config.WindowTitle, "user.json");
+
+        try
+        {
+            ConfigLoader.Save(config, ctx);
+            Assert.That(File.Exists(expectedPath), Is.True);
+            Assert.That(File.Exists(singleGamePath), Is.False);
+        }
+        finally
+        {
+            string gameDir = Path.GetDirectoryName(expectedPath)!;
+            if (Directory.Exists(gameDir)) Directory.Delete(gameDir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_WithNullGameContext_UsesUnchangedSingleGameScheme()
+    {
+        // ctx defaults to null — behavior must be identical to calling Save(config) with no ctx.
+        var config = new AppConfig { WindowTitle = $"SingleGameTest-{Guid.NewGuid():N}" };
+        string expectedPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), config.WindowTitle, "user.json");
+
+        try
+        {
+            ConfigLoader.Save(config, ctx: null);
+            Assert.That(File.Exists(expectedPath), Is.True);
+        }
+        finally
+        {
+            string dir = Path.GetDirectoryName(expectedPath)!;
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Save_ThenLoad_WithGameContext_RoundTripsUserOverlay()
+    {
+        string gameId = $"roundtrip-{Guid.NewGuid():N}";
+        string gameRoot = Path.Combine(Path.GetTempPath(), $"game_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gameRoot);
+        ConfigLoader.SaveTo(new AppConfig { WindowTitle = "RoundTripGame" }, Path.Combine(gameRoot, "config.json"));
+        var ctx = new GameContext(gameRoot, gameId);
+
+        try
+        {
+            var toSave = new AppConfig { WindowTitle = "RoundTripGame", Volume = 42 };
+            ConfigLoader.Save(toSave, ctx);
+
+            var loaded = ConfigLoader.Load(ctx);
+
+            Assert.That(loaded.Volume, Is.EqualTo(42));
+        }
+        finally
+        {
+            Directory.Delete(gameRoot, recursive: true);
+            string userDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NEShim", "Games", gameId);
+            if (Directory.Exists(userDir)) Directory.Delete(userDir, recursive: true);
+        }
+    }
 }

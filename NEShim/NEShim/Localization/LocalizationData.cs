@@ -22,6 +22,17 @@ internal sealed class LocalizationData
     public string SettingsVideo    { get; init; } = "Video";
     public string SettingsSound    { get; init; } = "Sound";
     public string SettingsLanguage { get; init; } = "Language";
+    public string DpadStickInterchangeableOn  { get; init; } = "D-Pad / Analog Stick: Linked";
+    public string DpadStickInterchangeableOff { get; init; } = "D-Pad / Analog Stick: Separate";
+
+    // ---- Player Controls screen (multiplayer, PlayerCount > 1 only) ----
+    // Missing from a lang/<language>.json simply falls back to these English defaults (see
+    // LocalizationLoader) — no translation file updates are required for this feature to ship.
+    public string SettingsPlayerControls { get; init; } = "Player Controls";
+    public string PlayerControlsTitle    { get; init; } = "PLAYER CONTROLS";
+    /// <summary>Format string for a 1-based player number, mirroring <see cref="SlotLabel"/>'s
+    /// "Slot {0}" convention.</summary>
+    public string PlayerLabel            { get; init; } = "Player {0}";
 
     // ---- Language screen ----
     public string LanguageTitle { get; init; } = "LANGUAGE";
@@ -126,6 +137,28 @@ internal sealed class LocalizationData
     /// <summary>Shown in the binding list when a key or button has not been assigned.</summary>
     public string BindNone   { get; init; } = "(none)";
 
+    // ---- Gamepad physical-button display labels ----
+    // What's actually bound to an action (the value column in the Gamepad Bindings screen) —
+    // distinct from the Bind* labels above, which name the NES-side action being bound, not the
+    // physical control. A/B/X/Y are shown as bare letters in every shipped language (matching
+    // BindA/BindB, which are already just "A"/"B" everywhere) — not a translation question, they
+    // aren't words. Start/Back reuse BindStart/BindSelect. D-Pad/Analog Stick and the shoulder/
+    // thumb-click labels below are real translated terms, split per language between an accepted
+    // loanword ("D-Pad"/"Stick" in French/German/Spanish/Latam/Portuguese/Russian gaming usage)
+    // and a native term where that loanword convention doesn't hold (Japanese/Korean/Chinese).
+    public string GamepadButtonLeftShoulder  { get; init; } = "Left Shoulder";
+    public string GamepadButtonRightShoulder { get; init; } = "Right Shoulder";
+    public string GamepadButtonLeftThumb     { get; init; } = "Left Stick Click";
+    public string GamepadButtonRightThumb    { get; init; } = "Right Stick Click";
+    public string GamepadDpadUp      { get; init; } = "D-Pad Up";
+    public string GamepadDpadDown    { get; init; } = "D-Pad Down";
+    public string GamepadDpadLeft    { get; init; } = "D-Pad Left";
+    public string GamepadDpadRight   { get; init; } = "D-Pad Right";
+    public string GamepadAnalogUp    { get; init; } = "Analog Stick Up";
+    public string GamepadAnalogDown  { get; init; } = "Analog Stick Down";
+    public string GamepadAnalogLeft  { get; init; } = "Analog Stick Left";
+    public string GamepadAnalogRight { get; init; } = "Analog Stick Right";
+
     // ---- Shared save-slot strings ----
     /// <summary>Format string — {0} is the 1-based slot number.</summary>
     public string SlotLabel   { get; init; } = "Slot {0}";
@@ -141,6 +174,8 @@ internal sealed class LocalizationData
     public string MainMenuNewGame   { get; init; } = "New Game";
     public string MainMenuResumeGame { get; init; } = "Resume Game";
     public string MainMenuSettings  { get; init; } = "Settings";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string MainMenuChangeGame { get; init; } = "Change Game";
     public string MainMenuExit      { get; init; } = "Exit";
     public string MainMenuRebindPressKey    { get; init; } = "Press any key  •  Esc to cancel";
     public string MainMenuRebindPressButton { get; init; } = "Press any controller button  •  Start to cancel";
@@ -152,6 +187,8 @@ internal sealed class LocalizationData
     public string InGameLoadTitle    { get; init; } = "LOAD GAME?";
     public string InGameReturnTitle  { get; init; } = "RETURN TO MAIN MENU?";
     public string InGameExitTitle    { get; init; } = "EXIT TO DESKTOP?";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameChangeGameTitle { get; init; } = "CHANGE GAME?";
 
     // ---- In-game menu: root items ----
     public string InGameResume        { get; init; } = "Resume";
@@ -161,6 +198,8 @@ internal sealed class LocalizationData
     public string InGameLoadGame      { get; init; } = "Load Game";
     public string InGameSettings      { get; init; } = "Settings";
     public string InGameReturnToMain  { get; init; } = "Return to Main Menu";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameChangeGame    { get; init; } = "Change Game";
     public string InGameExit          { get; init; } = "Exit";
 
     // ---- In-game menu: confirmation screens ----
@@ -168,6 +207,8 @@ internal sealed class LocalizationData
     public string InGameConfirmNoStay    { get; init; } = "No, stay in game";
     public string InGameConfirmYesReturn { get; init; } = "Yes, return to main menu";
     public string InGameConfirmYesExit   { get; init; } = "Yes, exit to desktop";
+    /// <summary>Only shown in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public string InGameConfirmYesChangeGame { get; init; } = "Yes, change game";
     public string InGameConfirmWarning   { get; init; } = "Unsaved progress will be lost.";
 
     // ---- In-game menu: rebind prompts ----
@@ -187,8 +228,37 @@ internal sealed class LocalizationData
     // ---- Video presets sub-menu ----
     public string VideoPresetsLabel       { get; init; } = "Presets";
     public string VideoPresetsTitle       { get; init; } = "VIDEO PRESETS";
+    public string VideoPresetNoPreset     { get; init; } = "No Preset";
+    public string VideoPresetNoFilters    { get; init; } = "No Filters";
     public string VideoPresetLivingRoom   { get; init; } = "Living Room";
     public string VideoPresetArcade       { get; init; } = "Arcade Monitor";
     public string VideoPresetSharp        { get; init; } = "Sharp";
     public string VideoPresetPhosphor     { get; init; } = "Phosphor";
+
+    // ---- In-game controller-disconnected screen ----
+    public string ControllerDisconnectedTitle { get; init; } = "Controller Disconnected";
+    public string ControllerDisconnectedHint  { get; init; } = "Press any button to continue…";
+
+    // ---- In-game hotkey toast messages ----
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSavedToSlot  { get; init; } = "Saved to Slot {0}";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastLoadedSlot   { get; init; } = "Loaded Slot {0}";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSlotEmpty    { get; init; } = "Slot {0} — Empty";
+    /// <summary>Format string — {0} is the 1-based slot number.</summary>
+    public string ToastSlotSelected { get; init; } = "Slot {0} Selected";
+
+    // ---- Multi-game carousel (only shown in multi-game mode — see MultiGameMode.IsActive) ----
+    public string CarouselNoGamesAvailable { get; init; } = "No games available";
+    /// <summary>Phrased by direction (Left/Right/Up) so it reads the same on keyboard or gamepad.</summary>
+    public string CarouselLegendLine1      { get; init; } = "Left / Right: Browse    Up: Description    Enter / A: Select";
+    public string CarouselLegendLine2      { get; init; } = "Esc / B: Quit    F11 / Y: Fullscreen";
+    /// <summary>Headline shown over a structurally invalid game's box art — see GameManifest.IsValid.
+    /// Deliberately generic: the specific reason is written to neshim.log (GameScanner,
+    /// Logger.LogAlways) rather than shown to players — almost always either a Steam download
+    /// problem Steam itself flags, or a publisher packaging mistake caught in testing.</summary>
+    public string CarouselUnavailable      { get; init; } = "Game Error";
+    public string CarouselContactPublisher { get; init; } = "Contact the publisher for support.";
+    public string CarouselNoDescription    { get; init; } = "No description available.";
 }

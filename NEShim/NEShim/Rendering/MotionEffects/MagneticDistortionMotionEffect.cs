@@ -1,4 +1,4 @@
-namespace NEShim.Rendering.MotionEffects;
+﻿namespace NEShim.Rendering.MotionEffects;
 
 /// <summary>
 /// Simulates magnetic interference on a CRT by warping UV coordinates in a pixel shader.
@@ -25,7 +25,7 @@ internal sealed class MagneticDistortionMotionEffect : IMotionEffect
     public VideoMotionEffectMode EffectMode => VideoMotionEffectMode.MagneticDistortion;
 
     public string? PixelShaderResourceName
-        => "NEShim.Rendering.Shaders.MagneticDistortion.ps.cso";
+        => "NEShim.Rendering.Shaders.Dx11.MagneticDistortion.ps.cso";
 
     public bool UseLinearSampler => true;
 
@@ -44,3 +44,4 @@ internal sealed class MagneticDistortionMotionEffect : IMotionEffect
         buffer[2] = Frequency;
     }
 }
+

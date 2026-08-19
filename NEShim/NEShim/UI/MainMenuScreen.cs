@@ -1,12 +1,10 @@
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.Windows.Forms;
+using SDL3;
 using NEShim.Audio;
+using NEShim.Rendering;
 using NEShim.Config;
+using NEShim.Input;
 using NEShim.Localization;
 using NEShim.Saves;
-using NEShim.Steam;
 
 namespace NEShim.UI;
 
@@ -17,10 +15,12 @@ namespace NEShim.UI;
 /// Per-screen title, items, enabled state, and activation logic live in nested
 /// ScreenHandler classes — one per Screen enum value.
 /// </summary>
-internal sealed partial class MainMenuScreen : IDisposable
+internal sealed partial class MainMenuScreen : IDisposable, IMenuHost
 {
-    private IReadOnlyDictionary<Screen, ScreenHandler>  _handlers;
-    private (string Label, string ConfigKey)[]          _bindingActions;
+    private IReadOnlyDictionary<Screen, IScreenHandler> _handlers;
+    // Player 1's gamepad table only — kept solely so OpenMenuBindingIndex can locate the OpenMenu
+    // row for rendering (see its doc comment). GamepadBindingsHandler/KeyboardBindingsHandler
+    // build their own per-player tables locally instead of reading this field, for every player.
     private (string Label, string ConfigKey)[]          _gamepadBindingActions;
     private ResumeOption[] _resumeOptions = Array.Empty<ResumeOption>();
 
@@ -29,12 +29,12 @@ internal sealed partial class MainMenuScreen : IDisposable
     public Screen  CurrentScreen   { get; private set; } = Screen.Main;
     public bool    IsVisible       { get; private set; } = true;
     public int     SelectedIndex   { get; private set; }
-    public Bitmap? Background      { get; }
+    public IntPtr  Background      { get; }
 
-    // Pre-scaled background bitmap cache — rebuilt only when bounds change.
-    // Avoids per-frame HighQualityBicubic scaling in DrawBackground.
-    private Bitmap? _scaledBackground;
-    private Size    _scaledBoundsSize;
+    // Pre-scaled background surface cache — rebuilt only when bounds change.
+    private IntPtr        _scaledBackground;
+    private (int W, int H) _scaledBoundsSize;
+    private readonly Action<IntPtr>? _onSurfaceDisposing;
     public string? RebindingAction        { get; private set; }
     public string? GamepadRebindingAction { get; private set; }
     public bool    IsGamepadRebinding             => GamepadRebindingAction != null;
@@ -52,37 +52,26 @@ internal sealed partial class MainMenuScreen : IDisposable
         {
             string? rebinding = RebindingAction ?? GamepadRebindingAction;
             if (rebinding != null)
-                return IsNesButtonKey(rebinding) ? rebinding : null;
+                return MenuBindingHelpers.IsNesButtonKey(rebinding) ? rebinding : null;
 
-            if (CurrentScreen == Screen.KeyboardBindings)
-            {
-                var key = _bindingActions[SelectedIndex].ConfigKey;
-                return IsNesButtonKey(key) ? key : null;
-            }
-            if (CurrentScreen == Screen.GamepadBindings)
-            {
-                var key = _gamepadBindingActions[SelectedIndex].ConfigKey;
-                return IsNesButtonKey(key) ? key : null;
-            }
-            return null;
+            return _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetActiveNesButton(SelectedIndex) : null;
         }
     }
-
-    private static bool IsNesButtonKey(string key) =>
-        key is "P1 Up" or "P1 Down" or "P1 Left" or "P1 Right"
-             or "P1 A"  or "P1 B"   or "P1 Start" or "P1 Select";
 
     public string MenuPosition => _config.MainMenuPosition;
 
     public bool CanResume => _saveStates.HasAutoSave
-        || Enumerable.Range(0, SaveStateManager.SlotCount).Any(_saveStates.SlotExists);
+        || Enumerable.Range(0, _saveStates.SlotCount).Any(_saveStates.SlotExists);
 
     /// <summary>Exposes the loaded localization so stateless renderers can read strings and font family.</summary>
     public LocalizationData Localization => _localization;
 
-    private readonly SaveStateManager _saveStates;
+    private readonly ISaveManager _saveStates;
     private readonly AppConfig        _config;
     private          LocalizationData _localization;
+    // One resolver per player (index 0 = player 1, ...) — see InGameMenu's identical field for
+    // the full rationale.
+    private readonly IReadOnlyList<IGamepadGlyphResolver> _glyphResolvers;
     private readonly Action<bool>     _onWindowModeToggle;
     private readonly Action           _onConfigSaved;
     private readonly Action<int>      _onVolumeChanged;
@@ -102,11 +91,13 @@ internal sealed partial class MainMenuScreen : IDisposable
     /// <summary>Fires after the chosen save state has already been loaded.</summary>
     public event Action? ResumeChosen;
     public event Action? ExitChosen;
+    /// <summary>Only reachable in multi-game mode — see MultiGameMode.IsActive.</summary>
+    public event Action? ChangeGameChosen;
 
     // ---- Constructor ----
 
     public MainMenuScreen(
-        SaveStateManager saveStates,
+        ISaveManager saveStates,
         AppConfig        config,
         LocalizationData localization,
         string?          bgImagePath,
@@ -123,11 +114,15 @@ internal sealed partial class MainMenuScreen : IDisposable
         Action<string>                         onLanguageChanged,
         Action<int, int, int, int>             onPictureAdjustChanged,
         Action<int, int, int>                  onAudioEqChanged,
-        Bitmap?          bgImage = null)
+        IntPtr           bgImage = default,
+        Action<IntPtr>?  onSurfaceDisposing = null,
+        IReadOnlyList<IGamepadGlyphResolver>? glyphResolvers = null)
     {
+        _onSurfaceDisposing        = onSurfaceDisposing;
         _saveStates                = saveStates;
         _config                    = config;
         _localization              = localization;
+        _glyphResolvers             = glyphResolvers ?? new IGamepadGlyphResolver[] { NullGamepadGlyphResolver.Instance };
         _onWindowModeToggle        = onWindowModeToggle;
         _onConfigSaved             = onConfigSaved;
         _onVolumeChanged           = onVolumeChanged;
@@ -142,11 +137,10 @@ internal sealed partial class MainMenuScreen : IDisposable
         _onPictureAdjustChanged    = onPictureAdjustChanged;
         _onAudioEqChanged          = onAudioEqChanged;
 
-        _bindingActions        = MenuBindingHelpers.BuildBindingActions(localization);
-        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config, _bindingActions);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(localization, config);
         _handlers              = BuildHandlers();
 
-        if (bgImage is not null)
+        if (bgImage != default)
         {
             Background = bgImage;
         }
@@ -154,21 +148,54 @@ internal sealed partial class MainMenuScreen : IDisposable
         {
             string? resolved = ResolveAssetPath(bgImagePath);
             if (resolved != null)
-            {
-                try { Background = new Bitmap(resolved); }
-                catch { }
-            }
+                Background = SdlSurfaceLoader.LoadFromFile(resolved);
         }
     }
 
-    private IReadOnlyDictionary<Screen, ScreenHandler> BuildHandlers() =>
-        new Dictionary<Screen, ScreenHandler>
+    // ---- IMenuHost (explicit — for SharedScreenHandler-derived handlers only; the rest of this
+    // class's own code keeps using the private/internal members directly, unaffected) ----
+
+    AppConfig         IMenuHost.Config       => _config;
+    LocalizationData  IMenuHost.Localization => _localization;
+    Screen            IMenuHost.RootScreen   => Screen.Main;
+
+    string? IMenuHost.RebindingAction        { get => RebindingAction;        set => RebindingAction = value; }
+    string? IMenuHost.GamepadRebindingAction { get => GamepadRebindingAction; set => GamepadRebindingAction = value; }
+
+    void   IMenuHost.NavigateTo(Screen screen)               => NavigateTo(screen);
+    void   IMenuHost.ClearPreset()                           => ClearPreset();
+    void   IMenuHost.ApplyPreset(Rendering.VideoPreset preset) => ApplyPreset(preset);
+    void   IMenuHost.ResetPicture()                          => ResetPicture();
+    void   IMenuHost.ResetEq()                                => ResetEq();
+    string IMenuHost.GetGamepadLabel(string configKey)        => GetGamepadLabel(configKey);
+    IntPtr IMenuHost.GetGamepadGlyph(string configKey)         => GetGamepadGlyph(configKey);
+    string IMenuHost.KeyboardLabel(string configKey)           => KeyboardLabel(configKey);
+
+    Action<bool>                            IMenuHost.OnWindowModeToggle         => _onWindowModeToggle;
+    Action                                  IMenuHost.OnConfigSaved              => _onConfigSaved;
+    Action<AudioFilterMode>                 IMenuHost.OnFilterChanged            => _onFilterChanged;
+    Action<Rendering.VideoFilterMode>       IMenuHost.OnVideoFilterChanged       => _onVideoFilterChanged;
+    Action<Rendering.VideoFilterMode?>      IMenuHost.OnVideoFilterOverlayChanged => _onVideoFilterOverlayChanged;
+    Action<Rendering.VideoColorFilterMode>  IMenuHost.OnVideoColorFilterChanged  => _onVideoColorFilterChanged;
+    Action<Rendering.VideoMotionEffectMode> IMenuHost.OnVideoMotionEffectChanged => _onVideoMotionEffectChanged;
+    Action<Rendering.OverscanMode>          IMenuHost.OnOverscanModeChanged      => _onOverscanModeChanged;
+    Action<string>                          IMenuHost.OnLanguageChanged          => _onLanguageChanged;
+
+    private IReadOnlyDictionary<Screen, IScreenHandler> BuildHandlers() =>
+        new Dictionary<Screen, IScreenHandler>
         {
             [Screen.Main]             = new MainHandler(this),
             [Screen.ResumeSlots]      = new ResumeSlotsHandler(this),
             [Screen.Settings]         = new SettingsHandler(this),
             [Screen.KeyboardBindings] = new KeyboardBindingsHandler(this),
             [Screen.GamepadBindings]  = new GamepadBindingsHandler(this),
+            [Screen.PlayerSelect]           = new PlayerSelectHandler(this),
+            [Screen.GamepadBindingsP2]      = new GamepadBindingsHandler(this, player: 2),
+            [Screen.GamepadBindingsP3]      = new GamepadBindingsHandler(this, player: 3),
+            [Screen.GamepadBindingsP4]      = new GamepadBindingsHandler(this, player: 4),
+            [Screen.KeyboardBindingsP2]     = new KeyboardBindingsHandler(this, player: 2),
+            [Screen.KeyboardBindingsP3]     = new KeyboardBindingsHandler(this, player: 3),
+            [Screen.KeyboardBindingsP4]     = new KeyboardBindingsHandler(this, player: 4),
             [Screen.Video]             = new VideoHandler(this),
             [Screen.Sound]             = new SoundHandler(this),
             [Screen.AudioFilter]       = new AudioFilterHandler(this),
@@ -196,13 +223,13 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     // ---- Keyboard input ----
 
-    public bool HandleKey(Keys key)
+    public bool HandleKey(SDL.Keycode key)
     {
         if (!IsVisible) return false;
 
         if (RebindingAction != null)
         {
-            if (key == Keys.Escape)
+            if (key == SDL.Keycode.Escape)
                 RebindingAction = null;
             else
             {
@@ -215,46 +242,46 @@ internal sealed partial class MainMenuScreen : IDisposable
 
         if (GamepadRebindingAction != null)
         {
-            if (key == Keys.Escape) GamepadRebindingAction = null;
+            if (key == SDL.Keycode.Escape) GamepadRebindingAction = null;
             return true;
         }
 
         if (CurrentScreen == Screen.Sound && SelectedIndex == SoundHandler.VolumeIndex)
         {
-            if (key == Keys.Left)  { AdjustVolume(-5); return true; }
-            if (key == Keys.Right) { AdjustVolume( 5); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustVolume(-5); return true; }
+            if (key == SDL.Keycode.Right) { AdjustVolume( 5); return true; }
         }
 
         if (CurrentScreen == Screen.VideoPicture && VideoPictureHandler.IsSliderIndex(SelectedIndex))
         {
-            if (key == Keys.Left)  { AdjustPicture(SelectedIndex, -1); return true; }
-            if (key == Keys.Right) { AdjustPicture(SelectedIndex,  1); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustPicture(SelectedIndex, -1); return true; }
+            if (key == SDL.Keycode.Right) { AdjustPicture(SelectedIndex,  1); return true; }
         }
 
         if (CurrentScreen == Screen.AudioEq && AudioEqHandler.IsSliderIndex(SelectedIndex))
         {
-            if (key == Keys.Left)  { AdjustEq(SelectedIndex, -1); return true; }
-            if (key == Keys.Right) { AdjustEq(SelectedIndex,  1); return true; }
+            if (key == SDL.Keycode.Left)  { AdjustEq(SelectedIndex, -1); return true; }
+            if (key == SDL.Keycode.Right) { AdjustEq(SelectedIndex,  1); return true; }
         }
 
         switch (key)
         {
-            case Keys.Escape:
+            case SDL.Keycode.Escape:
                 if (CurrentScreen != Screen.Main)
                     NavigateTo(ParentScreen(CurrentScreen));
                 return true;
 
-            case Keys.Up:
+            case SDL.Keycode.Up:
                 NavigateCursor(-1);
                 return true;
 
-            case Keys.Down:
+            case SDL.Keycode.Down:
                 NavigateCursor(1);
                 return true;
 
-            case Keys.Return:
-            case Keys.Z:
-            case Keys.Space:
+            case SDL.Keycode.Return:
+            case SDL.Keycode.Z:
+            case SDL.Keycode.Space:
                 ActivateCurrent();
                 return true;
         }
@@ -456,12 +483,18 @@ internal sealed partial class MainMenuScreen : IDisposable
 
     private int ItemCount() => _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.ItemCount : 0;
 
-    private static Screen ParentScreen(Screen screen) => screen switch
+    // Instance method, not static — see InGameMenu.ParentScreen's identical doc comment for why
+    // KeyboardBindings/GamepadBindings' parent depends on PlayerCount.
+    private Screen ParentScreen(Screen screen) => screen switch
     {
         Screen.ResumeSlots      => Screen.Main,
         Screen.Settings         => Screen.Main,
-        Screen.KeyboardBindings => Screen.Settings,
-        Screen.GamepadBindings  => Screen.Settings,
+        Screen.KeyboardBindings or Screen.GamepadBindings
+            => _config.PlayerCount > 1 ? Screen.PlayerSelect : Screen.Settings,
+        Screen.PlayerSelect     => Screen.Settings,
+        Screen.GamepadBindingsP2 or Screen.GamepadBindingsP3 or Screen.GamepadBindingsP4
+            or Screen.KeyboardBindingsP2 or Screen.KeyboardBindingsP3 or Screen.KeyboardBindingsP4
+            => Screen.PlayerSelect,
         Screen.Video            => Screen.Settings,
         Screen.Sound            => Screen.Settings,
         Screen.AudioFilter      => Screen.Sound,
@@ -483,7 +516,7 @@ internal sealed partial class MainMenuScreen : IDisposable
         if (_saveStates.HasAutoSave)
             list.Add(new(_localization.SlotAutoSave, () => _saveStates.AutoLoad()));
 
-        for (int i = 0; i < SaveStateManager.SlotCount; i++)
+        for (int i = 0; i < _saveStates.SlotCount; i++)
         {
             if (_saveStates.SlotExists(i))
             {
@@ -511,104 +544,126 @@ internal sealed partial class MainMenuScreen : IDisposable
     public string[] GetCurrentItems() =>
         _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItems() : Array.Empty<string>();
 
-    public Bitmap? GetCurrentItemIcon(int index) =>
-        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemIcon(index) : null;
+    public IntPtr GetCurrentItemIcon(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemIcon(index) : IntPtr.Zero;
+
+    public IntPtr GetCurrentItemValueIcon(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetItemValueIcon(index) : IntPtr.Zero;
+
+    public SliderItemData? GetCurrentSliderData(int index) =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.GetSliderData(index) : null;
+
+    public bool ShowsControllerDiagram =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) && handler.ShowsControllerDiagram;
+
+    public int GetCurrentSeparatorIndex() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.SeparatorIndex : -1;
+
+    public string? GetCurrentSeparatorLabel() =>
+        _handlers.TryGetValue(CurrentScreen, out var handler) ? handler.SeparatorLabel : null;
 
     public void UpdateLocalization(LocalizationData data)
     {
         _localization          = data;
-        _bindingActions        = MenuBindingHelpers.BuildBindingActions(data);
-        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config, _bindingActions);
+        _gamepadBindingActions = MenuBindingHelpers.BuildGamepadBindingActions(data, _config);
         _handlers              = BuildHandlers();
     }
 
     // ---- Rendering label helpers (used by binding handlers) ----
 
     private string KeyboardLabel(string configKey)
-        => _config.InputMappings.TryGetValue(configKey, out var b) ? b.Key ?? _localization.BindNone : _localization.BindNone;
+        => MenuBindingHelpers.KeyboardLabel(configKey, _config, _localization);
 
     private string GetGamepadLabel(string configKey)
+        => MenuBindingHelpers.GetGamepadLabel(configKey, _config, _localization);
+
+    private IntPtr GetGamepadGlyph(string configKey)
     {
-        if (configKey == "OpenMenu")
-            return _config.GamepadHotkeyMappings.GetValueOrDefault("OpenMenu", "LeftShoulder");
-
-        if (SteamInputManager.IsUsingNativeActions()
-            && SteamInputManager.NesButtonToAction.TryGetValue(configKey, out var actionName))
-            return SteamInputManager.GetNativeLabel(actionName);
-
-        return _config.InputMappings.TryGetValue(configKey, out var b)
-            ? b.GamepadButton ?? _localization.BindNone
-            : _localization.BindNone;
+        int player = MenuBindingHelpers.PlayerFromConfigKey(configKey);
+        int index  = Math.Clamp(player - 1, 0, _glyphResolvers.Count - 1);
+        return MenuBindingHelpers.GetGamepadGlyph(configKey, _config, _localization, _glyphResolvers[index]);
     }
 
-    private string AudioFilterDisplayName(AudioFilterMode mode) => mode switch
+    // Returns a pre-scaled SDL surface at bounds dimensions, rebuilding only when the bounds change.
+    // The caller must not destroy the returned surface — it is owned by this instance.
+    internal unsafe IntPtr GetScaledBackground(SDL.Rect bounds)
     {
-        AudioFilterMode.Default       => _localization.AudioFilterDefault,
-        AudioFilterMode.Warm          => _localization.AudioFilterWarm,
-        AudioFilterMode.PseudoStereo  => _localization.AudioFilterPseudoStereo,
-        AudioFilterMode.WarmStereo    => _localization.AudioFilterWarmStereo,
-        AudioFilterMode.Compression   => _localization.AudioFilterCompression,
-        AudioFilterMode.BassBoost     => _localization.AudioFilterBassBoost,
-        AudioFilterMode.Saturation    => _localization.AudioFilterSaturation,
-        AudioFilterMode.DmcStabilizer => _localization.AudioFilterDmcStabilizer,
-        _                             => mode.ToString(),
-    };
-
-    // Returns a pre-scaled Bitmap at bounds.Size, rebuilding only when the bounds change.
-    // The caller must not dispose the returned bitmap — it is owned by this instance.
-    internal Bitmap? GetScaledBackground(Rectangle bounds)
-    {
-        if (Background == null) return null;
-        if (_scaledBackground != null && _scaledBoundsSize == bounds.Size)
+        if (Background == IntPtr.Zero) return IntPtr.Zero;
+        if (_scaledBackground != IntPtr.Zero && _scaledBoundsSize == (bounds.W, bounds.H))
             return _scaledBackground;
 
-        _scaledBackground?.Dispose();
-        _scaledBackground = null;
+        if (_scaledBackground != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(_scaledBackground);
+            SDL.DestroySurface(_scaledBackground);
+            _scaledBackground = IntPtr.Zero;
+        }
 
-        float imgAspect    = (float)Background.Width / Background.Height;
-        float boundsAspect = (float)bounds.Width / bounds.Height;
-        Rectangle dest;
+        SDL.Surface* bgSurf = (SDL.Surface*)Background;
+        int imgW = bgSurf->Width;
+        int imgH = bgSurf->Height;
+        if (imgW <= 0 || imgH <= 0) return IntPtr.Zero;
+
+        float imgAspect    = (float)imgW / imgH;
+        float boundsAspect = (float)bounds.W / bounds.H;
+        SDL.Rect srcRect;
         if (boundsAspect > imgAspect)
         {
-            int h = (int)(bounds.Width / imgAspect);
-            dest = new Rectangle(0, (bounds.Height - h) / 2, bounds.Width, h);
+            int h = (int)(bounds.W / imgAspect);
+            srcRect = new SDL.Rect { X = 0, Y = (bounds.H - h) / 2, W = bounds.W, H = h };
         }
         else
         {
-            int w = (int)(bounds.Height * imgAspect);
-            dest = new Rectangle((bounds.Width - w) / 2, 0, w, bounds.Height);
+            int w = (int)(bounds.H * imgAspect);
+            srcRect = new SDL.Rect { X = (bounds.W - w) / 2, Y = 0, W = w, H = bounds.H };
         }
 
-        var cached = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
-        using var cg = Graphics.FromImage(cached);
-        cg.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        cg.CompositingMode   = CompositingMode.SourceCopy;
-        using var black = new SolidBrush(Color.Black);
-        cg.FillRectangle(black, 0, 0, bounds.Width, bounds.Height);
-        cg.CompositingMode = CompositingMode.SourceOver;
-        cg.DrawImage(Background, dest);
+        IntPtr cached = SDL.CreateSurface(bounds.W, bounds.H, SDL.PixelFormat.ARGB8888);
+        if (cached == IntPtr.Zero) return IntPtr.Zero;
+
+        uint black = SDL.MapSurfaceRGB(cached, 0, 0, 0);
+        SDL.FillSurfaceRect(cached, IntPtr.Zero, black);
+        SDL.BlitSurfaceScaled(Background, IntPtr.Zero, cached, in srcRect, SDL.ScaleMode.Linear);
 
         _scaledBackground = cached;
-        _scaledBoundsSize = bounds.Size;
+        _scaledBoundsSize = (bounds.W, bounds.H);
         return cached;
     }
 
     public void Dispose()
     {
-        _scaledBackground?.Dispose();
-        Background?.Dispose();
+        if (_scaledBackground != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(_scaledBackground);
+            SDL.DestroySurface(_scaledBackground);
+            _scaledBackground = IntPtr.Zero;
+        }
+        if (Background != IntPtr.Zero)
+        {
+            _onSurfaceDisposing?.Invoke(Background);
+            SDL.DestroySurface(Background);
+        }
     }
 
-    internal static string? ResolveAssetPath(string path)
+    /// <summary>
+    /// <paramref name="ctx"/> is null for single-game mode (unchanged: exe-relative, then CWD
+    /// fallback) or the active game's <see cref="GameContext"/> in multi-game mode (that
+    /// game's own folder — no CWD fallback, since that fallback only ever made sense for the
+    /// single-game legacy path).
+    /// </summary>
+    internal static string? ResolveAssetPath(string path, GameContext? ctx = null)
     {
         if (Path.IsPathRooted(path))
             return File.Exists(path) ? path : null;
 
-        string nextToExe = Path.Combine(AppContext.BaseDirectory, path);
-        if (File.Exists(nextToExe)) return nextToExe;
+        string nextToRoot = GameContext.ResolvePath(path, ctx);
+        if (File.Exists(nextToRoot)) return nextToRoot;
 
-        string inCwd = Path.GetFullPath(path);
-        if (File.Exists(inCwd)) return inCwd;
+        if (ctx is null)
+        {
+            string inCwd = Path.GetFullPath(path);
+            if (File.Exists(inCwd)) return inCwd;
+        }
 
         return null;
     }

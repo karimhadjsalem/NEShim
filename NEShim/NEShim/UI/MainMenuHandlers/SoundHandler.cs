@@ -12,16 +12,6 @@ internal sealed partial class MainMenuScreen
         private const int MusicIndex  = 3;
         private const int BackIndex   = 4;
 
-        private const int BarWidth = 20;
-
-        private static string VolumeSlider(string label, int value)
-        {
-            int filled = (int)Math.Round(value / 100.0 * BarWidth);
-            filled     = Math.Clamp(filled, 0, BarWidth);
-            string bar = new string('█', filled) + new string('░', BarWidth - filled);
-            return $"{label}  ◀{bar}▶  {value.ToString().PadLeft(3)}";
-        }
-
         public SoundHandler(MainMenuScreen menu) : base(menu) { }
 
         public override string   Title     => Menu._localization.SoundTitle;
@@ -31,14 +21,21 @@ internal sealed partial class MainMenuScreen
         {
             var mode  = AudioFilterModeParser.Parse(Menu._config.AudioFilter);
             var items = new string[5];
-            items[VolumeIndex] = VolumeSlider(Menu._localization.SoundVolume, Menu._config.Volume);
-            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {Menu.AudioFilterDisplayName(mode)}";
+            items[VolumeIndex] = Menu._localization.SoundVolume;
+            items[FilterIndex] = $"{Menu._localization.AudioFilterLabel}: {MenuBindingHelpers.AudioFilterDisplayName(mode, Menu._localization)}";
             items[EqIndex]     = $"{Menu._localization.AudioEqLabel}: {EqSummary()}";
             items[MusicIndex]  = Menu._config.MainMenuMusicEnabled
                 ? Menu._localization.SoundMusicOn
                 : Menu._localization.SoundMusicOff;
             items[BackIndex]   = Menu._localization.Back;
             return items;
+        }
+
+        public override SliderItemData? GetSliderData(int index)
+        {
+            if (index != VolumeIndex) return null;
+            int volume = Menu._config.Volume;
+            return new SliderItemData(Menu._localization.SoundVolume, volume / 100f, volume.ToString());
         }
 
         public override void Activate(int index)

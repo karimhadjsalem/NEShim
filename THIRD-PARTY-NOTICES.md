@@ -67,34 +67,6 @@ SOFTWARE.
 
 ---
 
-## NAudio
-
-https://github.com/naudio/NAudio
-
-MIT License
-
-Copyright 2020 Mark Heath
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
----
-
 ## Newtonsoft.Json
 
 https://www.newtonsoft.com/json
@@ -242,6 +214,88 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## SDL3-CS
+
+https://github.com/flibitijibibo/SDL3-CS
+
+MIT License
+
+Copyright (c) 2013-2024 Ethan Lee and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Note: SDL3-CS and its platform-native bundle packages (`SDL3-CS.Windows`,
+`SDL3-CS.Linux`, `SDL3-CS.MacOS`) bundle the SDL3 native runtime library
+(`SDL3.dll` / `libSDL3.so` / `libSDL3.dylib`), which is distributed under the
+zlib license. SDL3 is Copyright (C) 1997-2024 Sam Lantinga.
+
+---
+
+## SDL3-CS *.Image (SDL3_image bindings)
+
+https://github.com/flibitijibibo/SDL3-CS
+
+Covers: `SDL3-CS.Windows.Image`, `SDL3-CS.Linux.Image`, `SDL3-CS.MacOS.Image`.
+Same MIT License as SDL3-CS; copyright (c) 2013-2024 Ethan Lee and contributors.
+
+Note: Each platform-native Image package bundles the SDL3_image native library
+(`SDL3_image.dll` / `libSDL3_image.so` / `libSDL3_image.dylib`), which is
+distributed under the zlib license. SDL_image is Copyright (C) 1997-2024
+Sam Lantinga.
+
+---
+
+## SDL3-CS *.TTF (SDL3_ttf bindings)
+
+https://github.com/flibitijibibo/SDL3-CS
+
+Covers: `SDL3-CS.Windows.TTF`, `SDL3-CS.Linux.TTF`.
+Same MIT License as SDL3-CS; copyright (c) 2013-2024 Ethan Lee and contributors.
+
+Note: Each platform-native TTF package bundles the SDL3_ttf native font rendering
+library (`SDL3_ttf.dll` / `libSDL3_ttf.so`), which is distributed under the
+zlib license. SDL_ttf is Copyright (C) 1997-2024 Sam Lantinga.
+SDL_ttf uses the FreeType font rendering engine:
+  Portions of this software are copyright © 2024 The FreeType Project
+  (https://www.freetype.org). All rights reserved.
+FreeType is distributed under either the FreeType License (BSD-style) or the GNU
+General Public License version 2. The FreeType License version applies here; the
+GPL option is not exercised.
+
+---
+
+## Kenney Input Prompts
+
+https://kenney.nl/assets/input-prompts
+
+Gamepad button glyph icons (`NEShim/Assets/gamepad_glyphs/{xbox,playstation,switchpro,switchjoyconpair,steamdeck}/*.png`),
+created and distributed by Kenney (www.kenney.nl).
+
+License: Creative Commons Zero v1.0 Universal (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+CC0 is a public-domain dedication and imposes no attribution requirement — this
+notice is included voluntarily, as Kenney's own license terms invite ("Support
+by crediting 'Kenney' or 'www.kenney.nl' — this is not a requirement").
 
 ---
 

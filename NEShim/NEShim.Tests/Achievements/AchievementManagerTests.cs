@@ -1,5 +1,5 @@
-using BizHawk.Emulation.Common;
 using NEShim.Achievements;
+using NEShim.Emulation;
 using NSubstitute;
 
 namespace NEShim.Tests.Achievements;
@@ -7,16 +7,14 @@ namespace NEShim.Tests.Achievements;
 [TestFixture]
 internal class AchievementManagerTests
 {
-    private IMemoryDomains _domains = null!;
-    private MemoryDomain   _domain  = null!;
+    private IReadOnlyDictionary<string, IMemoryDomain> _domains = null!;
+    private IMemoryDomain                              _domain  = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _domain  = Substitute.For<MemoryDomain>();
-        _domains = Substitute.For<IMemoryDomains>();
-        _domains["System Bus"].Returns(_domain);
-        _domains.MainMemory.Returns(_domain);
+        _domain  = Substitute.For<IMemoryDomain>();
+        _domains = new Dictionary<string, IMemoryDomain> { ["System Bus"] = _domain };
     }
 
     // ---- Factory helpers ----

@@ -1,8 +1,10 @@
+using NEShim.Emulation;
+
 namespace NEShim.Achievements;
 
 internal static class AchievementEvaluator
 {
-    internal static long ReadRaw(IMemoryReader memory, int address, int byteCount, bool bigEndian)
+    internal static long ReadRaw(IMemoryDomain memory, int address, int byteCount, bool bigEndian)
     {
         long value = 0;
         for (int i = 0; i < byteCount; i++)

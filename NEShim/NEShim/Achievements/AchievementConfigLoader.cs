@@ -1,13 +1,14 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NEShim.Config;
 
 namespace NEShim.Achievements;
 
 /// <summary>
 /// Loads per-game achievement definitions from achievements.json, keyed by ROM SHA1 hash.
 /// Any definition whose ECDSA-P256 signature does not verify is silently dropped — it will
-/// never fire in the game. Run seal-achievements to stamp valid signatures after editing the file.
+/// never fire in the game. Run pub-utils to stamp valid signatures after editing the file.
 /// Key resolution precedence: AchievementSigner.EmbeddedPublicKeyBase64 (binary-embedded, highest
 /// priority) → achievementPublicKey in config.json → neither configured (returns null, no achievements fire).
 ///
@@ -24,7 +25,7 @@ namespace NEShim.Achievements;
 ///         "encoding": "binary",
 ///         "comparison": "equals",
 ///         "value": 1,
-///         "sig": "...base64 ECDSA-P256 signature written by seal-achievements..."
+///         "sig": "...base64 ECDSA-P256 signature written by pub-utils..."
 ///       }
 ///     ]
 ///   }
@@ -40,18 +41,18 @@ internal static class AchievementConfigLoader
         DefaultIgnoreCondition      = JsonIgnoreCondition.Never,
     };
 
-    private static string ConfigPath =>
-        Path.Combine(AppContext.BaseDirectory, "achievements.json");
-
     /// <summary>
     /// Returns the achievement config for the given ROM SHA1 hash with only
     /// signature-verified definitions, or null if none is configured or no key is set.
     /// Pass <paramref name="configPublicKey"/> from <c>AppConfig.AchievementPublicKey</c>.
     /// Key precedence: <see cref="AchievementSigner.EmbeddedPublicKeyBase64"/> (binary-embedded,
     /// set at build time) → <paramref name="configPublicKey"/> (config.json) → null (disabled).
+    /// <paramref name="ctx"/> is null for single-game mode (unchanged: achievements.json next to
+    /// the exe) or the active game's <see cref="GameContext"/> in multi-game mode (that game's
+    /// own games/&lt;gameId&gt;/achievements.json).
     /// </summary>
-    internal static GameAchievementConfig? Load(string romHash, string configPublicKey) =>
-        LoadFrom(romHash, configPublicKey, ConfigPath, AchievementSigner.EmbeddedPublicKeyBase64);
+    internal static GameAchievementConfig? Load(string romHash, string configPublicKey, GameContext? ctx = null) =>
+        LoadFrom(romHash, configPublicKey, GameContext.ResolvePath("achievements.json", ctx), AchievementSigner.EmbeddedPublicKeyBase64);
 
     /// <summary>
     /// Full-parameter overload used by integration tests. Allows the file path and embedded
@@ -110,7 +111,7 @@ internal static class AchievementConfigLoader
                     bool valid = AchievementSigner.Verify(def, publicKey);
                     if (!valid)
                         Logger.Log(
-                            $"[Achievements] Rejected '{def.SteamId}' — missing or invalid signature. Run seal-achievements to fix.");
+                            $"[Achievements] Rejected '{def.SteamId}' — missing or invalid signature. Run pub-utils to fix.");
                     return valid;
                 })
                 .ToList();

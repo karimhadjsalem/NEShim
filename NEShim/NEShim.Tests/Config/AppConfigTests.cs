@@ -41,6 +41,13 @@ internal class AppConfigTests
     }
 
     [Test]
+    public void DefaultGamepadDpadStickInterchangeable_IsTrue()
+    {
+        var config = new AppConfig();
+        Assert.That(config.GamepadDpadStickInterchangeable, Is.True);
+    }
+
+    [Test]
     public void DefaultMainMenuMusicPath_IsEmpty()
     {
         var config = new AppConfig();
@@ -71,6 +78,20 @@ internal class AppConfigTests
     {
         var config = new AppConfig();
         Assert.That(config.HotkeyMappings.ContainsKey("OpenMenu"), Is.False);
+    }
+
+    [Test]
+    public void DefaultHotkeyMappings_ToggleWindow_MapsToF11()
+    {
+        var config = new AppConfig();
+        Assert.That(config.HotkeyMappings["ToggleWindow"], Is.EqualTo("F11"));
+    }
+
+    [Test]
+    public void DefaultGamepadHotkeyMappings_ToggleWindowCarousel_MapsToY()
+    {
+        var config = new AppConfig();
+        Assert.That(config.GamepadHotkeyMappings["ToggleWindowCarousel"], Is.EqualTo("Y"));
     }
 
     [Test]
@@ -175,4 +196,41 @@ internal class AppConfigTests
         Assert.That(config.MainMenuMusicVolume, Is.EqualTo(100));
     }
 
+    // ---- Multiplayer (PlayerCount) ----
+
+    [Test]
+    public void PlayerCount_DefaultIsOne()
+    {
+        var config = new AppConfig();
+        Assert.That(config.PlayerCount, Is.EqualTo(1));
+    }
+
+    [TestCase(2)] [TestCase(3)] [TestCase(4)]
+    public void DefaultInputMappings_ContainsAllEightNesButtonsForExtraPlayers(int player)
+    {
+        var config = new AppConfig();
+        string[] expected =
+        {
+            $"P{player} Up", $"P{player} Down", $"P{player} Left", $"P{player} Right",
+            $"P{player} A",  $"P{player} B",   $"P{player} Start", $"P{player} Select",
+        };
+        Assert.That(config.InputMappings.Keys, Is.SupersetOf(expected));
+    }
+
+    [TestCase(2)] [TestCase(3)] [TestCase(4)]
+    public void DefaultInputMappings_ExtraPlayers_HaveNoDefaultKeyboardBinding(int player)
+    {
+        // Multiplayer is gamepad-first out of the box — a shared keyboard can't serve 4
+        // simultaneous players without a publisher-chosen layout (see PlayerCount's doc comment).
+        var config = new AppConfig();
+        Assert.That(config.InputMappings[$"P{player} Up"].Key, Is.Null);
+        Assert.That(config.InputMappings[$"P{player} Up"].GamepadButton, Is.EqualTo("DPadUp"));
+    }
+
+    [Test]
+    public void HideKeyboardControlsForExtraPlayers_DefaultIsTrue()
+    {
+        var config = new AppConfig();
+        Assert.That(config.HideKeyboardControlsForExtraPlayers, Is.True);
+    }
 }

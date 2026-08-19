@@ -1,3 +1,5 @@
+using NEShim.Config;
+
 namespace NEShim.UI;
 
 internal sealed partial class InGameMenu
@@ -6,15 +8,21 @@ internal sealed partial class InGameMenu
     {
         private bool CanLoad => Menu._saveStates.SlotExists(Menu._saveStates.ActiveSlot);
 
+        // "Change Game" only exists as a menu item in multi-game mode — the item index it
+        // occupies, and the Exit index after it, shift accordingly.
+        private static bool HasChangeGame => MultiGameMode.IsActive;
+        private int ChangeGameIndex => 7;
+        private int ExitIndex       => HasChangeGame ? 8 : 7;
+
         public RootHandler(InGameMenu menu) : base(menu) { }
         public override string Title     => Menu._localization.InGamePausedTitle;
-        public override int    ItemCount => 8;
+        public override int    ItemCount => HasChangeGame ? 9 : 8;
         public override string[] GetItems()
         {
             var loadLabel = CanLoad
                 ? Menu._localization.InGameLoadGame
                 : Menu._localization.InGameLoadGame + Menu._localization.SlotNoSave;
-            return new[]
+            var items = new List<string>
             {
                 Menu._localization.InGameResume,
                 Menu._localization.InGameResetGame,
@@ -23,8 +31,10 @@ internal sealed partial class InGameMenu
                 loadLabel,
                 Menu._localization.InGameSettings,
                 Menu._localization.InGameReturnToMain,
-                Menu._localization.InGameExit,
             };
+            if (HasChangeGame) items.Add(Menu._localization.InGameChangeGame);
+            items.Add(Menu._localization.InGameExit);
+            return items.ToArray();
         }
         public override bool IsItemEnabled(int index) =>
             index != RootItemLoadGame || CanLoad;
@@ -42,9 +52,17 @@ internal sealed partial class InGameMenu
                     Menu.NavigateTo(Screen.ConfirmMainMenu);
                     Menu.SelectedItem = 1;
                     break;
-                case 7:
-                    Menu.NavigateTo(Screen.ConfirmExit);
-                    Menu.SelectedItem = 1;
+                default:
+                    if (HasChangeGame && index == ChangeGameIndex)
+                    {
+                        Menu.NavigateTo(Screen.ConfirmChangeGame);
+                        Menu.SelectedItem = 1;
+                    }
+                    else if (index == ExitIndex)
+                    {
+                        Menu.NavigateTo(Screen.ConfirmExit);
+                        Menu.SelectedItem = 1;
+                    }
                     break;
             }
         }
