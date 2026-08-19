@@ -66,7 +66,10 @@ Program.cs
                │                              SaveManager (states + SRAM), sidebar SDL_Surfaces
                └─ UnloadCurrentGame()         — called internally first; a no-op on this, the first, call
             2. FrameBuffer allocation       — engine-level, not part of the Template Method above
-            3. InitializeInput()            — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input)
+            3. InitializeInput()            — SDL3GamepadDevice + InputManager (keyboard, SDL3 gamepad, Steam Input);
+                                               fans out to one gamepad+Steam Input source pair per active player
+                                               when AppConfig.PlayerCount > 1 (see the Input guide's
+                                               Local multiplayer section)
             4. InitializeAudio()            — AudioPlayer (SDL3 audio stream)
             5. InitializeSteam()            — SteamManager.Initialize() → overlay callback wired
             6. InitializeWindowAndRenderer()
@@ -205,7 +208,7 @@ Each menu uses a **per-screen handler** internally. Each handler owns exactly on
 Two handler shapes coexist behind the common `IScreenHandler` interface:
 
 - **Menu-specific handlers** — screens whose logic genuinely differs between the two menus (`RootHandler`/`MainHandler`, `ConfirmHandler`, `SoundHandler`, `SaveSlotSelectHandler`, `ResumeSlotsHandler`, `ControllerDisconnectedHandler`) stay nested private classes inside their owning menu, deriving from that menu's own abstract `ScreenHandler` base. Nested classes have full access to all private fields and methods of their enclosing menu — used for things like `_saveStates`, `Close()`, or menu-specific events that aren't part of the shared contract below.
-- **Shared handlers** — the ~11 screens whose logic is identical in both menus (Video, Video Filter, Motion Effect, Picture, Presets, Audio Filter, Audio EQ, Gamepad Bindings, Keyboard Bindings, Language, Settings) live once, in `UI/SharedMenuHandlers/`, deriving from `SharedScreenHandler` instead — typed against a small `IMenuHost` interface (config, localization, navigation, the handful of config-change callbacks these screens actually call, the binding-action tables, and the gamepad label/glyph lookups) rather than either concrete menu class. Both `InGameMenu` and `MainMenuScreen` implement `IMenuHost` **explicitly** (`AppConfig IMenuHost.Config => _config;`), which keeps its members reachable only through an `IMenuHost`-typed reference — the rest of each menu's own code is completely unaffected and keeps referencing its private fields directly.
+- **Shared handlers** — the screens whose logic is identical in both menus (Video, Video Filter, Motion Effect, Picture, Presets, Audio Filter, Audio EQ, Gamepad Bindings, Keyboard Bindings, Language, Settings, Player Select) live once, in `UI/SharedMenuHandlers/`, deriving from `SharedScreenHandler` instead — typed against a small `IMenuHost` interface (config, localization, navigation, the handful of config-change callbacks these screens actually call, and the gamepad label/glyph lookups) rather than either concrete menu class. Both `InGameMenu` and `MainMenuScreen` implement `IMenuHost` **explicitly** (`AppConfig IMenuHost.Config => _config;`), which keeps its members reachable only through an `IMenuHost`-typed reference — the rest of each menu's own code is completely unaffected and keeps referencing its private fields directly. Gamepad Bindings and Keyboard Bindings are each registered **four times** (once per player, 1-4) against the same handler class, parameterized by a constructor argument rather than duplicated — see [Player-parameterized handlers](#1b-player-parameterized-handlers-a-shared-handler-variant) below.
 
 Adding a new screen whose logic differs between the two menus: add the enum value, add a nested handler class, add one `BuildHandlers()` entry (per menu). Adding a new screen with identical logic in both menus: add the enum value, add one `SharedScreenHandler`-derived class in `UI/SharedMenuHandlers/`, add one `BuildHandlers()` entry in *each* menu (both construct the same shared class). Either way, there are no parallel switch statements to keep in sync beyond that one dictionary entry per menu.
 
@@ -684,11 +687,26 @@ Either way:
 
 1. Add a value to the shared `Screen` enum (`UI/Screen.cs`).
 2. Implement `IScreenHandler`: `Title`, `ItemCount`, `GetItems()`, `IsItemEnabled(int)`, `Activate(int)`.
-3. Only if a row should render as something other than plain text, override the matching virtual on `ScreenHandler` — all three default to "none," so a screen that doesn't need them needs no override:
+3. Only if a row (or the screen as a whole) needs something other than plain text, override the matching virtual on `ScreenHandler`/`SharedScreenHandler` — every one of these defaults to "none," so a screen that doesn't need them needs no override:
    - `GetSliderData(int) => SliderItemData?` — a fill-bar row (volume, brightness, etc.).
    - `GetItemIcon(int) => IntPtr` — a left-hand icon row (used today only by the Language screen's flags).
    - `GetItemValueIcon(int) => IntPtr` — a right-hand value glyph in place of trailing text (used today by gamepad binding rows).
+   - `GetActiveNesButton(int selectedItem) => string?` — the NES button config key the controller diagram should highlight for the given row, or `null` if that row isn't a real NES button. Overridden only by the gamepad/keyboard binding handlers; lets `InGameMenu.ActiveNesButton`/`MainMenuScreen`'s equivalent dispatch polymorphically (`_handlers[Current].GetActiveNesButton(SelectedItem)`) instead of switching on `Screen` values.
+   - `SeparatorIndex => int` (default `-1`) / `SeparatorLabel => string?` (default `null`) — draws a divider line before the given row index, with an optional caption underneath. Generalizes what was originally a single hardcoded case (the "System" divider before the OpenMenu row on the Gamepad Bindings screen); a new screen needing its own grouping divider (see `PlayerSelectHandler`'s gamepad/keyboard row grouping for an example) needs only this override — no renderer changes.
 4. Register the handler in `BuildHandlers()` — once per menu (`new XHandler(this)` in both `InGameMenu.BuildHandlers()` and `MainMenuScreen.BuildHandlers()`) if shared, once total if menu-specific.
+
+### 1b. Player-parameterized handlers (a shared-handler variant)
+
+A handler whose logic is identical across several near-duplicate screens — not just identical between the two menus, but identical modulo one small piece of scoping data — doesn't need a new class per instance. `GamepadBindingsHandler`/`KeyboardBindingsHandler` are the model: each takes an `int player = 1` constructor parameter, builds its own per-player data locally (`MenuBindingHelpers.BuildBindingActions(menu.Localization, player)` rather than reading a field off `IMenuHost`), and is registered under **multiple** `Screen` enum values with a different `player` argument each time:
+
+```csharp
+[Screen.GamepadBindings]   = new GamepadBindingsHandler(this),           // player 1 (default)
+[Screen.GamepadBindingsP2] = new GamepadBindingsHandler(this, player: 2),
+[Screen.GamepadBindingsP3] = new GamepadBindingsHandler(this, player: 3),
+[Screen.GamepadBindingsP4] = new GamepadBindingsHandler(this, player: 4),
+```
+
+This is still exactly one class, exactly one code path — the scoping parameter (here, `player`) is read at construction time and closed over, not branched on at every method call. Reach for this variant when a "family" of near-identical screens would otherwise mean either N copy-pasted handler classes or a single handler awkwardly branching on `Screen` internally to figure out which variant it's rendering.
 
 ### 2. Render — usually nothing to do
 

@@ -175,6 +175,23 @@ The aspect ratio is constant across resolutions for a given configuration — on
 
 The `gamepadButton` fields in this map apply to virtually every controller, including PS4/PS5/Switch Pro/Steam Controller/Steam Deck connected through Steam — Steam is only consulted to show the correct button glyph for the player's hardware, not to override which button does what. These fields are ignored only in the rare case where the player has assigned a physical trackpad or gyro input to an action from the Steam overlay configurator; that controller then reads input from the Steam Input action set instead. See [Input system — Steam Input](input.md#steam-input).
 
+### Local multiplayer
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `playerCount` | integer | `1` | Number of local players (1–4). Publisher-only — never written to `user.json`. Values outside 1–4 are clamped at load. Drives NES controller-port wiring (Four Score/Famicom 4-player adapter for 3–4 players — the BizHawk core emulates the real hardware adapter, no ROM changes needed) and which "Player N" gamepad/keyboard binding screens appear in the Settings menu. **Treat as fixed once a game has shipped** — NEShim's save states are a positional binary stream, not a keyed format, so changing the controller-port wiring underneath an already-shipped game corrupts the read of any existing save state (the load fails safely — caught and logged — but the save is lost). See [Input system — Local multiplayer](input.md#local-multiplayer). |
+
+With `playerCount` above 1, `inputMappings` accepts `"P2 …"`–`"P4 …"` keys alongside the existing `"P1 …"` ones, using the identical 8-button shape:
+
+```json
+"inputMappings": {
+  "P1 Up": { "key": "W", "gamepadButton": "DPadUp" },
+  "P2 Up": { "gamepadButton": "DPadUp" }
+}
+```
+
+Gamepad bindings for players 2–4 ship with sensible defaults (mirroring player 1's D-pad/face-button layout); **keyboard bindings do not** — a single shared keyboard can't serve up to 4 simultaneous players without a layout you choose deliberately, so `key` is left unset for every player beyond 1 out of the box. Hand-author `P2`/`P3`/`P4` `key` entries in `config.json` if you want local keyboard co-op.
+
 ### Gamepad deadzone
 
 | Field | Type | Default | Description |
@@ -240,6 +257,7 @@ These fields are not exposed in any in-game menu. They are intended for publishe
 | `language` | string | `"Auto"` | Active menu language. Accepts any Steam language code: `"english"`, `"french"`, `"german"`, `"spanish"`, `"latam"`, `"japanese"`, `"korean"`, `"russian"`, `"schinese"`, `"portuguese"`, or `"Auto"`. When `"Auto"`, the language is resolved at startup in order: Steam game language → OS UI culture (`CultureInfo.CurrentUICulture`) → English. **Any explicit value overrides Steam** — even when Steam is running, an explicit language setting wins. This field is written automatically to `user.json` when the user picks a language in **Settings → Language**; set it manually to pre-configure the language for a game build. See [Localization](localization.md). |
 | `overrideStartBindingProtection` | boolean | `false` | When `true`, the Start button is no longer reserved as the system menu trigger and can be rebound to a NES button via the gamepad rebind screen. The menu remains accessible via Escape and the `gamepadHotkeyMappings["OpenMenu"]` button (Left Bumper by default). An additional **Open Menu** rebind entry appears in the gamepad bindings screen, visually separated from NES button bindings under a "SYSTEM" section label, so the player can reassign that hotkey as well. |
 | `forceRenderer` | string | `"auto"` | **Inert — retained only for forward-compatibility with older publisher `config.json` files.** Previously selected between the D3D11 and GDI+ rendering paths; GDI+ was removed. Deserializing an old config.json that still sets this field doesn't fail — the value is accepted and stored — but it's never consulted anywhere: D3D11 is always attempted first on Windows, with the SDL_GPU/Vulkan renderer as the only fallback on both platforms. |
+| `hideKeyboardControlsForExtraPlayers` | boolean | `true` | Only meaningful once `playerCount` is above 1. Hides players 2–4's keyboard-binding rows in the **Player Controls** submenu — player 1's own keyboard row is never hidden by this flag. A shared local keyboard rarely serves more than one player at once, so most releases leave this at its default. Set `false` to show every player's keyboard row too. See [Input system — Local multiplayer](input.md#local-multiplayer). |
 
 ### Steam Deck / Proton
 
@@ -262,6 +280,7 @@ This is a complete publisher configuration template. All fields are optional —
   "audioBufferFrames": 3,
   "audioDevice": "",
   "gamepadDeadzone": 8000,
+  "playerCount": 1,
   "inputMappings": {
     "P1 Up":     { "key": "W",         "gamepadButton": "DPadUp" },
     "P1 Down":   { "key": "S",         "gamepadButton": "DPadDown" },
@@ -319,6 +338,7 @@ This is a complete publisher configuration template. All fields are optional —
   "analogStickMode": "Cardinal",
   "achievementPublicKey": "",
   "language": "Auto",
-  "overrideStartBindingProtection": false
+  "overrideStartBindingProtection": false,
+  "hideKeyboardControlsForExtraPlayers": true
 }
 ```

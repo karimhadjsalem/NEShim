@@ -360,6 +360,7 @@ For the native Linux build, copy the linux-x64 publish output to the Deck. No Pr
 - [ ] Localized store descriptions and screenshots uploaded in Steamworks dashboard for each supported language
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
+- [ ] If shipping local multiplayer: `playerCount` set (1–4) in `config.json`; gamepad-first out of the box — hand-author `key` bindings for players 2–4 in `inputMappings` if local keyboard co-op is wanted; `playerCount` treated as fixed for the life of this release (changing it later breaks existing players' save states — see [Input — Local multiplayer](input.md#local-multiplayer))
 - [ ] Release build passes local smoke test (saves, Steam overlay, achievements)
 - [ ] Localization tested locally for each supported language (set `"language": "<code>"` in `config.json`, launch outside Steam)
 - [ ] `THIRD-PARTY-NOTICES.md` updated if any new dependencies were added

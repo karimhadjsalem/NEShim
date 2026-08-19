@@ -14,10 +14,10 @@ NEShim supports three input sources that are combined every frame: keyboard, SDL
 
 ## Overview
 
-Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — an immutable set of NES button names that are currently pressed. The snapshot merges all three sources, with duplicates deduplicated harmlessly by the `ImmutableHashSet` builder:
+Every emulation frame, `InputManager.PollSnapshot()` produces an `InputSnapshot` — an immutable set of NES button names that are currently pressed. The snapshot merges every source for every active player (see [Local multiplayer](#local-multiplayer) below — everything on this page describes player 1's path, which is unchanged from single-player and is exactly what runs when `playerCount` is left at its default of 1), with duplicates deduplicated harmlessly by the `ImmutableHashSet` builder:
 
-1. **Steam Input**: reads active Gameplay action names from `SteamInputManager.GetActiveActions()` and maps them to NES button names via a fixed constant table in code (`SteamInputManager.ActionToNesButton`).
-2. **SDL3 gamepad**: reads raw gamepad state via `SDL.GetGamepadButton` and `SDL.GetGamepadAxis` for player 0 and resolves each button through each binding's `gamepadButton` field in `config.json`.
+1. **Steam Input**: reads active Gameplay action names from `SteamInputManager.GetActiveActions()` and maps them to NES button names via a fixed translation table in code (`SteamInputManager.NesButtonFor`).
+2. **SDL3 gamepad**: reads raw gamepad state via `SDL.GetGamepadButton` and `SDL.GetGamepadAxis` for the player's assigned controller and resolves each button through each binding's `gamepadButton` field in `config.json`.
 3. **Keyboard**: reads pressed keys forwarded as `SDL.Keycode` values from the SDL event loop and resolves them through each binding's `key` field in `config.json`.
 
 Steam actions are **not** stored in `config.json`. The mapping from VDF action name to NES button name is fixed by the VDF file and lives as a compile-time constant — it is not user-configurable. Only keyboard and SDL3 gamepad bindings are stored in config and editable in-game.
@@ -86,7 +86,7 @@ When you rebind a key, any other action previously bound to that key is automati
 
 Gamepad input uses the SDL3 gamepad API — `SDL.OpenGamepad` / `SDL.GetGamepadButton` / `SDL.GetGamepadAxis` — via `SDL3GamepadDevice`. This works on Windows and Linux without any platform-specific driver configuration. SDL3 handles controller enumeration, hot-plug reconnection, and button layout normalisation internally.
 
-Player 0 (the first connected controller) is always used. If no controller is connected, `SDL.GetGamepads` returns an empty list and the gamepad source reports no input.
+In single-player (the default, `playerCount: 1`), the first connected controller is always used. With local multiplayer enabled, `SDL3GamepadDevice` opens up to 4 controllers simultaneously — one per player, in `SDL.GetGamepads()`'s enumeration order — see [Local multiplayer](#local-multiplayer) below. If no controller is connected for a given player slot, that player's gamepad source reports no input.
 
 ### Button layout normalisation
 
@@ -159,7 +159,7 @@ Steam Input is the recommended path for controllers that benefit from Steam's co
 
 Steam Input maps physical hardware through a layer defined in a VDF (value definition) file. The game declares *abstract actions* (`up`, `a_button`, `menu_confirm`, etc.) and Steam maps the player's physical hardware to those actions. Default mappings ship with the game so players can use supported controllers immediately. Players can override the defaults from the Steam overlay configurator at any time.
 
-Each frame, `SteamInputManager.GetActiveActions()` returns the set of VDF action names currently pressed. `InputManager.PollSnapshot()` applies the constant mapping table (`SteamInputManager.ActionToNesButton`) to convert those action names to NES button names — no config lookup is needed. This table is:
+Each frame, `SteamInputManager.GetActiveActions()` returns the set of VDF action names currently pressed. `InputManager.PollSnapshot()` applies a fixed translation (`SteamInputManager.NesButtonFor`) to convert those action names to NES button names — no config lookup is needed. For player 1, the mapping is:
 
 | VDF action | NES button |
 |---|---|
@@ -172,7 +172,7 @@ Each frame, `SteamInputManager.GetActiveActions()` returns the set of VDF action
 | `start` | `P1 Start` |
 | `select` | `P1 Select` |
 
-This mapping is fixed in code (`SteamInputManager.ActionToNesButton` / `NesButtonToAction`). It is not stored in `config.json` and cannot be changed without modifying both the code and the VDF file.
+This mapping is fixed in code (`SteamInputManager.NesButtonFor` / `ActionFor`). It is not stored in `config.json` and cannot be changed without modifying both the code and the VDF file. With local multiplayer enabled, the same 8 action names serve every player — `NesButtonFor(action, player)` just targets a different player's NES button (`up` for player 2 → `P2 Up`) while reading a different physical controller's Steam Input handle. **No VDF changes are needed for multiplayer** — see [Local multiplayer](#local-multiplayer) below.
 
 ### Action sets
 
@@ -283,6 +283,55 @@ Resolved glyphs are cached per bound identifier and invalidated automatically wh
 
 ---
 
+## Local multiplayer
+
+NEShim supports up to 4 local players, opt-in via the publisher-only `playerCount` field in `config.json` (default `1` — everything above this section describes exactly what runs at the default). See [Configuration — Local multiplayer](configuration.md#local-multiplayer) for the field reference.
+
+### Controller-port wiring
+
+The vendored BizHawk NES core already fully emulates the real **Four Score** / **Famicom 4-Player Adapter** hardware — no core changes were needed to support 3–4 players. `playerCount` selects which virtual ports are plugged in:
+
+| `playerCount` | Left port | Right port | Players wired |
+|---|---|---|---|
+| 1 (default) | Standard controller | Unplugged | P1 only — byte-identical to every pre-multiplayer NEShim build |
+| 2 | Standard controller | Standard controller | P1, P2 |
+| 3 | Four Score | Four Score | P1, P2, P3 (a harmless unused P4 slot exists at the hardware level but is never fed input) |
+| 4 | Four Score | Four Score | P1, P2, P3, P4 |
+
+**Why 3 players still wires Four Score into both ports.** A real Four Score is one device spanning both controller ports at once — each port emits its own half of a signature that a Four-Score-aware game checks *on both ports together* before it will read the extra "chained" data multiplexed onto the same wire (this chained data is where player 2's input lives, alongside player 1's, on the port). Plugging a standard controller into the right port — a smaller-looking, seemingly tidier wiring for exactly 3 players — supplies no signature at all, so the game's Four Score detection fails and it never reads the chained data, silently dropping player 2 even though NEShim's own input mapping for player 2 is otherwise perfectly correct. Both ports must be Four Score for 3 players to actually work, exactly as for 4.
+
+**Save-state warning:** NEShim's save-state format is a positional binary stream, not a keyed format — it records exactly the bytes each plugged controller port writes, in port order. Changing `playerCount` on an already-shipped game changes what's plugged into each port, which desyncs the read of any save state captured under the old wiring (the load fails safely — caught and logged, not a crash — but the save is unrecoverable). Treat `playerCount` as fixed once a game ships, exactly like the ROM file itself.
+
+### Per-player input sources
+
+Every input source described above — SDL3 gamepad, Steam Input, and (implicitly) keyboard — fans out per player:
+
+- **SDL3 gamepad**: `SDL3GamepadDevice` opens up to 4 physical controllers simultaneously, one per player, in `SDL.GetGamepads()`'s connection-enumeration order. Each player's raw button/axis identifiers are matched only against that player's own `"P{n} …"` entries in `inputMappings` — this matters because two different physical gamepads legitimately report the same raw identifier (both might send `"DPadUp"` for their own D-pad), and without per-player scoping one player's press would incorrectly also trigger another player's identically-bound action.
+- **Steam Input**: the same 8 VDF actions (`up`, `down`, …, `select`) serve every player — see the [Steam Input](#steam-input) section above. No VDF changes needed for multiplayer.
+- **Keyboard**: a single shared keyboard naturally serves every player through the same flat `inputMappings` dictionary — `"P2 Up"` and `"P1 Up"` can be bound to different keys with no special handling, since keyboard input has no "which physical device" ambiguity the way two gamepads do.
+
+**Hotkeys, menu navigation, and the auto-pause-on-disconnect screen stay player-1-only, deliberately** — even in a 4-player session, only player 1's gamepad/keyboard can open the pause menu, navigate menus, trigger save/load hotkeys, or dismiss the controller-disconnect screen. These are treated as session-level concerns, not per-player gameplay concerns. The one exception: **rebinding** a player 2–4 gamepad control reads that player's own physical controller during the capture, not player 1's — rebinding wouldn't make sense any other way.
+
+### Controller button glyphs, per player
+
+Each player's binding rows resolve glyphs independently and cache them separately (see [Controller button glyphs](#controller-button-glyphs) above for the resolution chain) — if player 2's gamepad is a different brand than player 1's, player 2's binding screen always shows player 2's own hardware's icons. A cache shared across players would risk showing the wrong brand's glyph for an identically-named button once two different-brand controllers were connected at once.
+
+### Player Controls menu
+
+With `playerCount` above 1, **Settings** replaces its single-player "Gamepad Controls"/"Keyboard Controls" rows with one **Player Controls** entry leading to a dedicated submenu listing every player's bindings together:
+
+- A **Gamepad Controls** row for every player, 1 through `playerCount`, listed first.
+- A divider line.
+- A **Keyboard Controls** row per player, listed below the divider.
+
+Player 1's entries appear here too, alongside players 2–4 — this is now the *only* way to reach player 1's binding screens once local multiplayer is on, since Settings' own direct rows are gone (showing player 1 in both places at once would just be a duplicate entry). With `playerCount` back at `1`, Settings reverts to its original two direct rows and this submenu doesn't exist.
+
+By default, only **player 1's** keyboard row is shown in this submenu — players 2–4's keyboard rows are hidden. This is controlled by the developer setting `hideKeyboardControlsForExtraPlayers` (default `true` — see [Configuration — Developer / diagnostic settings](configuration.md#developer--diagnostic-settings)): a shared local keyboard rarely serves more than one player at a time, so most releases won't want to clutter this screen with keyboard rows for players who will only ever use a gamepad. Set it to `false` to show every player's keyboard row.
+
+Each per-player binding screen behaves exactly like the single-player **Gamepad Controls** / **Keyboard Controls** screens described earlier on this page — same rebind flow, same Start-button reservation rules, same Steam Input native-mode read-only behaviour when applicable — just scoped to that player's own `"P{n} …"` config keys and physical controller.
+
+---
+
 ## Hotkeys
 
 Hotkeys are system-level shortcuts processed by the emulation thread before gameplay input is forwarded to the NES. They use edge-triggered detection (fires once on the frame the key is first pressed, not every frame it is held).
@@ -317,7 +366,7 @@ The gamepad Start button also opens/closes the pause menu by default, regardless
 
 While a menu is open, the emulation loop does not run `RunFrame`. Instead, it polls for menu navigation input at approximately 60 Hz (using `ManualResetEventSlim.Wait(16)`).
 
-Menu navigation combines SDL3 gamepad and Steam Input (edge-triggered):
+Menu navigation combines SDL3 gamepad and Steam Input (edge-triggered). In local multiplayer, only **player 1's** gamepad/keyboard drives menu navigation — see [Local multiplayer](#local-multiplayer) above.
 
 | Input | Action |
 |---|---|
@@ -338,6 +387,8 @@ Holding Left or Right on a slider row — Volume, any of the 3 Audio EQ bands, o
 
 ## Input pipeline summary
 
+The pipeline below is player 1's — with `playerCount` above 1, the Steam Input and SDL3 gamepad legs are each replicated once per additional player (its own `SDL3GamepadDevice` slot, its own `SteamInputManager` controller handle, its own `"P{n} …"` scoped `inputMappings` lookup), all merged into the same single `InputSnapshot` for that frame; the keyboard leg is shared across all players (see [Local multiplayer](#local-multiplayer) above).
+
 ```
 SDL KeyDown/KeyUp events (main thread via SDL3WindowHost)
   ──→ KeyboardInputSource._pressedKeys (lock)
@@ -345,9 +396,9 @@ SDL KeyDown/KeyUp events (main thread via SDL3WindowHost)
 Emulation thread: PollSnapshot()
   ├─ Steam Input: SteamInputManager.GetActiveActions()
   │    └─ ImmutableHashSet<string> of VDF action names (empty if unavailable)
-  │         └─ SteamInputManager.ActionToNesButton (constant table)
+  │         └─ SteamInputManager.NesButtonFor (per-player translation)
   │              └─ NES button names added directly to builder
-  ├─ SDL3 gamepad: SDL3GamepadDevice.GetState(0)
+  ├─ SDL3 gamepad: SDL3GamepadDevice.GetState(playerIndex)
   │    └─ SDL.GetGamepadButton / SDL.GetGamepadAxis (empty if disconnected)
   │         └─ SDL3GamepadSource: button identifiers as strings ("A", "DPadUp", etc.)
   └─ Keyboard: _pressedKeys → SDL.Keycode.ToString() names

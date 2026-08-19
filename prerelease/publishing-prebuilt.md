@@ -276,6 +276,7 @@ NEShim runs on Steam Deck natively via the Linux x64 build (SDL_GPU/Vulkan path)
 - [ ] Localized store descriptions and screenshots uploaded in Steamworks dashboard for each supported language
 - [ ] Artwork and music assets in place and referenced in `config.json`
 - [ ] Audio defaults verified in `config.json`
+- [ ] If shipping local multiplayer: `playerCount` set (1–4) in `config.json`; gamepad-first out of the box — hand-author `key` bindings for players 2–4 in `inputMappings` if local keyboard co-op is wanted; `playerCount` treated as fixed for the life of this release (changing it later breaks existing players' save states — see [Input — Local multiplayer](input.md#local-multiplayer))
 - [ ] Release passes local smoke test (saves, Steam overlay, achievements)
 - [ ] Localization tested locally for each supported language (set `"language": "<code>"` in `config.json`, launch outside Steam)
 
