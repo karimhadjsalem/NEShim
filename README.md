@@ -1,6 +1,6 @@
 # NEShim
 
-A full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows or Linux application — with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
+A full-featured NES emulator built on BizHawk's cycle-accurate core, with native Steam integration for commercial distribution. Publish any NES game on Steam as a native Windows or Linux application with achievements, overlay support, Steam Input, save states, a rich multi-language UI, and a deep video and audio filter stack — without modifying the ROM.
 
 NEShim is built to make classic NES games feel native on modern platforms. Instead of acting as a general-purpose emulator, NEShim provides a complete application host around the original ROM — menus, localization, Steam integration, audio/video customization, save systems, and a polished player experience — all without altering the game itself. It’s a turnkey way to ship NES titles on Steam with modern expectations and professional presentation.
 
