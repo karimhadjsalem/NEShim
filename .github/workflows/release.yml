@@ -36,16 +36,22 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      # Full solution restore for win-x64 (covers all projects including PubUtilsUI).
-      - name: Restore (win-x64)
-        run: dotnet restore NEShim/NEShim.sln -r win-x64 -p:PublishReadyToRun=true
-
-      # Per-project restore for linux-x64 — PubUtilsUI targets net9.0-windows
-      # and cannot be restored for a non-Windows RID.
-      - name: Restore (linux-x64)
-        run: |
-          dotnet restore NEShim/NEShim/NEShim.csproj -r linux-x64 -p:PublishReadyToRun=true
-          dotnet restore NEShim/NEShim.PubUtils/NEShim.PubUtils.csproj -r linux-x64
+      # One solution-wide restore, no -r flag: NEShim.csproj/NEShim.PubUtils.csproj declare
+      # <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers> (NEShim.PubUtilsUI.csproj
+      # declares win-x64 only, being Windows Forms) directly in the project files, so this single
+      # restore populates every RID-specific target each project needs, all in one assets file.
+      #
+      # Previously this was two separate `dotnet restore -r <rid>` calls (win-x64, then
+      # linux-x64). That doesn't just miss covering both RIDs — passing -r to `dotnet restore`
+      # overrides a project's own RuntimeIdentifiers list and restricts that restore to the one
+      # RID given, so the second call was silently overwriting the first call's win-x64 target in
+      # NEShim.csproj/NEShim.PubUtils.csproj's obj/project.assets.json with a linux-x64-only one.
+      # The later `dotnet publish --no-restore -r win-x64` steps then failed with NETSDK1047
+      # ("doesn't have a target for net9.0/win-x64") — reproduced locally by running this exact
+      # sequence, and confirmed fixed by removing -r here and relying on the projects' own
+      # RuntimeIdentifiers declarations instead.
+      - name: Restore
+        run: dotnet restore NEShim/NEShim.sln -p:PublishReadyToRun=true
 
       - name: Test
         run: >

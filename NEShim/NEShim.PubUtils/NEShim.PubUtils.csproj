@@ -6,6 +6,11 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>pub-utils</AssemblyName>
+        <!-- See NEShim.csproj's identical RuntimeIdentifiers comment: release.yml restores this
+             project separately per RID (win-x64, then linux-x64) ahead of separate no-restore
+             publish calls; without both RIDs declared here the later restore silently overwrites
+             the earlier one's assets file. Reproduced locally. -->
+        <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     </PropertyGroup>
 
     <ItemGroup>
