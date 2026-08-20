@@ -7,6 +7,10 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>pub-utils-ui</AssemblyName>
+        <!-- Windows Forms only runs on win-x64; see NEShim.csproj's RuntimeIdentifiers comment
+             for why this needs to be declared at all once release.yml's restore steps stop
+             passing an explicit -r value. -->
+        <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     </PropertyGroup>
 
     <ItemGroup>

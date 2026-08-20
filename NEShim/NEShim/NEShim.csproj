@@ -9,6 +9,18 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <ApplicationIcon>icon.ico</ApplicationIcon>
+        <!-- Required for release.yml's two step restore then publish flow: it restores this
+             project once per RID in separate "dotnet restore -r rid" calls (win-x64, then
+             linux-x64), ahead of separate "dotnet publish (no restore) -r rid" calls later in
+             the same job. Without RuntimeIdentifiers (plural) declared here, each single-RID
+             restore call OVERWRITES this project's obj/project.assets.json rather than adding to
+             it, so the later linux-x64 restore silently wipes out the win-x64 target the earlier
+             restore wrote; the subsequent win-x64 publish then fails with NETSDK1047 ("doesn't
+             have a target for net9.0/win-x64"), reproduced locally by running the exact same
+             restore/publish sequence release.yml does. Declaring both RIDs here makes every
+             restore call (regardless of which single -r value it passes) populate both targets in
+             the same assets file, so restore order no longer matters. -->
+        <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     </PropertyGroup>
 
     <!-- Target-platform detection for the conditions below. Deliberately keyed on
