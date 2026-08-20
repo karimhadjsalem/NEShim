@@ -1,3 +1,4 @@
+using NEShim.Platform;
 using SDL3;
 
 namespace NEShim.Rendering;
@@ -60,6 +61,19 @@ internal sealed class SDL3FontCache : IDisposable
         "/usr/local/share/fonts",
     ];
 
+    // Wine (and therefore Proton) always maps the host filesystem root to a built-in Z:
+    // drive. A stock Proton prefix's C:\windows\Fonts does not ship real Microsoft font
+    // files (segoeui.ttf/arial.ttf are proprietary and not redistributed by Wine/Valve),
+    // so OpenFirstWindows fails every candidate there — TTF.OpenFont never runs, every
+    // DrawText call gets a Zero font handle and silently no-ops, and only non-text drawing
+    // (panel background, selection highlight rects) shows up. Reusing the same Linux
+    // font search via this drive gets real glyphs without needing winetricks corefonts.
+    private static readonly string[] WineHostFontSearchRoots =
+    [
+        "Z:\\usr\\share\\fonts",
+        "Z:\\usr\\local\\share\\fonts",
+    ];
+
     internal SDL3FontCache()
     {
         TTF.Init();
@@ -90,23 +104,41 @@ internal sealed class SDL3FontCache : IDisposable
         // then by 1.4 to compensate for FreeType's thinner strokes vs GDI+ ClearType.
         float effectivePt = ptSize * (96f / 72f) * 1.4f * FontSizeCorrection;
 
+        // OperatingSystem.IsWindows() is true under Proton too — it's a real Windows PE,
+        // just translated by Wine. PlatformDetector.IsWine narrows that down to the actual
+        // Proton case, where real Microsoft font files usually aren't present under
+        // C:\windows\Fonts (see WineHostFontSearchRoots doc comment above).
+        bool isWine = OperatingSystem.IsWindows() && PlatformDetector.IsWine;
+
         IntPtr primary = OperatingSystem.IsWindows()
             ? OpenFirstWindows(CandidateFilenames(family, bold, italic), effectivePt)
-            : OpenFirstLinux(LinuxSansCandidateFilenames(bold, italic), effectivePt);
+            : OpenFirstFromRoots(LinuxSansCandidateFilenames(bold, italic), LinuxFontSearchRoots, effectivePt);
+        if (primary == IntPtr.Zero && isWine)
+            primary = OpenFirstFromRoots(LinuxSansCandidateFilenames(bold, italic), WineHostFontSearchRoots, effectivePt);
         if (primary == IntPtr.Zero) return IntPtr.Zero;
 
-        var cjkFilenames = OperatingSystem.IsWindows() ? WindowsCjkFallbackFilenames : LinuxCjkFallbackFilenames;
-        foreach (var filename in cjkFilenames)
+        if (OperatingSystem.IsWindows())
         {
-            string? path = OperatingSystem.IsWindows() ? WindowsFontPath(filename) : FindLinuxFontFile(filename);
-            if (path is null) continue;
-            var fallback = TTF.OpenFont(path, effectivePt);
-            if (fallback == IntPtr.Zero) continue;
-            TTF.AddFallbackFont(primary, fallback);
-            _fallbackHandles.Add(fallback);
+            foreach (var filename in WindowsCjkFallbackFilenames)
+                AddFallbackIfFound(primary, WindowsFontPath(filename), effectivePt);
+        }
+        if (!OperatingSystem.IsWindows() || isWine)
+        {
+            var roots = isWine ? WineHostFontSearchRoots : LinuxFontSearchRoots;
+            foreach (var filename in LinuxCjkFallbackFilenames)
+                AddFallbackIfFound(primary, FindFontFile(filename, roots), effectivePt);
         }
 
         return primary;
+    }
+
+    private void AddFallbackIfFound(IntPtr primary, string? path, float effectivePt)
+    {
+        if (path is null || !File.Exists(path)) return;
+        var fallback = TTF.OpenFont(path, effectivePt);
+        if (fallback == IntPtr.Zero) return;
+        TTF.AddFallbackFont(primary, fallback);
+        _fallbackHandles.Add(fallback);
     }
 
     private static string WindowsFontPath(string filename) => Path.Combine(
@@ -124,11 +156,11 @@ internal sealed class SDL3FontCache : IDisposable
         return IntPtr.Zero;
     }
 
-    private static IntPtr OpenFirstLinux(string[] filenames, float effectivePt)
+    private static IntPtr OpenFirstFromRoots(string[] filenames, string[] roots, float effectivePt)
     {
         foreach (var filename in filenames)
         {
-            string? path = FindLinuxFontFile(filename);
+            string? path = FindFontFile(filename, roots);
             if (path is null) continue;
             var handle = TTF.OpenFont(path, effectivePt);
             if (handle != IntPtr.Zero) return handle;
@@ -136,9 +168,9 @@ internal sealed class SDL3FontCache : IDisposable
         return IntPtr.Zero;
     }
 
-    private static string? FindLinuxFontFile(string filename)
+    private static string? FindFontFile(string filename, string[] roots)
     {
-        foreach (var root in LinuxFontSearchRoots)
+        foreach (var root in roots)
         {
             if (!Directory.Exists(root)) continue;
             try
