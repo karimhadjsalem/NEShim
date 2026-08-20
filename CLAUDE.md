@@ -176,6 +176,7 @@ Applies to both `D3D11Renderer` (Windows) and `SDL3HwRenderer` (Linux always; Wi
   - `UploadFrame` row-copies via `RowPitch` — DXVK aligns rows for Vulkan.
   - DXBC passthrough shaders compile to SPIR-V on first Proton launch (cached in Steam shader cache), near-instant (trivial shaders).
   - `local-publish.ps1`, not raw `dotnet build`, for Proton perf testing.
+  - **Menu text blank, panel/highlight render fine**: `SDL3FontCache` branches on `OperatingSystem.IsWindows()`, which is `true` under Proton too (it's a real Windows PE, just Wine-translated) — it looks for `segoeui.ttf`/`arial.ttf` under `%WINDIR%\Fonts`, which a stock Proton prefix doesn't ship (licensing), so every candidate fails and every `DrawText` silently no-ops on the resulting `IntPtr.Zero` font handle. Fixed by checking `PlatformDetector.IsWine` and falling back to the same Linux system fonts (DejaVu/Liberation/Noto CJK) via Wine's built-in `Z:` drive (host filesystem root) — no winetricks corefonts needed.
 
 ### Third-party native dependency pinning
 
