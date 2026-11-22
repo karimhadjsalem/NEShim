@@ -7,6 +7,7 @@ nav_exclude: false
 # Version history
 
 <!-- versions-insert-here -->
+- [v3.0.2](v3.0.2/)
 - [v3.0.1](v3.0.1/)
 - [v3.0.0](v3.0.0/)
 - [v2.3.0](v2.3.0/)
