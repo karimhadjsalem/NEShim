@@ -29,14 +29,14 @@ dotnet test NEShim.Tests/NEShim.Tests.csproj
 dotnet test NEShim.Tests/NEShim.Tests.csproj --filter "TestName"
 ```
 
-`net9.0` app, runs natively on Windows x64 + Linux x64 (SDL3 windowing; D3D11 Windows, SDL_GPU/Vulkan Linux). BizHawk lib targets `net8.0`.
+`net10.0` app (LTS), runs natively on Windows x64 + Linux x64 (SDL3 windowing; D3D11 Windows, SDL_GPU/Vulkan Linux). BizHawk lib also targets `net10.0`. .NET 10 defaults to C# 14, where `field` is a contextual keyword inside property accessors — a local named `field` in vendored BizHawk code must be renamed (done once, in `NES.HasMapperProperties`).
 
 ### Testing on Proton / Steam Deck — use the publish script, not `dotnet build`
 
 **Never use `dotnet build` output for Proton/native-Linux/Steam Deck perf testing** — local vs. published builds differ significantly (real confusion: local builds looked frame-rate-broken, release didn't). Always `local-publish.ps1` → copy to device; `dotnet build` output is only valid for logic iteration + tests on Windows.
 
 Why (`local-publish.ps1` flags):
-- `--self-contained true` — bundles the exact .NET 9 runtime; framework-dependent builds rely on whatever wine-mono/dotnet-wine provides (different GC/scheduler behavior possible).
+- `--self-contained true` — bundles the exact .NET 10 runtime; framework-dependent builds rely on whatever wine-mono/dotnet-wine provides (different GC/scheduler behavior possible).
 - `-p:PublishReadyToRun=true` — precompiles IL to native x64, no runtime JIT. JIT is expensive under Proton/Wine: every JIT codegen step calls `VirtualAlloc`/`VirtualProtect`, intercepted/translated by Wine → frame spikes on first entry to each method (ROM load, menu open, achievement unlock, etc.) without R2R.
 
 ## Project Structure
@@ -47,7 +47,7 @@ NEShim/                    — SDL3 application (entry point: Program.cs → SDL
 NEShim.Tests/              — NUnit test project
 NEShim.Signing/            — ECDSA-P256 signing library (AchievementSigner, AchievementDef, DlcMapSigner)
 NEShim.PubUtils/           — publisher CLI tool: stamps achievement signatures and DLC-map signatures (pub-utils)
-NEShim.PubUtilsUI/         — Windows Forms GUI for the achievement-sealing half of pub-utils (Windows only; net9.0-windows)
+NEShim.PubUtilsUI/         — Windows Forms GUI for the achievement-sealing half of pub-utils (Windows only; net10.0-windows)
 BizHawk/                   — NES emulation core (adapted from BizHawk emulator)
 ```
 
@@ -176,6 +176,7 @@ Applies to both `D3D11Renderer` (Windows) and `SDL3HwRenderer` (Linux always; Wi
   - `UploadFrame` row-copies via `RowPitch` — DXVK aligns rows for Vulkan.
   - DXBC passthrough shaders compile to SPIR-V on first Proton launch (cached in Steam shader cache), near-instant (trivial shaders).
   - `local-publish.ps1`, not raw `dotnet build`, for Proton perf testing.
+  - **Menu text blank, panel/highlight render fine**: `SDL3FontCache` branches on `OperatingSystem.IsWindows()`, which is `true` under Proton too (it's a real Windows PE, just Wine-translated) — it looks for `segoeui.ttf`/`arial.ttf` under `%WINDIR%\Fonts`, which a stock Proton prefix doesn't ship (licensing), so every candidate fails and every `DrawText` silently no-ops on the resulting `IntPtr.Zero` font handle. Fixed by checking `PlatformDetector.IsWine` and falling back to the same Linux system fonts (DejaVu/Liberation/Noto CJK) via Wine's built-in `Z:` drive (host filesystem root) — no winetricks corefonts needed.
 
 ### Third-party native dependency pinning
 

@@ -21,7 +21,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.x'
+          dotnet-version: '10.x'
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -47,7 +47,7 @@ jobs:
       # RID given, so the second call was silently overwriting the first call's win-x64 target in
       # NEShim.csproj/NEShim.PubUtils.csproj's obj/project.assets.json with a linux-x64-only one.
       # The later `dotnet publish --no-restore -r win-x64` steps then failed with NETSDK1047
-      # ("doesn't have a target for net9.0/win-x64") — reproduced locally by running this exact
+      # ("doesn't have a target for net10.0/win-x64") — reproduced locally by running this exact
       # sequence, and confirmed fixed by removing -r here and relying on the projects' own
       # RuntimeIdentifiers declarations instead.
       - name: Restore

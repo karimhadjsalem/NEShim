@@ -32,7 +32,7 @@ $gameCsproj   = Join-Path $root "NEShim\NEShim\NEShim.csproj"
 $toolCsproj   = Join-Path $root "NEShim\NEShim.PubUtils\NEShim.PubUtils.csproj"
 $toolUiCsproj = Join-Path $root "NEShim\NEShim.PubUtilsUI\NEShim.PubUtilsUI.csproj"
 
-# PubUtilsUI targets net9.0-windows (Windows Forms) — win-x64 only.
+# PubUtilsUI targets net10.0-windows (Windows Forms) — win-x64 only.
 $gameRids   = @('win-x64', 'linux-x64')
 $toolRids   = @('win-x64', 'linux-x64')
 $toolUiRids = @('win-x64')
