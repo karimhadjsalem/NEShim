@@ -106,9 +106,9 @@ namespace BizHawk.Emulation.Cores.Nintendo.NES
 			get
 			{
 				var fields = Board.GetType().GetFields();
-				foreach (var field in fields)
+				foreach (var fieldInfo in fields)
 				{
-					var attrib = field.GetCustomAttributes(typeof(MapperPropAttribute), false).OfType<MapperPropAttribute>().SingleOrDefault();
+					var attrib = fieldInfo.GetCustomAttributes(typeof(MapperPropAttribute), false).OfType<MapperPropAttribute>().SingleOrDefault();
 					if (attrib != null)
 					{
 						return true;
